@@ -1,0 +1,2 @@
+generic_lib[other] @ git+https://github.com/hosting232323/generic-lib.git
+flask-swagger-ui
