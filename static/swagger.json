@@ -22,7 +22,7 @@
                   "password": {
                     "type": "string"
                   },
-                  "project": {
+                  "role": {
                     "type": "string"
                   }
                 }

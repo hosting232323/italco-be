@@ -5,3 +5,10 @@ class UserRole(BaseEnum):
   CUSTOMER = 'Customer'
   OPERATOR = 'Operator'
   DELIVERY = 'Delivery'
+
+class OrderStatus(BaseEnum):
+  PENDING = 'Pending'
+  IN_PROGRESS = 'In Progress'
+  COMPLETED = 'Completed'
+  CANCELLED = 'Cancelled'
+  ANOMALY = 'Anomaly'

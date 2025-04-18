@@ -29,9 +29,24 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email')
   )
+  op.create_table('order',
+    sa.Column('service', sa.String(), nullable=False),
+    sa.Column('point_of_sale', sa.String(), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'ANOMALY', name='orderstatus'), nullable=False),
+    sa.Column('note', sa.String(), nullable=True),
+    sa.Column('group', sa.String(), nullable=True),
+    sa.Column('motivation', sa.String(), nullable=True),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+  )
 
 
 def downgrade() -> None:
   op.drop_table('italco_user')
+  op.drop_table('order')
   filetype_enum = sa.Enum('ADMIN', 'CUSTOMER', 'OPERATOR', 'DELIVERY', name='userrole')
+  filetype_enum.drop(op.get_bind(), checkfirst=True)
+  filetype_enum = sa.Enum('PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'ANOMALY', name='orderstatus')
   filetype_enum.drop(op.get_bind(), checkfirst=True)
