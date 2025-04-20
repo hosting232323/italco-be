@@ -1,8 +1,8 @@
 from flask import request
 
-from ..database.enum import UserRole
-from . import error_catching_decorator
-from ..database.schema import ItalcoUser
+from ...database.enum import UserRole
+from .. import error_catching_decorator
+from ...database.schema import ItalcoUser
 from api.users.setup import get_user_by_email
 from api.users import register_user, delete_user, login
 

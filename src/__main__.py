@@ -4,6 +4,7 @@ from flask import jsonify
 from . import app, IS_DEV
 from database_api import set_database
 from .end_points.order import order_bp
+from .end_points.users.seed import seed_users
 from .end_points.users import register_user_, delete_user_, login_
 
 
@@ -30,4 +31,6 @@ if __name__ == '__main__':
     os.environ['DATABASE_URL'],
     'italco-be' if not IS_DEV else None
   )
+  if IS_DEV:
+    seed_users()
   app.run(host='0.0.0.0', port=8080)
