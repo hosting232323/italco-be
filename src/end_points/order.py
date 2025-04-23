@@ -22,11 +22,10 @@ def create_order():
 @order_bp.route('', methods=['GET'])
 @error_catching_decorator
 def get_orders():
-  with Session() as session:
-    return {
-      'status': 'ok',
-      'orders': [order.to_dict() for order in query_orders()]
-    }
+  return {
+    'status': 'ok',
+    'orders': [order.to_dict() for order in query_orders()]
+  }
 
 
 @order_bp.route('<id>', methods=['PUT'])

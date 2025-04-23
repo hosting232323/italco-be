@@ -41,11 +41,28 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id')
   )
+  op.create_table('service',
+    sa.Column('name', sa.String(), nullable=False),
+    sa.Column('description', sa.String(), nullable=True),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+  )
+  op.create_table('service_user',
+    sa.Column('user_id', sa.String(), nullable=False),
+    sa.Column('service_id', sa.String(), nullable=False),
+    sa.Column('price', sa.Float(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+  )
 
 
 def downgrade() -> None:
-  op.drop_table('italco_user')
   op.drop_table('order')
+  op.drop_table('italco_user')
   filetype_enum = sa.Enum('ADMIN', 'CUSTOMER', 'OPERATOR', 'DELIVERY', name='userrole')
   filetype_enum.drop(op.get_bind(), checkfirst=True)
   filetype_enum = sa.Enum('PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'ANOMALY', name='orderstatus')

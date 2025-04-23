@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Enum, String
+from sqlalchemy import Column, Enum, String, Float
 
 from api.users.setup import User
 from database_api import BaseEntity
@@ -20,3 +20,18 @@ class Order(BaseEntity):
   note = Column(String(), nullable=True)
   group = Column(String(), nullable=True)
   motivation = Column(String(), nullable=True)
+
+
+class Service(BaseEntity):
+  __tablename__ = 'service'
+
+  name = Column(String(), nullable=False)
+  description = Column(String(), nullable=True)
+
+
+class ServiceUser(BaseEntity):
+  __tablename__ = 'service_user'
+
+  user_id = Column(String(), nullable=False)
+  service_id = Column(String(), nullable=False)
+  price = Column(Float(), nullable=False)

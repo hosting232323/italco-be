@@ -4,6 +4,7 @@ from flask import jsonify
 from . import app, IS_DEV
 from database_api import set_database
 from .end_points.order import order_bp
+from .end_points.service import service_bp
 from .end_points.users.seed import seed_users
 from .end_points.users import register_user_, delete_user_, login_
 
@@ -24,6 +25,7 @@ def login():
 
 
 app.register_blueprint(order_bp, url_prefix='/order')
+app.register_blueprint(service_bp, url_prefix='/service')
 
 
 if __name__ == '__main__':
