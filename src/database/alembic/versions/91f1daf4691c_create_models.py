@@ -61,6 +61,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+  op.drop_table('service_user')
+  op.drop_table('service')
   op.drop_table('order')
   op.drop_table('italco_user')
   filetype_enum = sa.Enum('ADMIN', 'CUSTOMER', 'OPERATOR', 'DELIVERY', name='userrole')
