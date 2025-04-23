@@ -1,9 +1,11 @@
 from flask import Blueprint, request
 
 from database_api import Session
-from ..database.schema import Order
 from . import error_catching_decorator
+from .service import query_service_user
 from ..database.enum import OrderStatus
+from ..database.schema import Order, ItalcoUser
+from api.users import flask_session_authentication
 from database_api.operations import create, update, get_by_id
 
 
@@ -12,7 +14,12 @@ order_bp = Blueprint('order_bp', __name__)
 
 @order_bp.route('', methods=['POST'])
 @error_catching_decorator
-def create_order():
+@flask_session_authentication
+def create_order(user: ItalcoUser):
+  request.json['service_user_id'] = query_service_user(
+    request.json['service_id'], user.id
+  ).id
+  del request.json['service_id']
   return {
     'status': 'ok',
     'order': create(Order, request.json).to_dict()

@@ -13,6 +13,7 @@ load_dotenv()
 IS_DEV = int(os.environ.get('IS_DEV', 1)) == 1
 app = Flask(__name__, static_folder='../static')
 
+# Swagger da eliminare?
 app.register_blueprint(
   get_swaggerui_blueprint(
     '/swagger',

@@ -1,8 +1,10 @@
 from flask import Blueprint, request
 
+from .users import query_users
 from database_api import Session
+from ..database.enum import UserRole
 from . import error_catching_decorator
-from ..database.schema import Service, ServiceUser
+from ..database.schema import Service, ServiceUser, ItalcoUser
 from database_api.operations import create, update, get_by_id, delete
 
 
@@ -22,7 +24,7 @@ def create_service():
 @error_catching_decorator
 def get_services():
   services = []
-  for tupla in query_services():
+  for tupla in query_services(request.args.get('customer_id')):
     services = format_query_result(tupla, services)
   return {
     'status': 'ok',
@@ -53,9 +55,20 @@ def delete_service(id):
 @service_bp.route('customer', methods=['POST'])
 @error_catching_decorator
 def create_service_user():
+  if query_service_user(
+    request.json['service_id'], request.json['user_id']
+  ):
+    return {
+      'status': 'ko',
+      'error': 'Utente già associato al servivizio'
+    }
+
+  service_user = create(ServiceUser, request.json)
   return {
     'status': 'ok',
-    'service_user': create(ServiceUser, request.json).to_dict()
+    'service_user': format_service_user(
+      service_user, get_by_id(ItalcoUser, service_user.user_id)
+    )
   }
 
 
@@ -69,25 +82,68 @@ def delete_service_user(id):
   }
 
 
-def query_services() -> list[tuple[Service, ServiceUser]]:
+@service_bp.route('set-all-users', methods=['GET'])
+@error_catching_decorator
+def set_all_users():
+  service: Service = get_by_id(Service, int(request.args['service_id']))
+  users = query_users(UserRole.CUSTOMER)
+  before_service_users_ids = [user.id for user in query_service_user(service.id)]
+  service_users = []
+  for user in users:
+    if not user.id in before_service_users_ids:
+      service_users.append(format_service_user(create(ServiceUser, {
+        'user_id': user.id,
+        'service_id': service.id,
+        'price': float(request.args['price'])
+      }), user))
+  return {
+    'status': 'ok',
+    'service_users': service_users
+  }
+
+
+def query_services(customer_id: str = None) -> list[tuple[Service, ServiceUser, ItalcoUser]]:
   with Session() as session:
-    query = session.query(Service, ServiceUser).outerjoin(
+    query = session.query(Service, ServiceUser, ItalcoUser).outerjoin(
       ServiceUser, ServiceUser.service_id == Service.id
+    ).outerjoin(
+      ItalcoUser, ItalcoUser.id == ServiceUser.user_id
     )
-    if 'customer_id' in request.args:
+    if customer_id:
       query = query.filter(
-        ServiceUser.user_id == request.args['customer_id']
+        ServiceUser.user_id == int(customer_id)
       )
     return query.all()
 
 
-def format_query_result(tupla: tuple[Service, ServiceUser], list: list[dict]) -> list[dict]:
+def query_service_user(service_id: int, user_id: int = None) -> list[ServiceUser]|ServiceUser:
+  with Session() as session:
+    query = session.query(ServiceUser).filter(
+      ServiceUser.service_id == service_id
+    )
+    if user_id:
+      query = query.filter(
+        ServiceUser.user_id == user_id
+      )
+    return query.all() if not user_id else query.first()
+
+
+def format_query_result(tupla: tuple[Service, ServiceUser, ItalcoUser], list: list[dict]) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      element['users'].append(tupla[1].to_dict())
+      if tupla[1] and tupla[2]:
+        element['users'].append(format_service_user(tupla[1], tupla[2]))
       return list
 
   output = tupla[0].to_dict()
-  output['users'] = [tupla[1].to_dict()]
+  output['users'] = []
+  if tupla[1] and tupla[2]:
+    output['users'].append(format_service_user(tupla[1], tupla[2]))
   list.append(output)
   return list
+
+
+def format_service_user(service_user: ServiceUser, user: ItalcoUser) -> dict:
+  output = service_user.to_dict()
+  output['email'] = user.email
+  return output

@@ -17,12 +17,14 @@ class ItalcoUser(User):
 class Order(BaseEntity):
   __tablename__ = 'order'
 
-  service = Column(String, nullable=False)
+  service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
   point_of_sale = Column(String, nullable=False)
   status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.PENDING)
   note = Column(String, nullable=True)
   group = Column(String, nullable=True)
   motivation = Column(String, nullable=True)
+
+  service_user = relationship('ServiceUser', back_populates='order')
 
 
 class Service(BaseEntity):
@@ -41,5 +43,6 @@ class ServiceUser(BaseEntity):
   service_id = Column(Integer, ForeignKey('service.id'), nullable=False)
   price = Column(Float(), nullable=False)
 
+  order = relationship('Order', back_populates='service_user')
   service = relationship('Service', back_populates='service_user')
   italco_user = relationship('ItalcoUser', back_populates='service_user')
