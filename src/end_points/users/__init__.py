@@ -2,10 +2,10 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ...database.enum import UserRole
-from .. import error_catching_decorator
 from ...database.schema import ItalcoUser
 from api.users.setup import get_user_by_email
 from api.users import register_user, delete_user, login
+from .. import error_catching_decorator, flask_session_authentication
 
 
 user_bp = Blueprint('user_bp', __name__)
@@ -13,13 +13,15 @@ user_bp = Blueprint('user_bp', __name__)
 
 @user_bp.route('<email>', methods=['DELETE'])
 @error_catching_decorator
-def cancell_user(email):
+@flask_session_authentication([UserRole.ADMIN])
+def cancell_user(user: ItalcoUser, email):
   return delete_user(email)
 
 
 @user_bp.route('', methods=['GET'])
 @error_catching_decorator
-def get_users():
+@flask_session_authentication([UserRole.ADMIN])
+def get_users(user: ItalcoUser):
   return {
     'status': 'ok',
     'users': [user.to_dict() for user in query_users()]
@@ -28,7 +30,8 @@ def get_users():
 
 @user_bp.route('', methods=['POST'])
 @error_catching_decorator
-def create_user():
+@flask_session_authentication([UserRole.ADMIN])
+def create_user(user: ItalcoUser):
   role = UserRole.get_enum_option(request.json['role'])
   if not role or role == UserRole.ADMIN:
     return {
