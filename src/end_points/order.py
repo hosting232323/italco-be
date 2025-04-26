@@ -2,10 +2,10 @@ from flask import Blueprint, request
 
 from database_api import Session
 from .service import query_service_user
-from ..database.schema import Order, ItalcoUser
 from ..database.enum import OrderStatus, UserRole
 from database_api.operations import create, update, get_by_id
 from . import error_catching_decorator, flask_session_authentication
+from ..database.schema import Order, ItalcoUser, Service, ServiceUser
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -30,7 +30,11 @@ def create_order(user: ItalcoUser):
 def get_orders():
   return {
     'status': 'ok',
-    'orders': [order.to_dict() for order in query_orders()]
+    'orders': [{
+      **order[0].to_dict(),
+      'service': order[1].to_dict(),
+      'user': order[2].to_dict()
+    } for order in query_orders()]
   }
 
 
@@ -45,9 +49,15 @@ def update_order(id):
   }
 
 
-def query_orders() -> list[Order]:
+def query_orders() -> list[Order, Service, ItalcoUser]:
   with Session() as session:
-    query = session.query(Order)
+    query = session.query(Order, Service, ItalcoUser).outerjoin(
+      ServiceUser, Order.service_user_id == ServiceUser.id
+    ).outerjoin(
+      Service, ServiceUser.service_id == Service.id
+    ).outerjoin(
+      ItalcoUser, ServiceUser.user_id == ItalcoUser.id
+    )
     if 'status' in request.args:
       query = query.filter(
         Order.status == OrderStatus.get_enum_option(request.args['status'])

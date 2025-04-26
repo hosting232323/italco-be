@@ -46,7 +46,7 @@ def get_addressees(user: ItalcoUser):
 @error_catching_decorator
 @flask_session_authentication([UserRole.CUSTOMER])
 def update_addressee(user: ItalcoUser, id):
-  addressee: Addressee = get_by_id(addressee, int(id))
+  addressee: Addressee = get_by_id(Addressee, int(id))
   return {
     'status': 'ok',
     'order': update(addressee, request.json).to_dict()

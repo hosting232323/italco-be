@@ -44,7 +44,7 @@ class Order(BaseEntity):
   __tablename__ = 'order'
 
   status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.PENDING)
-  addresse_id = Column(Integer, ForeignKey('addressee.id'), nullable=False)
+  addressee_id = Column(Integer, ForeignKey('addressee.id'), nullable=False)
   service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
   customer_note = Column(String, nullable=True)
