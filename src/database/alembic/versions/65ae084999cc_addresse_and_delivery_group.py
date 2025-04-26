@@ -24,9 +24,11 @@ def upgrade() -> None:
     sa.Column('city', sa.String(), nullable=False),
     sa.Column('cap', sa.String(), nullable=False),
     sa.Column('province', sa.String(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['italco_user.id'], ),
     sa.PrimaryKeyConstraint('id')
   )
   op.create_table('delivery_group',

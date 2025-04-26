@@ -12,6 +12,7 @@ class ItalcoUser(User):
   role = Column(Enum(UserRole), nullable=False)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
+  addressee = relationship('Addressee', back_populates='italco_user')
   service_user = relationship('ServiceUser', back_populates='italco_user')
   delivery_group = relationship('DeliveryGroup', back_populates='italco_user')
 
@@ -35,7 +36,8 @@ class DeliveryGroup(BaseEntity):
 
   name = Column(String, nullable=False)
 
-  order = relationship('Order', back_populates='group')
+  order = relationship('Order', back_populates='delivery_group')
+  italco_user = relationship('ItalcoUser', back_populates='delivery_group')
 
 
 class Order(BaseEntity):
@@ -49,7 +51,7 @@ class Order(BaseEntity):
   operator_note = Column(String, nullable=True)
   motivation = Column(String, nullable=True)
 
-  addresse = relationship('Addressee', back_populates='order')
+  addressee = relationship('Addressee', back_populates='order')
   service_user = relationship('ServiceUser', back_populates='order')
   delivery_group = relationship('DeliveryGroup', back_populates='order')
 

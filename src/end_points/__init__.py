@@ -43,7 +43,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
           return {'status': 'session', 'error': 'Ruolo non autorizzato'}
 
       try:
-        func(user, *args, **kwargs)
+        return func(user, *args, **kwargs)
 
       except jwt.ExpiredSignatureError:
         return {'status': 'session', 'error': 'Token scaduto'}
