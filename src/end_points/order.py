@@ -5,7 +5,7 @@ from .service import query_service_user
 from ..database.enum import OrderStatus, UserRole
 from database_api.operations import create, update, get_by_id
 from . import error_catching_decorator, flask_session_authentication
-from ..database.schema import Order, ItalcoUser, Service, ServiceUser
+from ..database.schema import Order, ItalcoUser, Service, ServiceUser, DeliveryGroup
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -27,20 +27,23 @@ def create_order(user: ItalcoUser):
 
 @order_bp.route('', methods=['GET'])
 @error_catching_decorator
-def get_orders():
+@flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN])
+def get_orders(user: ItalcoUser):
   return {
     'status': 'ok',
     'orders': [{
       **order[0].to_dict(),
       'service': order[1].to_dict(),
-      'user': order[2].to_dict()
-    } for order in query_orders()]
+      'user': order[2].to_dict(),
+      'delivery_group': order[3].to_dict() if order[3] else None
+    } for order in query_orders(user)]
   }
 
 
 @order_bp.route('<id>', methods=['PUT'])
 @error_catching_decorator
-def update_order(id):
+@flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY])
+def update_order(user: ItalcoUser, id):
   order: Order = get_by_id(Order, int(id))
   request.json['status'] = OrderStatus.get_enum_option(request.json['status'])
   return {
@@ -49,17 +52,26 @@ def update_order(id):
   }
 
 
-def query_orders() -> list[Order, Service, ItalcoUser]:
+def query_orders(user: ItalcoUser) -> list[tuple[Order, Service, ItalcoUser, DeliveryGroup]]:
   with Session() as session:
-    query = session.query(Order, Service, ItalcoUser).outerjoin(
+    query = session.query(
+      Order, Service, ItalcoUser, DeliveryGroup
+    ).outerjoin(
       ServiceUser, Order.service_user_id == ServiceUser.id
     ).outerjoin(
       Service, ServiceUser.service_id == Service.id
     ).outerjoin(
       ItalcoUser, ServiceUser.user_id == ItalcoUser.id
+    ).outerjoin(
+      DeliveryGroup, Order.delivery_group_id == DeliveryGroup.id
     )
-    if 'status' in request.args:
+    if user.role == UserRole.OPERATOR:
       query = query.filter(
-        Order.status == OrderStatus.get_enum_option(request.args['status'])
+        Order.status == OrderStatus.PENDING
+      )
+    elif user.role == UserRole.DELIVERY:
+      query = query.filter(
+        Order.status == OrderStatus.IN_PROGRESS,
+        Order.delivery_group_id == user.delivery_group_id
       )
     return query.all()

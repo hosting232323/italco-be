@@ -20,7 +20,7 @@ app.register_blueprint(user_bp, url_prefix='/user')
 app.register_blueprint(order_bp, url_prefix='/order')
 app.register_blueprint(service_bp, url_prefix='/service')
 app.register_blueprint(addressee_bp, url_prefix='/addressee')
-app.register_blueprint(delivery_group_bp, url_prefix='/delivery_group')
+app.register_blueprint(delivery_group_bp, url_prefix='/delivery-group')
 
 
 if __name__ == '__main__':
