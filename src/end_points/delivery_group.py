@@ -14,13 +14,13 @@ delivery_group_bp = Blueprint('delivery_group_bp', __name__)
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def assign_delivery_group_user(user: ItalcoUser):
-  user: ItalcoUser = get_by_id(ItalcoUser, request.json['user_id'])
-  update(user, {
+  delivery_user: ItalcoUser = get_by_id(ItalcoUser, request.json['user_id'])
+  update(delivery_user, {
     'delivery_group_id': request.json['delivery_group_id']
   })
   return {
     'status': 'ok',
-    'user': format_user(user)
+    'user': delivery_user.format_user(user.role)
   }
 
 
@@ -51,24 +51,24 @@ def delete_delivery_group(user: ItalcoUser, id):
 def get_delivery_groups(user: ItalcoUser):
   delivery_groups = []
   for tupla in query_delivery_groups():
-    delivery_groups = format_query_result(tupla, delivery_groups)
+    delivery_groups = format_query_result(tupla, delivery_groups, user.role)
   return {
     'status': 'ok',
     'delivery_groups': delivery_groups
   }
 
 
-def format_query_result(tupla: tuple[DeliveryGroup, ItalcoUser], list: list[dict]) -> list[dict]:
+def format_query_result(tupla: tuple[DeliveryGroup, ItalcoUser], list: list[dict], role: UserRole) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
       if tupla[1]:
-        element['users'].append(format_user(tupla[1]))
+        element['users'].append(tupla[1].format_user(role))
       return list
 
   output = tupla[0].to_dict()
   output['users'] = []
   if tupla[1]:
-    output['users'].append(format_user(tupla[1]))
+    output['users'].append(tupla[1].format_user(role))
   list.append(output)
   return list
 
@@ -78,10 +78,3 @@ def query_delivery_groups() -> list[tuple[DeliveryGroup, ItalcoUser]]:
     return session.query(DeliveryGroup, ItalcoUser).outerjoin(
       ItalcoUser, DeliveryGroup.id == ItalcoUser.delivery_group_id
     ).all()
-
-
-def format_user(user: ItalcoUser) -> dict:
-  return {
-    'id': user.id,
-    'email': user.email
-  }

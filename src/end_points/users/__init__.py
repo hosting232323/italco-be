@@ -20,11 +20,11 @@ def cancell_user(user: ItalcoUser, email):
 
 @user_bp.route('', methods=['GET'])
 @error_catching_decorator
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
 def get_users(user: ItalcoUser):
   return {
     'status': 'ok',
-    'users': [user.to_dict() for user in query_users()]
+    'users': [result.format_user(user.role) for result in query_users(user)]
   }
 
 
@@ -56,9 +56,11 @@ def login_():
   return response
 
 
-def query_users(role: UserRole = None) -> list[ItalcoUser]:
+def query_users(user: ItalcoUser, role: UserRole = None) -> list[ItalcoUser]:
   with Session() as session:
     query = session.query(ItalcoUser)
+    if user.role in [UserRole.DELIVERY, UserRole.OPERATOR]:
+      query = query.filter(ItalcoUser.role == UserRole.CUSTOMER)
     if role:
       query = query.filter(ItalcoUser.role == role)
     return query.all()

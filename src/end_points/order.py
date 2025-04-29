@@ -5,7 +5,7 @@ from .service import query_service_user
 from ..database.enum import OrderStatus, UserRole
 from database_api.operations import create, update, get_by_id
 from . import error_catching_decorator, flask_session_authentication
-from ..database.schema import Order, ItalcoUser, Service, ServiceUser, DeliveryGroup
+from ..database.schema import Order, ItalcoUser, Service, ServiceUser, DeliveryGroup, CollectionPoint
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -25,18 +25,19 @@ def create_order(user: ItalcoUser):
   }
 
 
-@order_bp.route('', methods=['GET'])
+@order_bp.route('filter', methods=['POST'])
 @error_catching_decorator
-@flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN])
-def get_orders(user: ItalcoUser):
+@flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
+def filter_orders(user: ItalcoUser):
   return {
     'status': 'ok',
     'orders': [{
       **order[0].to_dict(),
       'service': order[1].to_dict(),
-      'user': order[2].to_dict(),
+      'collection_point': order[4].to_dict(),
+      'user': order[2].format_user(user.role),
       'delivery_group': order[3].to_dict() if order[3] else None
-    } for order in query_orders(user)]
+    } for order in query_orders(user, request.json['filters'])]
   }
 
 
@@ -52,10 +53,10 @@ def update_order(user: ItalcoUser, id):
   }
 
 
-def query_orders(user: ItalcoUser) -> list[tuple[Order, Service, ItalcoUser, DeliveryGroup]]:
+def query_orders(user: ItalcoUser, filters: list) -> list[tuple[Order, Service, ItalcoUser, DeliveryGroup, CollectionPoint]]:
   with Session() as session:
     query = session.query(
-      Order, Service, ItalcoUser, DeliveryGroup
+      Order, Service, ItalcoUser, DeliveryGroup, CollectionPoint
     ).outerjoin(
       ServiceUser, Order.service_user_id == ServiceUser.id
     ).outerjoin(
@@ -64,7 +65,10 @@ def query_orders(user: ItalcoUser) -> list[tuple[Order, Service, ItalcoUser, Del
       ItalcoUser, ServiceUser.user_id == ItalcoUser.id
     ).outerjoin(
       DeliveryGroup, Order.delivery_group_id == DeliveryGroup.id
+    ).outerjoin(
+      CollectionPoint, Order.collection_point_id == CollectionPoint.id
     )
+
     if user.role == UserRole.OPERATOR:
       query = query.filter(
         Order.status == OrderStatus.PENDING
@@ -74,4 +78,14 @@ def query_orders(user: ItalcoUser) -> list[tuple[Order, Service, ItalcoUser, Del
         Order.status == OrderStatus.IN_PROGRESS,
         Order.delivery_group_id == user.delivery_group_id
       )
+    elif user.role == UserRole.CUSTOMER:
+      query = query.filter(
+        ItalcoUser.id == user.id
+      )
+
+    dynamic_filters = list(map(
+      lambda filter: getattr(globals()[filter['model']], filter['field']) == filter['value'], filters
+    ))
+    if dynamic_filters:
+      query = query.filter(*dynamic_filters)
     return query.all()

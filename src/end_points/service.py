@@ -23,7 +23,7 @@ def create_service(user: ItalcoUser):
 
 @service_bp.route('', methods=['GET'])
 @error_catching_decorator
-@flask_session_authentication([UserRole.CUSTOMER, UserRole.ADMIN])
+@flask_session_authentication([UserRole.CUSTOMER, UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
 def get_services(user: ItalcoUser):
   services = []
   for tupla in query_services(user):
@@ -93,7 +93,7 @@ def delete_service_user(user: ItalcoUser, id):
 @flask_session_authentication([UserRole.ADMIN])
 def set_all_users(user: ItalcoUser):
   service: Service = get_by_id(Service, int(request.args['service_id']))
-  users = query_users(UserRole.CUSTOMER)
+  users = query_users(user, UserRole.CUSTOMER)
   before_service_users_ids = [user.id for user in query_service_user(service.id)]
   service_users = []
   for user in users:

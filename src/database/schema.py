@@ -1,5 +1,5 @@
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Enum, String, Float, Integer, ForeignKey
+from sqlalchemy import Column, Enum, Date, String, Float, Integer, ForeignKey
 
 from api.users.setup import User
 from database_api import BaseEntity
@@ -15,6 +15,17 @@ class ItalcoUser(User):
   addressee = relationship('Addressee', back_populates='italco_user')
   service_user = relationship('ServiceUser', back_populates='italco_user')
   delivery_group = relationship('DeliveryGroup', back_populates='italco_user')
+  collection_point = relationship('CollectionPoint', back_populates='italco_user')
+
+  def format_user(self, role: UserRole):
+    if role == UserRole.ADMIN:
+      return self.to_dict()
+    else:
+      return {
+        'id': self.id,
+        'email': self.email,
+        'role': self.role.value
+      }
 
 
 class Addressee(BaseEntity):
@@ -38,6 +49,28 @@ class DeliveryGroup(BaseEntity):
 
   order = relationship('Order', back_populates='delivery_group')
   italco_user = relationship('ItalcoUser', back_populates='delivery_group')
+  transport_delivery_group = relationship('TransportDeliveryGroup', back_populates='delivery_group')
+
+
+class Transport(BaseEntity):
+  __tablename__ = 'transport'
+
+  name = Column(String, nullable=False)
+  plate = Column(String, nullable=False)
+
+  transport_delivery_group = relationship('TransportDeliveryGroup', back_populates='transport')
+
+
+class TransportDeliveryGroup(BaseEntity):
+  __tablename__ = 'transport_delivery_group'
+
+  transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
+  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
+  start = Column(Date, nullable=False)
+  end = Column(Date, nullable=True)
+
+  transport = relationship('Transport', back_populates='transport_delivery_group')
+  delivery_group = relationship('DeliveryGroup', back_populates='transport_delivery_group')
 
 
 class Order(BaseEntity):
@@ -47,6 +80,9 @@ class Order(BaseEntity):
   addressee_id = Column(Integer, ForeignKey('addressee.id'), nullable=False)
   service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
+  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
+  dpc = Column(Date, nullable=False)
+  drc = Column(Date, nullable=False)
   customer_note = Column(String, nullable=True)
   operator_note = Column(String, nullable=True)
   motivation = Column(String, nullable=True)
@@ -54,6 +90,21 @@ class Order(BaseEntity):
   addressee = relationship('Addressee', back_populates='order')
   service_user = relationship('ServiceUser', back_populates='order')
   delivery_group = relationship('DeliveryGroup', back_populates='order')
+  collection_point = relationship('CollectionPoint', back_populates='order')
+
+
+class CollectionPoint(BaseEntity):
+  __tablename__ = 'collection_point'
+
+  name = Column(String, nullable=False)
+  address = Column(String, nullable=False)
+  city = Column(String, nullable=False)
+  cap = Column(String, nullable=False)
+  province = Column(String, nullable=False)
+  user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
+
+  order = relationship('Order', back_populates='collection_point')
+  italco_user = relationship('ItalcoUser', back_populates='collection_point')
 
 
 class Service(BaseEntity):
