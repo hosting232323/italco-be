@@ -18,7 +18,8 @@ def create_order(user: ItalcoUser):
   request.json['type'] = OrderType.get_enum_option(request.json['type'])
   service_users = query_service_users(request.json['service_ids'], user)
   products: list[Product] = get_by_ids(Product, request.json['product_ids'])
-  del request.json['user_id']
+  if 'user_id' in request.json:
+    del request.json['user_id']
   del request.json['service_ids']
   del request.json['product_ids']
 
