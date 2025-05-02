@@ -12,3 +12,10 @@ class OrderStatus(BaseEnum):
   COMPLETED = 'Completed'
   CANCELLED = 'Cancelled'
   ANOMALY = 'Anomaly'
+  DELAY = 'Delay'
+
+class OrderType(BaseEnum):
+  DELIVERY = 'Delivery'
+  WITHDRAW = 'Withdraw'
+  REPLACEMENT = 'Replacement'
+  CHECK = 'Check'

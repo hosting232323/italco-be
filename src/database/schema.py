@@ -3,7 +3,7 @@ from sqlalchemy import Column, Enum, Date, String, Float, Integer, ForeignKey
 
 from api.users.setup import User
 from database_api import BaseEntity
-from .enum import UserRole, OrderStatus
+from .enum import UserRole, OrderStatus, OrderType
 
 
 class ItalcoUser(User):
@@ -12,6 +12,7 @@ class ItalcoUser(User):
   role = Column(Enum(UserRole), nullable=False)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
+  product = relationship('Product', back_populates='italco_user')
   addressee = relationship('Addressee', back_populates='italco_user')
   service_user = relationship('ServiceUser', back_populates='italco_user')
   delivery_group = relationship('DeliveryGroup', back_populates='italco_user')
@@ -64,10 +65,10 @@ class Transport(BaseEntity):
 class TransportDeliveryGroup(BaseEntity):
   __tablename__ = 'transport_delivery_group'
 
-  transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
-  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
   start = Column(Date, nullable=False)
   end = Column(Date, nullable=True)
+  transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
+  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
   transport = relationship('Transport', back_populates='transport_delivery_group')
   delivery_group = relationship('DeliveryGroup', back_populates='transport_delivery_group')
@@ -77,20 +78,21 @@ class Order(BaseEntity):
   __tablename__ = 'order'
 
   status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.PENDING)
-  addressee_id = Column(Integer, ForeignKey('addressee.id'), nullable=False)
-  service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
-  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
-  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
+  type = Column(Enum(OrderType), nullable=False)
   dpc = Column(Date, nullable=False)
   drc = Column(Date, nullable=False)
   customer_note = Column(String, nullable=True)
   operator_note = Column(String, nullable=True)
   motivation = Column(String, nullable=True)
+  addressee_id = Column(Integer, ForeignKey('addressee.id'), nullable=False)
+  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
+  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
 
   addressee = relationship('Addressee', back_populates='order')
-  service_user = relationship('ServiceUser', back_populates='order')
+  order_product = relationship('OrderProduct', back_populates='order')
   delivery_group = relationship('DeliveryGroup', back_populates='order')
   collection_point = relationship('CollectionPoint', back_populates='order')
+  order_service_user = relationship('OrderServiceUser', back_populates='order')
 
 
 class CollectionPoint(BaseEntity):
@@ -119,10 +121,41 @@ class Service(BaseEntity):
 class ServiceUser(BaseEntity):
   __tablename__ = 'service_user'
 
+  price = Column(Float, nullable=False)
   user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
   service_id = Column(Integer, ForeignKey('service.id'), nullable=False)
-  price = Column(Float(), nullable=False)
 
-  order = relationship('Order', back_populates='service_user')
   service = relationship('Service', back_populates='service_user')
   italco_user = relationship('ItalcoUser', back_populates='service_user')
+  order_service_user = relationship('OrderServiceUser', back_populates='service_user')
+
+
+class OrderServiceUser(BaseEntity):
+  __tablename__ = 'order_service_user'
+
+  order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
+  service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
+
+  order = relationship('Order', back_populates='order_service_user')
+  service_user = relationship('ServiceUser', back_populates='order_service_user')
+
+
+class Product(BaseEntity):
+  __tablename__ = 'product'
+
+  name = Column(String, nullable=False)
+  description = Column(String, nullable=True)
+  user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
+
+  italco_user = relationship('ItalcoUser', back_populates='product')
+  order_product = relationship('OrderProduct', back_populates='product')
+
+
+class OrderProduct(BaseEntity):
+  __tablename__ = 'order_product'
+
+  order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
+  product_id = Column(Integer, ForeignKey('product.id'), nullable=False)
+
+  order = relationship('Order', back_populates='order_product')
+  product = relationship('Product', back_populates='order_product')

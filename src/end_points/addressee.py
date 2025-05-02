@@ -34,11 +34,11 @@ def delete_addressee(user: ItalcoUser, id):
 
 @addressee_bp.route('', methods=['GET'])
 @error_catching_decorator
-@flask_session_authentication([UserRole.CUSTOMER])
+@flask_session_authentication([UserRole.CUSTOMER, UserRole.ADMIN, UserRole.OPERATOR, UserRole.DELIVERY])
 def get_addressees(user: ItalcoUser):
   return {
     'status': 'ok',
-    'addressees': [addressee.to_dict() for addressee in query_addressees(user)]
+    'addressees': query_addressees(user)
   }
 
 
@@ -53,8 +53,16 @@ def update_addressee(user: ItalcoUser, id):
   }
 
 
-def query_addressees(user: ItalcoUser) -> list[Addressee]:
+def query_addressees(user: ItalcoUser) -> list[dict]:
   with Session() as session:
-    return session.query(Addressee).filter(
-      Addressee.user_id == user.id
-    ).all()
+    if user.role == UserRole.CUSTOMER:
+      return [addressee.to_dict() for addressee in session.query(Addressee).filter(
+        Addressee.user_id == user.id
+      ).all()]
+    else:
+      return [{
+        **tupla[0].to_dict(),
+        'name': f'{tupla[0].name} ({tupla[1].email})'
+      } for tupla in session.query(Addressee, ItalcoUser).outerjoin(
+        ItalcoUser, Addressee.user_id == ItalcoUser.id
+      ).all()]

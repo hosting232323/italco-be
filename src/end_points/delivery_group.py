@@ -47,7 +47,7 @@ def delete_delivery_group(user: ItalcoUser, id):
 
 @delivery_group_bp.route('', methods=['GET'])
 @error_catching_decorator
-@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY, UserRole.CUSTOMER])
 def get_delivery_groups(user: ItalcoUser):
   delivery_groups = []
   for tupla in query_delivery_groups():
