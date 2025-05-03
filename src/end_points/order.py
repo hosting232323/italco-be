@@ -4,7 +4,8 @@ from database_api import Session
 from ..database.enum import OrderStatus, UserRole, OrderType
 from . import error_catching_decorator, flask_session_authentication
 from database_api.operations import create, update, get_by_id, get_by_ids
-from ..database.schema import Order, ItalcoUser, Service, ServiceUser, DeliveryGroup, CollectionPoint, Product, OrderServiceUser, OrderProduct
+from ..database.schema import Order, ItalcoUser, Service, ServiceUser, DeliveryGroup, CollectionPoint, \
+  Product, OrderServiceUser, OrderProduct, Addressee
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -67,11 +68,11 @@ def update_order(user: ItalcoUser, id):
 
 
 def query_orders(user: ItalcoUser, filters: list) -> list[tuple[
-  Order, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product
+  Order, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
 ]]:
   with Session() as session:
     query = session.query(
-      Order, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product
+      Order, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
     ).outerjoin(
       DeliveryGroup, Order.delivery_group_id == DeliveryGroup.id
     ).outerjoin(
@@ -88,6 +89,8 @@ def query_orders(user: ItalcoUser, filters: list) -> list[tuple[
       OrderProduct, OrderProduct.order_id == Order.id
     ).outerjoin(
       Product, OrderProduct.product_id == Product.id
+    ).outerjoin(
+      Addressee, Order.addressee_id == Addressee.id
     )
 
     if user.role == UserRole.OPERATOR:
@@ -132,6 +135,7 @@ def format_query_result(
 
   output = {
     **tupla[0].to_dict(),
+    'addressee': tupla[6].to_dict(),
     'collection_point': tupla[4].to_dict(),
     'user': tupla[2].format_user(user.role),
     'delivery_group': tupla[3].to_dict() if tupla[3] else None

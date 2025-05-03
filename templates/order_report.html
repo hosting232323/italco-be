@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Documento di Consegna</title>
+  <style>
+    h1 { font-size: 20px; }
+    p { font-size: 15px; }
+  </style>
+</head>
+<body>
+  <h1>Documento di Consegna</h1>
+  <p>
+    <b>ID:</b> {{ id }}<br>
+  </p><hr><p>
+    <b>Punto Vendita:</b> {{ customer['email'] }}<br>
+    <b>Data Promessa al Cliente:</b> {{ dpc }}<br>
+    <b>Data Richiesta dal Cliente:</b> {{ drc }}
+  </p><hr><p>
+    <b>Punto di Ritiro:</b> {{ collection_point['name'] }}<br>
+    <b>Indirizzo:</b> {{ collection_point['address'] }}, {{ collection_point['city'] }},
+      {{ collection_point['cap'] }}, {{ collection_point['province'] }}
+  </p><hr><p>
+    <b>Anagrafica:</b> {{ addressee['name'] }}<br>
+    <b>Indirizzo:</b> {{ addressee['address'] }}, {{ addressee['city'] }},
+      {{ addressee['cap'] }}, {{ addressee['province'] }}
+  </p><hr>
+  <h1>Dettagli</h1>
+  <p>
+    <b>Servizi:</b> {{ services }}<br>
+    <b>Prodotti:</b> {{ products }}<br>
+    <b>Note:</b> {{ note }}
+  </p>
+</body>
+</html>

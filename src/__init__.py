@@ -11,7 +11,7 @@ allowed_origins = [
 
 load_dotenv()
 IS_DEV = int(os.environ.get('IS_DEV', 1)) == 1
-app = Flask(__name__, static_folder='../static')
+app = Flask(__name__, static_folder='../static', template_folder='../templates')
 
 # Swagger da eliminare?
 app.register_blueprint(
