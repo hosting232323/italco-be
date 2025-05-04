@@ -124,9 +124,9 @@ def query_service_users(service_ids: list[int], user: ItalcoUser) -> list[Servic
     ).all()
 
 
-def format_query_result(
-  tupla: tuple[Order, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product], list: list[dict], user: ItalcoUser
-) -> list[dict]:
+def format_query_result(tupla: tuple[
+  Order, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
+], list: list[dict], user: ItalcoUser) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
       add_element_in_list(element, 'services', tupla[1])
