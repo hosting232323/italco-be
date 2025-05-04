@@ -1,5 +1,5 @@
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Enum, Date, String, Float, Integer, ForeignKey
+from sqlalchemy import Column, Enum, Date, String, Float, Integer, LargeBinary, ForeignKey
 
 from api.users.setup import User
 from database_api import BaseEntity
@@ -84,6 +84,8 @@ class Order(BaseEntity):
   customer_note = Column(String, nullable=True)
   operator_note = Column(String, nullable=True)
   motivation = Column(String, nullable=True)
+  photo = Column(LargeBinary, nullable=True)
+  photo_mime_type = Column(String, nullable=True)
   addressee_id = Column(Integer, ForeignKey('addressee.id'), nullable=False)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)

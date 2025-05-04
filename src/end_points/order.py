@@ -1,4 +1,6 @@
-from flask import Blueprint, request
+import io
+import json
+from flask import Blueprint, request, send_file
 
 from database_api import Session
 from ..database.enum import OrderStatus, UserRole, OrderType
@@ -59,12 +61,39 @@ def filter_orders(user: ItalcoUser):
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY])
 def update_order(user: ItalcoUser, id):
   order: Order = get_by_id(Order, int(id))
-  request.json['type'] = OrderType.get_enum_option(request.json['type'])
-  request.json['status'] = OrderStatus.get_enum_option(request.json['status'])
+  if user.role == UserRole.DELIVERY:
+    data = json.loads(request.form.get('data'))
+    file = request.files.get('photo')
+    if file and file.mimetype in ['image/jpeg', 'image/png']:
+      data['photo'] = file.read()
+      data['photo_mime_type'] = file.mimetype
+  else:
+    data = request.json
+
+  data['type'] = OrderType.get_enum_option(data['type'])
+  data['status'] = OrderStatus.get_enum_option(data['status'])
   return {
     'status': 'ok',
-    'order': update(order, request.json).to_dict()
+    'order': update(order, data).to_dict()
   }
+
+
+@order_bp.route('photo/<id>', methods=['GET'])
+@error_catching_decorator
+def view_order_photo(id: int):
+  order: Order = get_by_id(Order, id)
+  if not order or not order.photo:
+    return {
+      'status': 'ko',
+      'error': 'Photo not found'
+    }, 404
+
+  return send_file(
+    io.BytesIO(order.photo),
+    mimetype=order.photo_mime_type if order.photo_mime_type else 'application/octet-stream',
+    as_attachment=False,
+    download_name=f'order_{id}_photo.jpg'
+  )
 
 
 def query_orders(user: ItalcoUser, filters: list) -> list[tuple[
@@ -93,13 +122,9 @@ def query_orders(user: ItalcoUser, filters: list) -> list[tuple[
       Addressee, Order.addressee_id == Addressee.id
     )
 
-    if user.role == UserRole.OPERATOR:
+    if user.role == UserRole.DELIVERY:
       query = query.filter(
-        Order.status == OrderStatus.PENDING
-      )
-    elif user.role == UserRole.DELIVERY:
-      query = query.filter(
-        Order.status == OrderStatus.IN_PROGRESS,
+        Order.status.in_([OrderStatus.IN_PROGRESS, OrderStatus.DELAY]),
         Order.delivery_group_id == user.delivery_group_id
       )
     elif user.role == UserRole.CUSTOMER:
