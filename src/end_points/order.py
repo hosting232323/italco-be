@@ -19,7 +19,8 @@ order_bp = Blueprint('order_bp', __name__)
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def create_order(user: ItalcoUser):
   request.json['type'] = OrderType.get_enum_option(request.json['type'])
-  service_users = query_service_users(request.json['service_ids'], user)
+  service_ids = request.json['service_ids']
+  service_users = query_service_users(service_ids, user)
   products: list[Product] = get_by_ids(Product, request.json['product_ids'])
   if 'user_id' in request.json:
     del request.json['user_id']
@@ -27,11 +28,15 @@ def create_order(user: ItalcoUser):
   del request.json['product_ids']
 
   order = create(Order, request.json)
-  for service_user in service_users:
-    create(OrderServiceUser, {
-      'order_id': order.id,
-      'service_user_id': service_user.id
-    })
+  for service_id in service_ids:
+    for service_user in service_users:
+      print(service_user.service_id, service_id)
+      if service_user.service_id == service_id:
+        create(OrderServiceUser, {
+          'order_id': order.id,
+          'service_user_id': service_user.id
+        })
+        break
   for product in products:
     create(OrderProduct, {
       'order_id': order.id,
@@ -97,11 +102,11 @@ def view_order_photo(id: int):
 
 
 def query_orders(user: ItalcoUser, filters: list) -> list[tuple[
-  Order, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
+  Order, OrderServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
 ]]:
   with Session() as session:
     query = session.query(
-      Order, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
+      Order, OrderServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
     ).outerjoin(
       DeliveryGroup, Order.delivery_group_id == DeliveryGroup.id
     ).outerjoin(
@@ -150,23 +155,23 @@ def query_service_users(service_ids: list[int], user: ItalcoUser) -> list[Servic
 
 
 def format_query_result(tupla: tuple[
-  Order, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
+  Order, OrderServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
 ], list: list[dict], user: ItalcoUser) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      add_element_in_list(element, 'services', tupla[1])
-      add_element_in_list(element, 'products', tupla[5])
+      add_element_in_list(element, 'services', tupla[2])
+      add_element_in_list(element, 'products', tupla[6])
       return list
 
   output = {
     **tupla[0].to_dict(),
-    'addressee': tupla[6].to_dict(),
-    'collection_point': tupla[4].to_dict(),
-    'user': tupla[2].format_user(user.role),
-    'delivery_group': tupla[3].to_dict() if tupla[3] else None
+    'addressee': tupla[7].to_dict(),
+    'collection_point': tupla[5].to_dict(),
+    'user': tupla[3].format_user(user.role),
+    'delivery_group': tupla[4].to_dict() if tupla[4] else None
   }
-  add_element_in_list(output, 'services', tupla[1])
-  add_element_in_list(output, 'products', tupla[5])
+  add_element_in_list(output, 'services', tupla[2])
+  add_element_in_list(output, 'products', tupla[6])
   list.append(output)
   return list
 
