@@ -1,5 +1,6 @@
 import io
 import json
+from datetime import datetime
 from flask import Blueprint, request, send_file
 
 from database_api import Session
@@ -30,7 +31,6 @@ def create_order(user: ItalcoUser):
   order = create(Order, request.json)
   for service_id in service_ids:
     for service_user in service_users:
-      print(service_user.service_id, service_id)
       if service_user.service_id == service_id:
         create(OrderServiceUser, {
           'order_id': order.id,
@@ -77,6 +77,11 @@ def update_order(user: ItalcoUser, id):
 
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
+  if user.role == UserRole.DELIVERY and data['status'] in [OrderStatus.ANOMALY, OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
+      data['booking_date'] = datetime.now()
+  elif user.role == UserRole.OPERATOR and data['status'] == OrderStatus.IN_PROGRESS:
+    data['assignament_date'] = datetime.now()
+
   return {
     'status': 'ok',
     'order': update(order, data).to_dict()
@@ -102,11 +107,11 @@ def view_order_photo(id: int):
 
 
 def query_orders(user: ItalcoUser, filters: list) -> list[tuple[
-  Order, OrderServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
+  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
 ]]:
   with Session() as session:
     query = session.query(
-      Order, OrderServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
+      Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
     ).outerjoin(
       DeliveryGroup, Order.delivery_group_id == DeliveryGroup.id
     ).outerjoin(
@@ -155,23 +160,25 @@ def query_service_users(service_ids: list[int], user: ItalcoUser) -> list[Servic
 
 
 def format_query_result(tupla: tuple[
-  Order, OrderServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
+  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
 ], list: list[dict], user: ItalcoUser) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      add_element_in_list(element, 'services', tupla[2])
-      add_element_in_list(element, 'products', tupla[6])
+      element['price'] += tupla[2].price
+      add_element_in_list(element, 'services', tupla[3])
+      add_element_in_list(element, 'products', tupla[7])
       return list
 
   output = {
     **tupla[0].to_dict(),
-    'addressee': tupla[7].to_dict(),
-    'collection_point': tupla[5].to_dict(),
-    'user': tupla[3].format_user(user.role),
-    'delivery_group': tupla[4].to_dict() if tupla[4] else None
+    'price': tupla[2].price,
+    'addressee': tupla[8].to_dict(),
+    'collection_point': tupla[6].to_dict(),
+    'user': tupla[4].format_user(user.role),
+    'delivery_group': tupla[5].to_dict() if tupla[5] else None
   }
-  add_element_in_list(output, 'services', tupla[2])
-  add_element_in_list(output, 'products', tupla[6])
+  add_element_in_list(output, 'services', tupla[3])
+  add_element_in_list(output, 'products', tupla[7])
   list.append(output)
   return list
 

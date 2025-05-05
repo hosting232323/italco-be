@@ -81,6 +81,8 @@ class Order(BaseEntity):
   type = Column(Enum(OrderType), nullable=False)
   dpc = Column(Date, nullable=False)
   drc = Column(Date, nullable=False)
+  booking_date = Column(Date, nullable=True)
+  assignament_date = Column(Date, nullable=True)
   customer_note = Column(String, nullable=True)
   operator_note = Column(String, nullable=True)
   motivation = Column(String, nullable=True)

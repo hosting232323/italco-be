@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Documento di Consegna</title>
+  <style>
+    h1 { font-size: 20px; }
+    p { font-size: 15px; }
+  </style>
+</head>
+<body>
+  <h1>Riepilogo Ordinazioni</h1>
+  <p>
+    <b>Punto Vendita:</b> {{ customer['email'] }}<br>
+    <b>Data Promessa al Cliente:</b> {{ dpc }}<br>
+    <b>Data Richiesta dal Cliente:</b> {{ drc }}
+  </p><hr><p>
+    {{ orders }}
+  </p>
+</body>
+</html>
