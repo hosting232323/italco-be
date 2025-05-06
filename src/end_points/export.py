@@ -61,6 +61,7 @@ def export_orders_invoice(user: ItalcoUser):
   pisa_status = pisa.CreatePDF(src=render_template(
     'orders_invoice.html',
     orders=orders,
+    total=sum([order['price'] for order in orders]),
     end_date=request.json['date_filter']['end_date'],
     start_date=request.json['date_filter']['start_date'],
     customer=next((f['value'] for f in request.json['filters']

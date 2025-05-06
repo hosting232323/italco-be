@@ -23,8 +23,10 @@
       {% for service in order['services'] %}
         {{ service['name'] }}{% if not loop.last %}, {% endif %}
       {% endfor %}<br>
-      <b>Prezzo:</b> {{ order['price'] }} €<br>
+      <b>Prezzo:</b> {{ '%.2f' % order['price'] }} €<br>
     {% endfor %}
+  </p><hr><p>
+    <b>Totale:</b> {{ '%.2f' % total }} €
   </p>
 </body>
 </html>
