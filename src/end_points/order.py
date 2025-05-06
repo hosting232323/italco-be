@@ -53,7 +53,7 @@ def create_order(user: ItalcoUser):
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def filter_orders(user: ItalcoUser):
   orders = []
-  for tupla in query_orders(user, request.json['filters']):
+  for tupla in query_orders(user, request.json['filters'], request.json['date_filter']):
     orders = format_query_result(tupla, orders, user)
   return {
     'status': 'ok',
@@ -106,7 +106,7 @@ def view_order_photo(id: int):
   )
 
 
-def query_orders(user: ItalcoUser, filters: list) -> list[tuple[
+def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tuple[
   Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
 ]]:
   with Session() as session:
@@ -147,6 +147,12 @@ def query_orders(user: ItalcoUser, filters: list) -> list[tuple[
     ))
     if dynamic_filters:
       query = query.filter(*dynamic_filters)
+    if date_filter != {}:
+      query = query.filter(
+        Order.booking_date >= datetime.strptime(date_filter['start_date'], '%Y-%m-%d'),
+        Order.booking_date <= datetime.strptime(date_filter['end_date'], '%Y-%m-%d')
+      )
+
     return query.all()
 
 
