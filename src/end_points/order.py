@@ -171,22 +171,32 @@ def format_query_result(tupla: tuple[
   for element in list:
     if element['id'] == tupla[0].id:
       element['price'] += tupla[2].price
-      add_element_in_list(element, 'services', tupla[3])
+      add_service(element, tupla[3], tupla[1])
       add_element_in_list(element, 'products', tupla[7])
       return list
 
   output = {
     **tupla[0].to_dict(),
+    'services': [],
     'price': tupla[2].price,
     'addressee': tupla[8].to_dict(),
     'collection_point': tupla[6].to_dict(),
     'user': tupla[4].format_user(user.role),
     'delivery_group': tupla[5].to_dict() if tupla[5] else None
   }
-  add_element_in_list(output, 'services', tupla[3])
+  add_service(output, tupla[3], tupla[1])
   add_element_in_list(output, 'products', tupla[7])
   list.append(output)
   return list
+
+
+def add_service(object: dict, service: Service, order_service_user: OrderServiceUser):
+  if next((s for s in object['services'] if s['order_service_user_id'] == order_service_user.id), None):
+    return object
+
+  object['services'].append(service.to_dict())
+  object['services'][-1]['order_service_user_id'] = order_service_user.id
+  return object
 
 
 def add_element_in_list(object: dict, key: str, value):
