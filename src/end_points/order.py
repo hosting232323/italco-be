@@ -5,10 +5,10 @@ from flask import Blueprint, request, send_file
 
 from database_api import Session
 from ..database.enum import OrderStatus, UserRole, OrderType
+from database_api.operations import create, update, get_by_id
 from . import error_catching_decorator, flask_session_authentication
-from database_api.operations import create, update, get_by_id, get_by_ids
 from ..database.schema import Order, ItalcoUser, Service, ServiceUser, DeliveryGroup, CollectionPoint, \
-  Product, OrderServiceUser, OrderProduct, Addressee
+  OrderServiceUser, Addressee
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -22,11 +22,9 @@ def create_order(user: ItalcoUser):
   request.json['type'] = OrderType.get_enum_option(request.json['type'])
   service_ids = request.json['service_ids']
   service_users = query_service_users(service_ids, user)
-  products: list[Product] = get_by_ids(Product, request.json['product_ids'])
   if 'user_id' in request.json:
     del request.json['user_id']
   del request.json['service_ids']
-  del request.json['product_ids']
 
   order = create(Order, request.json)
   for service_id in service_ids:
@@ -37,11 +35,6 @@ def create_order(user: ItalcoUser):
           'service_user_id': service_user.id
         })
         break
-  for product in products:
-    create(OrderProduct, {
-      'order_id': order.id,
-      'product_id': product.id
-    })
   return {
     'status': 'ok',
     'order': order.to_dict()
@@ -107,11 +100,11 @@ def view_order_photo(id: int):
 
 
 def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tuple[
-  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
+  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Addressee
 ]]:
   with Session() as session:
     query = session.query(
-      Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
+      Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Addressee
     ).outerjoin(
       DeliveryGroup, Order.delivery_group_id == DeliveryGroup.id
     ).outerjoin(
@@ -124,10 +117,6 @@ def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tupl
       Service, ServiceUser.service_id == Service.id
     ).outerjoin(
       ItalcoUser, ServiceUser.user_id == ItalcoUser.id
-    ).outerjoin(
-      OrderProduct, OrderProduct.order_id == Order.id
-    ).outerjoin(
-      Product, OrderProduct.product_id == Product.id
     ).outerjoin(
       Addressee, Order.addressee_id == Addressee.id
     )
@@ -166,44 +155,33 @@ def query_service_users(service_ids: list[int], user: ItalcoUser) -> list[Servic
 
 
 def format_query_result(tupla: tuple[
-  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Product, Addressee
+  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Addressee
 ], list: list[dict], user: ItalcoUser) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
       element['price'] += tupla[2].price
-      add_service(element, tupla[3], tupla[1])
-      add_element_in_list(element, 'products', tupla[7])
+      add_service(element, tupla[3], tupla[1], tupla[2].price)
       return list
 
   output = {
     **tupla[0].to_dict(),
+    'price': 0,
     'services': [],
-    'price': tupla[2].price,
-    'addressee': tupla[8].to_dict(),
+    'addressee': tupla[7].to_dict(),
     'collection_point': tupla[6].to_dict(),
     'user': tupla[4].format_user(user.role),
     'delivery_group': tupla[5].to_dict() if tupla[5] else None
   }
-  add_service(output, tupla[3], tupla[1])
-  add_element_in_list(output, 'products', tupla[7])
+  add_service(output, tupla[3], tupla[1], tupla[2].price)
   list.append(output)
   return list
 
 
-def add_service(object: dict, service: Service, order_service_user: OrderServiceUser):
+def add_service(object: dict, service: Service, order_service_user: OrderServiceUser, price: float) -> dict:
   if next((s for s in object['services'] if s['order_service_user_id'] == order_service_user.id), None):
     return object
 
+  object['price'] += price
   object['services'].append(service.to_dict())
   object['services'][-1]['order_service_user_id'] = order_service_user.id
-  return object
-
-
-def add_element_in_list(object: dict, key: str, value):
-  if not value:
-    return object
-
-  if not key in object:
-    object[key] = []
-  object[key].append(value.to_dict())
   return object

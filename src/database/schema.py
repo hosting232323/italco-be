@@ -1,4 +1,5 @@
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy import Column, Enum, Date, String, Float, Integer, LargeBinary, ForeignKey
 
 from api.users.setup import User
@@ -12,7 +13,6 @@ class ItalcoUser(User):
   role = Column(Enum(UserRole), nullable=False)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
-  product = relationship('Product', back_populates='italco_user')
   addressee = relationship('Addressee', back_populates='italco_user')
   service_user = relationship('ServiceUser', back_populates='italco_user')
   delivery_group = relationship('DeliveryGroup', back_populates='italco_user')
@@ -88,12 +88,12 @@ class Order(BaseEntity):
   motivation = Column(String, nullable=True)
   photo = Column(LargeBinary, nullable=True)
   photo_mime_type = Column(String, nullable=True)
+  products = Column(ARRAY(String), default=[])
   addressee_id = Column(Integer, ForeignKey('addressee.id'), nullable=False)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
 
   addressee = relationship('Addressee', back_populates='order')
-  order_product = relationship('OrderProduct', back_populates='order')
   delivery_group = relationship('DeliveryGroup', back_populates='order')
   collection_point = relationship('CollectionPoint', back_populates='order')
   order_service_user = relationship('OrderServiceUser', back_populates='order')
@@ -142,24 +142,3 @@ class OrderServiceUser(BaseEntity):
 
   order = relationship('Order', back_populates='order_service_user')
   service_user = relationship('ServiceUser', back_populates='order_service_user')
-
-
-class Product(BaseEntity):
-  __tablename__ = 'product'
-
-  name = Column(String, nullable=False)
-  description = Column(String, nullable=True)
-  user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
-
-  italco_user = relationship('ItalcoUser', back_populates='product')
-  order_product = relationship('OrderProduct', back_populates='product')
-
-
-class OrderProduct(BaseEntity):
-  __tablename__ = 'order_product'
-
-  order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
-  product_id = Column(Integer, ForeignKey('product.id'), nullable=False)
-
-  order = relationship('Order', back_populates='order_product')
-  product = relationship('Product', back_populates='order_product')
