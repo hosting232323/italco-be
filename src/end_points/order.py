@@ -159,7 +159,6 @@ def format_query_result(tupla: tuple[
 ], list: list[dict], user: ItalcoUser) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      element['price'] += tupla[2].price
       add_service(element, tupla[3], tupla[1], tupla[2].price)
       return list
 
