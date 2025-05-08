@@ -3,3 +3,4 @@ flask-swagger-ui
 xhtml2pdf
 pandas
 openpyxl
+geopy

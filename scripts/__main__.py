@@ -17,6 +17,8 @@ if __name__ == '__main__':
   products = read_file('scripts/product.json')
   for order_product in tqdm(read_file('scripts/order_product.json')):
     order: Order = get_by_id(Order, order_product['order_id'])
+    if not order.products:
+      order.products = []
     update(order, {
       'products': order.products + [next((
         product['name'] for product in products if product['id'] == order_product['product_id']

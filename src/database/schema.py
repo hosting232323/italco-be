@@ -65,8 +65,8 @@ class Transport(BaseEntity):
 class TransportDeliveryGroup(BaseEntity):
   __tablename__ = 'transport_delivery_group'
 
-  start = Column(Date, nullable=False)
-  end = Column(Date, nullable=True)
+  start_date = Column(Date, nullable=False)
+  end_date = Column(Date, nullable=True)
   transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
