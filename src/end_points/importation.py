@@ -12,7 +12,8 @@ from ..database.schema import ItalcoUser, Order, Addressee, OrderServiceUser
 import_bp = Blueprint('import_bp', __name__)
 
 # Euronics martinafranca
-# Euronics monopoli
+# Euronics Monopoli	Eur026432 CL 9
+# consegna al piano con installazione (allaccio alla prese)
 
 
 USER_ID = 0
@@ -20,7 +21,7 @@ COLLECTION_POINT_ID = 0
 SERVICE_USER_ID = 0
 
 
-@import_bp.route('<id>', methods=['PUT'])
+@import_bp.route('', methods=['POST'])
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def update_import(user: ItalcoUser):
@@ -39,11 +40,10 @@ def update_import(user: ItalcoUser):
         'address': row['Indirizzo'],
         'city': row['Località'],
         'cap': get_cap_from_city(row['Località']),
-        'province': row['Provincia'],
+        'province': row['Prov.'],
         'user_id': USER_ID
       })
     order = create(Order, {
-      'user_id': USER_ID,
       'type': OrderType.DELIVERY,
       'collection_point_id': COLLECTION_POINT_ID,
       'addressee_id': addressee.id,

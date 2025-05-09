@@ -3,8 +3,8 @@ from flask import Blueprint, request
 from database_api import Session
 from ..database.enum import UserRole
 from ..database.schema import CollectionPoint, ItalcoUser
-from database_api.operations import create, delete, get_by_id
 from . import error_catching_decorator, flask_session_authentication
+from database_api.operations import create, delete, get_by_id, update
 
 
 collection_point_bp = Blueprint('collection_point_bp', __name__)
@@ -41,6 +41,17 @@ def get_collection_points(user: ItalcoUser):
     'collection_points': [
       collection_point.to_dict() for collection_point in query_collection_points(user)
     ]
+  }
+
+
+@collection_point_bp.route('<id>', methods=['PUT'])
+@error_catching_decorator
+@flask_session_authentication([UserRole.CUSTOMER])
+def update_collection_point(user: ItalcoUser, id):
+  collection_point: CollectionPoint = get_by_id(CollectionPoint, int(id))
+  return {
+    'status': 'ok',
+    'order': update(collection_point, request.json).to_dict()
   }
 
 
