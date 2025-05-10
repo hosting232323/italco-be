@@ -13,10 +13,10 @@ class ItalcoUser(User):
   role = Column(Enum(UserRole), nullable=False)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
-  addressee = relationship('Addressee', back_populates='italco_user')
-  service_user = relationship('ServiceUser', back_populates='italco_user')
   delivery_group = relationship('DeliveryGroup', back_populates='italco_user')
-  collection_point = relationship('CollectionPoint', back_populates='italco_user')
+  addressee = relationship('Addressee', back_populates='italco_user', cascade='all, delete-orphan')
+  service_user = relationship('ServiceUser', back_populates='italco_user', cascade='all, delete-orphan')
+  collection_point = relationship('CollectionPoint', back_populates='italco_user', cascade='all, delete-orphan')
 
   def format_user(self, role: UserRole):
     if role == UserRole.ADMIN:
