@@ -5,7 +5,7 @@ from flask import Blueprint, request, send_file
 
 from database_api import Session
 from ..database.enum import OrderStatus, UserRole, OrderType
-from database_api.operations import create, update, get_by_id
+from database_api.operations import create, update, get_by_id,delete
 from . import error_catching_decorator, flask_session_authentication
 from ..database.schema import Order, ItalcoUser, Service, ServiceUser, DeliveryGroup, CollectionPoint, \
   OrderServiceUser, Addressee
@@ -21,10 +21,13 @@ order_bp = Blueprint('order_bp', __name__)
 def create_order(user: ItalcoUser):
   request.json['type'] = OrderType.get_enum_option(request.json['type'])
   service_ids = request.json['service_ids']
-  service_users = query_service_users(service_ids, user)
+  service_users = query_service_users(
+    service_ids,
+    user.id if user.role == UserRole.CUSTOMER else request.json['user_id']
+  )
+  del request.json['service_ids']
   if 'user_id' in request.json:
     del request.json['user_id']
-  del request.json['service_ids']
 
   order = create(Order, request.json)
   for service_id in service_ids:
@@ -56,7 +59,7 @@ def filter_orders(user: ItalcoUser):
 
 @order_bp.route('<id>', methods=['PUT'])
 @error_catching_decorator
-@flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order(user: ItalcoUser, id):
   order: Order = get_by_id(Order, int(id))
   if user.role == UserRole.DELIVERY:
@@ -71,9 +74,46 @@ def update_order(user: ItalcoUser, id):
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
   if user.role == UserRole.DELIVERY and data['status'] in [OrderStatus.ANOMALY, OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
-      data['booking_date'] = datetime.now()
+    data['booking_date'] = datetime.now()
   elif user.role == UserRole.OPERATOR and data['status'] == OrderStatus.IN_PROGRESS:
     data['assignament_date'] = datetime.now()
+
+  service_ids = request.json['service_ids']
+  service_users = query_service_users(
+    service_ids,
+    user.id if user.role == UserRole.CUSTOMER else request.json['user_id']
+  )
+  order_service_users = query_order_service_users(order)
+  del request.json['service_ids']
+  if 'user_id' in request.json:
+    del request.json['user_id']
+
+  used_index = []
+  for service_id in service_ids:
+    for service_user in service_users:
+      if service_user.service_id == service_id:
+        flag = True
+        for i, order_service_user in enumerate(order_service_users):
+          if order_service_user.service_user_id == service_user.id and not i in used_index:
+            used_index.append(i)
+            flag = False
+            break
+        if flag:
+          create(OrderServiceUser, {
+            'order_id': order.id,
+            'service_user_id': service_user.id
+          })
+        break
+
+  used_index = []
+  for order_service_user in order_service_users:
+    for i, service_user in enumerate(service_users):
+      if order_service_user.service_user_id == service_user.id:
+        if service_user.service_id in service_ids and not i in used_index:
+          used_index.append(i)
+        else:
+          delete(order_service_user)
+        break
 
   return {
     'status': 'ok',
@@ -145,9 +185,15 @@ def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tupl
     return query.all()
 
 
-def query_service_users(service_ids: list[int], user: ItalcoUser) -> list[ServiceUser]:
+def query_order_service_users(order: Order) -> list[OrderServiceUser]:
   with Session() as session:
-    user_id = user.id if user.role == UserRole.CUSTOMER else request.json['user_id']
+    return session.query(OrderServiceUser).filter(
+      OrderServiceUser.order_id == order.id
+    ).all()
+
+
+def query_service_users(service_ids: list[int], user_id) -> list[ServiceUser]:
+  with Session() as session:
     return session.query(ServiceUser).filter(
       ServiceUser.user_id == user_id,
       ServiceUser.service_id.in_(service_ids)
