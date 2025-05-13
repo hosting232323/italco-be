@@ -5,8 +5,8 @@ from flask import Blueprint, request, send_file
 
 from database_api import Session
 from ..database.enum import OrderStatus, UserRole, OrderType
-from database_api.operations import create, update, get_by_id,delete
 from . import error_catching_decorator, flask_session_authentication
+from database_api.operations import create, update, get_by_id, delete, get_by_ids
 from ..database.schema import Order, ItalcoUser, Service, ServiceUser, DeliveryGroup, CollectionPoint, \
   OrderServiceUser, Addressee
 
@@ -137,6 +137,27 @@ def view_order_photo(id: int):
     as_attachment=False,
     download_name=f'order_{id}_photo.jpg'
   )
+
+
+@order_bp.route('delivery-group', methods=['PUT'])
+@error_catching_decorator
+@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
+def assign_delivery_group(user: ItalcoUser):
+  orders: list[Order] = get_by_ids(Order, request.json['order_ids'])
+  delivery_group: DeliveryGroup = get_by_id(DeliveryGroup, request.json['delivery_group_id'])
+  if not delivery_group or not orders:
+    return {
+      'status': 'ko',
+      'error': 'Delivery group o orders non trovati'
+    }
+
+  for order in orders:
+    if order.delivery_group_id != delivery_group.id:
+      update(order, {'delivery_group_id': delivery_group.id})
+  return {
+    'status': 'ok',
+    'message': 'Operazione completata con successo'
+  }
 
 
 def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tuple[
