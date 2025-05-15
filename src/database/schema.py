@@ -86,17 +86,26 @@ class Order(BaseEntity):
   customer_note = Column(String, nullable=True)
   operator_note = Column(String, nullable=True)
   motivation = Column(String, nullable=True)
-  photo = Column(LargeBinary, nullable=True)
-  photo_mime_type = Column(String, nullable=True)
   products = Column(ARRAY(String), default=[])
   addressee_id = Column(Integer, ForeignKey('addressee.id'), nullable=False)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
 
+  photo = relationship('Photo', back_populates='order')
   addressee = relationship('Addressee', back_populates='order')
   delivery_group = relationship('DeliveryGroup', back_populates='order')
   collection_point = relationship('CollectionPoint', back_populates='order')
   order_service_user = relationship('OrderServiceUser', back_populates='order')
+
+
+class Photo(BaseEntity):
+  __tablename__ = 'photo'
+
+  photo = Column(LargeBinary, nullable=False)
+  mime_type = Column(String, nullable=False)
+  order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
+
+  order = relationship('Order', back_populates='photo')
 
 
 class CollectionPoint(BaseEntity):
