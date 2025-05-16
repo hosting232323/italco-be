@@ -8,7 +8,7 @@ from ..database.enum import OrderStatus, UserRole, OrderType
 from . import error_catching_decorator, flask_session_authentication
 from database_api.operations import create, update, get_by_id, delete, get_by_ids
 from ..database.schema import Order, ItalcoUser, Service, ServiceUser, DeliveryGroup, CollectionPoint, \
-  OrderServiceUser, Addressee, Photo
+  OrderServiceUser, Photo
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -19,25 +19,14 @@ order_bp = Blueprint('order_bp', __name__)
 @error_catching_decorator
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def create_order(user: ItalcoUser):
-  request.json['type'] = OrderType.get_enum_option(request.json['type'])
-  service_ids = request.json['service_ids']
-  service_users = query_service_users(
-    service_ids,
+  data = {key: value for key, value in request.json.items() if not key in ['products', 'user_id']}
+  data['type'] = OrderType.get_enum_option(data['type'])
+  order = create(Order, data)
+  create_order_service_user(
+    order,
+    request.json['products'],
     user.id if user.role == UserRole.CUSTOMER else request.json['user_id']
   )
-  del request.json['service_ids']
-  if 'user_id' in request.json:
-    del request.json['user_id']
-
-  order = create(Order, request.json)
-  for service_id in service_ids:
-    for service_user in service_users:
-      if service_user.service_id == service_id:
-        create(OrderServiceUser, {
-          'order_id': order.id,
-          'service_user_id': service_user.id
-        })
-        break
   return {
     'status': 'ok',
     'order': order.to_dict()
@@ -80,43 +69,12 @@ def update_order(user: ItalcoUser, id):
     data['booking_date'] = datetime.now()
   elif user.role == UserRole.OPERATOR and data['status'] == OrderStatus.IN_PROGRESS:
     data['assignament_date'] = datetime.now()
-
-  service_ids = data['service_ids']
-  service_users = query_service_users(
-    service_ids,
+  update_order_service_user(
+    order,
+    data['products'],
     user.id if user.role == UserRole.CUSTOMER else data['user_id']
   )
-  order_service_users = query_order_service_users(order)
-  del data['service_ids']
-  if 'user_id' in data:
-    del data['user_id']
-
-  used_index = []
-  for service_id in service_ids:
-    for service_user in service_users:
-      if service_user.service_id == service_id:
-        flag = True
-        for i, order_service_user in enumerate(order_service_users):
-          if order_service_user.service_user_id == service_user.id and not i in used_index:
-            used_index.append(i)
-            flag = False
-            break
-        if flag:
-          create(OrderServiceUser, {
-            'order_id': order.id,
-            'service_user_id': service_user.id
-          })
-        break
-
-  used_index = []
-  for order_service_user in order_service_users:
-    for i, service_user in enumerate(service_users):
-      if order_service_user.service_user_id == service_user.id:
-        if service_user.service_id in service_ids and not i in used_index:
-          used_index.append(i)
-        else:
-          delete(order_service_user)
-        break
+  data = {key: value for key, value in data.items() if not key in ['products', 'user_id']}
 
   return {
     'status': 'ok',
@@ -163,11 +121,11 @@ def assign_delivery_group(user: ItalcoUser):
 
 
 def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tuple[
-  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Addressee, Photo
+  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Photo
 ]]:
   with Session() as session:
     query = session.query(
-      Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Addressee, Photo
+      Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Photo
     ).outerjoin(
       DeliveryGroup, Order.delivery_group_id == DeliveryGroup.id
     ).outerjoin(
@@ -180,8 +138,6 @@ def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tupl
       Service, ServiceUser.service_id == Service.id
     ).outerjoin(
       ItalcoUser, ServiceUser.user_id == ItalcoUser.id
-    ).outerjoin(
-      Addressee, Order.addressee_id == Addressee.id
     ).outerjoin(
       Photo, Photo.order_id == Order.id
     )
@@ -217,20 +173,23 @@ def query_order_service_users(order: Order) -> list[OrderServiceUser]:
     ).all()
 
 
-def query_service_users(service_ids: list[int], user_id) -> list[ServiceUser]:
+def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -> list[ServiceUser]:
   with Session() as session:
-    return session.query(ServiceUser).filter(
+    return session.query(ServiceUser).join(
+      Service, Service.id == ServiceUser.service_id
+    ).filter(
       ServiceUser.user_id == user_id,
-      ServiceUser.service_id.in_(service_ids)
+      ServiceUser.service_id.in_(service_ids),
+      Service.type == type
     ).all()
 
 
 def format_query_result(tupla: tuple[
-  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Addressee, Photo
+  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Photo
 ], list: list[dict], user: ItalcoUser) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      add_photo(element, tupla[8])
+      add_photo(element, tupla[7])
       add_service(element, tupla[3], tupla[1], tupla[2].price)
       return list
 
@@ -238,31 +197,85 @@ def format_query_result(tupla: tuple[
     **tupla[0].to_dict(),
     'price': 0,
     'photos': [],
-    'services': [],
-    'addressee': tupla[7].to_dict(),
+    'products': {},
     'collection_point': tupla[6].to_dict(),
     'user': tupla[4].format_user(user.role),
     'delivery_group': tupla[5].to_dict() if tupla[5] else None
   }
-  add_photo(output, tupla[8])
+  add_photo(output, tupla[7])
   add_service(output, tupla[3], tupla[1], tupla[2].price)
   list.append(output)
   return list
 
 
 def add_service(object: dict, service: Service, order_service_user: OrderServiceUser, price: float) -> dict:
-  if next((s for s in object['services'] if s['order_service_user_id'] == order_service_user.id), None):
+  if not order_service_user.product in object['products'].keys():
+    object['products'][order_service_user.product] = []
+
+  if next((s for s in object['products'][order_service_user.product] if s['order_service_user_id'] == order_service_user.id), None):
     return object
 
   object['price'] += price
-  object['services'].append(service.to_dict())
-  object['services'][-1]['order_service_user_id'] = order_service_user.id
+  object['products'][order_service_user.product].append(service.to_dict())
+  object['products'][order_service_user.product][-1]['order_service_user_id'] = order_service_user.id
   return object
 
 
 def add_photo(object: dict, photo: Photo) -> dict:
-  if photo.id in object['photos']:
+  if not photo or photo.id in object['photos']:
     return object
 
   object['photos'].append(photo.id)
   return object
+
+
+def create_order_service_user(order: Order, products: dict, user_id: int):
+  service_users = query_service_users(
+    list(set(id for services in products.values() for id in services)),
+    user_id,
+    order.type
+  )
+  for product in products.keys():
+    for service_id in products[product]:
+      for service_user in service_users:
+        if service_user.service_id == service_id:
+          create(OrderServiceUser, {
+            'order_id': order.id,
+            'service_user_id': service_user.id,
+            'product': product
+          })
+          break
+
+
+def update_order_service_user(order: Order, products: dict, user_id: int):
+  service_users = query_service_users(
+    list(set(id for services in products.values() for id in services)),
+    user_id,
+    order.type
+  )
+  order_service_users = query_order_service_users(order)
+
+  for product in products.keys():
+    if len([
+      order_service_user for order_service_user in order_service_users if order_service_user.product == product
+    ]) > 0:
+      continue
+
+    for service_id in products[product]:
+      for service_user in service_users:
+        if service_user.service_id == service_id:
+          create(OrderServiceUser, {
+            'order_id': order.id,
+            'service_user_id': service_user.id,
+            'product': product
+          })
+        break
+
+  for product in list({
+    order_service_user.product for order_service_user in order_service_users
+  }):
+    for order_service_user in [
+      order_service_user for order_service_user in order_service_users if order_service_user.product == product
+    ]:
+      if not order_service_user.product in products:
+        delete(order_service_user)

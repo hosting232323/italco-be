@@ -2,7 +2,7 @@ from flask import Blueprint, request
 
 from .users import query_users
 from database_api import Session
-from ..database.enum import UserRole
+from ..database.enum import UserRole, OrderType
 from ..database.schema import Service, ServiceUser, ItalcoUser
 from . import error_catching_decorator, flask_session_authentication
 from database_api.operations import create, update, get_by_id, delete
@@ -15,6 +15,7 @@ service_bp = Blueprint('service_bp', __name__)
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def create_service(user: ItalcoUser):
+  request.json['type'] = OrderType.get_enum_option(request.json['type'])
   return {
     'status': 'ok',
     'service': create(Service, request.json).to_dict()
@@ -39,6 +40,7 @@ def get_services(user: ItalcoUser):
 @flask_session_authentication([UserRole.ADMIN])
 def update_service(user: ItalcoUser, id):
   service: Service = get_by_id(Service, int(id))
+  request.json['type'] = OrderType.get_enum_option(request.json['type'])
   return {
     'status': 'ok',
     'order': update(service, request.json).to_dict()

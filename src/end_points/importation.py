@@ -6,7 +6,7 @@ from database_api import Session
 from database_api.operations import create
 from ..database.enum import UserRole, OrderType
 from . import error_catching_decorator, flask_session_authentication
-from ..database.schema import ItalcoUser, Order, Addressee, OrderServiceUser
+from ..database.schema import ItalcoUser, Order, OrderServiceUser
 
 
 import_bp = Blueprint('import_bp', __name__)
@@ -33,20 +33,10 @@ def update_import(user: ItalcoUser):
 
   df = pd.read_excel(request.files['file'])
   for index, row in df.iterrows():
-    addressee = query_addressee(row['Destinatario'], row['Indirizzo'])
-    if addressee is None:
-      addressee = create(Addressee, {
-        'name': row['Destinatario'],
-        'address': row['Indirizzo'],
-        'city': row['Località'],
-        'cap': get_cap_from_city(row['Località']),
-        'province': row['Prov.'],
-        'user_id': USER_ID
-      })
     order = create(Order, {
       'type': OrderType.DELIVERY,
       'collection_point_id': COLLECTION_POINT_ID,
-      'addressee_id': addressee.id,
+      'addressee_id': '',
       'drc': row['DRC'],
       'dpc': row['DPC'],
       'customer_note': f'Ref: {row["Ref."]} ' \
@@ -63,14 +53,6 @@ def update_import(user: ItalcoUser):
     'status': 'ok',
     'message': 'Operazione completata'
   }
-
-
-def query_addressee(name, address) -> Addressee:
-  with Session() as session:
-    return session.query(Addressee).filter(
-      Addressee.name == name,
-      Addressee.address == address
-    ).first()
 
 
 def get_cap_from_city(city_name: str) -> str:

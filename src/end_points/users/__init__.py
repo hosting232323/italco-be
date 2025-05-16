@@ -2,7 +2,7 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ...database.enum import UserRole
-from ...database.schema import ItalcoUser, ServiceUser, Addressee, CollectionPoint
+from ...database.schema import ItalcoUser, ServiceUser, CollectionPoint
 from api.users import register_user, login
 from api.users.setup import get_user_by_email
 from database_api.operations import delete
@@ -88,14 +88,12 @@ def query_users(user: ItalcoUser, role: UserRole = None) -> list[ItalcoUser]:
     return query.all()
 
 
-def deletion_query(id: int) -> list[tuple[ItalcoUser, ServiceUser, Addressee, CollectionPoint]]:
+def deletion_query(id: int) -> list[tuple[ItalcoUser, ServiceUser, CollectionPoint]]:
   with Session() as session:
     return session.query(
-      ItalcoUser, ServiceUser, Addressee, CollectionPoint
+      ItalcoUser, ServiceUser, CollectionPoint
     ).outerjoin(
       ServiceUser, ServiceUser.user_id == ItalcoUser.id
-    ).outerjoin(
-      Addressee, Addressee.user_id == ItalcoUser.id
     ).outerjoin(
       CollectionPoint, CollectionPoint.user_id == ItalcoUser.id
     ).filter(

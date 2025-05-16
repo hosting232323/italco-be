@@ -9,7 +9,6 @@ from .end_points.importation import import_bp
 from .end_points.exportation import export_bp
 from .end_points.users import user_bp, login_
 from .end_points.users.seed import seed_users
-from .end_points.addressee import addressee_bp
 from .end_points.delivery_group import delivery_group_bp
 from .end_points.collection_point import collection_point_bp
 
@@ -24,7 +23,6 @@ app.register_blueprint(order_bp, url_prefix='/order')
 app.register_blueprint(import_bp, url_prefix='/import')
 app.register_blueprint(export_bp, url_prefix='/export')
 app.register_blueprint(service_bp, url_prefix='/service')
-app.register_blueprint(addressee_bp, url_prefix='/addressee')
 app.register_blueprint(delivery_group_bp, url_prefix='/delivery-group')
 app.register_blueprint(collection_point_bp, url_prefix='/collection-point')
 

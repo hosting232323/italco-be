@@ -1,5 +1,4 @@
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy import Column, Enum, Date, String, Float, Integer, LargeBinary, ForeignKey
 
 from api.users.setup import User
@@ -14,7 +13,6 @@ class ItalcoUser(User):
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
   delivery_group = relationship('DeliveryGroup', back_populates='italco_user')
-  addressee = relationship('Addressee', back_populates='italco_user', cascade='all, delete-orphan')
   service_user = relationship('ServiceUser', back_populates='italco_user', cascade='all, delete-orphan')
   collection_point = relationship('CollectionPoint', back_populates='italco_user', cascade='all, delete-orphan')
 
@@ -27,20 +25,6 @@ class ItalcoUser(User):
         'email': self.email,
         'role': self.role.value
       }
-
-
-class Addressee(BaseEntity):
-  __tablename__ = 'addressee'
-
-  name = Column(String, nullable=False)
-  address = Column(String, nullable=False)
-  city = Column(String, nullable=False)
-  cap = Column(String, nullable=False)
-  province = Column(String, nullable=False)
-  user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
-
-  order = relationship('Order', back_populates='addressee')
-  italco_user = relationship('ItalcoUser', back_populates='addressee')
 
 
 class DeliveryGroup(BaseEntity):
@@ -79,6 +63,9 @@ class Order(BaseEntity):
 
   status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.PENDING)
   type = Column(Enum(OrderType), nullable=False)
+  addressee = Column(String, nullable=False)
+  address = Column(String, nullable=False)
+  cap = Column(String, nullable=False)
   dpc = Column(Date, nullable=False)
   drc = Column(Date, nullable=False)
   booking_date = Column(Date, nullable=True)
@@ -86,13 +73,10 @@ class Order(BaseEntity):
   customer_note = Column(String, nullable=True)
   operator_note = Column(String, nullable=True)
   motivation = Column(String, nullable=True)
-  products = Column(ARRAY(String), default=[])
-  addressee_id = Column(Integer, ForeignKey('addressee.id'), nullable=False)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
 
   photo = relationship('Photo', back_populates='order')
-  addressee = relationship('Addressee', back_populates='order')
   delivery_group = relationship('DeliveryGroup', back_populates='order')
   collection_point = relationship('CollectionPoint', back_populates='order')
   order_service_user = relationship('OrderServiceUser', back_populates='order')
@@ -126,6 +110,7 @@ class Service(BaseEntity):
   __tablename__ = 'service'
 
   name = Column(String, nullable=False)
+  type = Column(Enum(OrderType), nullable=False)
   description = Column(String, nullable=True)
 
   service_user = relationship('ServiceUser', back_populates='service')
@@ -147,6 +132,7 @@ class OrderServiceUser(BaseEntity):
   __tablename__ = 'order_service_user'
 
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
+  product = Column(String, nullable=False)
   service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
 
   order = relationship('Order', back_populates='order_service_user')
