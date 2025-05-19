@@ -10,8 +10,10 @@ class ItalcoUser(User):
   __tablename__ = 'italco_user'
 
   role = Column(Enum(UserRole), nullable=False)
+  customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
+  customer_group = relationship('CustomerGroup', back_populates='italco_user')
   delivery_group = relationship('DeliveryGroup', back_populates='italco_user')
   service_user = relationship('ServiceUser', back_populates='italco_user', cascade='all, delete-orphan')
   collection_point = relationship('CollectionPoint', back_populates='italco_user', cascade='all, delete-orphan')
@@ -25,6 +27,14 @@ class ItalcoUser(User):
         'email': self.email,
         'role': self.role.value
       }
+
+
+class CustomerGroup(BaseEntity):
+  __tablename__ = 'customer_group'
+
+  name = Column(String, nullable=False)
+
+  italco_user = relationship('ItalcoUser', back_populates='customer_group')
 
 
 class DeliveryGroup(BaseEntity):
