@@ -42,9 +42,8 @@ class DeliveryGroup(BaseEntity):
 
   name = Column(String, nullable=False)
 
-  order = relationship('Order', back_populates='delivery_group')
+  schedule = relationship('Schedule', back_populates='delivery_group')
   italco_user = relationship('ItalcoUser', back_populates='delivery_group')
-  transport_delivery_group = relationship('TransportDeliveryGroup', back_populates='delivery_group')
 
 
 class Transport(BaseEntity):
@@ -53,19 +52,7 @@ class Transport(BaseEntity):
   name = Column(String, nullable=False)
   plate = Column(String, nullable=False)
 
-  transport_delivery_group = relationship('TransportDeliveryGroup', back_populates='transport')
-
-
-class TransportDeliveryGroup(BaseEntity):
-  __tablename__ = 'transport_delivery_group'
-
-  start_date = Column(Date, nullable=False)
-  end_date = Column(Date, nullable=True)
-  transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
-  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
-
-  transport = relationship('Transport', back_populates='transport_delivery_group')
-  delivery_group = relationship('DeliveryGroup', back_populates='transport_delivery_group')
+  schedule = relationship('Schedule', back_populates='transport')
 
 
 class Order(BaseEntity):
@@ -83,13 +70,25 @@ class Order(BaseEntity):
   customer_note = Column(String, nullable=True)
   operator_note = Column(String, nullable=True)
   motivation = Column(String, nullable=True)
-  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
+  schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
 
   photo = relationship('Photo', back_populates='order')
-  delivery_group = relationship('DeliveryGroup', back_populates='order')
+  schedule = relationship('Schedule', back_populates='order')
   collection_point = relationship('CollectionPoint', back_populates='order')
   order_service_user = relationship('OrderServiceUser', back_populates='order')
+
+
+class Schedule(BaseEntity):
+  __tablename__ = 'schedule'
+
+  date = Column(Date, nullable=False)
+  transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
+  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
+
+  order = relationship('Order', back_populates='schedule')
+  transport = relationship('Transport', back_populates='schedule')
+  delivery_group = relationship('DeliveryGroup', back_populates='schedule')
 
 
 class Photo(BaseEntity):

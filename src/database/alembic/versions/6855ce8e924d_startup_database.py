@@ -64,18 +64,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email')
   )
-  op.create_table('transport_delivery_group',
-    sa.Column('start_date', sa.Date(), nullable=False),
-    sa.Column('end_date', sa.Date(), nullable=True),
-    sa.Column('transport_id', sa.Integer(), nullable=False),
-    sa.Column('delivery_group_id', sa.Integer(), nullable=True),
-    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['delivery_group_id'], ['delivery_group.id'], ),
-    sa.ForeignKeyConstraint(['transport_id'], ['transport.id'], ),
-    sa.PrimaryKeyConstraint('id')
-  )
   op.create_table('collection_point',
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('address', sa.String(), nullable=False),
@@ -100,6 +88,17 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['italco_user.id'], ),
     sa.PrimaryKeyConstraint('id')
   )
+  op.create_table('schedule',
+    sa.Column('date', sa.Date(), nullable=False),
+    sa.Column('transport_id', sa.Integer(), nullable=False),
+    sa.Column('delivery_group_id', sa.Integer(), nullable=True),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['delivery_group_id'], ['delivery_group.id'], ),
+    sa.ForeignKeyConstraint(['transport_id'], ['transport.id'], ),
+    sa.PrimaryKeyConstraint('id')
+  )
   op.create_table('order',
     sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'ANOMALY', 'DELAY', name='orderstatus'), nullable=False),
     sa.Column('type', sa.Enum('DELIVERY', 'WITHDRAW', 'REPLACEMENT', 'CHECK', name='ordertype'), nullable=False),
@@ -113,13 +112,13 @@ def upgrade() -> None:
     sa.Column('customer_note', sa.String(), nullable=True),
     sa.Column('operator_note', sa.String(), nullable=True),
     sa.Column('motivation', sa.String(), nullable=True),
-    sa.Column('delivery_group_id', sa.Integer(), nullable=True),
+    sa.Column('schedule_id', sa.Integer(), nullable=True),
     sa.Column('collection_point_id', sa.Integer(), nullable=False),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['collection_point_id'], ['collection_point.id'], ),
-    sa.ForeignKeyConstraint(['delivery_group_id'], ['delivery_group.id'], ),
+    sa.ForeignKeyConstraint(['schedule_id'], ['schedule.id'], ),
     sa.PrimaryKeyConstraint('id')
   )
   op.create_table('order_service_user',
@@ -146,6 +145,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+  op.drop_table('schedule')
   op.drop_table('photo')
   op.drop_table('order_service_user')
   op.drop_table('order')
