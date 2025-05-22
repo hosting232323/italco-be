@@ -5,6 +5,7 @@ from . import app, IS_DEV
 from database_api import set_database
 from .end_points.order import order_bp
 from .end_points.service import service_bp
+from .end_points.schedule import schedule_bp
 from .end_points.importation import import_bp
 from .end_points.exportation import export_bp
 from .end_points.users import user_bp, login_
@@ -25,6 +26,7 @@ app.register_blueprint(order_bp, url_prefix='/order')
 app.register_blueprint(import_bp, url_prefix='/import')
 app.register_blueprint(export_bp, url_prefix='/export')
 app.register_blueprint(service_bp, url_prefix='/service')
+app.register_blueprint(schedule_bp, url_prefix='/schedule')
 app.register_blueprint(transport_bp, url_prefix='/transport')
 app.register_blueprint(customer_group_bp, url_prefix='/customer-group')
 app.register_blueprint(delivery_group_bp, url_prefix='/delivery-group')

@@ -1,14 +1,15 @@
 import io
 import json
+from sqlalchemy import and_
 from datetime import datetime
 from flask import Blueprint, request, send_file
 
 from database_api import Session
 from ..database.enum import OrderStatus, UserRole, OrderType
 from . import error_catching_decorator, flask_session_authentication
-from database_api.operations import create, update, get_by_id, delete, get_by_ids
-from ..database.schema import Order, ItalcoUser, Service, ServiceUser, DeliveryGroup, CollectionPoint, \
-  OrderServiceUser, Photo
+from database_api.operations import create, update, get_by_id, delete
+from ..database.schema import Order, ItalcoUser, Service, ServiceUser, CollectionPoint, \
+  OrderServiceUser, Photo, Schedule
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -67,8 +68,6 @@ def update_order(user: ItalcoUser, id):
   data['status'] = OrderStatus.get_enum_option(data['status'])
   if user.role == UserRole.DELIVERY and data['status'] in [OrderStatus.ANOMALY, OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
     data['booking_date'] = datetime.now()
-  elif user.role == UserRole.OPERATOR and data['status'] == OrderStatus.IN_PROGRESS:
-    data['assignament_date'] = datetime.now()
   update_order_service_user(
     order,
     data['products'],
@@ -97,37 +96,12 @@ def view_order_photo(photo_id: int):
   )
 
 
-@order_bp.route('delivery-group', methods=['PUT'])
-@error_catching_decorator
-@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
-def assign_delivery_group(user: ItalcoUser):
-  orders: list[Order] = get_by_ids(Order, request.json['order_ids'])
-  delivery_group: DeliveryGroup = get_by_id(DeliveryGroup, request.json['delivery_group_id'])
-  if not delivery_group or not orders:
-    return {
-      'status': 'ko',
-      'error': 'Delivery group o orders non trovati'
-    }
-
-  for order in orders:
-    update(order, {
-      'status': OrderStatus.IN_PROGRESS,
-      'delivery_group_id': delivery_group.id
-    })
-  return {
-    'status': 'ok',
-    'message': 'Operazione completata con successo'
-  }
-
-
 def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tuple[
-  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Photo
+  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo
 ]]:
   with Session() as session:
     query = session.query(
-      Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Photo
-    ).outerjoin(
-      DeliveryGroup, Order.delivery_group_id == DeliveryGroup.id
+      Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo
     ).outerjoin(
       CollectionPoint, Order.collection_point_id == CollectionPoint.id
     ).outerjoin(
@@ -143,9 +117,13 @@ def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tupl
     )
 
     if user.role == UserRole.DELIVERY:
-      query = query.filter(
-        Order.status.in_([OrderStatus.IN_PROGRESS, OrderStatus.DELAY]),
-        Order.delivery_group_id == user.delivery_group_id
+      query = query.join(
+        Schedule, and_(
+          Schedule.delivery_group_id == user.delivery_group_id,
+          Schedule.id == Order.schedule_id
+        )
+      ).filter(
+        Order.status.in_([OrderStatus.IN_PROGRESS, OrderStatus.DELAY])
       )
     elif user.role == UserRole.CUSTOMER:
       query = query.filter(
@@ -185,11 +163,11 @@ def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -
 
 
 def format_query_result(tupla: tuple[
-  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, DeliveryGroup, CollectionPoint, Photo
+  Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo
 ], list: list[dict], user: ItalcoUser) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      add_photo(element, tupla[7])
+      add_photo(element, tupla[6])
       add_service(element, tupla[3], tupla[1], tupla[2].price)
       return list
 
@@ -198,11 +176,10 @@ def format_query_result(tupla: tuple[
     'price': 0,
     'photos': [],
     'products': {},
-    'collection_point': tupla[6].to_dict(),
-    'user': tupla[4].format_user(user.role),
-    'delivery_group': tupla[5].to_dict() if tupla[5] else None
+    'collection_point': tupla[5].to_dict(),
+    'user': tupla[4].format_user(user.role)
   }
-  add_photo(output, tupla[7])
+  add_photo(output, tupla[6])
   add_service(output, tupla[3], tupla[1], tupla[2].price)
   list.append(output)
   return list
