@@ -4,12 +4,11 @@ from sqlalchemy import and_
 from datetime import datetime
 from flask import Blueprint, request, send_file
 
+from ..database.schema import *
 from database_api import Session
 from ..database.enum import OrderStatus, UserRole, OrderType
 from . import error_catching_decorator, flask_session_authentication
 from database_api.operations import create, update, get_by_id, delete
-from ..database.schema import Order, ItalcoUser, Service, ServiceUser, CollectionPoint, \
-  OrderServiceUser, Photo, Schedule
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -130,11 +129,24 @@ def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tupl
         ItalcoUser.id == user.id
       )
 
-    dynamic_filters = list(map(
-      lambda filter: getattr(globals()[filter['model']], filter['field']) == filter['value'], filters
-    ))
-    if dynamic_filters:
-      query = query.filter(*dynamic_filters)
+    for filter in filters:
+      if filter['model'] == 'Schedule':
+        query = query.outerjoin(
+          Schedule, Schedule.id == Order.schedule_id
+        )
+      elif filter['model'] == 'CustomerGroup':
+        query = query.outerjoin(
+          CustomerGroup, CustomerGroup.id == ItalcoUser.customer_group_id
+        )
+      elif filter['model'] == 'DeliveryGroup':
+        query = query.outerjoin(
+          Schedule, Schedule.id == Order.schedule_id
+        ).outerjoin(
+          DeliveryGroup, DeliveryGroup.id == Schedule.delivery_group_id
+        )
+
+      query = query.filter(getattr(globals()[filter['model']], filter['field']) == filter['value'])
+
     if date_filter != {}:
       query = query.filter(
         Order.booking_date >= datetime.strptime(date_filter['start_date'], '%Y-%m-%d'),
