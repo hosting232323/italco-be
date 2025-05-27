@@ -18,22 +18,22 @@ def seed_users():
 CONFIG = [
   {
     'email': 'admin',
-    'password': 'admin',
+    'password': '1234admin',
     'role': 'Admin'
   },
   {
     'email': 'operator',
-    'password': 'operator',
+    'password': '1234operator',
     'role': 'Operator'
   },
   {
     'email': 'delivery',
-    'password': 'delivery',
+    'password': '1234delivery',
     'role': 'Delivery'
   },
   {
     'email': 'customer',
-    'password': 'customer',
+    'password': '1234customer',
     'role': 'Customer'
   }
 ]
