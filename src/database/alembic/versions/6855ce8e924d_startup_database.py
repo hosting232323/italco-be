@@ -100,10 +100,11 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
   )
   op.create_table('order',
-    sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'ANOMALY', 'DELAY', name='orderstatus'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'ANOMALY', 'DELAY', name='orderstatus'), nullable=False),
     sa.Column('type', sa.Enum('DELIVERY', 'WITHDRAW', 'REPLACEMENT', 'CHECK', name='ordertype'), nullable=False),
     sa.Column('addressee', sa.String(), nullable=False),
     sa.Column('address', sa.String(), nullable=False),
+    sa.Column('addressee_contact', sa.String(), nullable=True),
     sa.Column('cap', sa.String(), nullable=False),
     sa.Column('dpc', sa.Date(), nullable=False),
     sa.Column('drc', sa.Date(), nullable=False),
@@ -145,13 +146,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-  op.drop_table('schedule')
   op.drop_table('photo')
   op.drop_table('order_service_user')
   op.drop_table('order')
+  op.drop_table('schedule')
   op.drop_table('service_user')
   op.drop_table('collection_point')
-  op.drop_table('transport_delivery_group')
   op.drop_table('italco_user')
   op.drop_table('transport')
   op.drop_table('service')
@@ -159,7 +159,7 @@ def downgrade() -> None:
   op.drop_table('customer_group')
   filetype_enum = sa.Enum('ADMIN', 'CUSTOMER', 'OPERATOR', 'DELIVERY', name='userrole')
   filetype_enum.drop(op.get_bind(), checkfirst=True)
-  filetype_enum = sa.Enum('PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'ANOMALY', name='orderstatus')
+  filetype_enum = sa.Enum('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'ANOMALY', name='orderstatus')
   filetype_enum.drop(op.get_bind(), checkfirst=True)
   filetype_enum = sa.Enum('DELIVERY', 'WITHDRAW', 'REPLACEMENT', 'CHECK', name='ordertype')
   filetype_enum.drop(op.get_bind(), checkfirst=True)

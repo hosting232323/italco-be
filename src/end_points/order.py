@@ -1,7 +1,7 @@
 import io
 import json
-from sqlalchemy import and_
 from datetime import datetime
+from sqlalchemy import and_, not_
 from flask import Blueprint, request, send_file
 
 from ..database.schema import *
@@ -33,9 +33,27 @@ def create_order(user: ItalcoUser):
   }
 
 
+@order_bp.route('delivery', methods=['GET'])
+@error_catching_decorator
+@flask_session_authentication([UserRole.DELIVERY])
+def get_orders_for_delivery(user: ItalcoUser):
+  orders = []
+  for tupla in query_delivery_orders(user):
+    orders = format_query_result(tupla, orders, user)
+  response = {}
+  for order in orders:
+    if not order['status'] in response:
+      response[order['status']] = []
+    response[order['status']].append(order)
+  return {
+    'status': 'ok',
+    'orders': response
+  }
+
+
 @order_bp.route('filter', methods=['POST'])
 @error_catching_decorator
-@flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.CUSTOMER])
 def filter_orders(user: ItalcoUser):
   orders = []
   for tupla in query_orders(user, request.json['filters'], request.json['date_filter']):
@@ -67,11 +85,12 @@ def update_order(user: ItalcoUser, id):
   data['status'] = OrderStatus.get_enum_option(data['status'])
   if user.role == UserRole.DELIVERY and data['status'] in [OrderStatus.ANOMALY, OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
     data['booking_date'] = datetime.now()
-  update_order_service_user(
-    order,
-    data['products'],
-    user.id if user.role == UserRole.CUSTOMER else data['user_id']
-  )
+  if user.role != UserRole.DELIVERY:
+    update_order_service_user(
+      order,
+      data['products'],
+      user.id if user.role == UserRole.CUSTOMER else data['user_id']
+    )
   data = {key: value for key, value in data.items() if not key in ['products', 'user_id']}
 
   return {
@@ -115,16 +134,7 @@ def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tupl
       Photo, Photo.order_id == Order.id
     )
 
-    if user.role == UserRole.DELIVERY:
-      query = query.join(
-        Schedule, and_(
-          Schedule.delivery_group_id == user.delivery_group_id,
-          Schedule.id == Order.schedule_id
-        )
-      ).filter(
-        Order.status.in_([OrderStatus.IN_PROGRESS, OrderStatus.DELAY])
-      )
-    elif user.role == UserRole.CUSTOMER:
+    if user.role == UserRole.CUSTOMER:
       query = query.filter(
         ItalcoUser.id == user.id
       )
@@ -154,6 +164,32 @@ def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tupl
       )
 
     return query.all()
+
+
+def query_delivery_orders(user: ItalcoUser) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo]]:
+  with Session() as session:
+    return session.query(
+      Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo
+    ).outerjoin(
+      CollectionPoint, Order.collection_point_id == CollectionPoint.id
+    ).outerjoin(
+      OrderServiceUser, OrderServiceUser.order_id == Order.id
+    ).outerjoin(
+      ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id
+    ).outerjoin(
+      Service, ServiceUser.service_id == Service.id
+    ).outerjoin(
+      ItalcoUser, ServiceUser.user_id == ItalcoUser.id
+    ).outerjoin(
+      Photo, Photo.order_id == Order.id
+    ).join(
+      Schedule, and_(
+        Schedule.delivery_group_id == user.delivery_group_id,
+        Schedule.date == datetime.now().date(),
+        Schedule.id == Order.schedule_id,
+        not_(Order.status.in_([OrderStatus.PENDING, OrderStatus.COMPLETED, OrderStatus.CANCELLED]))
+      )
+    ).all()
 
 
 def query_order_service_users(order: Order) -> list[OrderServiceUser]:

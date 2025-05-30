@@ -9,6 +9,7 @@ class UserRole(BaseEnum):
 class OrderStatus(BaseEnum):
   PENDING = 'Pending'
   IN_PROGRESS = 'In Progress'
+  ON_BOARD = 'On Board'
   COMPLETED = 'Completed'
   CANCELLED = 'Cancelled'
   ANOMALY = 'Anomaly'
