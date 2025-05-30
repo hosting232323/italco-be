@@ -62,6 +62,7 @@ class Order(BaseEntity):
   type = Column(Enum(OrderType), nullable=False)
   addressee = Column(String, nullable=False)
   address = Column(String, nullable=False)
+  addressee_contact = Column(String, nullable=True)
   cap = Column(String, nullable=False)
   dpc = Column(Date, nullable=False)
   drc = Column(Date, nullable=False)
