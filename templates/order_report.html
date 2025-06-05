@@ -2,34 +2,81 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Documento di Consegna</title>
   <style>
-    h1 { font-size: 20px; }
-    p { font-size: 15px; }
+    body {
+      font-family: Helvetica, sans-serif;
+      font-size: 12px;
+      margin: 30px;
+    }
+    h1, h2 {
+      color: #333;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+    }
+    .section {
+      margin-bottom: 20px;
+    }
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .info-table td {
+      padding: 5px;
+      vertical-align: top;
+    }
+    .info-table td.label {
+      font-weight: bold;
+      width: 30%;
+    }
+    .products, .services {
+      margin-top: 10px;
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
   </style>
 </head>
 <body>
-  <h1>Documento di Consegna</h1>
-  <p>
-    <b>ID:</b> {{ id }}<br>
-  </p><hr><p>
-    <b>Punto Vendita:</b> {{ customer['email'] }}<br>
-    <b>Data Promessa al Cliente:</b> {{ dpc }}<br>
-    <b>Data Richiesta dal Cliente:</b> {{ drc }}
-  </p><hr><p>
-    <b>Punto di Ritiro:</b> {{ collection_point['name'] }}<br>
-    <b>Indirizzo:</b> {{ collection_point['address'] }}, {{ collection_point['city'] }},
-      {{ collection_point['cap'] }}, {{ collection_point['province'] }}
-  </p><hr><p>
-    <b>Anagrafica:</b> {{ addressee['name'] }}<br>
-    <b>Indirizzo:</b> {{ addressee['address'] }}, {{ addressee['city'] }},
-      {{ addressee['cap'] }}, {{ addressee['province'] }}
-  </p><hr>
-  <h1>Dettagli</h1>
-  <p>
-    <b>Servizi:</b> {{ services }}<br>
-    <b>Prodotti:</b> {{ products }}<br>
-    <b>Note:</b> {{ note }}
-  </p>
+
+  <h1>Report Ordine #{{ id }}</h1>
+
+  <div class="section">
+    <h2>Dati Cliente</h2>
+    <table class="info-table">
+      <tr><td class="label">Email:</td><td>{{ customer.email }}</td></tr>
+      <tr><td class="label">Ruolo:</td><td>{{ customer.role }}</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Destinatario</h2>
+    <table class="info-table">
+      <tr><td class="label">Nome:</td><td>{{ addressee }}</td></tr>
+      <tr><td class="label">Nota cliente:</td><td>{{ note }}</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Dettagli Consegna</h2>
+    <table class="info-table">
+      <tr><td class="label">Data prevista consegna:</td><td>{{ dpc }}</td></tr>
+      <tr><td class="label">Data richiesta consegna:</td><td>{{ drc }}</td></tr>
+      <tr><td class="label">Punto di ritiro:</td><td>{{ collection_point.name }} - {{ collection_point.address }}, {{ collection_point.city }} ({{ collection_point.province }})</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Prodotti</h2>
+    <div class="products">
+      {{ products }}
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Servizi</h2>
+    <div class="services">
+      {{ services }}
+    </div>
+  </div>
+
 </body>
 </html>
