@@ -33,10 +33,10 @@ def export_order_report(user: ItalcoUser, id):
     drc=orders[0]['drc'],
     customer=orders[0]['user'],
     addressee=orders[0]['addressee'],
-    products=', '.join([product['name'] for product in orders[0]['products'].get('customer', [])]),
+    addressee_contact=orders[0]['addressee_contact'],
+    products=orders[0]['products'],
     collection_point=orders[0]['collection_point'],
-    note=orders[0]['customer_note'] if 'customer_note' in orders[0] else '/',
-    services=', '.join([service['name'] for service in orders[0]['products'].get('customer', [])]),
+    note=orders[0].get('customer_note', '/')
   ), dest=result)
   if pisa_status.err:
     raise Exception('Errore nella creazione del PDF')
