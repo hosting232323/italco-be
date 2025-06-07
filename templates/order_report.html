@@ -84,8 +84,15 @@
         <td style="width: 50%; vertical-align: top; border: none; padding-left: 0px;">
           <h3 style="margin: 0 0 10px;">Cliente</h3>
           <table class="info-table inner">
-            <tr><td class="label">Email</td><td>{{ customer.email }}</td></tr>
-            <tr><td class="label">Ruolo</td><td>{{ customer.role }}</td></tr>
+            <tr><td class="label">Punto vendita</td><td>{{ customer.email }}</td></tr>
+            <tr>
+            <td class="label">Punto di ritiro</td>
+              <td>
+                {{ collection_point.name }}<br>
+                {{ collection_point.address }}<br>
+                {{ collection_point.city }} ({{ collection_point.province }})
+              </td>
+            </tr>
           </table>
         </td>
         <td style="width: 50%; vertical-align: top; border: none; padding-right: 0px;">
@@ -105,15 +112,8 @@
     <table class="info-table">
       <tr><td class="label">Data prevista consegna</td><td>{{ dpc }}</td></tr>
       <tr><td class="label">Data richiesta consegna</td><td>{{ drc }}</td></tr>
+      <tr><td class="label">Data consegna effettiva</td><td>{{ booking_date }}</td></tr>
       <tr><td class="label">Note aggiuntive</td><td>{{ note }}</td></tr>
-      <tr>
-        <td class="label">Punto di ritiro</td>
-        <td>
-          {{ collection_point.name }}<br>
-          {{ collection_point.address }}<br>
-          {{ collection_point.city }} ({{ collection_point.province }})
-        </td>
-      </tr>
     </table>
   </div>
 
@@ -140,6 +140,24 @@
         </tr>
         {% endfor %}
       </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Firme</h2>
+    <table class="info-table">
+      <tr>
+        <td style="width: 50%; vertical-align: top; border: none; padding-left: 0px;">
+          <div style="border: 1px solid #999; padding: 10px 10px 30px;">
+            <em>Firma cliente</em>
+          </div>
+        </td>
+        <td style="width: 50%; vertical-align: top; border: none; padding-right: 0px;">
+          <div style="border: 1px solid #999; padding: 10px 10px 30px;">
+            <em>Firma destinatario</em>
+          </div>
+        </td>
+      </tr>
     </table>
   </div>
 </body>

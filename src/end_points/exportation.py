@@ -31,6 +31,7 @@ def export_order_report(user: ItalcoUser, id):
     id=orders[0]['id'],
     dpc=orders[0]['dpc'],
     drc=orders[0]['drc'],
+    booking_date=orders[0]['booking_date'],
     customer=orders[0]['user'],
     address=orders[0]['address'],
     addressee=orders[0]['addressee'],
@@ -53,17 +54,12 @@ def export_order_report(user: ItalcoUser, id):
 @flask_session_authentication([UserRole.ADMIN])
 def export_orders_invoice(user: ItalcoUser):
   orders = []
-  print(user)
-  print(request.json['filters'])
-  print(request.json['date_filter'])
   for tupla in query_orders(user, request.json['filters'], request.json['date_filter']):
     orders = format_query_result(tupla, orders, user)
     
   if len(orders) == 0:
     raise Exception('Numero di ordini trovati non valido')
   
-
-
   result = BytesIO()
   pisa_status = pisa.CreatePDF(src=render_template(
     'orders_invoice.html',

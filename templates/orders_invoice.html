@@ -1,32 +1,124 @@
 <!DOCTYPE html>
-<html>
+<html lang="it">
 <head>
   <meta charset="utf-8">
-  <title>Documento di Consegna</title>
   <style>
-    h1 { font-size: 20px; }
-    p { font-size: 15px; }
+    body {
+      font-family: Helvetica, sans-serif;
+      font-size: 13px;
+      margin: 0;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      font-size: 16px;
+      margin-top: 30px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+    }
+
+    .section {
+      margin-bottom: 20px;
+    }
+
+    .info-table, .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .info-table td,
+    .data-table td,
+    .data-table th {
+      border: 1px solid #ccc;
+      padding: 8px;
+      vertical-align: top;
+    }
+
+    .info-table td.label {
+      font-weight: bold;
+      background: #f2f2f2;
+      width: 30%;
+    }
+
+    .data-table th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+      text-align: left;
+    }
+
+    .info-table.inner {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .flex-row {
+      display: flex;
+      gap: 20px;
+      justify-content: space-between;
+    }
+
+    .half-section {
+      flex: 1;
+    }
+
+    .half-section h2 {
+      font-size: 15px;
+      margin-top: 0;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #ccc;
+    }
   </style>
 </head>
 <body>
   <h1>Riepilogo Ordinazioni</h1>
-  <p>
-    <b>Punto Vendita:</b> {{ customer }}<br>
-    <b>Data di Inizio:</b> {{ start_date }}<br>
-    <b>Data di Fine:</b> {{ end_date }}<br>
-  </p><hr><p>
-    {% for order in orders %}
-      <b>ID:</b> {{ order['id'] }}<br>
-      <b>Tipo:</b> {{ order['type'] }}<br>
-      <b>Anagrafica:</b> {{ order['addressee']['name'] }}<br>
-      <b>Servizi:</b>
-      {% for service in order['services'] %}
-        {{ service['name'] }}{% if not loop.last %}, {% endif %}
-      {% endfor %}<br>
-      <b>Prezzo:</b> {{ '%.2f' % order['price'] }} €<br>
-    {% endfor %}
-  </p><hr><p>
+
+  <div class="section">
+    <h2>Dettagli Consegna</h2>
+    <table class="info-table">
+      <tr><td class="label">Punto Vendita</td><td>{{ customer }}</td></tr>
+      <tr><td class="label">Data di Inizio</td><td>{{ start_date }}</td></tr>
+      <tr><td class="label">Data di Fine</td><td>{{ end_date }}</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Ordini</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width: 6%;">Id</th>
+          <th style="width: 20%;">Tipo</th>
+          <th style="width: 25%;">Anagrafica</th>
+          <th style="width: 35%;">Servizi</th>
+          <th style="width: 14%;">Prezzo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in orders %}
+        <tr>
+          <td>{{ order['id'] }}</td>
+          <td>{{ order['type'] }}</td>
+          <td>{{ order['addressee'] }}</td>
+          <td>
+            {% for product_name, service_list in order['products'].items() %}
+              <strong>{{ product_name }}</strong><br>
+              {% for service in service_list %}
+                {{ service['name'] }}
+              {% endfor %}
+            {% endfor %}
+          </td>
+          <td>{{ '%.2f' % order['price'] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
     <b>Totale:</b> {{ '%.2f' % total }} €
-  </p>
 </body>
 </html>
