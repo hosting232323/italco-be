@@ -67,8 +67,7 @@ def export_orders_invoice(user: ItalcoUser):
     total=sum([order['price'] for order in orders]),
     end_date=request.json['date_filter']['end_date'],
     start_date=request.json['date_filter']['start_date'],
-    customer=next((f['value'] for f in request.json['filters']
-      if f['model'] == 'ItalcoUser' and f['field'] == 'email'), None)
+    customer=orders[0]['user']['email'] if orders else None
   ), dest=result)
   if pisa_status.err:
     raise Exception('Errore nella creazione del PDF')
@@ -77,4 +76,3 @@ def export_orders_invoice(user: ItalcoUser):
   response.headers['Content-Type'] = 'application/pdf'
   response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
   return response
-  
