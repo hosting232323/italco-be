@@ -1,35 +1,164 @@
 <!DOCTYPE html>
-<html>
+<html lang="it">
 <head>
   <meta charset="utf-8">
-  <title>Documento di Consegna</title>
   <style>
-    h1 { font-size: 20px; }
-    p { font-size: 15px; }
+    body {
+      font-family: Helvetica, sans-serif;
+      font-size: 13px;
+      margin: 0;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      font-size: 16px;
+      margin-top: 30px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+    }
+
+    .section {
+      margin-bottom: 20px;
+    }
+
+    .info-table, .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .info-table td,
+    .data-table td,
+    .data-table th {
+      border: 1px solid #ccc;
+      padding: 8px;
+      vertical-align: top;
+    }
+
+    .info-table td.label {
+      font-weight: bold;
+      background: #f2f2f2;
+      width: 30%;
+    }
+
+    .data-table th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+      text-align: left;
+    }
+
+    .info-table.inner {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    .flex-row {
+      display: flex;
+      gap: 20px;
+      justify-content: space-between;
+    }
+
+    .half-section {
+      flex: 1;
+    }
+
+    .half-section h2 {
+      font-size: 15px;
+      margin-top: 0;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #ccc;
+    }
   </style>
 </head>
 <body>
-  <h1>Documento di Consegna</h1>
-  <p>
-    <b>ID:</b> {{ id }}<br>
-  </p><hr><p>
-    <b>Punto Vendita:</b> {{ customer['email'] }}<br>
-    <b>Data Promessa al Cliente:</b> {{ dpc }}<br>
-    <b>Data Richiesta dal Cliente:</b> {{ drc }}
-  </p><hr><p>
-    <b>Punto di Ritiro:</b> {{ collection_point['name'] }}<br>
-    <b>Indirizzo:</b> {{ collection_point['address'] }}, {{ collection_point['city'] }},
-      {{ collection_point['cap'] }}, {{ collection_point['province'] }}
-  </p><hr><p>
-    <b>Anagrafica:</b> {{ addressee['name'] }}<br>
-    <b>Indirizzo:</b> {{ addressee['address'] }}, {{ addressee['city'] }},
-      {{ addressee['cap'] }}, {{ addressee['province'] }}
-  </p><hr>
-  <h1>Dettagli</h1>
-  <p>
-    <b>Servizi:</b> {{ services }}<br>
-    <b>Prodotti:</b> {{ products }}<br>
-    <b>Note:</b> {{ note }}
-  </p>
+  <h1>N° Bolla: {{ id }}</h1>
+
+  <div class="section">
+    <h2>Informazioni</h2>
+    <table class="info-table">
+      <tr>
+        <td style="width: 50%; vertical-align: top; border: none; padding-left: 0px;">
+          <h3 style="margin: 0 0 10px;">Cliente</h3>
+          <table class="info-table inner">
+            <tr><td class="label">Punto vendita</td><td>{{ customer.email }}</td></tr>
+            <tr>
+            <td class="label">Punto di ritiro</td>
+              <td>
+                {{ collection_point.name }}<br>
+                {{ collection_point.address }}<br>
+                {{ collection_point.city }} ({{ collection_point.province }})
+              </td>
+            </tr>
+          </table>
+        </td>
+        <td style="width: 50%; vertical-align: top; border: none; padding-right: 0px;">
+          <h3 style="margin: 0 0 10px;">Destinatario</h3>
+          <table class="info-table inner">
+            <tr><td class="label">Nome</td><td>{{ addressee }}</td></tr>
+            <tr><td class="label">Indirizzo</td><td>{{ address }}</td></tr>
+            <tr><td class="label">Recapito</td><td>{{ addressee_contact }}</td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Dettagli Consegna</h2>
+    <table class="info-table">
+      <tr><td class="label">Data prevista consegna</td><td>{{ dpc }}</td></tr>
+      <tr><td class="label">Data richiesta consegna</td><td>{{ drc }}</td></tr>
+      <tr><td class="label">Data consegna effettiva</td><td>{{ booking_date }}</td></tr>
+      <tr><td class="label">Note aggiuntive</td><td>{{ note }}</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Prodotti e Servizi</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Prodotto</th>
+          <th>Servizi associati</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for product_name, services in products.items() %}
+        <tr>
+          <td>{{ product_name }}</td>
+          <td>
+            <ul style="margin: 0; padding-left: 16px;">
+              {% for service in services %}
+              <li>{{ service.name }}</li>
+              {% endfor %}
+            </ul>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Firme</h2>
+    <table class="info-table">
+      <tr>
+        <td style="width: 50%; vertical-align: top; border: none; padding-left: 0px;">
+          <div style="border: 1px solid #999; padding: 10px 10px 30px;">
+            <em>Firma cliente</em>
+          </div>
+        </td>
+        <td style="width: 50%; vertical-align: top; border: none; padding-right: 0px;">
+          <div style="border: 1px solid #999; padding: 10px 10px 30px;">
+            <em>Firma destinatario</em>
+          </div>
+        </td>
+      </tr>
+    </table>
+  </div>
 </body>
 </html>
