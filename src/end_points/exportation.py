@@ -31,12 +31,14 @@ def export_order_report(user: ItalcoUser, id):
     id=orders[0]['id'],
     dpc=orders[0]['dpc'],
     drc=orders[0]['drc'],
+    booking_date=orders[0]['booking_date'],
     customer=orders[0]['user'],
+    address=orders[0]['address'],
     addressee=orders[0]['addressee'],
-    products=', '.join(orders[0]['products']),
+    addressee_contact=orders[0]['addressee_contact'],
+    products=orders[0]['products'],
     collection_point=orders[0]['collection_point'],
-    note=orders[0]['customer_note'] if 'customer_note' in orders[0] else '/',
-    services=', '.join([service['name'] for service in orders[0]['services']]),
+    note=orders[0].get('customer_note', '/')
   ), dest=result)
   if pisa_status.err:
     raise Exception('Errore nella creazione del PDF')
@@ -54,9 +56,10 @@ def export_orders_invoice(user: ItalcoUser):
   orders = []
   for tupla in query_orders(user, request.json['filters'], request.json['date_filter']):
     orders = format_query_result(tupla, orders, user)
+    
   if len(orders) == 0:
     raise Exception('Numero di ordini trovati non valido')
-
+  
   result = BytesIO()
   pisa_status = pisa.CreatePDF(src=render_template(
     'orders_invoice.html',
@@ -64,8 +67,7 @@ def export_orders_invoice(user: ItalcoUser):
     total=sum([order['price'] for order in orders]),
     end_date=request.json['date_filter']['end_date'],
     start_date=request.json['date_filter']['start_date'],
-    customer=next((f['value'] for f in request.json['filters']
-      if f['model'] == 'ItalcoUser' and f['field'] == 'email'), None)
+    customer=orders[0]['user']['email'] if orders else None
   ), dest=result)
   if pisa_status.err:
     raise Exception('Errore nella creazione del PDF')
@@ -74,4 +76,3 @@ def export_orders_invoice(user: ItalcoUser):
   response.headers['Content-Type'] = 'application/pdf'
   response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
   return response
-  
