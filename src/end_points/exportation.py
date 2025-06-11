@@ -6,6 +6,7 @@ from ..database.enum import UserRole
 from ..database.schema import ItalcoUser
 from .order import query_orders, format_query_result
 from . import error_catching_decorator, flask_session_authentication
+from .schedule import query_schedules, format_schedules_query_result
 
 
 export_bp = Blueprint('export_bp', __name__)
@@ -68,6 +69,43 @@ def export_orders_invoice(user: ItalcoUser):
     end_date=request.json['date_filter']['end_date'],
     start_date=request.json['date_filter']['start_date'],
     customer=orders[0]['user']['email'] if orders else None
+  ), dest=result)
+  if pisa_status.err:
+    raise Exception('Errore nella creazione del PDF')
+
+  response = make_response(result.getvalue())
+  response.headers['Content-Type'] = 'application/pdf'
+  response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
+  return response
+
+
+@export_bp.route('schedule/<id>', methods=['POST'])
+@error_catching_decorator
+@flask_session_authentication([UserRole.ADMIN])
+def export_orders_schedule(user: ItalcoUser, id):
+  orders = []
+  for tupla in query_orders(user, [{
+    'model': 'Order',
+    'field': 'id',
+    'value': int(id)
+  }]):
+    orders = format_query_result(tupla, orders, user)
+  if len(orders) != 1:
+    raise Exception('Numero di ordini trovati non valido')
+  
+  schedules = []
+  for tupla in query_schedules(id):
+    schedules = format_schedules_query_result(tupla, schedules)
+  
+  result = BytesIO()
+  pisa_status = pisa.CreatePDF(src=render_template(
+    'schedules_report.html',
+    id=schedules[0]['id'],
+    date=schedules[0]['date'],
+    delivery_group=schedules[0]['delivery_group']['name'],
+    transport=schedules[0]['transport']['name'],
+    info=schedules[0]['orders'],
+    orders=orders
   ), dest=result)
   if pisa_status.err:
     raise Exception('Errore nella creazione del PDF')

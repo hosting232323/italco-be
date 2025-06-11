@@ -61,7 +61,7 @@ def delete_schedule(user: ItalcoUser, id):
 def get_schedules(user: ItalcoUser):
   schedules = []
   for tupla in query_schedules():
-    schedules = format_query_result(tupla, schedules)
+    schedules = format_schedules_query_result(tupla, schedules)
   return {
     'status': 'ok',
     'schedules': schedules
@@ -79,9 +79,9 @@ def update_schedule(user: ItalcoUser, id):
   }
 
 
-def query_schedules() -> list[tuple[Schedule, DeliveryGroup, Transport, Order]]:
+def query_schedules(id: int | None = None) -> list[tuple[Schedule, DeliveryGroup, Transport, Order]]:
   with Session() as session:
-    return session.query(
+    query = session.query(
       Schedule, DeliveryGroup, Transport, Order
     ).join(
       DeliveryGroup, Schedule.delivery_group_id == DeliveryGroup.id
@@ -89,7 +89,11 @@ def query_schedules() -> list[tuple[Schedule, DeliveryGroup, Transport, Order]]:
       Transport, Schedule.transport_id == Transport.id
     ).outerjoin(
       Order, Order.schedule_id == Schedule.id
-    ).all()
+    )
+    if id is not None:
+      query = query.filter(Schedule.id == id)
+
+    return query.all()
 
 
 def get_related_orders(schedule: Schedule) -> list[Order]:
@@ -99,7 +103,7 @@ def get_related_orders(schedule: Schedule) -> list[Order]:
     ).all()
 
 
-def format_query_result(tupla: tuple[
+def format_schedules_query_result(tupla: tuple[
   Schedule, DeliveryGroup, Transport, Order
 ], list: list[dict]) -> list[dict]:
   for element in list:
