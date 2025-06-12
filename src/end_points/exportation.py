@@ -4,11 +4,10 @@ from flask import Blueprint, render_template, make_response, request
 
 from database_api import Session
 from ..database.enum import UserRole
-from ..database.schema import ItalcoUser
 from .order import query_orders, format_query_result
 from . import error_catching_decorator, flask_session_authentication
 from ..database.schema import Schedule, ItalcoUser, Order, DeliveryGroup, Transport, OrderServiceUser, ServiceUser, Service, CollectionPoint, Photo
-from .order import add_service
+
 
 export_bp = Blueprint('export_bp', __name__)
 
