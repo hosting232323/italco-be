@@ -72,36 +72,43 @@
       padding-bottom: 5px;
       border-bottom: 1px solid #ccc;
     }
-
-    .total {
-      text-align: right;
-      font-size: 16px;
-      margin-top: 40px;
-    }
   </style>
 </head>
 <body>
-  <h1>Riepilogo Ordinazioni</h1>
+  <h1>N° Schedules: {{ id }}</h1>
 
   <div class="section">
-    <h2>Dettagli Consegna</h2>
+    <h2>Informazioni</h2>
     <table class="info-table">
-      <tr><td class="label">Punto Vendita</td><td>{{ customer }}</td></tr>
-      <tr><td class="label">Data di Inizio</td><td>{{ start_date }}</td></tr>
-      <tr><td class="label">Data di Fine</td><td>{{ end_date }}</td></tr>
+      <tr>
+        <td class="label">ID</td>
+        <td>{{ id }}</td>
+      </tr>
+      <tr>
+        <td class="label">Data</td>
+        <td>{{ date }}</td>
+      </tr>
+      <tr>
+        <td class="label">Gruppo Delivery</td>
+        <td>{{ delivery_group }}</td>
+      </tr>
+      <tr>
+        <td class="label">Veicolo</td>
+        <td>{{ transport }}</td>
+      </tr>
     </table>
   </div>
-
+  
   <div class="section">
     <h2>Ordini</h2>
     <table class="data-table">
       <thead>
         <tr>
           <th style="width: 10%;">Id</th>
-          <th style="width: 20%;">Tipo</th>
-          <th style="width: 22%;">Anagrafica</th>
-          <th style="width: 35%;">Servizi</th>
-          <th style="width: 12%;">Prezzo</th>
+          <th style="width: 14%;">Tipo</th>
+          <th style="width: 22%;">Destinatario</th>
+          <th style="width: 31%;">Prodotti e Servizi</th>
+          <th style="width: 23%;">Punto Vendita</th>
         </tr>
       </thead>
       <tbody>
@@ -109,7 +116,7 @@
         <tr>
           <td>{{ order['id'] }}</td>
           <td>{{ order['type'] }}</td>
-          <td>{{ order['addressee'] }}</td>
+          <td>{{ order['addressee'] }}<br>{{ order['address'] }}, {{ order['cap'] }}<br>{{ order['addressee_contact']}}</td>
           <td>
             {% for product_name, service_list in order['products'].items() %}
               <strong>{{ product_name }}</strong><br>
@@ -118,15 +125,14 @@
               {% endfor %}
             {% endfor %}
           </td>
-          <td>{{ '%.2f' % order['price'] }}</td>
+          <td>
+            <b>Punto vendita:</b><br>{{ order['user']['email'] }}<br>
+            <b>Punto di ritiro:</b><br>{{ order['collection_point']['address'] }}, {{ order['collection_point']['cap'] }}, {{ order['collection_point']['city'] }}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-  </div>
-
-  <div class="total">
-    <b>Totale:</b> {{ '%.2f' % total }} €
   </div>
 </body>
 </html>
