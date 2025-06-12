@@ -12,7 +12,7 @@ from .schedule import query_schedules, format_schedules_query_result
 export_bp = Blueprint('export_bp', __name__)
 
 
-@export_bp.route('<id>', methods=['GET'])
+@export_bp.route('order/<id>', methods=['GET'])
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_order_report(user: ItalcoUser, id):
@@ -79,7 +79,7 @@ def export_orders_invoice(user: ItalcoUser):
   return response
 
 
-@export_bp.route('schedule/<id>', methods=['POST'])
+@export_bp.route('schedule/<id>', methods=['GET'])
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def export_orders_schedule(user: ItalcoUser, id):
