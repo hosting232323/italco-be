@@ -95,12 +95,7 @@ def export_orders_schedule(user: ItalcoUser, id):
       }
     orders = format_query_result(tuple(
       value for index, value in enumerate(tupla) if not index in [0, 1, 2]
-    ), orders, user)
-
-  print('_____')
-  print(schedule)
-  print('_____')
-  print(orders)
+    ), orders, user) 
   
   result = BytesIO()
   pisa_status = pisa.CreatePDF(src=render_template(
