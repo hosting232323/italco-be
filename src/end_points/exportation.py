@@ -34,7 +34,7 @@ def export_order_report(user: ItalcoUser, id):
     id=orders[0]['id'],
     dpc=orders[0]['dpc'],
     drc=orders[0]['drc'],
-    booking_date=orders[0]['booking_date'],
+    booking_date=orders[0].get('booking_date', '/'),
     customer=orders[0]['user'],
     address=orders[0]['address'],
     addressee=orders[0]['addressee'],
