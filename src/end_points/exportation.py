@@ -122,7 +122,7 @@ def export_orders_schedule(user: ItalcoUser, id):
 
 def query_schedule(id: int) -> list[tuple[Schedule, DeliveryGroup, Transport, Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo]]:
   with Session() as session:
-    query = session.query(
+    return session.query(
       Schedule, DeliveryGroup, Transport, Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo
     ).join(
       DeliveryGroup, Schedule.delivery_group_id == DeliveryGroup.id
@@ -144,6 +144,4 @@ def query_schedule(id: int) -> list[tuple[Schedule, DeliveryGroup, Transport, Or
       Photo, Photo.order_id == Order.id
     ).filter(
       Schedule.id == id
-    )
-
-    return query.all()
+    ).all()
