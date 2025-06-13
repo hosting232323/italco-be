@@ -75,7 +75,7 @@
   </style>
 </head>
 <body>
-  <h1>N° Schedules: {{ id }}</h1>
+  <h1>N° Borderò: {{ id }}</h1>
 
   <div class="section">
     <h2>Informazioni</h2>
@@ -121,8 +121,9 @@
             {% for product_name, service_list in order['products'].items() %}
               <strong>{{ product_name }}</strong><br>
               {% for service in service_list %}
-                {{ service['name'] }}
+                {{ service['name'] }}<br>
               {% endfor %}
+              <br>
             {% endfor %}
           </td>
           <td>
