@@ -14,6 +14,7 @@ from .end_points.transport import transport_bp
 from .end_points.customer_group import customer_group_bp
 from .end_points.delivery_group import delivery_group_bp
 from .end_points.collection_point import collection_point_bp
+from .end_points.geographic_zone import geographic_zone_bp
 
 
 @app.route('/login', methods=['POST'])
@@ -30,6 +31,7 @@ app.register_blueprint(schedule_bp, url_prefix='/schedule')
 app.register_blueprint(transport_bp, url_prefix='/transport')
 app.register_blueprint(customer_group_bp, url_prefix='/customer-group')
 app.register_blueprint(delivery_group_bp, url_prefix='/delivery-group')
+app.register_blueprint(geographic_zone_bp, url_prefix='/geograpich-zone')
 app.register_blueprint(collection_point_bp, url_prefix='/collection-point')
 
 
