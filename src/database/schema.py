@@ -147,3 +147,21 @@ class OrderServiceUser(BaseEntity):
 
   order = relationship('Order', back_populates='order_service_user')
   service_user = relationship('ServiceUser', back_populates='order_service_user')
+
+
+class GeographicZone(BaseEntity):
+  __tablename__ = 'geographic_zone'
+  
+  name = Column(String, nullable=False)
+  province = Column(String, nullable=False)
+  constraints = relationship("Constraint", back_populates="zone", cascade="all, delete-orphan")
+  
+  
+class Constraint(BaseEntity):
+  __tablename__ = 'constraints'
+
+  zone_id = Column(Integer, ForeignKey('geographic_zone.id'), nullable=False)
+  day_of_week = Column(String, nullable=False)
+  max_orders = Column(Integer, nullable=False)
+
+  zone = relationship("GeographicZone", back_populates="constraints")
