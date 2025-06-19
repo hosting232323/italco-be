@@ -20,16 +20,24 @@ def create_geographic_zones():
     "message": "Operazione completata"
   }
 
-  # constraints_data = [
-  #   {
-  #     "zone_id": zone.id,
-  #     "day_of_week": c["day_of_week"],
-  #     "max_orders": c["max_orders"]
-  #   }
-  #   for c in data["constraints"]
-  # ]
 
-  # create_bulk(Constraint, constraints_data)
+@geographic_zone_bp.route('/constraint', methods=['POST'])
+def create_constraint():
+  constraints_data = [
+    {
+      "zone_id": request.json['zone_id'],
+      "day_of_week": c["day_of_week"],
+      "max_orders": c["max_orders"]
+    }
+    for c in request.json["constraints"]
+  ]
+
+  create_bulk(Constraint, constraints_data)
+  
+  return {
+    "status": "ok",
+    "message": "Operazione completata"
+  }
 
 
 @geographic_zone_bp.route('<id>', methods=['DELETE'])
