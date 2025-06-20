@@ -13,8 +13,8 @@ from .end_points.users.seed import seed_users
 from .end_points.transport import transport_bp
 from .end_points.customer_group import customer_group_bp
 from .end_points.delivery_group import delivery_group_bp
-from .end_points.collection_point import collection_point_bp
 from .end_points.geographic_zone import geographic_zone_bp
+from .end_points.collection_point import collection_point_bp
 
 
 @app.route('/login', methods=['POST'])
