@@ -101,4 +101,3 @@ def format_query_result(tupla: tuple[GeographicZone, Constraint, GeographicCode]
     'constraints': [tupla[1].to_dict()] if tupla[1] else []
   })
   return list
-  
