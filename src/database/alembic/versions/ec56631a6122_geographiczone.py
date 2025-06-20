@@ -45,11 +45,9 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['zone_id'], ['geographic_zone.id'], ),
     sa.PrimaryKeyConstraint('id')
   )
-  op.alter_column('order', 'schedule_id', existing_type=sa.INTEGER(), nullable=False)
 
 
 def downgrade() -> None:
-  op.alter_column('order', 'schedule_id', existing_type=sa.INTEGER(), nullable=True)
   op.drop_table('constraints')
   op.drop_table('geographic_code')
   op.drop_table('geographic_zone')

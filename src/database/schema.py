@@ -71,7 +71,7 @@ class Order(BaseEntity):
   customer_note = Column(String, nullable=True)
   operator_note = Column(String, nullable=True)
   motivation = Column(String, nullable=True)
-  schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)
+  schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=True)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
 
   photo = relationship('Photo', back_populates='order')
