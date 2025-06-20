@@ -1,5 +1,5 @@
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Enum, Date, String, Float, Integer, LargeBinary, ForeignKey
+from sqlalchemy import Column, Enum, Date, String, Float, Integer, LargeBinary, ForeignKey, Boolean
 
 from api.users.setup import User
 from database_api import BaseEntity
@@ -147,3 +147,32 @@ class OrderServiceUser(BaseEntity):
 
   order = relationship('Order', back_populates='order_service_user')
   service_user = relationship('ServiceUser', back_populates='order_service_user')
+
+
+class GeographicZone(BaseEntity):
+  __tablename__ = 'geographic_zone'
+
+  name = Column(String, nullable=False)
+
+  constraints = relationship('Constraint', back_populates='zone', cascade='all, delete-orphan')
+  geographic_codes = relationship('GeographicCode', back_populates='zone', cascade='all, delete-orphan')
+
+
+class GeographicCode(BaseEntity):
+  __tablename__ = 'geographic_code'
+
+  zone_id = Column(Integer, ForeignKey('geographic_zone.id'), nullable=False)
+  code = Column(String, nullable=False)
+  type = Column(Boolean, nullable=False)
+
+  zone = relationship('GeographicZone', back_populates='geographic_codes')
+  
+  
+class Constraint(BaseEntity):
+  __tablename__ = 'constraints'
+
+  zone_id = Column(Integer, ForeignKey('geographic_zone.id'), nullable=False)
+  day_of_week = Column(String, nullable=False)
+  max_orders = Column(Integer, nullable=False)
+
+  zone = relationship('GeographicZone', back_populates='constraints')
