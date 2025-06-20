@@ -51,7 +51,7 @@ def get_geographic_zones(user: ItalcoUser):
 def create_entity(user: ItalcoUser, entity: str):
   return {
     'status': 'ok',
-    'message': create(get_class(entity), request.json).to_dict()
+    'entity': create(get_class(entity), request.json).to_dict()
   }
 
 
