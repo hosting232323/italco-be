@@ -16,6 +16,7 @@ class ItalcoUser(User):
   customer_group = relationship('CustomerGroup', back_populates='italco_user')
   delivery_group = relationship('DeliveryGroup', back_populates='italco_user')
   service_user = relationship('ServiceUser', back_populates='italco_user', cascade='all, delete-orphan')
+  customer_rule = relationship('CustomerRule', back_populates='italco_user', cascade='all, delete-orphan')
   collection_point = relationship('CollectionPoint', back_populates='italco_user', cascade='all, delete-orphan')
 
   def format_user(self, role: UserRole):
@@ -176,3 +177,13 @@ class Constraint(BaseEntity):
   max_orders = Column(Integer, nullable=False)
 
   zone = relationship('GeographicZone', back_populates='constraints')
+
+
+class CustomerRule(BaseEntity):
+  __tablename__ = 'customer_rule'
+
+  day_of_week = Column(String, nullable=False)
+  max_orders = Column(Integer, nullable=False)
+  user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
+
+  italco_user = relationship('ItalcoUser', back_populates='customer_rule')

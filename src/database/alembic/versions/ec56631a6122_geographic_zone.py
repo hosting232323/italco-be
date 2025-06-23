@@ -1,4 +1,4 @@
-"""GeographicZone
+"""Geographic Zone
 
 Revision ID: ec56631a6122
 Revises: 6855ce8e924d

@@ -89,12 +89,12 @@ def query_geographic_zones() -> list[tuple[GeographicZone, Constraint, Geographi
 def format_query_result(tupla: tuple[GeographicZone, Constraint, GeographicCode], list: list[dict]) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      if tupla[2]:
+      if tupla[2] and not tupla[2].id in [code['id'] for code in element['codes']]:
         element['codes'].append(tupla[2].to_dict())
-      if tupla[1]:
+      if tupla[1] and not tupla[1].id in [constraint['id'] for constraint in element['constraints']]:
         element['constraints'].append(tupla[1].to_dict())
       return list
-    
+
   list.append({
     **tupla[0].to_dict(),
     'codes': [tupla[2].to_dict()] if tupla[2] else [],
