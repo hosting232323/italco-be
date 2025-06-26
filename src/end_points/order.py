@@ -6,8 +6,9 @@ from flask import Blueprint, request, send_file
 
 from ..database.schema import *
 from database_api import Session
+from api import error_catching_decorator
+from . import flask_session_authentication
 from ..database.enum import OrderStatus, UserRole, OrderType
-from . import error_catching_decorator, flask_session_authentication
 from database_api.operations import create, update, get_by_id, delete
 
 

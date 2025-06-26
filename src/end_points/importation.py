@@ -2,10 +2,10 @@ import pandas as pd
 from flask import Blueprint, request
 from geopy.geocoders import Nominatim
 
-from database_api import Session
+from api import error_catching_decorator
+from . import flask_session_authentication
 from database_api.operations import create
 from ..database.enum import UserRole, OrderType
-from . import error_catching_decorator, flask_session_authentication
 from ..database.schema import ItalcoUser, Order, OrderServiceUser
 
 

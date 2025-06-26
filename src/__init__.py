@@ -4,6 +4,8 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from flask_swagger_ui import get_swaggerui_blueprint
 
+from api import swagger_decorator, internal_backup
+
 
 allowed_origins = [
   # add allowed origins
@@ -31,3 +33,9 @@ else:
 @app.route('/', methods=['GET'])
 def index():
   return 'Hello World', 200
+
+
+@swagger_decorator
+@app.route('/internal-backup', methods=['POST'])
+def trigger_backup():
+  return internal_backup('generic-booking')

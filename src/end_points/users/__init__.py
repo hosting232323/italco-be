@@ -2,11 +2,12 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ...database.enum import UserRole
-from ...database.schema import ItalcoUser, ServiceUser, CollectionPoint
+from api import error_catching_decorator
 from api.users import register_user, login
-from api.users.setup import get_user_by_email
 from database_api.operations import delete
-from .. import error_catching_decorator, flask_session_authentication
+from .. import flask_session_authentication
+from api.users.setup import get_user_by_email
+from ...database.schema import ItalcoUser, ServiceUser, CollectionPoint
 
 
 user_bp = Blueprint('user_bp', __name__)

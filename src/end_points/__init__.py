@@ -1,28 +1,11 @@
 import os
 import jwt
-import traceback
 from flask import request
 from functools import wraps
 
 from ..database.enum import UserRole
 from api.users import get_user_by_email
 from ..database.schema import ItalcoUser
-
-
-def error_catching_decorator(func):
-
-  def wrapper(*args, **kwargs):
-    try:
-      return func(*args, **kwargs)
-    except Exception:
-      traceback.print_exc()
-      return {
-        'status': 'ko',
-        'error': 'Errore generico'
-      }
-
-  wrapper.__name__ = func.__name__
-  return wrapper
 
 
 def flask_session_authentication(roles: list[UserRole] = None):

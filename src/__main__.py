@@ -38,10 +38,7 @@ app.register_blueprint(collection_point_bp, url_prefix='/collection-point')
 
 
 if __name__ == '__main__':
-  set_database(
-    os.environ['DATABASE_URL'],
-    'italco-be' if not IS_DEV else None
-  )
+  set_database(os.environ['DATABASE_URL'])
   if IS_DEV:
     seed_users()
   app.run(host='0.0.0.0', port=8080)

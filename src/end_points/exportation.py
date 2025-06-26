@@ -4,8 +4,9 @@ from flask import Blueprint, render_template, make_response, request
 
 from database_api import Session
 from ..database.enum import UserRole
+from api import error_catching_decorator
+from . import flask_session_authentication
 from .order import query_orders, format_query_result
-from . import error_catching_decorator, flask_session_authentication
 from ..database.schema import Schedule, ItalcoUser, Order, DeliveryGroup, Transport, OrderServiceUser, ServiceUser, Service, CollectionPoint, Photo
 
 

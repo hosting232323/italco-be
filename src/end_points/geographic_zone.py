@@ -2,8 +2,9 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ..database.enum import UserRole
+from api import error_catching_decorator
+from . import flask_session_authentication
 from database_api.operations import create, delete, get_by_id
-from . import error_catching_decorator, flask_session_authentication
 from ..database.schema import GeographicZone, Constraint, GeographicCode, ItalcoUser
 
 
@@ -33,7 +34,7 @@ def delete_geographic_zone(user: ItalcoUser, id):
 
 @geographic_zone_bp.route('', methods=['GET'])
 @error_catching_decorator
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN, UserRole.CUSTOMER])
 def get_geographic_zones(user: ItalcoUser):
   geographic_zones = []
   for tupla in query_geographic_zones():
