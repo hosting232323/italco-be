@@ -108,9 +108,7 @@ class CollectionPoint(BaseEntity):
 
   name = Column(String, nullable=False)
   address = Column(String, nullable=False)
-  city = Column(String, nullable=False)
   cap = Column(String, nullable=False)
-  province = Column(String, nullable=False)
   user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
 
   order = relationship('Order', back_populates='collection_point')
