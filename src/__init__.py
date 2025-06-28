@@ -38,4 +38,4 @@ def index():
 @swagger_decorator
 @app.route('/internal-backup', methods=['POST'])
 def trigger_backup():
-  return internal_backup('generic-booking')
+  return internal_backup('italco-be')
