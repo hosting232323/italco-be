@@ -87,7 +87,7 @@ def update_order(user: ItalcoUser, id):
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
   
-  if data['status'] in [OrderStatus.ANOMALY, OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
+  if data['status'] in [OrderStatus.ANOMALY, OrderStatus.CANCELLED, OrderStatus.ON_BOARD]:
     subject = f'Ordine di tipo: {data['status']}'
     body = f"Ordine: {order.id} aggiornato"
     send_email('operatori@italco.it', body, subject)
