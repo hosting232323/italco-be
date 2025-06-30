@@ -11,6 +11,8 @@ from . import flask_session_authentication
 from ..database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id, delete
 
+from api.email import send_email
+
 
 order_bp = Blueprint('order_bp', __name__)
 
@@ -84,6 +86,12 @@ def update_order(user: ItalcoUser, id):
 
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
+  
+  if data['status'] in [OrderStatus.ANOMALY, OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
+    subject = f'Ordine di tipo: {data['status']}'
+    body = f"Ordine: {order.id} aggiornato"
+    send_email('operatori@italco.it', body, subject)
+    
   if user.role == UserRole.DELIVERY and data['status'] in [OrderStatus.ANOMALY, OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
     data['booking_date'] = datetime.now()
   if user.role != UserRole.DELIVERY:
@@ -103,6 +111,7 @@ def update_order(user: ItalcoUser, id):
 @order_bp.route('photo/<photo_id>', methods=['GET'])
 @error_catching_decorator
 def view_order_photo(photo_id: int):
+  
   photo: Photo = get_by_id(Photo, photo_id)
   if not photo:
     return {'status': 'ko', 'error': 'Photo not found'}
