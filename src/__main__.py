@@ -1,8 +1,12 @@
 import os
-from flask import jsonify
 
 from . import app, IS_DEV
+from .database.enum import UserRole
 from database_api import set_database
+from .database.schema import ItalcoUser
+from api import error_catching_decorator
+from .end_points import flask_session_authentication
+
 from .end_points.order import order_bp
 from .end_points.service import service_bp
 from .end_points.schedule import schedule_bp
@@ -13,14 +17,27 @@ from .end_points.users.seed import seed_users
 from .end_points.transport import transport_bp
 from .end_points.customer_group import customer_group_bp
 from .end_points.delivery_group import delivery_group_bp
-from .end_points.customer_rules import customer_rules_bp
-from .end_points.geographic_zone import geographic_zone_bp
 from .end_points.collection_point import collection_point_bp
+from .end_points.customer_rules import customer_rules_bp, check_customer_rules
+from .end_points.geographic_zone import geographic_zone_bp, check_geographic_zone
 
 
 @app.route('/login', methods=['POST'])
 def login():
-  return jsonify(login_())
+  return login_()
+
+
+@app.route('/check-constraints', methods=['GET'])
+@error_catching_decorator
+@flask_session_authentication([UserRole.CUSTOMER])
+def check_constraints(user: ItalcoUser):
+  return {
+    'status': 'ok',
+    'dates': sorted(list(set(
+      check_customer_rules(user) +
+      check_geographic_zone()
+    )))
+  }
 
 
 app.register_blueprint(user_bp, url_prefix='/user')

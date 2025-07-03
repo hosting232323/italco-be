@@ -1,10 +1,13 @@
+from sqlalchemy import and_
 from flask import Blueprint, request
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 
 from database_api import Session
 from ..database.enum import UserRole
 from api import error_catching_decorator
 from . import flask_session_authentication
-from ..database.schema import CustomerRule, ItalcoUser
+from ..database.schema import CustomerRule, ItalcoUser, Order, OrderServiceUser, ServiceUser
 from database_api.operations import create, delete, get_by_id
 
 
@@ -57,6 +60,26 @@ def get_my_customer_rules(user: ItalcoUser):
   }
 
 
+def check_customer_rules(user: ItalcoUser) -> list[datetime]:
+  my_orders = query_my_orders(user)
+  customer_rules = query_my_customer_rules(user)
+  rule_days = [rule.day_of_week for rule in customer_rules]
+  start = datetime.today().date()
+  blocked_date = []
+  end = start + relativedelta(months=2)
+  while start <= end:
+    if start.weekday() in rule_days:
+      order_count = 0
+      for order in my_orders:
+        if order.dpc.date() == start:
+          order_count += 1
+      for rule in customer_rules:
+        if rule.day_of_week == start and order_count >= rule.max_orders:
+          blocked_date.append(start.strftime("%Y-%m-%d"))
+    start += timedelta(days=1)
+  return blocked_date
+
+
 def query_customer_rules() -> list[CustomerRule, ItalcoUser]:
   with Session() as session:
     return session.query(
@@ -72,6 +95,22 @@ def query_my_customer_rules(user: ItalcoUser) -> list[CustomerRule]:
       CustomerRule
     ).filter(
       CustomerRule.user_id == user.id
+    ).all()
+
+
+def query_my_orders(user: ItalcoUser) -> list[Order]:
+  with Session() as session:
+    return session.query(
+      Order
+    ).join(
+      OrderServiceUser, OrderServiceUser.order_id == Order.id
+    ).join(
+      ServiceUser, and_(
+        ServiceUser.id == OrderServiceUser.service_user_id,
+        ServiceUser.user_id == user.id,
+        Order.dpc > datetime.today(),
+        Order.dpc < datetime.today() + relativedelta(months=2)
+      )
     ).all()
 
 

@@ -1,11 +1,14 @@
+from sqlalchemy import and_
 from flask import Blueprint, request
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 
 from database_api import Session
 from ..database.enum import UserRole
 from api import error_catching_decorator
 from . import flask_session_authentication
 from database_api.operations import create, delete, get_by_id
-from ..database.schema import GeographicZone, Constraint, GeographicCode, ItalcoUser
+from ..database.schema import GeographicZone, Constraint, GeographicCode, ItalcoUser, Order
 
 
 geographic_zone_bp = Blueprint('geographic_zone_bp', __name__)
@@ -36,13 +39,9 @@ def delete_geographic_zone(user: ItalcoUser, id):
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.CUSTOMER])
 def get_geographic_zones(user: ItalcoUser):
-  geographic_zones = []
-  for tupla in query_geographic_zones():
-    geographic_zones = format_query_result(tupla, geographic_zones)
-
   return {
     'status': 'ok',
-    'geographic_zones': geographic_zones
+    'geographic_zones': execute_query_and_format_result()
   }
 
 
@@ -67,6 +66,42 @@ def delete_constraint(user: ItalcoUser, entity, id):
   }
 
 
+def check_geographic_zone() -> list[datetime]:
+  province = request.args['province']
+  caps = [] # Read by file
+  for cap in query_special_caps_by_geographic_zone(province):
+    if cap.type:
+      caps.append(cap.code)
+    else:
+      caps.remove(cap.code)
+  orders = get_orders_by_cap(caps)
+  constraints = execute_query_and_format_result(province)[0]['constraints']
+  constraint_days = [constraint['day_of_week'] for constraint in constraints]
+  start = datetime.today().date()
+  blocked_date = []
+  end = start + relativedelta(months=2)
+  while start <= end:
+    if not start.weekday() in constraint_days:
+      blocked_date.append(start.strftime("%Y-%m-%d"))
+    else:
+      order_count = 0
+      for order in orders:
+        if order.dpc.date() == start:
+          order_count += 1
+      for rule in constraints:
+        if rule['day_of_week'] == start and order_count >= rule['max_orders']:
+          blocked_date.append(start.strftime("%Y-%m-%d"))
+    start += timedelta(days=1)
+  return blocked_date
+
+
+def execute_query_and_format_result(province = None) -> list[dict]:
+  geographic_zones = []
+  for tupla in query_geographic_zones(province):
+    geographic_zones = format_query_result(tupla, geographic_zones)
+  return geographic_zones
+
+
 def get_class(entity: str):
   if entity == 'constraint':
     return Constraint
@@ -76,15 +111,18 @@ def get_class(entity: str):
     raise ValueError(f'Unknown entity type: {entity}')
 
 
-def query_geographic_zones() -> list[tuple[GeographicZone, Constraint, GeographicCode]]:
+def query_geographic_zones(province = None) -> list[tuple[GeographicZone, Constraint, GeographicCode]]:
   with Session() as session:
-    return session.query(
+    query = session.query(
       GeographicZone, Constraint, GeographicCode
     ).outerjoin(
       Constraint, GeographicZone.id == Constraint.zone_id
     ).outerjoin(
       GeographicCode, GeographicZone.id == GeographicCode.zone_id
-    ).all()
+    )
+    if province:
+      query = query.filter(GeographicZone.name == province)
+    return query.all()
 
 
 def format_query_result(tupla: tuple[GeographicZone, Constraint, GeographicCode], list: list[dict]) -> list[dict]:
@@ -102,3 +140,29 @@ def format_query_result(tupla: tuple[GeographicZone, Constraint, GeographicCode]
     'constraints': [tupla[1].to_dict()] if tupla[1] else []
   })
   return list
+
+
+def query_special_caps_by_geographic_zone(province: str) -> list[GeographicCode]:
+  with Session() as session:
+    return session.query(
+      GeographicCode
+    ).join(
+      GeographicZone, and_(
+        GeographicZone.id == GeographicCode.zone_id,
+        GeographicZone.name == province
+      )
+    ).all()
+
+
+def get_orders_by_cap(caps: list[str]) -> list[Order]:
+  with Session() as session:
+    return session.query(
+      Order
+    ).join(
+      GeographicCode, and_(
+        GeographicCode.code == Order.cap,
+        GeographicCode.code.in_(caps),
+        Order.dpc > datetime.today(),
+        Order.dpc < datetime.today() + relativedelta(months=2)
+      )
+    ).all()
