@@ -18,6 +18,9 @@ customer_rules_bp = Blueprint('customer_rules_bp', __name__)
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def create_customer_rules(user: ItalcoUser):
+  if not request.json['day_of_week'] in list(range(7)):
+    raise ValueError('Invalid day_of_week value')
+
   return {
     'status': 'ok',
     'customer_rules': create(CustomerRule, request.json).to_dict()
@@ -65,19 +68,22 @@ def check_customer_rules(user: ItalcoUser) -> list[datetime]:
   customer_rules = query_my_customer_rules(user)
   rule_days = [rule.day_of_week for rule in customer_rules]
   start = datetime.today().date()
-  blocked_date = []
+  allowed_dates = []
   end = start + relativedelta(months=2)
   while start <= end:
-    if start.weekday() in rule_days:
+    if not start.weekday() in rule_days:
+      allowed_dates.append(start.strftime('%Y-%m-%d'))
+    else:
       order_count = 0
       for order in my_orders:
-        if order.dpc.date() == start:
+        if order.dpc == start:
           order_count += 1
       for rule in customer_rules:
-        if rule.day_of_week == start and order_count >= rule.max_orders:
-          blocked_date.append(start.strftime("%Y-%m-%d"))
+        if rule.day_of_week == start.weekday() and order_count < rule.max_orders:
+          allowed_dates.append(start.strftime('%Y-%m-%d'))
+          break
     start += timedelta(days=1)
-  return blocked_date
+  return allowed_dates
 
 
 def query_customer_rules() -> list[CustomerRule, ItalcoUser]:

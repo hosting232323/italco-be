@@ -1,8 +1,8 @@
-"""Startup Database
+"""Create models
 
-Revision ID: 6855ce8e924d
+Revision ID: 426c422f6e50
 Revises: 
-Create Date: 2025-05-19 00:00:56.943455
+Create Date: 2025-07-03 20:41:16.544435
 
 """
 from typing import Sequence, Union
@@ -11,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '6855ce8e924d'
+revision: str = '426c422f6e50'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,6 +26,13 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
   )
   op.create_table('delivery_group',
+    sa.Column('name', sa.String(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+  )
+  op.create_table('geographic_zone',
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
@@ -49,6 +56,26 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id')
   )
+  op.create_table('constraints',
+    sa.Column('zone_id', sa.Integer(), nullable=False),
+    sa.Column('day_of_week', sa.Integer(), nullable=False),
+    sa.Column('max_orders', sa.Integer(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['zone_id'], ['geographic_zone.id'], ),
+    sa.PrimaryKeyConstraint('id')
+  )
+  op.create_table('geographic_code',
+    sa.Column('zone_id', sa.Integer(), nullable=False),
+    sa.Column('code', sa.String(), nullable=False),
+    sa.Column('type', sa.Boolean(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['zone_id'], ['geographic_zone.id'], ),
+    sa.PrimaryKeyConstraint('id')
+  )
   op.create_table('italco_user',
     sa.Column('role', sa.Enum('ADMIN', 'CUSTOMER', 'OPERATOR', 'DELIVERY', name='userrole'), nullable=False),
     sa.Column('customer_group_id', sa.Integer(), nullable=True),
@@ -64,12 +91,31 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email')
   )
+  op.create_table('schedule',
+    sa.Column('date', sa.Date(), nullable=False),
+    sa.Column('transport_id', sa.Integer(), nullable=False),
+    sa.Column('delivery_group_id', sa.Integer(), nullable=True),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['delivery_group_id'], ['delivery_group.id'], ),
+    sa.ForeignKeyConstraint(['transport_id'], ['transport.id'], ),
+    sa.PrimaryKeyConstraint('id')
+  )
   op.create_table('collection_point',
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('address', sa.String(), nullable=False),
-    sa.Column('city', sa.String(), nullable=False),
     sa.Column('cap', sa.String(), nullable=False),
-    sa.Column('province', sa.String(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['italco_user.id'], ),
+    sa.PrimaryKeyConstraint('id')
+  )
+  op.create_table('customer_rule',
+    sa.Column('day_of_week', sa.Integer(), nullable=False),
+    sa.Column('max_orders', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
@@ -86,17 +132,6 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['service_id'], ['service.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['italco_user.id'], ),
-    sa.PrimaryKeyConstraint('id')
-  )
-  op.create_table('schedule',
-    sa.Column('date', sa.Date(), nullable=False),
-    sa.Column('transport_id', sa.Integer(), nullable=False),
-    sa.Column('delivery_group_id', sa.Integer(), nullable=True),
-    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['delivery_group_id'], ['delivery_group.id'], ),
-    sa.ForeignKeyConstraint(['transport_id'], ['transport.id'], ),
     sa.PrimaryKeyConstraint('id')
   )
   op.create_table('order',
@@ -149,17 +184,15 @@ def downgrade() -> None:
   op.drop_table('photo')
   op.drop_table('order_service_user')
   op.drop_table('order')
-  op.drop_table('schedule')
   op.drop_table('service_user')
+  op.drop_table('customer_rule')
   op.drop_table('collection_point')
+  op.drop_table('schedule')
   op.drop_table('italco_user')
+  op.drop_table('geographic_code')
+  op.drop_table('constraints')
   op.drop_table('transport')
   op.drop_table('service')
+  op.drop_table('geographic_zone')
   op.drop_table('delivery_group')
   op.drop_table('customer_group')
-  filetype_enum = sa.Enum('ADMIN', 'CUSTOMER', 'OPERATOR', 'DELIVERY', name='userrole')
-  filetype_enum.drop(op.get_bind(), checkfirst=True)
-  filetype_enum = sa.Enum('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'ANOMALY', name='orderstatus')
-  filetype_enum.drop(op.get_bind(), checkfirst=True)
-  filetype_enum = sa.Enum('DELIVERY', 'WITHDRAW', 'REPLACEMENT', 'CHECK', name='ordertype')
-  filetype_enum.drop(op.get_bind(), checkfirst=True)

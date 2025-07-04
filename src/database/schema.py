@@ -171,7 +171,7 @@ class Constraint(BaseEntity):
   __tablename__ = 'constraints'
 
   zone_id = Column(Integer, ForeignKey('geographic_zone.id'), nullable=False)
-  day_of_week = Column(String, nullable=False)
+  day_of_week = Column(Integer, nullable=False)
   max_orders = Column(Integer, nullable=False)
 
   zone = relationship('GeographicZone', back_populates='constraints')
@@ -180,7 +180,7 @@ class Constraint(BaseEntity):
 class CustomerRule(BaseEntity):
   __tablename__ = 'customer_rule'
 
-  day_of_week = Column(String, nullable=False)
+  day_of_week = Column(Integer, nullable=False)
   max_orders = Column(Integer, nullable=False)
   user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
 

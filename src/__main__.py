@@ -33,10 +33,10 @@ def login():
 def check_constraints(user: ItalcoUser):
   return {
     'status': 'ok',
-    'dates': sorted(list(set(
-      check_customer_rules(user) +
-      check_geographic_zone()
-    )))
+    'dates': sorted(list(
+      set(check_customer_rules(user)) &
+      set(check_geographic_zone())
+    ))
   }
 
 

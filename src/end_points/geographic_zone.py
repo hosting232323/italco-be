@@ -49,9 +49,14 @@ def get_geographic_zones(user: ItalcoUser):
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def create_entity(user: ItalcoUser, entity: str):
+  klass = get_class(entity)
+  if klass == Constraint:
+    if not request.json['day_of_week'] in list(range(7)):
+      raise ValueError('Invalid day_of_week value')
+
   return {
     'status': 'ok',
-    'entity': create(get_class(entity), request.json).to_dict()
+    'entity': create(klass, request.json).to_dict()
   }
 
 
@@ -74,25 +79,25 @@ def check_geographic_zone() -> list[datetime]:
       caps.append(cap.code)
     else:
       caps.remove(cap.code)
+  zones = execute_query_and_format_result(province)
+  constraints = zones[0]['constraints'] if zones else []
   orders = get_orders_by_cap(caps)
-  constraints = execute_query_and_format_result(province)[0]['constraints']
   constraint_days = [constraint['day_of_week'] for constraint in constraints]
   start = datetime.today().date()
-  blocked_date = []
+  allowed_dates = []
   end = start + relativedelta(months=2)
   while start <= end:
-    if not start.weekday() in constraint_days:
-      blocked_date.append(start.strftime("%Y-%m-%d"))
-    else:
+    if start.weekday() in constraint_days:
       order_count = 0
       for order in orders:
-        if order.dpc.date() == start:
+        if order.dpc == start:
           order_count += 1
       for rule in constraints:
-        if rule['day_of_week'] == start and order_count >= rule['max_orders']:
-          blocked_date.append(start.strftime("%Y-%m-%d"))
+        if rule['day_of_week'] == start.weekday() and order_count < rule['max_orders']:
+          allowed_dates.append(start.strftime('%Y-%m-%d'))
+          break
     start += timedelta(days=1)
-  return blocked_date
+  return allowed_dates
 
 
 def execute_query_and_format_result(province = None) -> list[dict]:
