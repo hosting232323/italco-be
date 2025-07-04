@@ -1,3 +1,4 @@
+import json
 from sqlalchemy import and_
 from flask import Blueprint, request
 from datetime import datetime, timedelta
@@ -12,6 +13,9 @@ from ..database.schema import GeographicZone, Constraint, GeographicCode, Italco
 
 
 geographic_zone_bp = Blueprint('geographic_zone_bp', __name__)
+
+with open('static/caps.json', 'r') as file:
+  CAPS_DATA: dict = json.load(file)
 
 
 @geographic_zone_bp.route('', methods=['POST'])
@@ -72,8 +76,8 @@ def delete_constraint(user: ItalcoUser, entity, id):
 
 
 def check_geographic_zone() -> list[datetime]:
-  province = request.args['province']
-  caps = [] # Read by file
+  province = get_province_by_cap(request.args['cap'])
+  caps = CAPS_DATA[province].copy() if province in CAPS_DATA else []
   for cap in query_special_caps_by_geographic_zone(province):
     if cap.type:
       caps.append(cap.code)
@@ -145,6 +149,13 @@ def format_query_result(tupla: tuple[GeographicZone, Constraint, GeographicCode]
     'constraints': [tupla[1].to_dict()] if tupla[1] else []
   })
   return list
+
+
+def get_province_by_cap(cap: str) -> str:
+  for province, caps in CAPS_DATA.items():
+    if cap in caps:
+      return province
+  raise ValueError(f'CAP {cap} not found in any province')
 
 
 def query_special_caps_by_geographic_zone(province: str) -> list[GeographicCode]:
