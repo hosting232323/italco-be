@@ -6,7 +6,7 @@ from database_api import Session
 from ..database.enum import UserRole
 from api import error_catching_decorator
 from . import flask_session_authentication
-from .order import query_orders, format_query_result
+from .orders.queries import query_orders, format_query_result
 from ..database.schema import Schedule, ItalcoUser, Order, DeliveryGroup, Transport, OrderServiceUser, ServiceUser, Service, CollectionPoint, Photo
 
 

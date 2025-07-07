@@ -7,7 +7,7 @@ from .database.schema import ItalcoUser
 from api import error_catching_decorator
 from .end_points import flask_session_authentication
 
-from .end_points.order import order_bp
+from .end_points.orders import order_bp
 from .end_points.service import service_bp
 from .end_points.schedule import schedule_bp
 from .end_points.importation import import_bp
