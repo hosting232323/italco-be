@@ -29,7 +29,7 @@ def login():
 
 @app.route('/check-constraints', methods=['GET'])
 @error_catching_decorator
-@flask_session_authentication([UserRole.CUSTOMER])
+@flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def check_constraints(user: ItalcoUser):
   return {
     'status': 'ok',
