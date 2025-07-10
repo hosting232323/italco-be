@@ -7,6 +7,7 @@ from . import flask_session_authentication
 from ..database.enum import UserRole, OrderType
 from ..database.schema import Service, ServiceUser, ItalcoUser
 from database_api.operations import create, update, get_by_id, delete
+from datetime import datetime
 
 
 service_bp = Blueprint('service_bp', __name__)
@@ -157,3 +158,9 @@ def format_service_user(service_user: ServiceUser, user: ItalcoUser) -> dict:
   output = service_user.to_dict()
   output['email'] = user.email
   return output
+
+
+def check_services_date() -> list[datetime]:
+  request.args['services']
+  return 1
+
