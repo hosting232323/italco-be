@@ -161,6 +161,9 @@ def format_service_user(service_user: ServiceUser, user: ItalcoUser) -> dict:
 
 
 def check_services_date() -> list[datetime]:
-  request.args['services']
-  return 1
+  data = request.get_json()
+  products = data.get('products')
+  
+  print(products)
+  return []
 
