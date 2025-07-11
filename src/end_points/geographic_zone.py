@@ -76,13 +76,14 @@ def delete_constraint(user: ItalcoUser, entity, id):
 
 
 def check_geographic_zone() -> list[datetime]:
-  province = get_province_by_cap(request.args['cap'])
+  province = get_province_by_cap(request.json['cap'])
   caps = CAPS_DATA[province].copy() if province in CAPS_DATA else []
   for cap in query_special_caps_by_geographic_zone(province):
     if cap.type:
       caps.append(cap.code)
     else:
       caps.remove(cap.code)
+
   zones = execute_query_and_format_result(province)
   constraints = zones[0]['constraints'] if zones else []
   orders = get_orders_by_cap(caps)
