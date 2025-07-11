@@ -176,10 +176,19 @@ def check_services_date() -> list[datetime]:
       current_date += timedelta(days=1)
   
     return allowed_dates
-    
+  
+  min_max_services = min(service.max_services for service in services_with_max_order if service.max_services is not None)
   orders = query_orders_in_range(services_id, start, end)
-  print(orders)
-  return []
+  
+  while start <= end:
+    order_count = 0
+    for order in orders:
+      if order.dpc == start:
+        order_count += 1
+    if order_count < min_max_services:
+      allowed_dates.append(start.strftime('%Y-%m-%d'))
+    start += timedelta(days=1)
+  return allowed_dates
 
 
 def query_max_order(services_id) -> list[Service]:
@@ -190,7 +199,7 @@ def query_max_order(services_id) -> list[Service]:
     ).all()
     return services_with_max_order
 
-  # se almemo 1 ha il max order devo fare una query che prende tutti gli ordini che hanno una data compresa tra oggi e i prossimi 2 mesi con quei servizi e contarli
+  # se almemo 1 ha il max order devo fare una query che prende tutti gli ordini che hanno una data compresa tra oggi e i prossimi 2 mesi con quei servizi e contarli per capire se ci sono più di max order giorno per giorno
 
 def query_orders_in_range(services_id, start_date, end_date):
   with Session() as session:
