@@ -8,6 +8,7 @@ from ..database.enum import UserRole, OrderType
 from ..database.schema import Service, ServiceUser, ItalcoUser
 from database_api.operations import create, update, get_by_id, delete
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 
 service_bp = Blueprint('service_bp', __name__)
@@ -162,8 +163,29 @@ def format_service_user(service_user: ServiceUser, user: ItalcoUser) -> dict:
 
 def check_services_date() -> list[datetime]:
   data = request.get_json()
-  products = data.get('products')
+  services_id = data.get('services_id')
+  services_with_max_order = query_max_order(services_id)
   
-  print(products)
+  start = datetime.today().date()
+  allowed_dates = []
+  end = start + relativedelta(months=2)
+  
+  if not services_with_max_order:
+    return [
+      start,
+      end
+    ]
+  
+  # se almemo 1 ha il max order devo fare una query che prende tutti gli ordini che hanno una data compresa tra oggi e i prossimi 2 mesi con quei servizi e contarli
+  
+  
+  print(services_id)
   return []
 
+
+def query_max_order(services_id) -> list[Service]:
+  with Session() as session:
+    services = session.query(Service).filter(Service.id.in_(services_id)).all()
+    services_with_max_order = [s for s in services if s.max_services is not None]
+    
+    return services_with_max_order
