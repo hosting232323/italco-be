@@ -5,11 +5,10 @@ from database_api import Session
 from api import error_catching_decorator
 from . import flask_session_authentication
 from ..database.enum import UserRole, OrderType
-from ..database.schema import Service, ServiceUser, ItalcoUser
+from ..database.schema import Service, ServiceUser, ItalcoUser, Order, OrderServiceUser
 from database_api.operations import create, update, get_by_id, delete
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-
 
 service_bp = Blueprint('service_bp', __name__)
 
@@ -171,21 +170,41 @@ def check_services_date() -> list[datetime]:
   end = start + relativedelta(months=2)
   
   if not services_with_max_order:
-    return [
-      start,
-      end
-    ]
+    current_date = start
+    while current_date <= end:
+      allowed_dates.append(current_date)
+      current_date += timedelta(days=1)
   
-  # se almemo 1 ha il max order devo fare una query che prende tutti gli ordini che hanno una data compresa tra oggi e i prossimi 2 mesi con quei servizi e contarli
-  
-  
-  print(services_id)
+    return allowed_dates
+    
+  orders = query_orders_in_range(services_id, start, end)
+  print(orders)
   return []
 
 
 def query_max_order(services_id) -> list[Service]:
   with Session() as session:
-    services = session.query(Service).filter(Service.id.in_(services_id)).all()
-    services_with_max_order = [s for s in services if s.max_services is not None]
-    
+    services_with_max_order = session.query(Service).filter(
+      Service.id.in_(services_id),
+      Service.max_services.isnot(None)
+    ).all()
     return services_with_max_order
+
+  # se almemo 1 ha il max order devo fare una query che prende tutti gli ordini che hanno una data compresa tra oggi e i prossimi 2 mesi con quei servizi e contarli
+
+def query_orders_in_range(services_id, start_date, end_date):
+  with Session() as session:
+    results = session.query(Order).join(
+      OrderServiceUser, Order.id == OrderServiceUser.order_id
+    ).join(
+      ServiceUser, ServiceUser.id == OrderServiceUser.service_user_id
+    ).join(
+      Service, Service.id == ServiceUser.service_id
+    ).filter(
+      Service.id.in_(services_id),
+      Order.dpc >= start_date,
+      Order.dpc <= end_date
+    ).all()
+
+    return results
+  
