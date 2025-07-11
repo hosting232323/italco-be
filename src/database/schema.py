@@ -121,6 +121,7 @@ class Service(BaseEntity):
   name = Column(String, nullable=False)
   type = Column(Enum(OrderType), nullable=False)
   description = Column(String, nullable=True)
+  max_services = Column(Integer, nullable=True)
 
   service_user = relationship('ServiceUser', back_populates='service')
 
