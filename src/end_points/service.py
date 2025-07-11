@@ -194,7 +194,7 @@ def query_max_order(services_id) -> list[Service]:
 
 def query_orders_in_range(services_id, start_date, end_date):
   with Session() as session:
-    results = session.query(Order).join(
+    return session.query(Order).join(
       OrderServiceUser, Order.id == OrderServiceUser.order_id
     ).join(
       ServiceUser, ServiceUser.id == OrderServiceUser.service_user_id
@@ -205,6 +205,3 @@ def query_orders_in_range(services_id, start_date, end_date):
       Order.dpc >= start_date,
       Order.dpc <= end_date
     ).all()
-
-    return results
-  
