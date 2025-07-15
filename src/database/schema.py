@@ -1,5 +1,5 @@
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Enum, Date, String, Float, Integer, LargeBinary, ForeignKey, Boolean
+from sqlalchemy import Column, Enum, Date, String, Float, Integer, LargeBinary, ForeignKey, Boolean, Numeric
 
 from api.users.setup import User
 from database_api import BaseEntity
@@ -42,6 +42,8 @@ class DeliveryGroup(BaseEntity):
   __tablename__ = 'delivery_group'
 
   name = Column(String, nullable=False)
+  lat = Column(Numeric(11, 8), nullable=True)
+  lon = Column(Numeric(11, 8), nullable=True)
 
   schedule = relationship('Schedule', back_populates='delivery_group')
   italco_user = relationship('ItalcoUser', back_populates='delivery_group')

@@ -5,7 +5,8 @@ from functools import wraps
 
 from ..database.enum import UserRole
 from api.users import get_user_by_email
-from ..database.schema import ItalcoUser
+from ..database.schema import ItalcoUser, DeliveryGroup
+from database_api.operations import get_by_id, update
 
 
 def flask_session_authentication(roles: list[UserRole] = None):
@@ -24,7 +25,30 @@ def flask_session_authentication(roles: list[UserRole] = None):
       if roles:
         if not user.role in roles:
           return {'status': 'session', 'error': 'Ruolo non autorizzato'}
-
+      
+      if user.role == UserRole.DELIVERY:
+        lat = float(request.headers['lat'])
+        lon = float(request.headers['lon'])
+        
+        if lat is None or lon is None:
+          return {
+            'status': 'ko',
+            'error': 'Latitudine o Longitudine mancanti'
+          }
+          
+        delivery_group = get_by_id(DeliveryGroup, user.delivery_group_id)
+        if float(delivery_group.lat) == lat and float(delivery_group.lon) == lon:
+          return {
+            'status': 'ok',
+            'message': 'Posizione invariata'
+          }
+          
+        update(delivery_group, {'lat': lat, 'lon': lon})
+        return {
+          'status': 'ok',
+          'message': 'Posizione aggiornata'
+        }
+          
       try:
         return func(user, *args, **kwargs)
 
