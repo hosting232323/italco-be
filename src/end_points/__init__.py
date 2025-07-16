@@ -26,28 +26,28 @@ def flask_session_authentication(roles: list[UserRole] = None):
         if not user.role in roles:
           return {'status': 'session', 'error': 'Ruolo non autorizzato'}
       
-      if user.role == UserRole.DELIVERY:
-        lat = float(request.headers['lat'])
-        lon = float(request.headers['lon'])
+      # if user.role == UserRole.DELIVERY:
+      #   lat = float(request.headers['lat'])
+      #   lon = float(request.headers['lon'])
         
-        if lat is None or lon is None:
-          return {
-            'status': 'ko',
-            'error': 'Latitudine o Longitudine mancanti'
-          }
+      #   if lat is None or lon is None:
+      #     return {
+      #       'status': 'ko',
+      #       'error': 'Latitudine o Longitudine mancanti'
+      #     }
           
-        delivery_group = get_by_id(DeliveryGroup, user.delivery_group_id)
-        if float(delivery_group.lat) == lat and float(delivery_group.lon) == lon:
-          return {
-            'status': 'ok',
-            'message': 'Posizione invariata'
-          }
+      #   delivery_group = get_by_id(DeliveryGroup, user.delivery_group_id)
+      #   if float(delivery_group.lat) == lat and float(delivery_group.lon) == lon:
+      #     return {
+      #       'status': 'ok',
+      #       'message': 'Posizione invariata'
+      #     }
           
-        update(delivery_group, {'lat': lat, 'lon': lon})
-        return {
-          'status': 'ok',
-          'message': 'Posizione aggiornata'
-        }
+      #   update(delivery_group, {'lat': lat, 'lon': lon})
+      #   return {
+      #     'status': 'ok',
+      #     'message': 'Posizione aggiornata'
+      #   }
           
       try:
         return func(user, *args, **kwargs)
