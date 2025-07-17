@@ -7,7 +7,7 @@ from ..database.enum import UserRole
 from api.users import get_user_by_email
 from ..database.schema import ItalcoUser, DeliveryGroup
 from database_api.operations import get_by_id, update
-
+from api.users import create_jwt_token
 
 def flask_session_authentication(roles: list[UserRole] = None):
   def decorator(func):
@@ -22,6 +22,9 @@ def flask_session_authentication(roles: list[UserRole] = None):
         os.environ['DECODE_JWT_TOKEN'],
         algorithms=['HS256']
       )['email'])
+      if not user:
+        return {'status': 'session', 'error': 'Utente non trovato'}
+      
       if roles:
         if not user.role in roles:
           return {'status': 'session', 'error': 'Ruolo non autorizzato'}
@@ -37,8 +40,12 @@ def flask_session_authentication(roles: list[UserRole] = None):
         if float(delivery_group.lat) != lat or float(delivery_group.lon) != lon:
           update(delivery_group, {'lat': lat, 'lon': lon})
           
+      result = func(user, *args, **kwargs)
+      if isinstance(result, dict):
+        result['new_token'] = create_jwt_token(user.email)
+        
       try:
-        return func(user, *args, **kwargs)
+        return result
 
       except jwt.ExpiredSignatureError:
         return {'status': 'session', 'error': 'Token scaduto'}
