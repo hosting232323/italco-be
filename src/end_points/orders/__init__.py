@@ -70,24 +70,22 @@ def filter_orders(user: ItalcoUser):
 @order_bp.route('<id>', methods=['GET'])
 @error_catching_decorator
 def get_order(id):
-  order: Order = get_by_id(Order, int(id))
+  user = ItalcoUser(role=UserRole.DELIVERY)
+  order = []
+  for tupla in query_orders(user, [{
+    'model': 'Order',
+    'field': 'id',
+    'value': int(id)
+  }]):
+    order = format_query_result(tupla, order, user)
+  if len(order) != 1:
+    raise Exception('Numero di ordini trovati non valido')
   
   return {
     'status': 'ok',
-    'data': query_order_data(order)
+    'order': order[0]
   }
-  
 
-def query_order_data(order: Order)-> list[tuple[Order, OrderServiceUser, CollectionPoint]]:
-  with Session() as session:
-    return session.query(
-      Order, CollectionPoint, OrderServiceUser
-    ).outerjoin(
-      CollectionPoint, CollectionPoint.id == Order.collection_point_id 
-    ).outerjoin(
-      OrderServiceUser, OrderServiceUser.order_id == Order.id
-    ).all()
-    
 
 @order_bp.route('<id>', methods=['PUT'])
 @error_catching_decorator
