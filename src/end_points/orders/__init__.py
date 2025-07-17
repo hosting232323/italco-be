@@ -6,11 +6,12 @@ from flask import Blueprint, request, send_file
 from .mailer import mailer_check
 from api import error_catching_decorator
 from .. import flask_session_authentication
-from ...database.schema import ItalcoUser, Order, Photo
+from ...database.schema import ItalcoUser, Order, Photo, CollectionPoint, OrderServiceUser
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
 from .services import create_order_service_user, update_order_service_user
 from .queries import query_orders, query_delivery_orders, format_query_result
+from database_api import Session
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -65,6 +66,28 @@ def filter_orders(user: ItalcoUser):
     'orders': orders
   }
 
+
+@order_bp.route('<id>', methods=['GET'])
+@error_catching_decorator
+def get_order(id):
+  order: Order = get_by_id(Order, int(id))
+  
+  return {
+    'status': 'ok',
+    'data': query_order_data(order)
+  }
+  
+
+def query_order_data(order: Order)-> list[tuple[Order, OrderServiceUser, CollectionPoint]]:
+  with Session() as session:
+    return session.query(
+      Order, CollectionPoint, OrderServiceUser
+    ).outerjoin(
+      CollectionPoint, CollectionPoint.id == Order.collection_point_id 
+    ).outerjoin(
+      OrderServiceUser, OrderServiceUser.order_id == Order.id
+    ).all()
+    
 
 @order_bp.route('<id>', methods=['PUT'])
 @error_catching_decorator
