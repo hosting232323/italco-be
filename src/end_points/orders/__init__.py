@@ -6,7 +6,7 @@ from flask import Blueprint, request, send_file
 from .mailer import mailer_check
 from api import error_catching_decorator
 from .. import flask_session_authentication
-from ...database.schema import ItalcoUser, Order, Photo, CollectionPoint, OrderServiceUser
+from ...database.schema import ItalcoUser, Order, Photo, Schedule, DeliveryGroup
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
 from .services import create_order_service_user, update_order_service_user
@@ -81,10 +81,25 @@ def get_order(id):
   if len(order) != 1:
     raise Exception('Numero di ordini trovati non valido')
   
+  if order[0]['status'] == 'On Board':
+    delivery_group = query_delivery_group(order[0])
+    if delivery_group.lat is not None and delivery_group.lon is not None:
+      order[0]['lat'] = delivery_group.lat
+      order[0]['lon'] = delivery_group.lon
+  
   return {
     'status': 'ok',
     'order': order[0]
   }
+
+
+def query_delivery_group(order):
+  with Session() as session:
+    return session.query(DeliveryGroup).join(
+      Schedule, Schedule.delivery_group_id == DeliveryGroup.id
+    ).filter(
+      Schedule.id == order['schedule_id']
+    ).first()
 
 
 @order_bp.route('<id>', methods=['PUT'])
