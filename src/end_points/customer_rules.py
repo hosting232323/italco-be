@@ -5,7 +5,6 @@ from dateutil.relativedelta import relativedelta
 
 from database_api import Session
 from ..database.enum import UserRole
-from api import error_catching_decorator
 from . import flask_session_authentication
 from ..database.schema import CustomerRule, ItalcoUser, Order, OrderServiceUser, ServiceUser
 from database_api.operations import create, delete, get_by_id
@@ -15,7 +14,6 @@ customer_rules_bp = Blueprint('customer_rules_bp', __name__)
 
 
 @customer_rules_bp.route('', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def create_customer_rules(user: ItalcoUser):
   if not request.json['day_of_week'] in list(range(7)):
@@ -28,7 +26,6 @@ def create_customer_rules(user: ItalcoUser):
 
 
 @customer_rules_bp.route('', methods=['DELETE'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def delete_customer_rules(user: ItalcoUser):
   for id in request.json['ids']:
@@ -40,7 +37,6 @@ def delete_customer_rules(user: ItalcoUser):
 
 
 @customer_rules_bp.route('', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def get_customer_rules(user: ItalcoUser):
   customer_rules = []
@@ -54,7 +50,6 @@ def get_customer_rules(user: ItalcoUser):
 
 
 @customer_rules_bp.route('', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.CUSTOMER])
 def get_my_customer_rules(user: ItalcoUser):
   return {

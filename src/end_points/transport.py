@@ -2,7 +2,6 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ..database.enum import UserRole
-from api import error_catching_decorator
 from . import flask_session_authentication
 from ..database.schema import Transport, ItalcoUser
 from database_api.operations import create, delete, get_by_id, update
@@ -12,7 +11,6 @@ transport_bp = Blueprint('transport_bp', __name__)
 
 
 @transport_bp.route('', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def create_transport(user: ItalcoUser):
   return {
@@ -22,7 +20,6 @@ def create_transport(user: ItalcoUser):
 
 
 @transport_bp.route('<id>', methods=['DELETE'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def delete_transport(user: ItalcoUser, id):
   delete(get_by_id(Transport, int(id)))
@@ -33,7 +30,6 @@ def delete_transport(user: ItalcoUser, id):
 
 
 @transport_bp.route('', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def get_transports(user: ItalcoUser):
   return {
@@ -45,7 +41,6 @@ def get_transports(user: ItalcoUser):
 
 
 @transport_bp.route('<id>', methods=['PUT'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def update_transport(user: ItalcoUser, id):
   transport: Transport = get_by_id(Transport, int(id))
