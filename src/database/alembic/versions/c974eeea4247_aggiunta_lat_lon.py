@@ -1,0 +1,27 @@
+"""aggiunta lat lon
+
+Revision ID: c974eeea4247
+Revises: 5b6ba2235da0
+Create Date: 2025-07-15 16:12:46.863749
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+revision: str = 'c974eeea4247'
+down_revision: Union[str, None] = '5b6ba2235da0'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+  op.add_column('delivery_group', sa.Column('lat', sa.Numeric(precision=11, scale=8), nullable=True))
+  op.add_column('delivery_group', sa.Column('lon', sa.Numeric(precision=11, scale=8), nullable=True))
+
+
+def downgrade() -> None:
+  op.drop_column('delivery_group', 'lon')
+  op.drop_column('delivery_group', 'lat')

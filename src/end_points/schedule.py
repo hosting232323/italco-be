@@ -2,7 +2,6 @@ from datetime import datetime
 from flask import Blueprint, request
 
 from database_api import Session
-from api import error_catching_decorator
 from . import flask_session_authentication
 from ..database.enum import UserRole, OrderStatus
 from database_api.operations import create, delete, get_by_id, update, get_by_ids
@@ -13,7 +12,6 @@ schedule_bp = Blueprint('schedule_bp', __name__)
 
 
 @schedule_bp.route('', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def create_schedule(user: ItalcoUser):
   orders: list[Order] = get_by_ids(Order, request.json['order_ids'])
@@ -38,7 +36,6 @@ def create_schedule(user: ItalcoUser):
 
 
 @schedule_bp.route('<id>', methods=['DELETE'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def delete_schedule(user: ItalcoUser, id):
   schedule = get_by_id(Schedule, int(id))
@@ -57,7 +54,6 @@ def delete_schedule(user: ItalcoUser, id):
 
 
 @schedule_bp.route('', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def get_schedules(user: ItalcoUser):
   schedules = []
@@ -70,7 +66,6 @@ def get_schedules(user: ItalcoUser):
 
 
 @schedule_bp.route('<id>', methods=['PUT'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def update_schedule(user: ItalcoUser, id):
   schedule: Schedule = get_by_id(Schedule, int(id))

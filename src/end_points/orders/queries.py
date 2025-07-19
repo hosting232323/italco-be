@@ -143,3 +143,12 @@ def add_photo(object: dict, photo: Photo) -> dict:
 
   object['photos'].append(photo.id)
   return object
+
+
+def query_delivery_group(schedule_id: int) -> DeliveryGroup:
+  with Session() as session:
+    return session.query(DeliveryGroup).join(
+      Schedule, Schedule.delivery_group_id == DeliveryGroup.id
+    ).filter(
+      Schedule.id == schedule_id
+    ).first()

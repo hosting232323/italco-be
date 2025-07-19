@@ -4,7 +4,6 @@ from . import app, IS_DEV
 from .database.enum import UserRole
 from database_api import set_database
 from .database.schema import ItalcoUser
-from api import error_catching_decorator
 from .end_points import flask_session_authentication
 
 from .end_points.orders import order_bp
@@ -28,7 +27,6 @@ def login():
 
 
 @app.route('/check-constraints', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def check_constraints(user: ItalcoUser):
   return {

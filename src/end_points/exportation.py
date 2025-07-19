@@ -4,7 +4,6 @@ from flask import Blueprint, render_template, make_response, request
 
 from database_api import Session
 from ..database.enum import UserRole
-from api import error_catching_decorator
 from . import flask_session_authentication
 from .orders.queries import query_orders, format_query_result
 from ..database.schema import Schedule, ItalcoUser, Order, DeliveryGroup, Transport, OrderServiceUser, ServiceUser, Service, CollectionPoint, Photo
@@ -14,7 +13,6 @@ export_bp = Blueprint('export_bp', __name__)
 
 
 @export_bp.route('order/<id>', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_order_report(user: ItalcoUser, id):
   orders = []
@@ -52,7 +50,6 @@ def export_order_report(user: ItalcoUser, id):
 
 
 @export_bp.route('invoice', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def export_orders_invoice(user: ItalcoUser):
   orders = []
@@ -81,7 +78,6 @@ def export_orders_invoice(user: ItalcoUser):
 
 
 @export_bp.route('schedule/<id>', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def export_orders_schedule(user: ItalcoUser, id):
   orders = []

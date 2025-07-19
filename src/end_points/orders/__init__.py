@@ -10,7 +10,7 @@ from ...database.schema import ItalcoUser, Order, Photo
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
 from .services import create_order_service_user, update_order_service_user
-from .queries import query_orders, query_delivery_orders, format_query_result
+from .queries import query_orders, query_delivery_orders, format_query_result, query_delivery_group
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -18,7 +18,6 @@ order_bp = Blueprint('order_bp', __name__)
 
 # TODO CHECK ELIMINAZIONI RELAZIONI N A N
 @order_bp.route('', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def create_order(user: ItalcoUser):
   data = {key: value for key, value in request.json.items() if not key in ['products', 'user_id']}
@@ -36,7 +35,6 @@ def create_order(user: ItalcoUser):
 
 
 @order_bp.route('delivery', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.DELIVERY])
 def get_orders_for_delivery(user: ItalcoUser):
   orders = []
@@ -54,7 +52,6 @@ def get_orders_for_delivery(user: ItalcoUser):
 
 
 @order_bp.route('filter', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.CUSTOMER])
 def filter_orders(user: ItalcoUser):
   orders = []
@@ -66,8 +63,34 @@ def filter_orders(user: ItalcoUser):
   }
 
 
-@order_bp.route('<id>', methods=['PUT'])
+@order_bp.route('<id>', methods=['GET'])
 @error_catching_decorator
+def get_order(id):
+  user = ItalcoUser(role=UserRole.DELIVERY)
+  orders = []
+  for tupla in query_orders(user, [{
+    'model': 'Order',
+    'field': 'id',
+    'value': int(id)
+  }]):
+    orders = format_query_result(tupla, orders, user)
+  if len(orders) != 1:
+    raise Exception('Numero di ordini trovati non valido')
+
+  order = orders[0]
+  if order['status'] == 'On Board':
+    delivery_group = query_delivery_group(order['schedule_id'])
+    if delivery_group.lat is not None and delivery_group.lon is not None:
+      order['lat'] = delivery_group.lat
+      order['lon'] = delivery_group.lon
+
+  return {
+    'status': 'ok',
+    'order': order
+  }
+
+
+@order_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order(user: ItalcoUser, id):
   order: Order = get_by_id(Order, int(id))

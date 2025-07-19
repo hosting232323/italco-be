@@ -2,7 +2,6 @@ import pandas as pd
 from flask import Blueprint, request
 from geopy.geocoders import Nominatim
 
-from api import error_catching_decorator
 from . import flask_session_authentication
 from database_api.operations import create
 from ..database.enum import UserRole, OrderType
@@ -22,7 +21,6 @@ SERVICE_USER_ID = 0
 
 
 @import_bp.route('', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def update_import(user: ItalcoUser):
   if 'file' not in request.files:

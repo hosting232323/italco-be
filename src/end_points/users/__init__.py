@@ -14,7 +14,6 @@ user_bp = Blueprint('user_bp', __name__)
 
 
 @user_bp.route('<id>', methods=['DELETE'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def cancell_user(user: ItalcoUser, id):
   result_query = deletion_query(int(id))
@@ -42,7 +41,6 @@ def cancell_user(user: ItalcoUser, id):
 
 
 @user_bp.route('', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
 def get_users(user: ItalcoUser):
   return {
@@ -52,7 +50,6 @@ def get_users(user: ItalcoUser):
 
 
 @user_bp.route('', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def create_user(user: ItalcoUser):
   role = UserRole.get_enum_option(request.json['role'])
