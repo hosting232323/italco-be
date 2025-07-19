@@ -78,15 +78,15 @@ def get_order(id):
     raise Exception('Numero di ordini trovati non valido')
 
   order = orders[0]
-  if order[0]['status'] == 'On Board':
-    delivery_group = query_delivery_group(order[0]['schedule_id'])
+  if order['status'] == 'On Board':
+    delivery_group = query_delivery_group(order['schedule_id'])
     if delivery_group.lat is not None and delivery_group.lon is not None:
-      order[0]['lat'] = delivery_group.lat
-      order[0]['lon'] = delivery_group.lon
+      order['lat'] = delivery_group.lat
+      order['lon'] = delivery_group.lon
 
   return {
     'status': 'ok',
-    'order': order[0]
+    'order': order
   }
 
 
