@@ -4,7 +4,6 @@ from dateutil.relativedelta import relativedelta
 
 from .users import query_users
 from database_api import Session
-from api import error_catching_decorator
 from . import flask_session_authentication
 from ..database.enum import UserRole, OrderType
 from database_api.operations import create, update, get_by_id, delete
@@ -15,7 +14,6 @@ service_bp = Blueprint('service_bp', __name__)
 
 
 @service_bp.route('', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def create_service(user: ItalcoUser):
   request.json['type'] = OrderType.get_enum_option(request.json['type'])
@@ -26,7 +24,6 @@ def create_service(user: ItalcoUser):
 
 
 @service_bp.route('', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
 def get_services(user: ItalcoUser):
   services = []
@@ -39,7 +36,6 @@ def get_services(user: ItalcoUser):
 
 
 @service_bp.route('<id>', methods=['PUT'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def update_service(user: ItalcoUser, id):
   service: Service = get_by_id(Service, int(id))
@@ -51,7 +47,6 @@ def update_service(user: ItalcoUser, id):
 
 
 @service_bp.route('<id>', methods=['DELETE'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def delete_service(user: ItalcoUser, id):
   delete(get_by_id(Service, int(id)))
@@ -62,7 +57,6 @@ def delete_service(user: ItalcoUser, id):
 
 
 @service_bp.route('customer', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def create_service_user(user: ItalcoUser):
   if query_service_user(
@@ -83,7 +77,6 @@ def create_service_user(user: ItalcoUser):
 
 
 @service_bp.route('customer/<id>', methods=['DELETE'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def delete_service_user(user: ItalcoUser, id):
   delete(get_by_id(ServiceUser, int(id)))
@@ -94,7 +87,6 @@ def delete_service_user(user: ItalcoUser, id):
 
 
 @service_bp.route('set-all-users', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def set_all_users(user: ItalcoUser):
   service: Service = get_by_id(Service, int(request.args['service_id']))

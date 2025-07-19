@@ -6,12 +6,11 @@ from flask import Blueprint, request, send_file
 from .mailer import mailer_check
 from api import error_catching_decorator
 from .. import flask_session_authentication
-from ...database.schema import ItalcoUser, Order, Photo, Schedule, DeliveryGroup
+from ...database.schema import ItalcoUser, Order, Photo
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
 from .services import create_order_service_user, update_order_service_user
-from .queries import query_orders, query_delivery_orders, format_query_result
-from database_api import Session
+from .queries import query_orders, query_delivery_orders, format_query_result, query_delivery_group
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -19,7 +18,6 @@ order_bp = Blueprint('order_bp', __name__)
 
 # TODO CHECK ELIMINAZIONI RELAZIONI N A N
 @order_bp.route('', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def create_order(user: ItalcoUser):
   data = {key: value for key, value in request.json.items() if not key in ['products', 'user_id']}
@@ -37,7 +35,6 @@ def create_order(user: ItalcoUser):
 
 
 @order_bp.route('delivery', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.DELIVERY])
 def get_orders_for_delivery(user: ItalcoUser):
   orders = []
@@ -55,7 +52,6 @@ def get_orders_for_delivery(user: ItalcoUser):
 
 
 @order_bp.route('filter', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.CUSTOMER])
 def filter_orders(user: ItalcoUser):
   orders = []
@@ -71,39 +67,30 @@ def filter_orders(user: ItalcoUser):
 @error_catching_decorator
 def get_order(id):
   user = ItalcoUser(role=UserRole.DELIVERY)
-  order = []
+  orders = []
   for tupla in query_orders(user, [{
     'model': 'Order',
     'field': 'id',
     'value': int(id)
   }]):
-    order = format_query_result(tupla, order, user)
-  if len(order) != 1:
+    orders = format_query_result(tupla, orders, user)
+  if len(orders) != 1:
     raise Exception('Numero di ordini trovati non valido')
-  
+
+  order = orders[0]
   if order[0]['status'] == 'On Board':
-    delivery_group = query_delivery_group(order[0])
+    delivery_group = query_delivery_group(order[0]['schedule_id'])
     if delivery_group.lat is not None and delivery_group.lon is not None:
       order[0]['lat'] = delivery_group.lat
       order[0]['lon'] = delivery_group.lon
-  
+
   return {
     'status': 'ok',
     'order': order[0]
   }
 
 
-def query_delivery_group(order):
-  with Session() as session:
-    return session.query(DeliveryGroup).join(
-      Schedule, Schedule.delivery_group_id == DeliveryGroup.id
-    ).filter(
-      Schedule.id == order['schedule_id']
-    ).first()
-
-
 @order_bp.route('<id>', methods=['PUT'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order(user: ItalcoUser, id):
   order: Order = get_by_id(Order, int(id))

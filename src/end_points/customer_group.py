@@ -2,7 +2,6 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ..database.enum import UserRole
-from api import error_catching_decorator
 from . import flask_session_authentication
 from ..database.schema import CustomerGroup, ItalcoUser
 from database_api.operations import create, delete, get_by_id, update
@@ -12,7 +11,6 @@ customer_group_bp = Blueprint('customer_group_bp', __name__)
 
 
 @customer_group_bp.route('user', methods=['PATCH'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def assign_customer_group_user(user: ItalcoUser):
   customer_user: ItalcoUser = get_by_id(ItalcoUser, request.json['user_id'])
@@ -26,7 +24,6 @@ def assign_customer_group_user(user: ItalcoUser):
 
 
 @customer_group_bp.route('', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def create_customer_group(user: ItalcoUser):
   return {
@@ -36,7 +33,6 @@ def create_customer_group(user: ItalcoUser):
 
 
 @customer_group_bp.route('<id>', methods=['DELETE'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def delete_customer_group(user: ItalcoUser, id):
   delete(get_by_id(CustomerGroup, int(id)))
@@ -47,7 +43,6 @@ def delete_customer_group(user: ItalcoUser, id):
 
 
 @customer_group_bp.route('', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY, UserRole.CUSTOMER])
 def get_customer_groups(user: ItalcoUser):
   customer_groups = []

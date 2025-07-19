@@ -2,7 +2,6 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ..database.enum import UserRole
-from api import error_catching_decorator
 from . import flask_session_authentication
 from ..database.schema import CollectionPoint, ItalcoUser
 from database_api.operations import create, delete, get_by_id, update
@@ -12,7 +11,6 @@ collection_point_bp = Blueprint('collection_point_bp', __name__)
 
 
 @collection_point_bp.route('', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.CUSTOMER])
 def create_collection_point(user: ItalcoUser):
   request.json['user_id'] = user.id
@@ -23,7 +21,6 @@ def create_collection_point(user: ItalcoUser):
 
 
 @collection_point_bp.route('<id>', methods=['DELETE'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.CUSTOMER])
 def delete_collection_point(user: ItalcoUser, id):
   delete(get_by_id(CollectionPoint, int(id)))
@@ -34,7 +31,6 @@ def delete_collection_point(user: ItalcoUser, id):
 
 
 @collection_point_bp.route('', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY])
 def get_collection_points(user: ItalcoUser):
   return {
@@ -46,7 +42,6 @@ def get_collection_points(user: ItalcoUser):
 
 
 @collection_point_bp.route('<id>', methods=['PUT'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.CUSTOMER])
 def update_collection_point(user: ItalcoUser, id):
   collection_point: CollectionPoint = get_by_id(CollectionPoint, int(id))
