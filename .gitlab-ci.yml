@@ -16,10 +16,13 @@ run_selenium_tests:
     - apt-get update && apt-get install -y google-chrome-stable
 
     # Installa ChromeDriver
-    - CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+')
-    - wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/${CHROME_VERSION}/chromedriver_linux64.zip || true
+    - CHROME_FULL_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
+    - CHROME_VERSION=$(echo $CHROME_FULL_VERSION | cut -d '.' -f1-3)
+    - CHROME_DRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}")
+    - wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip"
     - unzip /tmp/chromedriver.zip -d /usr/local/bin/
     - chmod +x /usr/local/bin/chromedriver
+
 
     # Clona il frontend
     - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/hosting23232323/italco-fe.git frontend
