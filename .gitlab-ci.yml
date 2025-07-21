@@ -10,19 +10,15 @@ run_selenium_tests:
   before_script:
     - apt-get update && apt-get install -y wget unzip curl gnupg git npm
 
-    # Installa Chrome
-    - wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /usr/share/keyrings/google-linux.gpg
-    - echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
-    - apt-get update && apt-get install -y google-chrome-stable
+    # Installa Chrome stabile (versione 114)
+    - wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+    - apt install -y ./google-chrome-stable_current_amd64.deb
 
-    # Installa ChromeDriver
-    - CHROME_FULL_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
-    - CHROME_VERSION=$(echo $CHROME_FULL_VERSION | cut -d '.' -f1-3)
-    - CHROME_DRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}")
+    # Scarica ChromeDriver compatibile con Chrome 114.0.5735.90
+    - CHROME_DRIVER_VERSION=114.0.5735.90
     - wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip"
     - unzip /tmp/chromedriver.zip -d /usr/local/bin/
     - chmod +x /usr/local/bin/chromedriver
-
 
     # Clona il frontend
     - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/hosting23232323/italco-fe.git frontend
