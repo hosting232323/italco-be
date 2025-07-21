@@ -1,0 +1,49 @@
+image: python:3.10
+
+stages:
+  - test
+
+run_selenium_tests:
+  stage: test
+  variables:
+    GIT_STRATEGY: fetch
+  before_script:
+    - apt-get update && apt-get install -y wget unzip curl gnupg git npm
+
+    # Installa Chrome
+    - wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /usr/share/keyrings/google-linux.gpg
+    - echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
+    - apt-get update && apt-get install -y google-chrome-stable
+
+    # Installa ChromeDriver
+    - CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+')
+    - wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/${CHROME_VERSION}/chromedriver_linux64.zip || true
+    - unzip /tmp/chromedriver.zip -d /usr/local/bin/
+    - chmod +x /usr/local/bin/chromedriver
+
+    # Clona il frontend
+    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/hosting23232323/italco-fe.git frontend
+
+    # Installa FE e avvia in produzione
+    - cd frontend
+    - npm install
+    - npm run build
+    - npx serve -s dist -l 5000 &  # o npm run serve se lo script lo definisce
+    - cd ..
+
+    # Attende che il frontend risponda
+    - |
+      until curl -s http://localhost:5000 > /dev/null; do
+        echo "⏳ Aspetto che il FE parta su localhost:5000..."
+        sleep 2
+      done
+
+    # Clona i test
+    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/hosting23232323/generic-test.git tests
+
+    - pip install -r tests/requirements.txt
+  script:
+    - cd tests
+    - pytest --base-url=http://localhost:5000
+  only:
+    - branches
