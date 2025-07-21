@@ -21,7 +21,7 @@ run_selenium_tests:
     - chmod +x /usr/local/bin/chromedriver
 
     # Clona il frontend
-    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/hosting23232323/italco-fe.git frontend
+    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git frontend
 
     # Installa FE e avvia in produzione
     - cd frontend
