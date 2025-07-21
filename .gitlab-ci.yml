@@ -38,9 +38,9 @@ run_selenium_tests:
       done
 
     # Clona i test
-    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generics/generic-test.git tests
+    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git tests
     - pip install -r ./requirements.txt
-    
+
   script:
     - cd tests
     - pytest --base-url=http://localhost:5000
