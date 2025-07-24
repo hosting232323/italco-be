@@ -21,7 +21,7 @@ run_selenium_tests:
     - chmod +x /usr/local/bin/chromedriver
 
     # Clona il frontend
-    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git frontend
+    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git#new-pytest frontend
 
     # Installa FE e avvia in produzione
     - cd frontend
@@ -38,7 +38,7 @@ run_selenium_tests:
       done
 
     # Clona i test
-    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git generic-test
+    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git#italco-test generic-test
     - cd generic-test
     - pip install -r ./requirements.txt
 
