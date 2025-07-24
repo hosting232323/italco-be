@@ -38,13 +38,13 @@ run_selenium_tests:
       done
 
     # Clona i test
-    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git tests
-    - cd tests
+    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git generic-test
+    - cd generic-test
     - pip install -r ./requirements.txt
 
   script:
     - export VITE_HOSTNAME_ITALCO_FE=http://localhost:5000
-    - cd tests
+    - cd generic-test
     - pytest -s ./tests/italco/test_login.py
   only:
     - branches
