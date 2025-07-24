@@ -9,7 +9,9 @@ run_selenium_tests:
     GIT_STRATEGY: fetch
   before_script:
     - pip install pytest
-    
+    - pip install selenium
+    - pip install webdriver-manager
+
     - apt-get update && apt-get install -y wget unzip curl gnupg git npm
 
     # Installa Chrome stabile (versione 114)
