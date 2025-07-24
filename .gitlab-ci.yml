@@ -8,10 +8,6 @@ run_selenium_tests:
   variables:
     GIT_STRATEGY: fetch
   before_script:
-    - pip install pytest
-    - pip install selenium
-    - pip install webdriver-manager
-
     - apt-get update && apt-get install -y wget unzip curl gnupg git npm
 
     # Installa Chrome stabile (versione 114)
@@ -43,6 +39,7 @@ run_selenium_tests:
 
     # Clona i test
     - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git tests
+    - cd tests
     - pip install -r ./requirements.txt
 
   script:
