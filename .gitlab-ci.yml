@@ -8,6 +8,8 @@ run_selenium_tests:
   variables:
     GIT_STRATEGY: fetch
   before_script:
+    - pip install pytest
+    
     - apt-get update && apt-get install -y wget unzip curl gnupg git npm
 
     # Installa Chrome stabile (versione 114)
