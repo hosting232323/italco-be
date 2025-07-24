@@ -44,7 +44,6 @@ run_selenium_tests:
 
   script:
     - export VITE_HOSTNAME_ITALCO_FE=http://localhost:5000
-    - cd generic-test
     - pytest -s ./tests/italco/test_login.py
   only:
     - branches
