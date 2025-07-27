@@ -47,4 +47,3 @@ run_selenium_tests:
     - pytest -s ./tests/italco/test_login.py
   only:
     - branches
-  
