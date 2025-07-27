@@ -26,10 +26,10 @@ run_selenium_tests:
     - git clone -b main https://$CI_BE_USERNAME:$CI_BE_TOKEN@gitlab.com/generic-lab/italco/italco-be.git backend
     - cd backend
     - pip install -r requirements.txt
-    - python -m src
+    - python -m src &
     - |
       until curl -s http://127.0.0.1:8080 > /dev/null; do
-        echo "⏳ Aspetto che il BE parta su 127.0.0.1:8000..."
+        echo "⏳ Aspetto che il BE parta su 127.0.0.1:8080..."
         sleep 2
       done
 
