@@ -20,12 +20,26 @@ run_selenium_tests:
     - unzip /tmp/chromedriver.zip -d /usr/local/bin/
     - chmod +x /usr/local/bin/chromedriver
 
+
+
+    # Avvia il BE
+    - git clone -b main https://$CI_BE_USERNAME:$CI_BE_TOKEN@gitlab.com/generic-lab/italco/italco-be.git backend
+    - cd backend
+    - pip install -r requirements.txt
+    - python -m src
+    - |
+      until curl -s http://127.0.0.1:8080 > /dev/null; do
+        echo "⏳ Aspetto che il BE parta su 127.0.0.1:8000..."
+        sleep 2
+      done
+
     # Clona il frontend
     - git clone -b new-pytest https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git frontend
 
     # Installa FE e avvia in produzione
     - cd frontend
     - npm install
+    - export VITE_HOSTNAME=http://127.0.0.1:8080
     - npm run build
     - npx serve -s dist -l 5000 &  # o npm run serve se lo script lo definisce
     - cd ..
