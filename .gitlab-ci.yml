@@ -20,7 +20,7 @@ run_selenium_tests:
     - unzip /tmp/chromedriver.zip -d /usr/local/bin/
     - chmod +x /usr/local/bin/chromedriver
 
-
+    - google-chrome --version
 
     # Avvia il BE
     - pip install -r requirements.txt
