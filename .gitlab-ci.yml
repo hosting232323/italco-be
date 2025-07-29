@@ -1,4 +1,4 @@
-image: python:3.10
+image: python:3.10-slim
 
 stages:
   - test
@@ -8,20 +8,11 @@ run_selenium_tests:
   variables:
     GIT_STRATEGY: fetch
   before_script:
-    - apt-get update && apt-get install -y wget unzip curl gnupg git npm
+  before_script:
 
-    # Installa Chrome stabile (versione 114)
-    - wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-    - apt install -y ./google-chrome-stable_current_amd64.deb
-
-    # Scarica ChromeDriver compatibile con Chrome 114.0.5735.90
-    - CHROME_DRIVER_VERSION=114.0.5735.90
-    - wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip"
-    - unzip /tmp/chromedriver.zip -d /usr/local/bin/
-    - chmod +x /usr/local/bin/chromedriver
-
-    - google-chrome --version
-
+    - apt-get update
+    - apt-get install -y wget unzip curl gnupg2 libglib2.0-0 libnss3 libgconf-2-4 libfontconfig1 libxss1 libappindicator3-1 libasound2 fonts-liberation libu2f-udev
+    
     # Avvia il BE
     - pip install -r requirements.txt
     - export DATABASE_URL=postgresql://neondb_owner:npg_lsyKXoUk26Dx@ep-morning-sea-af7jtbs5.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require
