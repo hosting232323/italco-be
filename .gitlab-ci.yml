@@ -11,7 +11,7 @@ run_selenium_tests:
   before_script:
 
     - apt-get update
-    - apt-get install -y wget unzip curl gnupg2 libglib2.0-0 libnss3 libgconf-2-4 libfontconfig1 libxss1 libappindicator3-1 libasound2 fonts-liberation libu2f-udev
+    - apt-get install -y wget unzip curl gnupg2 libglib2.0-0 libnss3 libgconf-2-4 libfontconfig1 libxss1 libappindicator3-1 libasound2 fonts-liberation libu2f-udev git
     
     # Avvia il BE
     - pip install -r requirements.txt
