@@ -32,7 +32,7 @@ run_selenium_tests:
     - npm install
     - export VITE_HOSTNAME=http://127.0.0.1:8080
     - npm run build
-    - npx serve -s dist -l 5000 &  # o npm run serve se lo script lo definisce
+    - npm serve -s dist -l 5000 &
     - cd ..
 
     # Attende che il frontend risponda
