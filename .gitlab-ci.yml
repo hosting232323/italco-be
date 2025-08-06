@@ -32,13 +32,13 @@ run_selenium_tests:
     - npm install
     - export VITE_HOSTNAME=http://127.0.0.1:8080
     - npm run build
-    - npm serve -s dist -l 5000 &
+    - npm run serve &
     - cd ..
 
     # Attende che il frontend risponda
     - |
-      until curl -s http://localhost:5000 > /dev/null; do
-        echo "⏳ Aspetto che il FE parta su localhost:5000..."
+      until curl -s http://localhost:3000 > /dev/null; do
+        echo "⏳ Aspetto che il FE parta su localhost:3000..."
         sleep 2
       done
 
@@ -48,7 +48,7 @@ run_selenium_tests:
     - pip install -r ./requirements.txt
 
   script:
-    - export VITE_HOSTNAME_ITALCO_FE=http://localhost:5000
+    - export VITE_HOSTNAME_ITALCO_FE=http://localhost:3000
     - pytest -s ./tests/italco/test_login.py
   only:
     - branches
