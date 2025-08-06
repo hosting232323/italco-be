@@ -11,14 +11,14 @@ run_selenium_tests:
   before_script:
     -  apt-get update && apt-get install -y wget unzip curl gnupg git npm
 
-    -  # Installa Google Chrome stabile (versione attuale)
+    # Installa Google Chrome stabile (versione attuale)
     -  wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
     -  apt install -y ./google-chrome-stable_current_amd64.deb
 
-    -  # Imposta la versione di ChromeDriver compatibile
+    # Imposta la versione di ChromeDriver compatibile
     -  CHROME_DRIVER_VERSION=114.0.5735.90
 
-    -  # Scarica e installa ChromeDriver compatibile
+    # Scarica e installa ChromeDriver compatibile
     -  wget -q -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip"
     -  unzip /tmp/chromedriver.zip -d /usr/local/bin/
     -  chmod +x /usr/local/bin/chromedriver
