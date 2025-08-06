@@ -18,22 +18,22 @@ def seed_users():
 CONFIG = [
   {
     'email': 'admin',
-    'password': '1234admin',
+    'password': 'dW5kZWZpbmVk4NWOv2Of1hCY7cc6a6r1yw==',
     'role': 'Admin'
   },
   {
     'email': 'operator',
-    'password': '1234operator',
+    'password': 'dW5kZWZpbmVkrQF4qKkmtc017w13p+kO4w==',
     'role': 'Operator'
   },
   {
     'email': 'delivery',
-    'password': '1234delivery',
+    'password': 'dW5kZWZpbmVkrv4msa1rrnqOIb5c8/L91Q==',
     'role': 'Delivery'
   },
   {
     'email': 'customer',
-    'password': '1234customer',
+    'password': 'dW5kZWZpbmVkEhxq/DiYm5YEi0p8QmsrZA==',
     'role': 'Customer'
   }
 ]
