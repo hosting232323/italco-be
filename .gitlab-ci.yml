@@ -8,13 +8,16 @@ selenium-chrome-test:
     - name: selenium/standalone-chrome:latest
       alias: selenium
   before_script:
+    # Aggiorna e installa dipendenze
     - apt-get update && apt-get install -y git npm curl
 
-    # Avvia il BE
+    # Avvia il backend
     - pip install -r requirements.txt
     - export DATABASE_URL=postgresql://neondb_owner:npg_lsyKXoUk26Dx@ep-morning-sea-af7jtbs5.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require
     - export DECODE_JWT_TOKEN='blablabla'
     - python -m src &
+
+    # Aspetta che il backend sia pronto su localhost:8080
     - |
       until curl -s http://127.0.0.1:8080 > /dev/null; do
         echo "⏳ Aspetto che il BE parta su 127.0.0.1:8080..."
@@ -24,29 +27,32 @@ selenium-chrome-test:
     # Clona il frontend
     - git clone -b new-pytest https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git frontend
 
-    # Installa FE e avvia in produzione
+    # Installa frontend e builda
     - cd frontend
     - npm install
     - export VITE_HOSTNAME=http://127.0.0.1:8080
     - npm run build || exit 1
     - npm run serve &
+
+    # Torna nella root
     - cd ..
 
-    # Attende che il frontend risponda
+    # Attende che il frontend sia pronto su localhost:3000 (dentro container CI)
     - |
-      until curl -s http://localhost:3000 > /dev/null; do
+      until curl -s http://127.0.0.1:3000 > /dev/null; do
         echo "⏳ Aspetto che il FE parta su localhost:3000..."
         sleep 2
       done
 
-    # Clona i test
+    # Clona la repo dei test
     - git clone -b italco-test https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git generic-test
     - cd generic-test
     - pip install -r ./requirements.txt
 
   script:
-    - export VITE_HOSTNAME_ITALCO_FE=http://localhost:3000
+    # Qui export con host.docker.internal per Selenium che è un container separato
+    - export VITE_HOSTNAME_ITALCO_FE=http://host.docker.internal:3000
     - pytest -s ./tests/italco/test_login.py
+
   only:
     - branches
- 
