@@ -8,20 +8,22 @@ run_selenium_tests:
   variables:
     GIT_STRATEGY: fetch
   before_script:
-  before_script:
-    -  apt-get update && apt-get install -y wget unzip curl gnupg git npm
+    - apt-get update && apt-get install -y wget unzip curl gnupg git npm
 
-    # Installa Google Chrome stabile (versione attuale)
-    -  wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-    -  apt install -y ./google-chrome-stable_current_amd64.deb
+    # Installa Google Chrome stabile
+    - wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+    - apt install -y ./google-chrome-stable_current_amd64.deb
 
-    # Imposta la versione di ChromeDriver compatibile
-    -  CHROME_DRIVER_VERSION=114.0.5735.90
+    # Installa ChromeDriver compatibile con Chrome installato
+    - |
+      CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+' | head -1)
+      echo "🔧 Chrome version: $CHROME_VERSION"
+      CHROME_DRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
+      echo "🔧 ChromeDriver version: $CHROME_DRIVER_VERSION"
+      wget -q -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip"
+      unzip /tmp/chromedriver.zip -d /usr/local/bin/
+      chmod +x /usr/local/bin/chromedriver
 
-    # Scarica e installa ChromeDriver compatibile
-    -  wget -q -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip"
-    -  unzip /tmp/chromedriver.zip -d /usr/local/bin/
-    -  chmod +x /usr/local/bin/chromedriver
 
     # Avvia il BE
     - pip install -r requirements.txt
