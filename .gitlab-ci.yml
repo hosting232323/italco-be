@@ -10,20 +10,17 @@ run_selenium_tests:
   before_script:
     - apt-get update && apt-get install -y wget unzip curl gnupg git npm
 
-    # Installa Google Chrome stabile
-    - wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-    - apt install -y ./google-chrome-stable_current_amd64.deb
+    # Installa Chrome versione 117 (stabile e supportata)
+    - wget -q https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_117.0.5938.92-1_amd64.deb
+    - apt install -y ./google-chrome-stable_117.0.5938.92-1_amd64.deb
 
-    # Installa ChromeDriver compatibile con Chrome installato
+    # Installa ChromeDriver compatibile (117.0.5938.92)
     - |
-      CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+' | head -1)
-      echo "🔧 Chrome version: $CHROME_VERSION"
-      CHROME_DRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
+      CHROME_DRIVER_VERSION=117.0.5938.92
       echo "🔧 ChromeDriver version: $CHROME_DRIVER_VERSION"
       wget -q -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip"
       unzip /tmp/chromedriver.zip -d /usr/local/bin/
       chmod +x /usr/local/bin/chromedriver
-
 
     # Avvia il BE
     - pip install -r requirements.txt
