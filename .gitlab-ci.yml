@@ -48,4 +48,3 @@ selenium-chrome-test:
     - pytest -s ./tests/italco/test_login.py
   only:
     - branches
- 
