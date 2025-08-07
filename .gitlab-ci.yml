@@ -1,26 +1,13 @@
-image: python:3.10
-
 stages:
   - test
 
-run_selenium_tests:
+selenium-chrome-test:
+  image: selenium/standalone-chrome:latest
   stage: test
   variables:
     GIT_STRATEGY: fetch
   before_script:
-    - apt-get update && apt-get install -y wget unzip curl gnupg git npm
-
-    # Installa Chrome versione 117 (stabile e supportata)
-    - wget -q https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_117.0.5938.92-1_amd64.deb
-    - apt install -y ./google-chrome-stable_117.0.5938.92-1_amd64.deb
-
-    # Installa ChromeDriver compatibile (117.0.5938.92)
-    - |
-      CHROME_DRIVER_VERSION=117.0.5938.92
-      echo "🔧 ChromeDriver version: $CHROME_DRIVER_VERSION"
-      wget -q -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip"
-      unzip /tmp/chromedriver.zip -d /usr/local/bin/
-      chmod +x /usr/local/bin/chromedriver
+    - apt-get update && apt-get install -y git npm curl
 
     # Avvia il BE
     - pip install -r requirements.txt
