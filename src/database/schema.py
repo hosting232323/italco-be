@@ -76,6 +76,8 @@ class Order(BaseEntity):
   motivation = Column(String, nullable=True)
   schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=True)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
+  schedule_index = Column(Integer, nullable=True)
+  time_slot = Column(Date, nullable=True)
 
   photo = relationship('Photo', back_populates='order')
   schedule = relationship('Schedule', back_populates='order')
