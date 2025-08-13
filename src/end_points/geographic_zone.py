@@ -169,11 +169,8 @@ def get_orders_by_cap(caps: list[str]) -> list[Order]:
   with Session() as session:
     return session.query(
       Order
-    ).join(
-      GeographicCode, and_(
-        GeographicCode.code == Order.cap,
-        GeographicCode.code.in_(caps),
-        Order.dpc > datetime.today(),
-        Order.dpc < datetime.today() + relativedelta(months=2)
-      )
+    ).filter(
+      Order.cap.in_(caps),
+      Order.dpc > datetime.today(),
+      Order.dpc < datetime.today() + relativedelta(months=2)
     ).all()
