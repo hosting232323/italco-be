@@ -1,6 +1,8 @@
+import os
 from datetime import datetime
 from flask import Blueprint, request
 
+from api.sms import send_sms
 from database_api import Session
 from . import flask_session_authentication
 from ..database.enum import UserRole, OrderStatus
@@ -14,8 +16,12 @@ schedule_bp = Blueprint('schedule_bp', __name__)
 @schedule_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def create_schedule(user: ItalcoUser):
-  orders: list[Order] = get_by_ids(Order, request.json['order_ids'])
+  order_ids = [o['id'] for o in request.json['orders']]
+  orders_data = request.json['orders']
   del request.json['order_ids']
+  del request.json['orders']
+
+  orders: list[Order] = get_by_ids(Order, order_ids)
   schedule = create(Schedule, request.json)
   if not schedule or not orders:
     return {
@@ -23,12 +29,27 @@ def create_schedule(user: ItalcoUser):
       'error': 'Errore nella creazione del borderò'
     }
 
+  orders_data_map = {o['id']: o for o in orders_data}
   for order in orders:
-    update(order, {
-      'schedule_id': schedule.id,
-      'status': OrderStatus.IN_PROGRESS,
-      'assignament_date': datetime.now()
-    })
+    if order.id in orders_data_map:
+      data_update = orders_data_map[order.id]
+      update(order, {
+        'schedule_id': schedule.id,
+        'status': OrderStatus.IN_PROGRESS,
+        'time_slot': data_update['time_slot'],
+        'schedule_index': data_update['schedule_index'],
+        'assignament_date': datetime.now()
+      })
+
+      if order.addressee_contact:
+        send_sms(
+          os.environ['VONAGE_API_KEY'],
+          os.environ['VONAGE_API_SECRET'],
+          'Ares Logistics',
+          order.addressee_contact,
+          f'Il tuo ordine è stato schedulato il giorno {order.assignament_date} nella fascia orario {order.time_slot}.'
+        )
+
   return {
     'status': 'ok',
     'schedule': schedule.to_dict()

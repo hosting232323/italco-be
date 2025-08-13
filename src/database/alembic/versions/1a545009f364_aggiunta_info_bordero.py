@@ -1,0 +1,27 @@
+"""aggiunta info bordero
+
+Revision ID: 1a545009f364
+Revises: c974eeea4247
+Create Date: 2025-08-09 12:38:15.320451
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+revision: str = '1a545009f364'
+down_revision: Union[str, None] = 'c974eeea4247'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+  op.add_column('order', sa.Column('schedule_index', sa.Integer(), nullable=True))
+  op.add_column('order', sa.Column('time_slot', sa.Time(), nullable=True))
+
+
+def downgrade() -> None:
+  op.drop_column('order', 'time_slot')
+  op.drop_column('order', 'schedule_index')
