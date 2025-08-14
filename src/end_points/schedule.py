@@ -33,7 +33,7 @@ def create_schedule(user: ItalcoUser):
   for order in orders:
     if order.id in orders_data_map:
       data_update = orders_data_map[order.id]
-      update(order, {
+      order = update(order, {
         'schedule_id': schedule.id,
         'status': OrderStatus.IN_PROGRESS,
         'time_slot': data_update['time_slot'],
@@ -47,7 +47,7 @@ def create_schedule(user: ItalcoUser):
           os.environ['VONAGE_API_SECRET'],
           'Ares Logistics',
           order.addressee_contact,
-          f'Il tuo ordine è stato schedulato il giorno {order.assignament_date} nella fascia orario {order.time_slot}.'
+          f'Il tuo ordine è stato schedulato il giorno {order.assignament_date} nella fascia oraria {order.time_slot}.'
         )
 
   return {
