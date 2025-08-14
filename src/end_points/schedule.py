@@ -45,7 +45,7 @@ def create_schedule(user: ItalcoUser):
         send_sms(
           os.environ['VONAGE_API_KEY'],
           os.environ['VONAGE_API_SECRET'],
-          'Ares Logistics',
+          'Ares',
           order.addressee_contact,
           f'Il tuo ordine è stato schedulato il giorno {order.assignament_date} nella fascia oraria {order.time_slot}.'
         )
