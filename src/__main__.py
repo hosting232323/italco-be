@@ -27,7 +27,7 @@ def login():
 
 
 @app.route('/check-constraints', methods=['POST'])
-@flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
+@flask_session_authentication([UserRole.CUSTOMER])
 def check_constraints(user: ItalcoUser):
   return {
     'status': 'ok',

@@ -20,15 +20,14 @@ def create_schedule(user: ItalcoUser):
   orders_data = request.json['orders']
   del request.json['order_ids']
   del request.json['orders']
-
   orders: list[Order] = get_by_ids(Order, order_ids)
-  schedule = create(Schedule, request.json)
-  if not schedule or not orders:
+  if not orders:
     return {
       'status': 'ko',
       'error': 'Errore nella creazione del borderò'
     }
 
+  schedule = create(Schedule, request.json)
   orders_data_map = {o['id']: o for o in orders_data}
   for order in orders:
     if order.id in orders_data_map:

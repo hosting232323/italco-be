@@ -26,22 +26,22 @@ def flask_session_authentication(roles: list[UserRole] = None):
         )['email'])
         if not user:
           return {'status': 'session', 'error': 'Utente non trovato'}
-        
+
         if roles:
           if not user.role in roles:
             return {'status': 'session', 'error': 'Ruolo non autorizzato'}
-        
+
         if user.role == UserRole.DELIVERY:
           lat = float(request.headers['X-Lat'])
           lon = float(request.headers['X-Lon'])
-          
           if lat is None or lon is None:
             return {'status': 'ko', 'error': 'Latitudine o Longitudine mancanti'}
-          
-          delivery_group = get_by_id(DeliveryGroup, user.delivery_group_id)
-          if float(delivery_group.lat) != lat or float(delivery_group.lon) != lon:
+
+          delivery_group: DeliveryGroup = get_by_id(DeliveryGroup, user.delivery_group_id)
+          if not delivery_group.lat or not delivery_group.lon or \
+            float(delivery_group.lat) != lat or float(delivery_group.lon) != lon:
             update(delivery_group, {'lat': lat, 'lon': lon})
-            
+
         result = func(user, *args, **kwargs)
         if isinstance(result, dict):
           result['new_token'] = create_jwt_token(user.email)
