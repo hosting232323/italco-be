@@ -12,8 +12,7 @@ class OrderStatus(BaseEnum):
   ON_BOARD = 'On Board'
   COMPLETED = 'Completed'
   CANCELLED = 'Cancelled'
-  ANOMALY = 'Anomaly'
-  DELAY = 'Delay'
+  AT_WAREHOUSE = 'At Warehouse'
 
 class OrderType(BaseEnum):
   DELIVERY = 'Delivery'
