@@ -35,7 +35,8 @@ def create_schedule(user: ItalcoUser):
       order = update(order, {
         'schedule_id': schedule.id,
         'status': OrderStatus.IN_PROGRESS,
-        'time_slot': data_update['time_slot'],
+        'start_time_slot': data_update['start_time_slot'],
+        'end_time_slot': data_update['end_time_slot'],
         'schedule_index': data_update['schedule_index'],
         'assignament_date': datetime.now()
       })
