@@ -51,8 +51,8 @@ def upgrade() -> None:
   # Altre modifiche alle colonne
   op.add_column('order', sa.Column('star_time_slot', sa.Time(), nullable=True))
   op.add_column('order', sa.Column('end_time_slot', sa.Time(), nullable=True))
-  op.add_column('order', sa.Column('anomaly', sa.Boolean(), nullable=True))
-  op.add_column('order', sa.Column('delay', sa.Boolean(), nullable=True))
+  op.add_column('order', sa.Column('anomaly', sa.Boolean(), nullable=True, default=False))
+  op.add_column('order', sa.Column('delay', sa.Boolean(), nullable=True, default=False))
   op.drop_column('order', 'time_slot')
   # ### end Alembic commands ###
 
