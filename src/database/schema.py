@@ -77,7 +77,10 @@ class Order(BaseEntity):
   schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=True)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
   schedule_index = Column(Integer, nullable=True)
-  time_slot = Column(Time, nullable=True)
+  star_time_slot = Column(Time, nullable=True)
+  end_time_slot = Column(Time, nullable=True)
+  anomaly = Column(Boolean, nullable=True, default=False)
+  delay = Column(Boolean, nullable=True, default=False)
 
   photo = relationship('Photo', back_populates='order')
   schedule = relationship('Schedule', back_populates='order')
