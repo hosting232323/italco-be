@@ -9,7 +9,7 @@ DEFAULT_MAILS = [
 
 
 def mailer_check(order: Order):
-  if order.status in [OrderStatus.ANOMALY, OrderStatus.CANCELLED, OrderStatus.ON_BOARD]:
+  if order.status in [OrderStatus.CANCELLED, OrderStatus.ON_BOARD]:
     for mail in DEFAULT_MAILS:
       send_email(
         mail,
