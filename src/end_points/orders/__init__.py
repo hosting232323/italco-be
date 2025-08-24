@@ -120,7 +120,7 @@ def update_order(user: ItalcoUser, id):
   data = {key: value for key, value in data.items() if not key in ['products', 'user_id']}
   order = update(order, data)
 
-  mailer_check(order)
+  mailer_check(order, data)
   return {
     'status': 'ok',
     'order': order.to_dict()

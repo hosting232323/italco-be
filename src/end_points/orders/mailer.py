@@ -8,8 +8,10 @@ DEFAULT_MAILS = [
 ]
 
 
-def mailer_check(order: Order):
-  if order.status in [OrderStatus.CANCELLED, OrderStatus.ON_BOARD]:
+def mailer_check(order: Order, data: dict):
+  if ('status' in data and data['status'] in [OrderStatus.CANCELLED, OrderStatus.ON_BOARD]) or \
+     ('anomaly' in data and data['anomaly'] is True) or \
+     ('delay' in data and data['delay'] is True):
     for mail in DEFAULT_MAILS:
       send_email(
         mail,
