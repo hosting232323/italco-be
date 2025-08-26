@@ -78,7 +78,7 @@ def query_delivery_orders(user: ItalcoUser) -> list[tuple[Order, OrderServiceUse
         Schedule.delivery_group_id == user.delivery_group_id,
         Schedule.date == datetime.now().date(),
         Schedule.id == Order.schedule_id,
-        not_(Order.status.in_([OrderStatus.PENDING, OrderStatus.COMPLETED, OrderStatus.CANCELLED]))
+        not_(Order.status.in_([OrderStatus.PENDING]))
       )
     ).all()
 
