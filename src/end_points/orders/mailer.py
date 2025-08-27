@@ -4,7 +4,8 @@ from ...database.enum import OrderStatus
 
 
 DEFAULT_MAILS = [
-  'colasanto.giovanni.inf@gmail.com'
+  'colasanto.giovanni.inf@gmail.com',
+  'coppolagabriele973@gmail.com'
 ]
 
 

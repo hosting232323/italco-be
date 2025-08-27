@@ -1,4 +1,5 @@
 import os
+from sqlalchemy import and_
 from datetime import datetime
 from flask import Blueprint, request
 
@@ -7,7 +8,7 @@ from database_api import Session
 from . import flask_session_authentication
 from ..database.enum import UserRole, OrderStatus
 from database_api.operations import create, delete, get_by_id, update, get_by_ids
-from ..database.schema import Schedule, ItalcoUser, Order, DeliveryGroup, Transport
+from ..database.schema import Schedule, ItalcoUser, Order, DeliveryGroup, Transport, ServiceUser, OrderServiceUser
 
 
 schedule_bp = Blueprint('schedule_bp', __name__)
@@ -47,7 +48,10 @@ def create_schedule(user: ItalcoUser):
           os.environ['VONAGE_API_SECRET'],
           'Ares',
           order.addressee_contact,
-          f'Il tuo ordine è stato schedulato il giorno {order.assignament_date} nella fascia oraria {order.time_slot}.'
+          f'ARES - Gentile Cliente, la consegna relativa al Punto Vendita {get_selling_point(order)} è programmata per il {order.assignament_date}' \
+            f', fascia {order.star_time_slot} - {order.end_time_slot}. Riceverà un preavviso di 30 minuti prima dell’arrivo. Per monitorare ogni f' \
+            f'ase della sua consegna clicchi il link in questione  {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilit' \
+            'à al numero indicato. Buona Giornata!'
         )
 
   return {
@@ -131,3 +135,19 @@ def format_query_result(tupla: tuple[
     'delivery_group': tupla[1].to_dict()
   })
   return list
+
+
+def get_selling_point(order: Order) -> str:
+  with Session() as session:
+    return session.query(ItalcoUser.email).join(
+      ServiceUser, ItalcoUser.id == ServiceUser.user_id
+    ).join(
+      OrderServiceUser, and_(
+        ServiceUser.id == OrderServiceUser.service_user_id,
+        OrderServiceUser.order_id == order.id
+      )
+    ).first()
+
+
+def get_order_link(order: Order) -> str:
+  return 'LINK'
