@@ -150,6 +150,6 @@ def get_selling_point(order: Order) -> str:
     ).first()
 
 
-hashids = Hashids(salt="mia-chiave-segreta-super-segreta", min_length=8)
+hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 def get_order_link(order: Order) -> str:
-  return f"https://ares-logistics.it/order/{hashids.encode(order.id)}"
+  return f'https://ares-logistics.it/order/{hashids.encode(order.id)}'
