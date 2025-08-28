@@ -1,17 +1,17 @@
-"""Create models
+'''Create models
 
-Revision ID: 426c422f6e50
+Revision ID: 8d5691ba121c
 Revises: 
-Create Date: 2025-07-03 20:41:16.544435
+Create Date: 2025-08-27 20:15:37.315312
 
-"""
+'''
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '426c422f6e50'
+revision: str = '8d5691ba121c'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -27,6 +27,8 @@ def upgrade() -> None:
   )
   op.create_table('delivery_group',
     sa.Column('name', sa.String(), nullable=False),
+    sa.Column('lat', sa.Numeric(precision=11, scale=8), nullable=True),
+    sa.Column('lon', sa.Numeric(precision=11, scale=8), nullable=True),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
@@ -43,6 +45,7 @@ def upgrade() -> None:
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('type', sa.Enum('DELIVERY', 'WITHDRAW', 'REPLACEMENT', 'CHECK', name='ordertype'), nullable=False),
     sa.Column('description', sa.String(), nullable=True),
+    sa.Column('max_services', sa.Integer(), nullable=True),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
@@ -135,7 +138,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
   )
   op.create_table('order',
-    sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'ANOMALY', 'DELAY', name='orderstatus'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'AT_WAREHOUSE', name='orderstatus'), nullable=False),
     sa.Column('type', sa.Enum('DELIVERY', 'WITHDRAW', 'REPLACEMENT', 'CHECK', name='ordertype'), nullable=False),
     sa.Column('addressee', sa.String(), nullable=False),
     sa.Column('address', sa.String(), nullable=False),
@@ -150,6 +153,11 @@ def upgrade() -> None:
     sa.Column('motivation', sa.String(), nullable=True),
     sa.Column('schedule_id', sa.Integer(), nullable=True),
     sa.Column('collection_point_id', sa.Integer(), nullable=False),
+    sa.Column('schedule_index', sa.Integer(), nullable=True),
+    sa.Column('star_time_slot', sa.Time(), nullable=True),
+    sa.Column('end_time_slot', sa.Time(), nullable=True),
+    sa.Column('anomaly', sa.Boolean(), nullable=True),
+    sa.Column('delay', sa.Boolean(), nullable=True),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
