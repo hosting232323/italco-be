@@ -49,9 +49,9 @@ def create_schedule(user: ItalcoUser):
           os.environ['VONAGE_API_SECRET'],
           'Ares',
           order.addressee_contact,
-          f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita {get_selling_point(order)} è programmata per il {order.assignament_date}' \
-            f', fascia {order.star_time_slot} - {order.end_time_slot}. Riceverà un preavviso di 30 minuti prima dell’arrivo. Per monitorare ogni f' \
-            f'ase della sua consegna clicchi il link in questione  {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilit' \
+          f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order)}, è programmata per il {order.assignament_date}' \
+            f', fascia {order.start_time_slot} - {order.end_time_slot}. Riceverà un preavviso di 30 minuti prima dell\'arrivo. Per monitorare ogni f' \
+            f'ase della sua consegna clicchi il link in questione {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilit' \
             'à al numero indicato. Buona Giornata!'
         )
 
@@ -147,7 +147,7 @@ def get_selling_point(order: Order) -> str:
         ServiceUser.id == OrderServiceUser.service_user_id,
         OrderServiceUser.order_id == order.id
       )
-    ).first()
+    ).scalar()
 
 
 hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
