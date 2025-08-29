@@ -20,6 +20,13 @@ before_script:
   - pip install -r requirements.txt
   - export DATABASE_URL=$DATABASE_URL
 
+  - git clone -b new-pytest https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git frontend
+  - cd frontend
+  - npm install
+  - export VITE_HOSTNAME=http://127.0.0.1:8080
+  - npm run build || exit 1
+  - npm run serve &
+
 backend_test:
   stage: test
   script:
@@ -28,3 +35,5 @@ backend_test:
     - python -m src &
     - until curl -s http://127.0.0.1:8080; do echo "Waiting for backend..."; sleep 2; done
     - curl -v http://127.0.0.1:8080/
+
+    - curl -v http://127.0.0.1:3000/
