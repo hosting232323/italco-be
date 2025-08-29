@@ -1,6 +1,5 @@
 stages:
-  - Test
-
+  - test
 
 image: python:3.11
 
