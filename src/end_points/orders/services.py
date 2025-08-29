@@ -23,7 +23,7 @@ def create_order_service_user(order: Order, products: dict, user_id: int):
 
 def update_order_service_user(order: Order, products: dict, user_id: int):
   service_users = query_service_users(
-    list(set(id for services in products.values() for id in services)),
+    list(set(service['id'] for services in products.values() for service in services)),
     user_id,
     order.type
   )
@@ -35,15 +35,15 @@ def update_order_service_user(order: Order, products: dict, user_id: int):
     ]) > 0:
       continue
 
-    for service_id in products[product]:
+    for service in products[product]:
       for service_user in service_users:
-        if service_user.service_id == service_id:
+        if service_user.service_id == service['id']:
           create(OrderServiceUser, {
             'order_id': order.id,
             'service_user_id': service_user.id,
             'product': product
           })
-        break
+          break
 
   for product in list({
     order_service_user.product for order_service_user in order_service_users
