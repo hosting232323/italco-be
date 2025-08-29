@@ -1,17 +1,41 @@
 stages:
+  - build
   - prepare
   - test
 
+# 1️⃣ Build e pubblicazione immagine backend
+build-backend-image:
+  stage: build
+  image: docker:20.10.16
+  services:
+    - docker:dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker build -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA .
+    - docker push $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
+  only:
+    - branches
+
+# 2️⃣ Preparazione backend con virtualenv
 prepare-backend:
   stage: prepare
   image: python:3.11
   script:
+    # Crea e attiva virtualenv
+    - python -m venv .venv
+    - source .venv/bin/activate
+    - pip install --upgrade pip
     - pip install -r requirements.txt
   artifacts:
     paths:
-      - requirements.txt   # o .venv se usi virtualenv
+      - .venv/
+      - requirements.txt
     expire_in: 1h
 
+# 3️⃣ Preparazione frontend
 prepare-frontend:
   stage: prepare
   image: node:20
@@ -25,6 +49,7 @@ prepare-frontend:
       - frontend/dist/
     expire_in: 1h
 
+# 4️⃣ Preparazione test
 prepare-tests:
   stage: prepare
   image: python:3.11
@@ -37,29 +62,31 @@ prepare-tests:
       - generic-test/
     expire_in: 1h
 
+# 5️⃣ Esecuzione test Selenium con backend come service e venv
 selenium-tests:
   stage: test
   image: python:3.11
   services:
     - name: selenium/standalone-chrome:latest
       alias: selenium
+    - name: $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
+      alias: backend
   dependencies:
     - prepare-backend
     - prepare-frontend
     - prepare-tests
   before_script:
-    - pip install -r requirements.txt   # reinstalla BE deps dal requirements.txt artifact
+    # Ripristina virtualenv dal job prepare-backend
+    - source .venv/bin/activate
+    # Avvia frontend statico
     - cd frontend
     - npm install -g serve
     - cd ..
   script:
-    # Avvia backend
-    - export DATABASE_URL=postgresql://neondb_owner:xxx@ep-icy-sky-af3pjvf1.c-2.us-west-2.aws.neon.tech/neondb
-    - export DECODE_JWT_TOKEN='blablabla'
-    - python -m src &
-    - until curl -s http://127.0.0.1:8080 > /dev/null; do echo "⏳ Aspetto BE..."; sleep 2; done
+    # Aspetta che il backend sia pronto
+    - until curl -s http://backend:8080 > /dev/null; do echo "⏳ Aspetto BE..."; sleep 2; done
 
-    # Avvia FE statico dalla dist
+    # Avvia frontend statico dalla dist
     - npx serve -s frontend/dist -l 3000 &
     - until curl -s http://127.0.0.1:3000 > /dev/null; do echo "⏳ Aspetto FE..."; sleep 2; done
 
