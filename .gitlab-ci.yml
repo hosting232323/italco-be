@@ -1,0 +1,43 @@
+stages:
+  - build
+  - test
+
+variables:
+  IMAGE_NAME: "$CI_REGISTRY_IMAGE/backend:latest"
+
+# Stage 1: Build dell'immagine Docker
+build:
+  stage: build
+  image: docker:24.0.2
+  services:
+    - docker:24.0.2-dind
+  variables:
+    DOCKER_DRIVER: overlay2
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+  script:
+    - docker build --pull -t $IMAGE_NAME .
+    - docker push $IMAGE_NAME
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+# Stage 2: Test usando l'immagine come servizio
+test:
+  stage: test
+  image: curlimages/curl:latest
+  services:
+    - name: $IMAGE_NAME
+      alias: backend
+  script:
+    - echo "Attendo che il backend sia pronto..."
+    - |
+      for i in {1..10}; do
+        if curl -f http://backend:80/; then
+          echo "Backend pronto!"
+          break
+        fi
+        echo "Backend non pronto, riprovo in 3 secondi..."
+        sleep 3
+      done
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
