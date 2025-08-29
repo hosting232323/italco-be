@@ -1,11 +1,13 @@
 stages:
-  - test
+  - Test
 
-image: selenium/standalone-chromium:latest
+image: python:3.11
 
 services:
   - name: postgres:15
     alias: postgres
+  - name: selenium/standalone-chromium:latest
+    alias: selenium
 
 variables:
   USER: root
