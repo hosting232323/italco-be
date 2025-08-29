@@ -11,8 +11,7 @@ variables:
   POSTGRES_DB: mydb
   POSTGRES_USER: myuser
   POSTGRES_PASSWORD: mypassword
-  DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-  # Se usi pytest o simili, disattiva l’output bufferizzato
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   PYTHONUNBUFFERED: 1
 
 before_script:
@@ -27,5 +26,5 @@ backend_test:
     - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
     - alembic upgrade heads
     - python -m src &
-    - sleep 5
+    - until curl -s http://localhost:8000/; do echo "Waiting for backend..."; sleep 2; done
     - curl -v http://localhost:8000/
