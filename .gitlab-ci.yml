@@ -1,6 +1,7 @@
 stages:
   - Test
 
+
 image: python:3.11
 
 services:
