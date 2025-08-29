@@ -154,7 +154,7 @@ def upgrade() -> None:
     sa.Column('schedule_id', sa.Integer(), nullable=True),
     sa.Column('collection_point_id', sa.Integer(), nullable=False),
     sa.Column('schedule_index', sa.Integer(), nullable=True),
-    sa.Column('star_time_slot', sa.Time(), nullable=True),
+    sa.Column('start_time_slot', sa.Time(), nullable=True),
     sa.Column('end_time_slot', sa.Time(), nullable=True),
     sa.Column('anomaly', sa.Boolean(), nullable=True),
     sa.Column('delay', sa.Boolean(), nullable=True),
