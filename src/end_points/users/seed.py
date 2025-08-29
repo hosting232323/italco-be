@@ -18,22 +18,22 @@ def seed_users():
 CONFIG = [
   {
     'email': 'admin',
-    'password': 'dW5kZWZpbmVk4NWOv2Of1hCY7cc6a6r1yw==',
+    'password': 'MTIzNDU2Nzg5MDEyMzQ1Nk74aeshlmbNA9Dmmq+dowI=',
     'role': 'Admin'
   },
   {
     'email': 'operator',
-    'password': 'dW5kZWZpbmVkrQF4qKkmtc017w13p+kO4w==',
+    'password': 'MTIzNDU2Nzg5MDEyMzQ1NhB1m3hNtcmV3SS6RJWD/lM=',
     'role': 'Operator'
   },
   {
     'email': 'delivery',
-    'password': 'dW5kZWZpbmVkrv4msa1rrnqOIb5c8/L91Q==',
+    'password': 'MTIzNDU2Nzg5MDEyMzQ1NveX8dFMr4LXoKyncdgq94g=',
     'role': 'Delivery'
   },
   {
     'email': 'customer',
-    'password': 'dW5kZWZpbmVkEhxq/DiYm5YEi0p8QmsrZA==',
+    'password': 'MTIzNDU2Nzg5MDEyMzQ1NlDCtaLDuTiPZS2I6jtlNI4=',
     'role': 'Customer'
   }
 ]
