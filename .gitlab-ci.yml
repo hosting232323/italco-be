@@ -26,6 +26,7 @@ before_script:
   - export VITE_HOSTNAME=http://127.0.0.1:8080
   - npm run build || exit 1
   - npm run serve &
+  - cd ..
 
 backend_test:
   stage: test
