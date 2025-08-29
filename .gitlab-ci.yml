@@ -1,24 +1,10 @@
 stages:
+  - build_frontend
   - test
 
-image: python:3.11
-
+image: docker:24.0.5
 services:
-  - name: postgres:15
-    alias: postgres
-  - name: selenium/standalone-chromium:latest
-    alias: selenium
-  - name: node:20
-    alias: frontend
-    command: [
-      "bash", "-c",
-      "git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git &
-      cd /italco-fe &
-      npm install &
-      export VITE_HOSTNAME=http://127.0.0.1:8080/ &
-      npm run build &
-      npm run serve -- --host 0.0.0.0 --port 3000"
-    ]
+  - docker:dind
 
 variables:
   POSTGRES_DB: mydb
@@ -26,8 +12,32 @@ variables:
   POSTGRES_PASSWORD: mypassword
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   VITE_HOSTNAME_ITALCO_FE: http://frontend:3000/
+  DOCKER_DRIVER: overlay2
+  FRONTEND_IMAGE: registry.gitlab.com/generic-lab/italco/ialco-fe/italco-fe:ci
 
-before_script:
+build_frontend_image:
+  stage: build_frontend
+  image: node:20
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -f frontend/Dockerfile.ci -t $FRONTEND_IMAGE frontend/
+    - docker push $FRONTEND_IMAGE
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+
+backend_test:
+  stage: test
+  image: python:3.11
+  services:
+    - name: postgres:15
+      alias: postgres
+    - name: selenium/standalone-chromium:latest
+      alias: selenium
+    - name: $FRONTEND_IMAGE
+      alias: frontend
+  before_script:
+  - curl http://frontend:3000/
+
   - apt-get update && apt-get install -y python3 python3-pip git postgresql-client npm
   - pip install --upgrade pip
   - pip install -r requirements.txt
@@ -37,15 +47,10 @@ before_script:
   - cd generic-test
   - pip install -r ./requirements.txt
   - cd ..
-
-backend_test:
-  stage: test
   script:
     - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
     - alembic upgrade heads
     - python -m src &
     - until curl -s http://127.0.0.1:8080; do echo "Waiting for backend..."; sleep 2; done
-
-    - curl http://frontend:3000/
     - cd generic-test
     - pytest -s ./tests/italco/test_login.py
