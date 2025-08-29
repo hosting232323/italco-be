@@ -32,7 +32,6 @@ before_script:
   - git clone -b pipeline https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git generic-test
   - cd generic-test
   - pip install -r ./requirements.txt
-  - export VITE_HOSTNAME_ITALCO_FE=http://host.docker.internal:3000/
   - cd ..
 
 backend_test:
@@ -43,6 +42,9 @@ backend_test:
     - python -m src &
     - until curl -s http://127.0.0.1:8080; do echo "Waiting for backend..."; sleep 2; done
 
-    - curl http://127.0.0.1:3000/
+    - export FRONTEND_IP=$(hostname -i)
+    - export VITE_HOSTNAME_ITALCO_FE=http://$FRONTEND_IP:3000/
+
+    - curl $VITE_HOSTNAME_ITALCO_FE
     - cd generic-test
     - pytest -s ./tests/italco/test_login.py
