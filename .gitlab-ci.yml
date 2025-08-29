@@ -43,5 +43,6 @@ backend_test:
     - python -m src &
     - until curl -s http://127.0.0.1:8080; do echo "Waiting for backend..."; sleep 2; done
 
+    - curl http://127.0.0.1:3000/
     - cd generic-test
     - pytest -s ./tests/italco/test_login.py
