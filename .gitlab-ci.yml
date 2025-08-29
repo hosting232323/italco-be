@@ -1,36 +1,70 @@
 stages:
+  - prepare
   - test
 
-selenium-chrome-test:
+prepare-backend:
+  stage: prepare
   image: python:3.11
-  stage: test
-  before_script:
-    # Installa Chrome e Chromedriver
-    - apt-get update && apt-get install -y wget curl unzip gnupg chromium chromium-driver npm git
+  script:
     - pip install -r requirements.txt
+  artifacts:
+    paths:
+      - requirements.txt   # o .venv se usi virtualenv
+    expire_in: 1h
 
+prepare-frontend:
+  stage: prepare
+  image: node:20
+  script:
+    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git frontend
+    - cd frontend
+    - npm install
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/dist/
+    expire_in: 1h
+
+prepare-tests:
+  stage: prepare
+  image: python:3.11
+  script:
+    - git clone -b italco-test https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git generic-test
+    - cd generic-test
+    - pip install -r requirements.txt
+  artifacts:
+    paths:
+      - generic-test/
+    expire_in: 1h
+
+selenium-tests:
+  stage: test
+  image: python:3.11
+  services:
+    - name: selenium/standalone-chrome:latest
+      alias: selenium
+  dependencies:
+    - prepare-backend
+    - prepare-frontend
+    - prepare-tests
+  before_script:
+    - pip install -r requirements.txt   # reinstalla BE deps dal requirements.txt artifact
+    - cd frontend
+    - npm install -g serve
+    - cd ..
+  script:
     # Avvia backend
     - export DATABASE_URL=postgresql://neondb_owner:xxx@ep-icy-sky-af3pjvf1.c-2.us-west-2.aws.neon.tech/neondb
     - export DECODE_JWT_TOKEN='blablabla'
     - python -m src &
     - until curl -s http://127.0.0.1:8080 > /dev/null; do echo "⏳ Aspetto BE..."; sleep 2; done
 
-    # Clona FE
-    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git frontend
-    - cd frontend
-    - npm install
-    - export VITE_HOSTNAME=http://127.0.0.1:8080
-    - npm run build || exit 1
-    - npm run serve &
-    - cd ..
+    # Avvia FE statico dalla dist
+    - npx serve -s frontend/dist -l 3000 &
     - until curl -s http://127.0.0.1:3000 > /dev/null; do echo "⏳ Aspetto FE..."; sleep 2; done
 
-    # Clona test
-    - git clone -b italco-test https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git generic-test
+    # Esegui i test
     - cd generic-test
-    - pip install -r ./requirements.txt
-
-  script:
     - export VITE_HOSTNAME_ITALCO_FE=http://127.0.0.1:3000
     - pytest -s ./tests/italco/test_login.py
 
