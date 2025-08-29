@@ -29,7 +29,7 @@ before_script:
   - npm run serve &
   - cd ..
 
-  - git clone -b italco-test https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git generic-test
+  - git clone -b pipeline https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git generic-test
   - cd generic-test
   - pip install -r ./requirements.txt
   - export VITE_HOSTNAME_ITALCO_FE=http://127.0.0.1:8080/
