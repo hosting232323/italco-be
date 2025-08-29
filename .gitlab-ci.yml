@@ -14,7 +14,6 @@ variables:
   POSTGRES_USER: myuser
   POSTGRES_PASSWORD: mypassword
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-  PYTHONUNBUFFERED: 1
 
 before_script:
   - apt-get update && apt-get install -y python3 python3-pip git postgresql-client npm
