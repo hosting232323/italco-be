@@ -32,13 +32,12 @@ before_script:
 backend_test:
   stage: test
   script:
+    - docker exec frontend bash -c "cd /app && npm install && npm run build && npm run serve -- --host 0.0.0.0 --port 3000" || true
+
     - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
     - alembic upgrade heads
     - python -m src &
     - until curl -s http://127.0.0.1:8080; do echo "Waiting for backend..."; sleep 2; done
-
-    - docker exec frontend bash -c "cd /app && npm install && npm run build && npm run serve -- --host 0.0.0.0 --port 3000" || true
-    - until curl -s $VITE_HOSTNAME_ITALCO_FE; do echo "Waiting for frontend..."; sleep 2; done
 
     - curl http://frontend:3000/
     - cd generic-test
