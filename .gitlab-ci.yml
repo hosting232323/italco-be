@@ -42,7 +42,7 @@ backend_test:
     - python -m src &
     - until curl -s http://127.0.0.1:8080; do echo "Waiting for backend..."; sleep 2; done
 
-    - export FRONTEND_IP=$(hostname -i | awk '{print $1}')
+    - export FRONTEND_IP=$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$')
     - export VITE_HOSTNAME_ITALCO_FE=http://$FRONTEND_IP:3000/
     - echo "Frontend URL $VITE_HOSTNAME_ITALCO_FE"
     - curl $VITE_HOSTNAME_ITALCO_FE
