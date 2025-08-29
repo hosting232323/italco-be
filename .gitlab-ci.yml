@@ -8,10 +8,8 @@ services:
     alias: postgres
 
 variables:
-  POSTGRES_DB: mydb
   POSTGRES_USER: myuser
-  POSTGRES_PASSWORD: mypassword
-  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  DATABASE_URL: postgresql://${POSTGRES_USER}:mypassword@postgres:5432/mydb
   PYTHONUNBUFFERED: 1
 
 before_script:
