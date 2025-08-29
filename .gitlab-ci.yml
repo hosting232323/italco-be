@@ -25,7 +25,7 @@ selenium-chrome-test:
       done
 
     # Clona il frontend
-    - git clone -b new-pytest https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git frontend
+    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git frontend
 
     # Installa frontend e builda
     - cd frontend
