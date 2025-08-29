@@ -23,7 +23,9 @@ from .end_points.geographic_zone import geographic_zone_bp, check_geographic_zon
 
 @app.route('/login', methods=['POST'])
 def login():
-  return login_()
+  x = login_()
+  print(x)
+  return x
 
 
 @app.route('/check-constraints', methods=['POST'])
