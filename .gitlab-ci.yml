@@ -1,39 +1,30 @@
 stages:
-  - build
   - test
 
 variables:
-  IMAGE_NAME: "$CI_REGISTRY_IMAGE/backend:latest"
+  POSTGRES_DB: mydb
+  POSTGRES_USER: myuser
+  POSTGRES_PASSWORD: mypassword
+  DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
 
-# Stage 1: Build dell'immagine Docker
-build:
-  stage: build
-  image: docker:24.0.2
-  services:
-    - docker:24.0.2-dind
-  variables:
-    DOCKER_DRIVER: overlay2
-  before_script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
-  script:
-    - docker build --pull -t $IMAGE_NAME .
-    - docker push $IMAGE_NAME
+services:
+  - name: postgres:15
+    alias: postgres
 
-# Stage 2: Test usando l'immagine come servizio
-test:
+before_script:
+  - pip install -r requirements.txt
+  - export DATABASE_URL=$DATABASE_URL
+
+backend_test:
   stage: test
-  image: curlimages/curl:latest
-  services:
-    - name: $IMAGE_NAME
-      alias: backend
   script:
-    - echo "Attendo che il backend sia pronto..."
-    - |
-      for i in {1..10}; do
-        if curl -f http://backend:80/; then
-          echo "Backend pronto!"
-          break
-        fi
-        echo "Backend non pronto, riprovo in 3 secondi..."
-        sleep 3
-      done
+    # Attendi che Postgres sia pronto
+    - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
+    # Esegui le migrazioni
+    - alembic upgrade heads
+    # Avvia il backend in background
+    - python -m src &
+    # Attendi qualche secondo per essere sicuri che il backend sia avviato
+    - sleep 5
+    # Esegui una richiesta curl alla rotta di base
+    - curl -v http://localhost:8080/
