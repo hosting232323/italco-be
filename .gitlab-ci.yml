@@ -8,12 +8,24 @@ services:
     alias: postgres
   - name: selenium/standalone-chromium:latest
     alias: selenium
+  - name: node:20
+    alias: frontend
+    command: >
+      bash -c "
+      git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git &&
+      cd /italco-fe &&
+      npm install &&
+      export VITE_HOSTNAME=http://127.0.0.1:8080/ &&
+      npm run build &&
+      npm run serve -- --host 0.0.0.0 --port 3000
+      "
 
 variables:
   POSTGRES_DB: mydb
   POSTGRES_USER: myuser
   POSTGRES_PASSWORD: mypassword
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  VITE_HOSTNAME_ITALCO_FE: http://frontend:3000/
 
 before_script:
   - apt-get update && apt-get install -y python3 python3-pip git postgresql-client npm
@@ -21,18 +33,9 @@ before_script:
   - pip install -r requirements.txt
   - export DATABASE_URL=$DATABASE_URL
 
-  - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git frontend
-  - cd frontend
-  - npm install
-  - export VITE_HOSTNAME=http://127.0.0.1:8080/
-  - npm run build || exit 1
-  - npm run serve &
-  - cd ..
-
   - git clone -b pipeline https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git generic-test
   - cd generic-test
   - pip install -r ./requirements.txt
-  - export VITE_HOSTNAME_ITALCO_FE=http://host.docker.internal:3000/
   - cd ..
 
 backend_test:
@@ -43,6 +46,6 @@ backend_test:
     - python -m src &
     - until curl -s http://127.0.0.1:8080; do echo "Waiting for backend..."; sleep 2; done
 
-    - curl http://host.docker.internal:3000/
+    - curl http://frontend:3000/
     - cd generic-test
     - pytest -s ./tests/italco/test_login.py
