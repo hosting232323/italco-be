@@ -5,14 +5,14 @@ from .queries import query_service_users, query_order_service_users
 
 def create_order_service_user(order: Order, products: dict, user_id: int):
   service_users = query_service_users(
-    list(set(id for services in products.values() for id in services)),
+    list(set(service['id'] for services in products.values() for service in services)),
     user_id,
     order.type
   )
   for product in products.keys():
-    for service_id in products[product]:
+    for service in products[product]:
       for service_user in service_users:
-        if service_user.service_id == service_id:
+        if service_user.service_id == service['id']:
           create(OrderServiceUser, {
             'order_id': order.id,
             'service_user_id': service_user.id,
