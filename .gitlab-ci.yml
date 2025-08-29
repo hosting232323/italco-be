@@ -1,7 +1,7 @@
 stages:
   - test
 
-image: python:3.11  # <--- container base con Python
+image: python:3.11
 
 services:
   - name: postgres:15
@@ -24,13 +24,8 @@ before_script:
 backend_test:
   stage: test
   script:
-    # Attendi che Postgres sia pronto
     - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
-    # Esegui le migrazioni
     - alembic upgrade heads
-    # Avvia il backend in background
     - python -m src &
-    # Attendi che il backend sia avviato (meglio con un healthcheck, qui usiamo sleep)
     - sleep 5
-    # Test con curl sulla rotta di base (cambia porta se serve)
     - curl -v http://localhost:8000/
