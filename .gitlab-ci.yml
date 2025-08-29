@@ -10,15 +10,15 @@ services:
     alias: selenium
   - name: node:20
     alias: frontend
-    command: >
-      bash -c "
-      git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git &&
-      cd /italco-fe &&
-      npm install &&
-      export VITE_HOSTNAME=http://127.0.0.1:8080/ &&
-      npm run build &&
-      npm run serve -- --host 0.0.0.0 --port 3000
-      "
+    command: [
+      "bash", "-c",
+      "git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git",
+      "cd /italco-fe",
+      "npm install",
+      "export VITE_HOSTNAME=http://127.0.0.1:8080/",
+      "npm run build",
+      "npm run serve -- --host 0.0.0.0 --port 3000"
+    ]
 
 variables:
   POSTGRES_DB: mydb
