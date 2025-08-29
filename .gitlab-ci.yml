@@ -13,7 +13,7 @@ selenium-chrome-test:
 
     # Avvia il backend
     - pip install -r requirements.txt
-    - export DATABASE_URL=postgresql://neondb_owner:npg_lsyKXoUk26Dx@ep-morning-sea-af7jtbs5.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require
+    - export DATABASE_URL=postgresql://neondb_owner:npg_ShCmBD0uPd3Q@ep-icy-sky-af3pjvf1.c-2.us-west-2.aws.neon.tech/neondb
     - export DECODE_JWT_TOKEN='blablabla'
     - python -m src &
 
