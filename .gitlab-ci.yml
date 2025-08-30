@@ -26,6 +26,7 @@ before_script:
   - apt-get update && apt-get install -y python3 python3-pip git postgresql-client npm
   - pip install --upgrade pip
   - pip install -r requirements.txt
+  - pip install generic_lib[macos] @ git+https://github.com/hosting232323/generic-lib.git
 
   - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
   - cd italco-fe
@@ -35,7 +36,7 @@ before_script:
   - npm run serve &
   - cd ..
 
-  - git clone -b pipeline https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
+  - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
   - cd generic-test
   - pip install -r ./requirements.txt
   - export VITE_HOSTNAME_ITALCO_FE=http://$DOCKER_IP:3000/
