@@ -1,0 +1,54 @@
+stages:
+  - test
+
+image: python:3.11
+
+services:
+  - name: postgres:15
+    alias: postgres
+  - name: selenium/standalone-chromium:latest
+    alias: selenium
+
+variables:
+  POSTGRES_DB: mydb
+  POSTGRES_USER: myuser
+  POSTGRES_PASSWORD: mypassword
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  DECODE_JWT_TOKEN: token
+
+  VITE_SECRET_KEY: 12345678901234567890123456789012
+  VITE_IV: 1234567890123456
+
+  GITLAB_PIPELINE: 'true'
+
+before_script:
+  - export DOCKER_IP=$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$')
+  - apt-get update && apt-get install -y python3 python3-pip git postgresql-client npm
+  - pip install --upgrade pip
+  - pip install -r requirements.txt
+  - pip install generic_lib[macos] @ git+https://github.com/hosting232323/generic-lib.git
+
+  - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
+  - cd italco-fe
+  - npm install
+  - export VITE_HOSTNAME=http://$DOCKER_IP:8080/
+  - npm run build || exit 1
+  - npm run serve &
+  - cd ..
+
+  - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
+  - cd generic-test
+  - pip install -r ./requirements.txt
+  - export VITE_HOSTNAME_ITALCO_FE=http://$DOCKER_IP:3000/
+  - cd ..
+
+backend_test:
+  stage: test
+  script:
+    - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
+    - alembic upgrade heads
+    - python -m src &
+    - until curl -s $VITE_HOSTNAME; do echo "Waiting for backend..."; sleep 2; done
+
+    - cd generic-test
+    - pytest -s ./tests/italco/test_login.py
