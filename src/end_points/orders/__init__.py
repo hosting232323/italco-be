@@ -1,7 +1,9 @@
 import io
 import json
-from datetime import datetime
+from datetime import datetime, time
 from flask import Blueprint, request, send_file
+from api.sms import send_sms
+import os
 
 from .mailer import mailer_check
 from api import error_catching_decorator
@@ -11,7 +13,7 @@ from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
 from .services import create_order_service_user, update_order_service_user
 from .queries import query_orders, query_delivery_orders, format_query_result, query_delivery_group
-
+from ..schedule import get_selling_point, get_order_link
 
 order_bp = Blueprint('order_bp', __name__)
 
@@ -117,14 +119,47 @@ def update_order(user: ItalcoUser, id):
       data['products'],
       user.id if user.role == UserRole.CUSTOMER else data['user_id']
     )
+    
+  previous_start = parse_time_slot(order.start_time_slot)
+  previous_end = parse_time_slot(order.end_time_slot)
+  
   data = {key: value for key, value in data.items() if not key in ['products', 'user_id']}
   order = update(order, data)
+  
+  new_start = parse_time_slot(data['start_time_slot'])
+  new_end = parse_time_slot(data['end_time_slot'])
+  
+  if data['delay'] and (new_start != previous_start or new_end != previous_end) and order.addressee_contact:
+    start = order.start_time_slot.strftime('%H:%M')
+    end = order.end_time_slot.strftime('%H:%M')
+    send_sms(
+      os.environ['VONAGE_API_KEY'],
+      os.environ['VONAGE_API_SECRET'],
+      'Ares',
+      order.addressee_contact,
+      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order)}, è stata riprogrammata per il {order.assignament_date}' \
+        f', fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell\'arrivo. Per monitorare ogni f' \
+        f'ase della sua consegna clicchi il link in questione {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilit' \
+        'à al numero indicato. Buona Giornata!'
+    )
 
   mailer_check(order, data)
   return {
     'status': 'ok',
     'order': order.to_dict()
   }
+
+
+def parse_time_slot(slot):
+  if isinstance(slot, time):
+    return slot
+  if isinstance(slot, str):
+    slot = slot.strip()
+    try:
+      return datetime.strptime(slot, "%H:%M:%S").time()
+    except ValueError:
+      return datetime.strptime(slot, "%H:%M").time()
+  return None
 
 
 @order_bp.route('photo/<photo_id>', methods=['GET'])

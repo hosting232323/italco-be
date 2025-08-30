@@ -44,13 +44,15 @@ def create_schedule(user: ItalcoUser):
       })
 
       if order.addressee_contact:
+        start = order.start_time_slot.strftime('%H:%M')
+        end = order.end_time_slot.strftime('%H:%M')
         send_sms(
           os.environ['VONAGE_API_KEY'],
           os.environ['VONAGE_API_SECRET'],
           'Ares',
           order.addressee_contact,
           f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order)}, è programmata per il {order.assignament_date}' \
-            f', fascia {order.start_time_slot} - {order.end_time_slot}. Riceverà un preavviso di 30 minuti prima dell\'arrivo. Per monitorare ogni f' \
+            f', fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell\'arrivo. Per monitorare ogni f' \
             f'ase della sua consegna clicchi il link in questione {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilit' \
             'à al numero indicato. Buona Giornata!'
         )
