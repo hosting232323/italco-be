@@ -1,5 +1,7 @@
+import os
 import io
 import json
+from api.sms import send_sms
 from datetime import datetime
 from flask import Blueprint, request, send_file
 
@@ -7,6 +9,7 @@ from .mailer import mailer_check
 from api import error_catching_decorator
 from .. import flask_session_authentication
 from ...database.schema import ItalcoUser, Order, Photo
+from ..schedule import get_selling_point, get_order_link
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
 from .services import create_order_service_user, update_order_service_user
@@ -108,7 +111,6 @@ def update_order(user: ItalcoUser, id):
 
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
-
   if user.role == UserRole.DELIVERY and data['status'] in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
     data['booking_date'] = datetime.now()
   if user.role != UserRole.DELIVERY:
@@ -117,8 +119,25 @@ def update_order(user: ItalcoUser, id):
       data['products'],
       user.id if user.role == UserRole.CUSTOMER else data['user_id']
     )
+    
+  previous_start = order.start_time_slot
+  previous_end = order.end_time_slot
   data = {key: value for key, value in data.items() if not key in ['products', 'user_id']}
   order = update(order, data)
+  
+  if 'delay' in data and data['delay'] and order.addressee_contact and (datetime.strptime(data['start_time_slot'], "%H:%M:%S").time() != previous_start \
+     or datetime.strptime(data['end_time_slot'], "%H:%M:%S").time() != previous_end):
+    start = order.start_time_slot.strftime('%H:%M')
+    end = order.end_time_slot.strftime('%H:%M')
+    send_sms(
+      os.environ['VONAGE_API_KEY'],
+      os.environ['VONAGE_API_SECRET'],
+      'Ares',
+      order.addressee_contact,
+      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order)}, è stata riprogrammata per il {order.assignament_date}' \
+        f', fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell\'arrivo. Per monitorare ogni fase della sua consegna clicchi il link in question' \
+        f'e {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilità al numero indicato. Buona Giornata!'
+    )
 
   mailer_check(order, data)
   return {
