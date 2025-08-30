@@ -5,7 +5,39 @@ from ...database.schema import *
 from database_api import Session
 
 
-def query_orders(user: ItalcoUser, filters: list, date_filter = {}) -> list[tuple[
+from sqlalchemy.orm import joinedload, selectinload
+
+def query_orders(user: ItalcoUser, filters: list, date_filter={}) -> list[Order]:
+  with Session() as session:
+    query = session.query(Order).options(
+      joinedload(Order.collection_point),
+      selectinload(Order.photo),
+      selectinload(Order.order_service_user)
+        .selectinload(OrderServiceUser.service_user)
+        .selectinload(ServiceUser.service),
+      selectinload(Order.order_service_user)
+        .selectinload(OrderServiceUser.service_user)
+        .selectinload(ServiceUser.italco_user),
+    )
+
+    if user.role == UserRole.CUSTOMER:
+      query = query.filter(ServiceUser.user_id == user.id)
+
+    for f in filters:
+      model = globals()[f['model']]
+      field = getattr(model, f['field'])
+      query = query.join(model).filter(field == f['value'])
+
+    if date_filter:
+      query = query.filter(
+        Order.booking_date >= datetime.strptime(date_filter['start_date'], '%Y-%m-%d'),
+        Order.booking_date <= datetime.strptime(date_filter['end_date'], '%Y-%m-%d')
+      )
+
+    return query.all()
+
+
+def query_orders_old(user: ItalcoUser, filters: list, date_filter = {}) -> list[tuple[
   Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo
 ]]:
   with Session() as session:

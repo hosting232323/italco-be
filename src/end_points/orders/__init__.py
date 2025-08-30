@@ -57,12 +57,13 @@ def get_orders_for_delivery(user: ItalcoUser):
 @order_bp.route('filter', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.CUSTOMER])
 def filter_orders(user: ItalcoUser):
-  orders = []
-  for tupla in query_orders(user, request.json['filters'], request.json['date_filter']):
-    orders = format_query_result(tupla, orders, user)
+  orders = query_orders(user, request.json['filters'], request.json['date_filter'])
+  print(orders)
   return {
     'status': 'ok',
-    'orders': orders
+    'orders': [
+      order.to_dict() for order in orders
+    ]
   }
 
 
