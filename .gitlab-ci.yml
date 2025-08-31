@@ -2,8 +2,6 @@ stages:
   - build
   - test
 
-image: python:3.11
-
 services:
   - name: postgres:15
     alias: postgres
@@ -39,6 +37,7 @@ build_fe:
 
 backend_test:
   stage: test
+  image: python:3.11
   needs: ["build_fe"]
   script:
     - export DOCKER_IP=$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$')
@@ -46,11 +45,10 @@ backend_test:
     - pip install --upgrade pip
     - pip install -r requirements.txt
     - pip install "generic_lib[macos] @ git+https://github.com/hosting232323/generic-lib.git"
-
-    - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
     - alembic upgrade heads
     - python -m src &
 
+    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
     - cd italco-fe
     - npm install --omit=dev
     - export VITE_HOSTNAME=http://$DOCKER_IP:8080/
