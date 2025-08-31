@@ -23,11 +23,6 @@ variables:
   GITLAB_PIPELINE: 'true'
 
 before_script:
-  - export DOCKER_IP=$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$')
-  - apt-get update && apt-get install -y python3 python3-pip git postgresql-client npm
-  - pip install --upgrade pip
-  - pip install -r requirements.txt
-  - pip install "generic_lib[macos] @ git+https://github.com/hosting232323/generic-lib.git"
 
 build_fe:
   stage: build
@@ -46,18 +41,22 @@ backend_test:
   stage: test
   needs: ["build_fe"]
   script:
+    - export DOCKER_IP=$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$')
+    - apt-get update && apt-get install -y python3 python3-pip git postgresql-client npm
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
+    - pip install "generic_lib[macos] @ git+https://github.com/hosting232323/generic-lib.git"
+
     - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
     - alembic upgrade heads
     - python -m src &
 
-    # FE serve direttamente dagli artifact
     - cd italco-fe
     - npm install --omit=dev
     - export VITE_HOSTNAME=http://$DOCKER_IP:8080/
     - npm run serve &
     - cd ..
 
-    # generic-test
     - git clone -b test-pipeline https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
     - pip install -r ./requirements.txt
