@@ -1,4 +1,5 @@
 stages:
+  - build
   - test
 
 image: python:3.11
@@ -28,29 +29,39 @@ before_script:
   - pip install -r requirements.txt
   - pip install "generic_lib[macos] @ git+https://github.com/hosting232323/generic-lib.git"
 
-  - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
-  - cd italco-fe
-  - npm install
-  - export VITE_HOSTNAME=http://$DOCKER_IP:8080/
-  - npm run build || exit 1
-  - npm run serve &
-  - cd ..
-
-  - git clone -b test-pipeline https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
-  - cd generic-test
-  - pip install -r ./requirements.txt
-  - export VITE_HOSTNAME_ITALCO_FE=http://$DOCKER_IP:3000/
-  - cd ..
+build_fe:
+  stage: build
+  image: node:20
+  script:
+    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
+    - cd italco-fe
+    - npm ci
+    - npm run build || exit 1
+  artifacts:
+    paths:
+      - italco-fe/dist/
+    expire_in: 1 week
 
 backend_test:
   stage: test
+  needs: ["build_fe"]
   script:
     - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
     - alembic upgrade heads
     - python -m src &
-    - until curl -s $VITE_HOSTNAME; do echo "Waiting for backend..."; sleep 2; done
 
+    # FE serve direttamente dagli artifact
+    - cd italco-fe
+    - npm install --omit=dev
+    - export VITE_HOSTNAME=http://$DOCKER_IP:8080/
+    - npm run serve &
+    - cd ..
+
+    # generic-test
+    - git clone -b test-pipeline https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
+    - pip install -r ./requirements.txt
+    - export VITE_HOSTNAME_ITALCO_FE=http://$DOCKER_IP:3000/
     - pytest -s ./tests/italco/test_login.py
   artifacts:
     when: always
