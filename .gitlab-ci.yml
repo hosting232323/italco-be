@@ -51,7 +51,7 @@ backend_test:
     - cd italco-fe
     - npm install -g serve
     - export VITE_HOSTNAME=http://$DOCKER_IP:8080/
-    - serve -s dist -l 8080 &
+    - serve -s dist -l 3000 &
     - cd ..
 
     - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
