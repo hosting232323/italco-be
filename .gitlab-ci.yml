@@ -57,3 +57,4 @@ backend_test:
     paths:
       - generic-test/screenshots/
     expire_in: 1 week
+
