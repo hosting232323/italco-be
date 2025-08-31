@@ -52,3 +52,8 @@ backend_test:
 
     - cd generic-test
     - pytest -s ./tests/italco/test_login.py
+  artifacts:
+    when: always
+    paths:
+      - generic-test/screenshots/
+    expire_in: 1 week
