@@ -48,14 +48,13 @@ backend_test:
     - alembic upgrade heads
     - python -m src &
 
-    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
     - cd italco-fe
-    - npm install --omit=dev
+    - npm install -g serve
     - export VITE_HOSTNAME=http://$DOCKER_IP:8080/
-    - npm run serve &
+    - serve -s dist -l 8080 &
     - cd ..
 
-    - git clone -b test-pipeline https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
+    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
     - pip install -r ./requirements.txt
     - export VITE_HOSTNAME_ITALCO_FE=http://$DOCKER_IP:3000/
