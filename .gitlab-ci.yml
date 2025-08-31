@@ -36,7 +36,7 @@ before_script:
   - npm run serve &
   - cd ..
 
-  - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
+  - git clone -b new-test https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
   - cd generic-test
   - pip install -r ./requirements.txt
   - export VITE_HOSTNAME_ITALCO_FE=http://$DOCKER_IP:3000/
