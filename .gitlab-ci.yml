@@ -80,7 +80,7 @@ test_end_to_end:
   needs:
     - job: fe_build
       artifacts: true
-    - job: test_setup
+    - job: be_build
       artifacts: true
   script:
     - apt-get update && apt-get install -y npm
