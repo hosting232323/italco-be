@@ -16,7 +16,7 @@ def mailer_check(order: Order, data: dict):
      ('delay' in data and data['delay'] is True):
     photos_html = ''
     for photo_id in get_order_photo_ids(order.id):
-      photo_url = f'{request.host_url}/order/photo/{photo_id}'
+      photo_url = f'{request.host_url}order/photo/{photo_id}'
       photos_html += f'<img src="{photo_url}" alt="Foto ordine" style="max-width:200px; margin:5px;"><br>'
 
     icons = []
@@ -30,13 +30,13 @@ def mailer_check(order: Order, data: dict):
     if data.get('delay', False):
       icons.append('⏳')
       states.append('in ritardo')
-      icons += '⏳'
     if data.get('anomaly', False):
       icons.append('⚠')
       states.append('con anomalia')
 
     subject = f'{" ".join(icons)} Ordine {order.id} {order.addressee} {" ".join(states)}'
-    send_email('cldevofficial@gmail.com', {
-      'text': subject,
-      'html': f'<p>Test</p>{photos_html}'
-    }, subject)
+    for mail in DEFAULT_MAILS:
+      send_email(mail, {
+        'text': subject,
+        'html': f'<p>Test</p>{photos_html}'
+      }, subject)

@@ -125,8 +125,8 @@ def update_order(user: ItalcoUser, id):
   data = {key: value for key, value in data.items() if not key in ['products', 'user_id']}
   order = update(order, data)
   
-  if 'delay' in data and data['delay'] and order.addressee_contact and (datetime.strptime(data['start_time_slot'], "%H:%M:%S").time() != previous_start \
-     or datetime.strptime(data['end_time_slot'], "%H:%M:%S").time() != previous_end):
+  if 'delay' in data and data['delay'] and order.addressee_contact and (datetime.strptime(data['start_time_slot'], "%H:%M").time() != previous_start \
+     or datetime.strptime(data['end_time_slot'], "%H:%M").time() != previous_end):
     start = order.start_time_slot.strftime('%H:%M')
     end = order.end_time_slot.strftime('%H:%M')
     send_sms(
