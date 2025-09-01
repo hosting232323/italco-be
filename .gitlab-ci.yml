@@ -37,13 +37,13 @@ before_script:
   - npm run serve &
   - cd ..
 
-  - git clone -b altro-test-pipeline https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
+  - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
   - cd generic-test
   - pip install -r ./requirements.txt
   - export VITE_HOSTNAME_ITALCO_FE=http://$DOCKER_IP:3000/
   - cd ..
 
-backend_test:
+test_end_to_end:
   stage: test
   script:
     - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
@@ -53,6 +53,7 @@ backend_test:
 
     - cd generic-test
     - pytest -s ./tests/italco/test_login.py
+
   artifacts:
     when: always
     paths:
