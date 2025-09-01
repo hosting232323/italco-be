@@ -6,7 +6,6 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 
 from database_api import Base
-from src.database.schema import *
 
 load_dotenv()
 
@@ -17,17 +16,16 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-config.set_section_option(config.config_ini_section, 'sqlalchemy.url',
-                          os.environ['DATABASE_URL'])
+config.set_section_option(config.config_ini_section, 'sqlalchemy.url', os.environ['DATABASE_URL'])
 
 
 def run_migrations_offline() -> None:
   url = config.get_main_option('sqlalchemy.url')
   context.configure(
-      url=url,
-      target_metadata=target_metadata,
-      literal_binds=True,
-      dialect_opts={'paramstyle': 'named'},
+    url=url,
+    target_metadata=target_metadata,
+    literal_binds=True,
+    dialect_opts={'paramstyle': 'named'},
   )
 
   with context.begin_transaction():
@@ -36,9 +34,9 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
   connectable = engine_from_config(
-      config.get_section(config.config_ini_section, {}),
-      prefix='sqlalchemy.',
-      poolclass=pool.NullPool,
+    config.get_section(config.config_ini_section, {}),
+    prefix='sqlalchemy.',
+    poolclass=pool.NullPool,
   )
 
   with connectable.connect() as connection:

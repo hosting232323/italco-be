@@ -30,13 +30,8 @@ def login():
 @flask_session_authentication([UserRole.CUSTOMER])
 def check_constraints(user: ItalcoUser):
   return {
-      'status':
-      'ok',
-      'dates':
-      sorted(
-          list(
-              set(check_customer_rules(user)) & set(check_geographic_zone())
-              & set(check_services_date())))
+    'status': 'ok',
+    'dates': sorted(list(set(check_customer_rules(user)) & set(check_geographic_zone()) & set(check_services_date()))),
   }
 
 

@@ -12,10 +12,7 @@ transport_bp = Blueprint('transport_bp', __name__)
 @transport_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def create_transport(user: ItalcoUser):
-  return {
-      'status': 'ok',
-      'transport': create(Transport, request.json).to_dict()
-  }
+  return {'status': 'ok', 'transport': create(Transport, request.json).to_dict()}
 
 
 @transport_bp.route('<id>', methods=['DELETE'])
@@ -28,10 +25,7 @@ def delete_transport(user: ItalcoUser, id):
 @transport_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def get_transports(user: ItalcoUser):
-  return {
-      'status': 'ok',
-      'transports': [transport.to_dict() for transport in query_transports()]
-  }
+  return {'status': 'ok', 'transports': [transport.to_dict() for transport in query_transports()]}
 
 
 @transport_bp.route('<id>', methods=['PUT'])

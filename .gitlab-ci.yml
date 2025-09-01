@@ -30,10 +30,9 @@ variables:
 lint_backend:
   stage: lint
   script:
-    - pip install yapf
-    - yapf --diff --recursive ./src
-  rules:
-    - when: always
+    - pip install ruff
+    - ruff check ./src --exit-non-zero-on-fix
+    - ruff format ./src --exit-non-zero-on-fix
 
 # -------------------
 # 🏗️ Frontend build

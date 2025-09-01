@@ -19,10 +19,7 @@ with open('static/caps.json', 'r') as file:
 @geographic_zone_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def create_geographic_zone(user: ItalcoUser):
-  return {
-      'status': 'ok',
-      'geographic_zone': create(GeographicZone, request.json).to_dict()
-  }
+  return {'status': 'ok', 'geographic_zone': create(GeographicZone, request.json).to_dict()}
 
 
 @geographic_zone_bp.route('<id>', methods=['DELETE'])
@@ -35,10 +32,7 @@ def delete_geographic_zone(user: ItalcoUser, id):
 @geographic_zone_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.CUSTOMER])
 def get_geographic_zones(user: ItalcoUser):
-  return {
-      'status': 'ok',
-      'geographic_zones': execute_query_and_format_result()
-  }
+  return {'status': 'ok', 'geographic_zones': execute_query_and_format_result()}
 
 
 @geographic_zone_bp.route('<entity>', methods=['POST'])
@@ -46,7 +40,7 @@ def get_geographic_zones(user: ItalcoUser):
 def create_entity(user: ItalcoUser, entity: str):
   klass = get_class(entity)
   if klass == Constraint:
-    if not request.json['day_of_week'] in list(range(7)):
+    if request.json['day_of_week'] not in list(range(7)):
       raise ValueError('Invalid day_of_week value')
 
   return {'status': 'ok', 'entity': create(klass, request.json).to_dict()}
@@ -82,8 +76,7 @@ def check_geographic_zone() -> list[datetime]:
         if order.dpc == start:
           order_count += 1
       for rule in constraints:
-        if rule['day_of_week'] == start.weekday(
-        ) and order_count < rule['max_orders']:
+        if rule['day_of_week'] == start.weekday() and order_count < rule['max_orders']:
           allowed_dates.append(start.strftime('%Y-%m-%d'))
           break
     start += timedelta(days=1)
@@ -106,37 +99,34 @@ def get_class(entity: str):
     raise ValueError(f'Unknown entity type: {entity}')
 
 
-def query_geographic_zones(
-    province=None) -> list[tuple[GeographicZone, Constraint, GeographicCode]]:
+def query_geographic_zones(province=None) -> list[tuple[GeographicZone, Constraint, GeographicCode]]:
   with Session() as session:
-    query = session.query(
-        GeographicZone, Constraint, GeographicCode).outerjoin(
-            Constraint, GeographicZone.id == Constraint.zone_id).outerjoin(
-                GeographicCode, GeographicZone.id == GeographicCode.zone_id)
+    query = (
+      session.query(GeographicZone, Constraint, GeographicCode)
+      .outerjoin(Constraint, GeographicZone.id == Constraint.zone_id)
+      .outerjoin(GeographicCode, GeographicZone.id == GeographicCode.zone_id)
+    )
     if province:
       query = query.filter(GeographicZone.name == province)
     return query.all()
 
 
-def format_query_result(tupla: tuple[GeographicZone, Constraint,
-                                     GeographicCode],
-                        list: list[dict]) -> list[dict]:
+def format_query_result(tupla: tuple[GeographicZone, Constraint, GeographicCode], list: list[dict]) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      if tupla[2] and not tupla[2].id in [
-          code['id'] for code in element['codes']
-      ]:
+      if tupla[2] and tupla[2].id not in [code['id'] for code in element['codes']]:
         element['codes'].append(tupla[2].to_dict())
-      if tupla[1] and not tupla[1].id in [
-          constraint['id'] for constraint in element['constraints']
-      ]:
+      if tupla[1] and tupla[1].id not in [constraint['id'] for constraint in element['constraints']]:
         element['constraints'].append(tupla[1].to_dict())
       return list
 
-  list.append({
-      **tupla[0].to_dict(), 'codes': [tupla[2].to_dict()] if tupla[2] else [],
-      'constraints': [tupla[1].to_dict()] if tupla[1] else []
-  })
+  list.append(
+    {
+      **tupla[0].to_dict(),
+      'codes': [tupla[2].to_dict()] if tupla[2] else [],
+      'constraints': [tupla[1].to_dict()] if tupla[1] else [],
+    }
+  )
   return list
 
 
@@ -147,17 +137,19 @@ def get_province_by_cap(cap: str) -> str:
   raise ValueError(f'CAP {cap} not found in any province')
 
 
-def query_special_caps_by_geographic_zone(
-    province: str) -> list[GeographicCode]:
+def query_special_caps_by_geographic_zone(province: str) -> list[GeographicCode]:
   with Session() as session:
-    return session.query(GeographicCode).join(
-        GeographicZone,
-        and_(GeographicZone.id == GeographicCode.zone_id,
-             GeographicZone.name == province)).all()
+    return (
+      session.query(GeographicCode)
+      .join(GeographicZone, and_(GeographicZone.id == GeographicCode.zone_id, GeographicZone.name == province))
+      .all()
+    )
 
 
 def get_orders_by_cap(caps: list[str]) -> list[Order]:
   with Session() as session:
-    return session.query(Order).filter(
-        Order.cap.in_(caps), Order.dpc > datetime.today(), Order.dpc
-        < datetime.today() + relativedelta(months=2)).all()
+    return (
+      session.query(Order)
+      .filter(Order.cap.in_(caps), Order.dpc > datetime.today(), Order.dpc < datetime.today() + relativedelta(months=2))
+      .all()
+    )

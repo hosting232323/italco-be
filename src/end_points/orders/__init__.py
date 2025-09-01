@@ -20,19 +20,14 @@ order_bp = Blueprint('order_bp', __name__)
 
 # TODO CHECK ELIMINAZIONI RELAZIONI N A N
 @order_bp.route('', methods=['POST'])
-@flask_session_authentication(
-    [UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
+@flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def create_order(user: ItalcoUser):
-  data = {
-      key: value
-      for key, value in request.json.items()
-      if not key in ['products', 'user_id']
-  }
+  data = {key: value for key, value in request.json.items() if key not in ['products', 'user_id']}
   data['type'] = OrderType.get_enum_option(data['type'])
   order = create(Order, data)
   create_order_service_user(
-      order, request.json['products'],
-      user.id if user.role == UserRole.CUSTOMER else request.json['user_id'])
+    order, request.json['products'], user.id if user.role == UserRole.CUSTOMER else request.json['user_id']
+  )
   return {'status': 'ok', 'order': order.to_dict()}
 
 
@@ -44,19 +39,17 @@ def get_orders_for_delivery(user: ItalcoUser):
     orders = format_query_result(tupla, orders, user)
   response = {}
   for order in orders:
-    if not order['status'] in response:
+    if order['status'] not in response:
       response[order['status']] = []
     response[order['status']].append(order)
   return {'status': 'ok', 'orders': response}
 
 
 @order_bp.route('filter', methods=['POST'])
-@flask_session_authentication(
-    [UserRole.OPERATOR, UserRole.ADMIN, UserRole.CUSTOMER])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.CUSTOMER])
 def filter_orders(user: ItalcoUser):
   orders = []
-  for tupla in query_orders(user, request.json['filters'],
-                            request.json['date_filter']):
+  for tupla in query_orders(user, request.json['filters'], request.json['date_filter']):
     orders = format_query_result(tupla, orders, user)
   return {'status': 'ok', 'orders': orders}
 
@@ -66,11 +59,7 @@ def filter_orders(user: ItalcoUser):
 def get_order(id):
   user = ItalcoUser(role=UserRole.DELIVERY)
   orders = []
-  for tupla in query_orders(user, [{
-      'model': 'Order',
-      'field': 'id',
-      'value': int(id)
-  }]):
+  for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(id)}]):
     orders = format_query_result(tupla, orders, user)
   if len(orders) != 1:
     raise Exception('Numero di ordini trovati non valido')
@@ -86,8 +75,7 @@ def get_order(id):
 
 
 @order_bp.route('<id>', methods=['PUT'])
-@flask_session_authentication(
-    [UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order(user: ItalcoUser, id):
   order: Order = get_by_id(Order, int(id))
   if user.role == UserRole.DELIVERY:
@@ -95,35 +83,32 @@ def update_order(user: ItalcoUser, id):
     for file in request.files.keys():
       if request.files[file].mimetype in ['image/jpeg', 'image/png']:
         create(
-            Photo, {
-                'photo': request.files[file].read(),
-                'mime_type': request.files[file].mimetype,
-                'order_id': order.id
-            })
+          Photo, {'photo': request.files[file].read(), 'mime_type': request.files[file].mimetype, 'order_id': order.id}
+        )
   else:
     data = request.json
 
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
-  if user.role == UserRole.DELIVERY and data['status'] in [
-      OrderStatus.CANCELLED, OrderStatus.COMPLETED
-  ]:
+  if user.role == UserRole.DELIVERY and data['status'] in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
     data['booking_date'] = datetime.now()
   if user.role != UserRole.DELIVERY:
-    update_order_service_user(
-        order, data['products'],
-        user.id if user.role == UserRole.CUSTOMER else data['user_id'])
+    update_order_service_user(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'])
 
   previous_start = order.start_time_slot
   previous_end = order.end_time_slot
-  data = {
-      key: value
-      for key, value in data.items() if not key in ['products', 'user_id']
-  }
+  data = {key: value for key, value in data.items() if key not in ['products', 'user_id']}
   order = update(order, data)
 
-  if 'delay' in data and data['delay'] and order.addressee_contact and (datetime.strptime(data['start_time_slot'], "%H:%M:%S").time() != previous_start \
-     or datetime.strptime(data['end_time_slot'], "%H:%M:%S").time() != previous_end):
+  if (
+    'delay' in data
+    and data['delay']
+    and order.addressee_contact
+    and (
+      datetime.strptime(data['start_time_slot'], '%H:%M:%S').time() != previous_start
+      or datetime.strptime(data['end_time_slot'], '%H:%M:%S').time() != previous_end
+    )
+  ):
     start = order.start_time_slot.strftime('%H:%M')
     end = order.end_time_slot.strftime('%H:%M')
     send_sms(
@@ -131,9 +116,9 @@ def update_order(user: ItalcoUser, id):
       os.environ['VONAGE_API_SECRET'],
       'Ares',
       order.addressee_contact,
-      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order)}, è stata riprogrammata per il {order.assignament_date}' \
-        f', fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell\'arrivo. Per monitorare ogni fase della sua consegna clicchi il link in question' \
-        f'e {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilità al numero indicato. Buona Giornata!'
+      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order)}, è stata riprogrammata per il {order.assignament_date}'
+      f", fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell'arrivo. Per monitorare ogni fase della sua consegna clicchi il link in question"
+      f'e {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilità al numero indicato. Buona Giornata!',
     )
 
   mailer_check(order, data)
@@ -147,7 +132,9 @@ def view_order_photo(photo_id: int):
   if not photo:
     return {'status': 'ko', 'error': 'Photo not found'}
 
-  return send_file(io.BytesIO(photo.photo),
-                   mimetype=photo.mime_type or 'application/octet-stream',
-                   as_attachment=False,
-                   download_name=f'order_photo_{photo_id}.jpg')
+  return send_file(
+    io.BytesIO(photo.photo),
+    mimetype=photo.mime_type or 'application/octet-stream',
+    as_attachment=False,
+    download_name=f'order_photo_{photo_id}.jpg',
+  )

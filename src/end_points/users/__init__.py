@@ -34,19 +34,15 @@ def cancell_user(user: ItalcoUser, id):
   else:
     return {
       'status': 'ko',
-      'error': 'Sei sicuro di voler eliminare questo utente? ' \
-        f'Saranmno cancellati i seguenti dati correlati: {", ".join(entity_related)}'
+      'error': 'Sei sicuro di voler eliminare questo utente? '
+      f'Saranmno cancellati i seguenti dati correlati: {", ".join(entity_related)}',
     }
 
 
 @user_bp.route('', methods=['GET'])
-@flask_session_authentication(
-    [UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
 def get_users(user: ItalcoUser):
-  return {
-      'status': 'ok',
-      'users': [result.format_user(user.role) for result in query_users(user)]
-  }
+  return {'status': 'ok', 'users': [result.format_user(user.role) for result in query_users(user)]}
 
 
 @user_bp.route('', methods=['POST'])
@@ -56,10 +52,7 @@ def create_user(user: ItalcoUser):
   if not role or role == UserRole.ADMIN:
     return {'status': 'error', 'message': 'Role not valid'}
 
-  return register_user(request.json['email'],
-                       None,
-                       request.json['password'],
-                       params={'role': role})
+  return register_user(request.json['email'], None, request.json['password'], params={'role': role})
 
 
 @error_catching_decorator
@@ -81,10 +74,12 @@ def query_users(user: ItalcoUser, role: UserRole = None) -> list[ItalcoUser]:
     return query.all()
 
 
-def deletion_query(
-    id: int) -> list[tuple[ItalcoUser, ServiceUser, CollectionPoint]]:
+def deletion_query(id: int) -> list[tuple[ItalcoUser, ServiceUser, CollectionPoint]]:
   with Session() as session:
-    return session.query(ItalcoUser, ServiceUser, CollectionPoint).outerjoin(
-        ServiceUser, ServiceUser.user_id == ItalcoUser.id).outerjoin(
-            CollectionPoint, CollectionPoint.user_id == ItalcoUser.id).filter(
-                ItalcoUser.id == id).all()
+    return (
+      session.query(ItalcoUser, ServiceUser, CollectionPoint)
+      .outerjoin(ServiceUser, ServiceUser.user_id == ItalcoUser.id)
+      .outerjoin(CollectionPoint, CollectionPoint.user_id == ItalcoUser.id)
+      .filter(ItalcoUser.id == id)
+      .all()
+    )
