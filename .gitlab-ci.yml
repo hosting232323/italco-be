@@ -53,17 +53,23 @@ fe_build:
     expire_in: 1h
 
 # -------------------
-# 🧪 Test setup
+# 🧪 Backend build
 # -------------------
-test_setup:
+be_build:
   stage: prepare
   script:
+    - pip install virtualenv
+    - python -m venv venv
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
     - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
     - pip install -r ./requirements.txt
   artifacts:
     paths:
       - generic-test
+      - venv
     expire_in: 1h
 
 # -------------------
@@ -78,8 +84,8 @@ test_end_to_end:
       artifacts: true
   script:
     - apt-get update && apt-get install -y npm
-    - pip install --upgrade pip
-    - pip install -r requirements.txt
+    - pip install virtualenv
+    - source venv/bin/activate
     - alembic upgrade heads
     - python -m src &
     - until curl -s http://localhost:8080; do echo "Waiting for backend..."; sleep 2; done
