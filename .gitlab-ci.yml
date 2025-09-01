@@ -20,6 +20,8 @@ variables:
 before_script:
   - export VITE_HOSTNAME=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):8080/
   - export VITE_HOSTNAME_ITALCO_FE=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
+  - echo $VITE_HOSTNAME
+  - echo $VITE_HOSTNAME_ITALCO_FE
 
 fe_build:
   stage: prepare
