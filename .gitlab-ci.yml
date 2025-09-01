@@ -17,26 +17,19 @@ variables:
 
   GITLAB_PIPELINE: 'true'
 
-before_script:
-  - export VITE_HOSTNAME=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):8080/
-  - export VITE_HOSTNAME_ITALCO_FE=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
-  - echo $VITE_HOSTNAME
-  - echo $VITE_HOSTNAME_ITALCO_FE
-
-fe_build:
+fe_dependencies:
   stage: prepare
   image: node:20
   script:
     - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
     - cd italco-fe
     - npm ci
-    - npm run build
   artifacts:
     paths:
       - italco-fe
     expire_in: 1h
 
-be_build:
+be_dependencies:
   stage: prepare
   script:
     - python -m venv venv
@@ -55,9 +48,9 @@ be_build:
 test_end_to_end:
   stage: test
   needs:
-    - job: fe_build
+    - job: fe_dependencies
       artifacts: true
-    - job: be_build
+    - job: be_dependencies
       artifacts: true
   services:
     - name: postgres:15
@@ -65,12 +58,15 @@ test_end_to_end:
     - name: selenium/standalone-chromium:latest
       alias: selenium
   script:
+    - export VITE_HOSTNAME=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):8080/
+    - export VITE_HOSTNAME_ITALCO_FE=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
     - source venv/bin/activate
     - alembic upgrade heads
     - python -m src &
 
     - apt-get update && apt-get install -y npm
     - cd italco-fe
+    - npm run build
     - npm run serve &
     - until curl -s $VITE_HOSTNAME_ITALCO_FE; do echo "Waiting for frontend..."; sleep 2; done
 
