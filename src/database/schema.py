@@ -10,24 +10,30 @@ class ItalcoUser(User):
   __tablename__ = 'italco_user'
 
   role = Column(Enum(UserRole), nullable=False)
-  customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
-  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
+  customer_group_id = Column(Integer,
+                             ForeignKey('customer_group.id'),
+                             nullable=True)
+  delivery_group_id = Column(Integer,
+                             ForeignKey('delivery_group.id'),
+                             nullable=True)
 
   customer_group = relationship('CustomerGroup', back_populates='italco_user')
   delivery_group = relationship('DeliveryGroup', back_populates='italco_user')
-  service_user = relationship('ServiceUser', back_populates='italco_user', cascade='all, delete-orphan')
-  customer_rule = relationship('CustomerRule', back_populates='italco_user', cascade='all, delete-orphan')
-  collection_point = relationship('CollectionPoint', back_populates='italco_user', cascade='all, delete-orphan')
+  service_user = relationship('ServiceUser',
+                              back_populates='italco_user',
+                              cascade='all, delete-orphan')
+  customer_rule = relationship('CustomerRule',
+                               back_populates='italco_user',
+                               cascade='all, delete-orphan')
+  collection_point = relationship('CollectionPoint',
+                                  back_populates='italco_user',
+                                  cascade='all, delete-orphan')
 
   def format_user(self, role: UserRole):
     if role == UserRole.ADMIN:
       return self.to_dict()
     else:
-      return {
-        'id': self.id,
-        'email': self.email,
-        'role': self.role.value
-      }
+      return {'id': self.id, 'email': self.email, 'role': self.role.value}
 
 
 class CustomerGroup(BaseEntity):
@@ -61,7 +67,9 @@ class Transport(BaseEntity):
 class Order(BaseEntity):
   __tablename__ = 'order'
 
-  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.PENDING)
+  status = Column(Enum(OrderStatus),
+                  nullable=False,
+                  default=OrderStatus.PENDING)
   type = Column(Enum(OrderType), nullable=False)
   addressee = Column(String, nullable=False)
   address = Column(String, nullable=False)
@@ -75,7 +83,9 @@ class Order(BaseEntity):
   operator_note = Column(String, nullable=True)
   motivation = Column(String, nullable=True)
   schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=True)
-  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
+  collection_point_id = Column(Integer,
+                               ForeignKey('collection_point.id'),
+                               nullable=False)
   schedule_index = Column(Integer, nullable=True)
   start_time_slot = Column(Time, nullable=True)
   end_time_slot = Column(Time, nullable=True)
@@ -93,7 +103,9 @@ class Schedule(BaseEntity):
 
   date = Column(Date, nullable=False)
   transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
-  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
+  delivery_group_id = Column(Integer,
+                             ForeignKey('delivery_group.id'),
+                             nullable=True)
 
   order = relationship('Order', back_populates='schedule')
   transport = relationship('Transport', back_populates='schedule')
@@ -142,7 +154,8 @@ class ServiceUser(BaseEntity):
 
   service = relationship('Service', back_populates='service_user')
   italco_user = relationship('ItalcoUser', back_populates='service_user')
-  order_service_user = relationship('OrderServiceUser', back_populates='service_user')
+  order_service_user = relationship('OrderServiceUser',
+                                    back_populates='service_user')
 
 
 class OrderServiceUser(BaseEntity):
@@ -150,10 +163,13 @@ class OrderServiceUser(BaseEntity):
 
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
   product = Column(String, nullable=False)
-  service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
+  service_user_id = Column(Integer,
+                           ForeignKey('service_user.id'),
+                           nullable=False)
 
   order = relationship('Order', back_populates='order_service_user')
-  service_user = relationship('ServiceUser', back_populates='order_service_user')
+  service_user = relationship('ServiceUser',
+                              back_populates='order_service_user')
 
 
 class GeographicZone(BaseEntity):
@@ -161,8 +177,12 @@ class GeographicZone(BaseEntity):
 
   name = Column(String, nullable=False)
 
-  constraints = relationship('Constraint', back_populates='zone', cascade='all, delete-orphan')
-  geographic_codes = relationship('GeographicCode', back_populates='zone', cascade='all, delete-orphan')
+  constraints = relationship('Constraint',
+                             back_populates='zone',
+                             cascade='all, delete-orphan')
+  geographic_codes = relationship('GeographicCode',
+                                  back_populates='zone',
+                                  cascade='all, delete-orphan')
 
 
 class GeographicCode(BaseEntity):
@@ -173,8 +193,8 @@ class GeographicCode(BaseEntity):
   type = Column(Boolean, nullable=False)
 
   zone = relationship('GeographicZone', back_populates='geographic_codes')
-  
-  
+
+
 class Constraint(BaseEntity):
   __tablename__ = 'constraints'
 

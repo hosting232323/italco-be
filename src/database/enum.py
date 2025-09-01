@@ -1,10 +1,12 @@
 from database_api import BaseEnum
 
+
 class UserRole(BaseEnum):
   ADMIN = 'Admin'
   CUSTOMER = 'Customer'
   OPERATOR = 'Operator'
   DELIVERY = 'Delivery'
+
 
 class OrderStatus(BaseEnum):
   PENDING = 'Pending'
@@ -13,6 +15,7 @@ class OrderStatus(BaseEnum):
   COMPLETED = 'Completed'
   CANCELLED = 'Cancelled'
   AT_WAREHOUSE = 'At Warehouse'
+
 
 class OrderType(BaseEnum):
   DELIVERY = 'Delivery'

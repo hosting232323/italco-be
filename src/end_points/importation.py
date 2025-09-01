@@ -7,13 +7,11 @@ from database_api.operations import create
 from ..database.enum import UserRole, OrderType
 from ..database.schema import ItalcoUser, Order, OrderServiceUser
 
-
 import_bp = Blueprint('import_bp', __name__)
 
 # Euronics martinafranca
 # Euronics Monopoli	Eur026432 CL 9
 # consegna al piano con installazione (allaccio alla prese)
-
 
 USER_ID = 0
 COLLECTION_POINT_ID = 0
@@ -24,10 +22,7 @@ SERVICE_USER_ID = 0
 @flask_session_authentication([UserRole.ADMIN])
 def update_import(user: ItalcoUser):
   if 'file' not in request.files:
-    return {
-      'status': 'ko',
-      'error': 'Nessun file caricato'
-    }
+    return {'status': 'ko', 'error': 'Nessun file caricato'}
 
   df = pd.read_excel(request.files['file'])
   for index, row in df.iterrows():
@@ -43,18 +38,16 @@ def update_import(user: ItalcoUser):
         f'Note: {row["Note + Note Conf. SIEM"]}'
     })
     create(OrderServiceUser, {
-      'order_id': order.id,
-      'service_user_id': SERVICE_USER_ID
+        'order_id': order.id,
+        'service_user_id': SERVICE_USER_ID
     })
 
-  return {
-    'status': 'ok',
-    'message': 'Operazione completata'
-  }
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 def get_cap_from_city(city_name: str) -> str:
-  location = Nominatim(user_agent='cap_lookup_app').geocode(f'{city_name}, Italy', addressdetails=True)
+  location = Nominatim(user_agent='cap_lookup_app').geocode(
+      f'{city_name}, Italy', addressdetails=True)
   if location and 'postcode' in location.raw['address']:
     return location.raw['address']['postcode']
   else:

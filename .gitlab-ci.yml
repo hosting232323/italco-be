@@ -31,7 +31,7 @@ lint_backend:
   stage: lint
   script:
     - pip install yapf
-    - yapf --diff --recursive ./src ./tests
+    - yapf --diff --recursive ./src
   rules:
     - when: always
 

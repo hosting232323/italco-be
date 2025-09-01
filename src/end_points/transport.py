@@ -6,7 +6,6 @@ from . import flask_session_authentication
 from ..database.schema import Transport, ItalcoUser
 from database_api.operations import create, delete, get_by_id, update
 
-
 transport_bp = Blueprint('transport_bp', __name__)
 
 
@@ -14,8 +13,8 @@ transport_bp = Blueprint('transport_bp', __name__)
 @flask_session_authentication([UserRole.ADMIN])
 def create_transport(user: ItalcoUser):
   return {
-    'status': 'ok',
-    'transport': create(Transport, request.json).to_dict()
+      'status': 'ok',
+      'transport': create(Transport, request.json).to_dict()
   }
 
 
@@ -23,20 +22,15 @@ def create_transport(user: ItalcoUser):
 @flask_session_authentication([UserRole.ADMIN])
 def delete_transport(user: ItalcoUser, id):
   delete(get_by_id(Transport, int(id)))
-  return {
-    'status': 'ok',
-    'message': 'Operazione completata'
-  }
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @transport_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def get_transports(user: ItalcoUser):
   return {
-    'status': 'ok',
-    'transports': [
-      transport.to_dict() for transport in query_transports()
-    ]
+      'status': 'ok',
+      'transports': [transport.to_dict() for transport in query_transports()]
   }
 
 
@@ -44,10 +38,7 @@ def get_transports(user: ItalcoUser):
 @flask_session_authentication([UserRole.ADMIN])
 def update_transport(user: ItalcoUser, id):
   transport: Transport = get_by_id(Transport, int(id))
-  return {
-    'status': 'ok',
-    'order': update(transport, request.json).to_dict()
-  }
+  return {'status': 'ok', 'order': update(transport, request.json).to_dict()}
 
 
 def query_transports() -> list[Transport]:

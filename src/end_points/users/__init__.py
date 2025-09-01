@@ -9,7 +9,6 @@ from .. import flask_session_authentication
 from api.users.setup import get_user_by_email
 from ...database.schema import ItalcoUser, ServiceUser, CollectionPoint
 
-
 user_bp = Blueprint('user_bp', __name__)
 
 
@@ -41,11 +40,12 @@ def cancell_user(user: ItalcoUser, id):
 
 
 @user_bp.route('', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
+@flask_session_authentication(
+    [UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
 def get_users(user: ItalcoUser):
   return {
-    'status': 'ok',
-    'users': [result.format_user(user.role) for result in query_users(user)]
+      'status': 'ok',
+      'users': [result.format_user(user.role) for result in query_users(user)]
   }
 
 
@@ -54,14 +54,12 @@ def get_users(user: ItalcoUser):
 def create_user(user: ItalcoUser):
   role = UserRole.get_enum_option(request.json['role'])
   if not role or role == UserRole.ADMIN:
-    return {
-      'status': 'error',
-      'message': 'Role not valid'
-    }
+    return {'status': 'error', 'message': 'Role not valid'}
 
-  return register_user(request.json['email'], None, request.json['password'], params={
-    'role': role
-  })
+  return register_user(request.json['email'],
+                       None,
+                       request.json['password'],
+                       params={'role': role})
 
 
 @error_catching_decorator
@@ -69,10 +67,7 @@ def login_():
   response = login(request.json['email'], request.json['password'])
   if response['status'] == 'ok':
     user: ItalcoUser = get_user_by_email(request.json['email'])
-    response['user_info'] = {
-      'id': user.id,
-      'role': user.role.value
-    }
+    response['user_info'] = {'id': user.id, 'role': user.role.value}
   return response
 
 
@@ -86,14 +81,10 @@ def query_users(user: ItalcoUser, role: UserRole = None) -> list[ItalcoUser]:
     return query.all()
 
 
-def deletion_query(id: int) -> list[tuple[ItalcoUser, ServiceUser, CollectionPoint]]:
+def deletion_query(
+    id: int) -> list[tuple[ItalcoUser, ServiceUser, CollectionPoint]]:
   with Session() as session:
-    return session.query(
-      ItalcoUser, ServiceUser, CollectionPoint
-    ).outerjoin(
-      ServiceUser, ServiceUser.user_id == ItalcoUser.id
-    ).outerjoin(
-      CollectionPoint, CollectionPoint.user_id == ItalcoUser.id
-    ).filter(
-      ItalcoUser.id == id
-    ).all()
+    return session.query(ItalcoUser, ServiceUser, CollectionPoint).outerjoin(
+        ServiceUser, ServiceUser.user_id == ItalcoUser.id).outerjoin(
+            CollectionPoint, CollectionPoint.user_id == ItalcoUser.id).filter(
+                ItalcoUser.id == id).all()

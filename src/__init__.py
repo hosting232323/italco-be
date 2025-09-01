@@ -6,23 +6,21 @@ from flask_swagger_ui import get_swaggerui_blueprint
 
 from api import swagger_decorator, internal_backup
 
-
 allowed_origins = [
-  # add allowed origins
+    # add allowed origins
 ]
 
 load_dotenv()
 IS_DEV = int(os.environ.get('IS_DEV', 1)) == 1
-app = Flask(__name__, static_folder='../static', template_folder='../templates')
+app = Flask(__name__,
+            static_folder='../static',
+            template_folder='../templates')
 
 # Swagger da eliminare?
-app.register_blueprint(
-  get_swaggerui_blueprint(
-    '/swagger',
-    '/static/swagger.json',
-    config={'app_name': 'Italco'}
-  ), url_prefix='/swagger'
-)
+app.register_blueprint(get_swaggerui_blueprint('/swagger',
+                                               '/static/swagger.json',
+                                               config={'app_name': 'Italco'}),
+                       url_prefix='/swagger')
 
 if IS_DEV:
   CORS(app)
