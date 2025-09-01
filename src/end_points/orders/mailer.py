@@ -1,3 +1,4 @@
+from flask import request
 from api.email import send_email
 from ...database.schema import Order
 from ...database.enum import OrderStatus
@@ -17,7 +18,7 @@ def mailer_check(order: Order, data: dict):
   photo_ids = get_order_photo_ids(order.id)
   
   for photo_id in photo_ids:
-    photo_url = f"http://127.0.0.1:8080/order/photo/{photo_id}"
+    photo_url = f"{request.host_url}/order/photo/{photo_id}"
     photos_html += f'<img src="{photo_url}" alt="Foto ordine" style="max-width:200px; margin:5px;"><br>'
   
   if order.status == OrderStatus.COMPLETED:
