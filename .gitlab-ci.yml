@@ -14,9 +14,10 @@ variables:
   VITE_GOOGLE_API_KEY: AIzaSyD0WOz5-uNYkUA3rp7V1iAm6U5Ro_-3vmI
   VITE_SECRET_KEY: 12345678901234567890123456789012
   VITE_IV: 1234567890123456
-  VITE_HOSTNAME: http://127.0.0.1:8080/
+  VITE_HOSTNAME: http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):8080/
 
   GITLAB_PIPELINE: 'true'
+  VITE_HOSTNAME_ITALCO_FE: http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
 
 fe_build:
   stage: prepare
@@ -34,7 +35,6 @@ fe_build:
 be_build:
   stage: prepare
   script:
-    - pip install virtualenv
     - python -m venv venv
     - source venv/bin/activate
     - pip install --upgrade pip
@@ -68,7 +68,6 @@ test_end_to_end:
     - apt-get update && apt-get install -y npm
     - cd italco-fe
     - npm run serve &
-    - export VITE_HOSTNAME_ITALCO_FE=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
     - until curl -s $VITE_HOSTNAME_ITALCO_FE; do echo "Waiting for frontend..."; sleep 2; done
 
     - cd ../generic-test
