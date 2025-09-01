@@ -47,11 +47,9 @@ fe_build:
     - npm ci
     - export VITE_HOSTNAME=http://localhost:8080/
     - npm run build
-    - npm run serve &
-    - sleep 5
   artifacts:
     paths:
-      - italco-fe/dist
+      - italco-fe
     expire_in: 1h
 
 # -------------------
@@ -81,10 +79,11 @@ test_end_to_end:
   script:
     - pip install --upgrade pip
     - pip install -r requirements.txt
-    - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
     - alembic upgrade heads
     - python -m src &
     - until curl -s http://localhost:8080; do echo "Waiting for backend..."; sleep 2; done
+    - cd italco-fe
+    - npm run serve
     - cd generic-test
     - export VITE_HOSTNAME_ITALCO_FE=http://localhost:3000/
     - pytest -s ./tests/italco/test_login.py
