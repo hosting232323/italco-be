@@ -68,9 +68,10 @@ test_end_to_end:
     - apt-get update && apt-get install -y npm
     - cd italco-fe
     - npm run serve &
+    - export VITE_HOSTNAME_ITALCO_FE=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
+    - until curl -s $VITE_HOSTNAME_ITALCO_FE; do echo "Waiting for frontend..."; sleep 2; done
 
     - cd ../generic-test
-    - export VITE_HOSTNAME_ITALCO_FE=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
     - pytest -s ./tests/italco/test_login.py
   artifacts:
     when: always
