@@ -77,6 +77,7 @@ test_end_to_end:
     - job: test_setup
       artifacts: true
   script:
+    - apt-get update && apt-get install -y npm
     - pip install --upgrade pip
     - pip install -r requirements.txt
     - alembic upgrade heads
@@ -85,7 +86,8 @@ test_end_to_end:
     - cd italco-fe
     - npm run serve
     - cd generic-test
-    - export VITE_HOSTNAME_ITALCO_FE=http://localhost:3000/
+    - export DOCKER_IP=$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$')
+    - export VITE_HOSTNAME_ITALCO_FE=http://$DOCKER_IP:3000/
     - pytest -s ./tests/italco/test_login.py
   artifacts:
     when: always
