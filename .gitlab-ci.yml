@@ -1,4 +1,6 @@
 stages:
+  - lint
+  - prepare
   - test
 
 image: python:3.11
@@ -22,38 +24,71 @@ variables:
 
   GITLAB_PIPELINE: 'true'
 
-before_script:
-  - export DOCKER_IP=$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$')
-  - apt-get update && apt-get install -y python3 python3-pip git postgresql-client npm
-  - pip install --upgrade pip
-  - pip install -r requirements.txt
-  - pip install "generic_lib[macos] @ git+https://github.com/hosting232323/generic-lib.git"
+# -------------------
+# 🔍 Python Linter (YAPF)
+# -------------------
+lint_backend:
+  stage: lint
+  script:
+    - pip install yapf
+    - yapf --diff --recursive ./src ./tests
+  rules:
+    - when: always
 
-  - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
-  - cd italco-fe
-  - npm install
-  - export VITE_HOSTNAME=http://$DOCKER_IP:8080/
-  - npm run build || exit 1
-  - npm run serve &
-  - cd ..
+# -------------------
+# 🏗️ Frontend build
+# -------------------
+fe_build:
+  stage: prepare
+  image: node:20
+  script:
+    - apt-get update && apt-get install -y git
+    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
+    - cd italco-fe
+    - npm ci
+    - export VITE_HOSTNAME=http://localhost:8080/
+    - npm run build
+    - npm run serve &
+    - sleep 5
+  artifacts:
+    paths:
+      - italco-fe/dist
+    expire_in: 1h
 
-  - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
-  - cd generic-test
-  - pip install -r ./requirements.txt
-  - export VITE_HOSTNAME_ITALCO_FE=http://$DOCKER_IP:3000/
-  - cd ..
+# -------------------
+# 🧪 Test setup
+# -------------------
+test_setup:
+  stage: prepare
+  script:
+    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
+    - cd generic-test
+    - pip install -r ./requirements.txt
+  artifacts:
+    paths:
+      - generic-test
+    expire_in: 1h
 
+# -------------------
+# 🚀 End-to-end tests
+# -------------------
 test_end_to_end:
   stage: test
+  needs:
+    - job: fe_build
+      artifacts: true
+    - job: test_setup
+      artifacts: true
   script:
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
     - until pg_isready -h postgres -U $POSTGRES_USER; do echo "Waiting for postgres..."; sleep 2; done
     - alembic upgrade heads
     - python -m src &
-    - until curl -s $VITE_HOSTNAME; do echo "Waiting for backend..."; sleep 2; done
-
+    - until curl -s http://localhost:8080; do echo "Waiting for backend..."; sleep 2; done
     - cd generic-test
+    - export VITE_HOSTNAME_ITALCO_FE=http://localhost:3000/
     - pytest -s ./tests/italco/test_login.py
-
   artifacts:
     when: always
     paths:
