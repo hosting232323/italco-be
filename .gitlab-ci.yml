@@ -1,5 +1,4 @@
 stages:
-  - lint
   - prepare
   - test
 
@@ -21,40 +20,23 @@ variables:
   VITE_GOOGLE_API_KEY: AIzaSyD0WOz5-uNYkUA3rp7V1iAm6U5Ro_-3vmI
   VITE_SECRET_KEY: 12345678901234567890123456789012
   VITE_IV: 1234567890123456
+  VITE_HOSTNAME: http://localhost:8080/
 
   GITLAB_PIPELINE: 'true'
 
-# -------------------
-# 🔍 Python Linter (YAPF)
-# -------------------
-lint_backend:
-  stage: lint
-  script:
-    - pip install ruff
-    - ruff check ./src --exit-non-zero-on-fix
-    - ruff format ./src --exit-non-zero-on-fix
-
-# -------------------
-# 🏗️ Frontend build
-# -------------------
 fe_build:
   stage: prepare
   image: node:20
   script:
-    - apt-get update && apt-get install -y git
     - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
     - cd italco-fe
     - npm ci
-    - export VITE_HOSTNAME=http://localhost:8080/
     - npm run build
   artifacts:
     paths:
       - italco-fe
     expire_in: 1h
 
-# -------------------
-# 🧪 Backend build
-# -------------------
 be_build:
   stage: prepare
   script:
@@ -72,9 +54,6 @@ be_build:
       - venv
     expire_in: 1h
 
-# -------------------
-# 🚀 End-to-end tests
-# -------------------
 test_end_to_end:
   stage: test
   needs:
@@ -83,20 +62,27 @@ test_end_to_end:
     - job: be_build
       artifacts: true
   script:
-    - apt-get update && apt-get install -y npm
     - pip install virtualenv
     - source venv/bin/activate
     - alembic upgrade heads
     - python -m src &
-    - until curl -s http://localhost:8080; do echo "Waiting for backend..."; sleep 2; done
+
+    - apt-get update && apt-get install -y npm
     - cd italco-fe
     - npm run serve &
+
     - cd ../generic-test
-    - export DOCKER_IP=$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$')
-    - export VITE_HOSTNAME_ITALCO_FE=http://$DOCKER_IP:3000/
+    - export VITE_HOSTNAME_ITALCO_FE=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
     - pytest -s ./tests/italco/test_login.py
   artifacts:
     when: always
     paths:
       - generic-test/screenshots/
     expire_in: 1 week
+
+lint_backend:
+  stage: test
+  script:
+    - pip install ruff
+    - ruff check ./src --exit-non-zero-on-fix
+    - ruff format ./src --exit-non-zero-on-fix
