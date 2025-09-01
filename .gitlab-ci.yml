@@ -4,12 +4,6 @@ stages:
 
 image: python:3.11
 
-services:
-  - name: postgres:15
-    alias: postgres
-  - name: selenium/standalone-chromium:latest
-    alias: selenium
-
 variables:
   POSTGRES_DB: mydb
   POSTGRES_USER: myuser
@@ -61,8 +55,12 @@ test_end_to_end:
       artifacts: true
     - job: be_build
       artifacts: true
+  services:
+    - name: postgres:15
+      alias: postgres
+    - name: selenium/standalone-chromium:latest
+      alias: selenium
   script:
-    - pip install virtualenv
     - source venv/bin/activate
     - alembic upgrade heads
     - python -m src &
