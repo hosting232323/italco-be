@@ -14,10 +14,12 @@ variables:
   VITE_GOOGLE_API_KEY: AIzaSyD0WOz5-uNYkUA3rp7V1iAm6U5Ro_-3vmI
   VITE_SECRET_KEY: 12345678901234567890123456789012
   VITE_IV: 1234567890123456
-  VITE_HOSTNAME: http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):8080/
 
   GITLAB_PIPELINE: 'true'
-  VITE_HOSTNAME_ITALCO_FE: http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
+
+before_script:
+  - export VITE_HOSTNAME=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):8080/
+  - export VITE_HOSTNAME_ITALCO_FE=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
 
 fe_build:
   stage: prepare
