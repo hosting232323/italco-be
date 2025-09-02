@@ -1,7 +1,18 @@
 from datetime import datetime
 from sqlalchemy import and_, not_
 
-from ...database.schema import Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo, Schedule, DeliveryGroup, CustomerGroup
+from ...database.schema import (
+  Order,
+  OrderServiceUser,
+  ServiceUser,
+  Service,
+  ItalcoUser,
+  CollectionPoint,
+  Photo,
+  Schedule,
+  DeliveryGroup,
+  CustomerGroup,
+)
 from ...database.enum import UserRole, OrderType, OrderStatus
 from database_api import Session
 
