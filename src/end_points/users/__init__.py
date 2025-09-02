@@ -4,10 +4,10 @@ from database_api import Session
 from ...database.enum import UserRole
 from api import error_catching_decorator
 from api.users import register_user, login
-from database_api.operations import delete
+from database_api.operations import delete, get_by_id
 from .. import flask_session_authentication
 from api.users.setup import get_user_by_email
-from ...database.schema import ItalcoUser, ServiceUser, CollectionPoint
+from ...database.schema import ItalcoUser, ServiceUser, CollectionPoint, CustomerRule, OrderServiceUser
 
 
 user_bp = Blueprint('user_bp', __name__)
@@ -16,27 +16,17 @@ user_bp = Blueprint('user_bp', __name__)
 @user_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
 def cancell_user(user: ItalcoUser, id):
-  result_query = deletion_query(int(id))
-  if not result_query:
+  user: ItalcoUser = get_by_id(ItalcoUser, int(id))
+  if not user:
     return {'status': 'ko', 'error': 'Utente non trovato'}
 
-  entity_related = []
-  if not request.args.get('force'):
-    if any(result[1] for result in result_query):
-      entity_related.append('Relazioni con Servizi')
-    if any(result[2] for result in result_query):
-      entity_related.append('Anagrafiche')
-    if any(result[3] for result in result_query):
-      entity_related.append('Punti di ritiro')
-
-  if request.args.get('force') or len(entity_related) == 0:
-    delete(result_query[0][0])
+  if request.args.get('force'):
+    delete(user)
     return {'status': 'ok', 'message': 'Utente eliminato'}
   else:
     return {
       'status': 'ko',
-      'error': 'Sei sicuro di voler eliminare questo utente? '
-      f'Saranmno cancellati i seguenti dati correlati: {", ".join(entity_related)}',
+      'dependencies': count_user_dependencies(int(id))
     }
 
 
@@ -75,12 +65,16 @@ def query_users(user: ItalcoUser, role: UserRole = None) -> list[ItalcoUser]:
     return query.all()
 
 
-def deletion_query(id: int) -> list[tuple[ItalcoUser, ServiceUser, CollectionPoint]]:
+def count_user_dependencies(id: int) -> dict:
   with Session() as session:
-    return (
-      session.query(ItalcoUser, ServiceUser, CollectionPoint)
-      .outerjoin(ServiceUser, ServiceUser.user_id == ItalcoUser.id)
-      .outerjoin(CollectionPoint, CollectionPoint.user_id == ItalcoUser.id)
-      .filter(ItalcoUser.id == id)
-      .all()
+    return {
+    "serviceUsers": session.query(ServiceUser).filter(ServiceUser.user_id == id).count(),
+    "customerRules": session.query(CustomerRule).filter(CustomerRule.user_id == id).count(),
+    "collectionPoints": session.query(CollectionPoint).filter(CollectionPoint.user_id == id).count(),
+    "blockedOrders": (
+      session.query(OrderServiceUser)
+      .join(ServiceUser, ServiceUser.id == OrderServiceUser.service_user_id)
+      .filter(ServiceUser.user_id == id)
+      .count()
     )
+  }
