@@ -4,16 +4,15 @@ from ...database.schema import Order
 from ...database.enum import OrderStatus
 from .queries import get_order_photo_ids
 
-DEFAULT_MAILS = [
-  'colasanto.giovanni.inf@gmail.com',
-  'coppolagabriele973@gmail.com'
-]
+DEFAULT_MAILS = ['colasanto.giovanni.inf@gmail.com', 'coppolagabriele973@gmail.com']
 
 
 def mailer_check(order: Order, data: dict):
-  if ('status' in data and data['status'] in [OrderStatus.COMPLETED, OrderStatus.CANCELLED]) or \
-     ('anomaly' in data and data['anomaly'] is True) or \
-     ('delay' in data and data['delay'] is True):
+  if (
+    ('status' in data and data['status'] in [OrderStatus.COMPLETED, OrderStatus.CANCELLED])
+    or ('anomaly' in data and data['anomaly'] is True)
+    or ('delay' in data and data['delay'] is True)
+  ):
     photos_html = ''
     for photo_id in get_order_photo_ids(order.id):
       photo_url = f'{request.host_url}order/photo/{photo_id}'
@@ -38,4 +37,4 @@ def mailer_check(order: Order, data: dict):
     text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {order.motivation}'
     html = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {order.motivation}<br>Foto:<br>{photos_html}'
     for mail in DEFAULT_MAILS:
-      send_email(mail, { 'text': text, 'html': html }, subject)
+      send_email(mail, {'text': text, 'html': html}, subject)

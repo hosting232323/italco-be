@@ -17,10 +17,7 @@ service_bp = Blueprint('service_bp', __name__)
 @flask_session_authentication([UserRole.ADMIN])
 def create_service(user: ItalcoUser):
   request.json['type'] = OrderType.get_enum_option(request.json['type'])
-  return {
-    'status': 'ok',
-    'service': create(Service, request.json).to_dict()
-  }
+  return {'status': 'ok', 'service': create(Service, request.json).to_dict()}
 
 
 @service_bp.route('', methods=['GET'])
@@ -29,10 +26,7 @@ def get_services(user: ItalcoUser):
   services = []
   for tupla in query_services(user):
     services = format_query_result(tupla, services)
-  return {
-    'status': 'ok',
-    'services': services
-  }
+  return {'status': 'ok', 'services': services}
 
 
 @service_bp.route('<id>', methods=['PUT'])
@@ -40,39 +34,26 @@ def get_services(user: ItalcoUser):
 def update_service(user: ItalcoUser, id):
   service: Service = get_by_id(Service, int(id))
   request.json['type'] = OrderType.get_enum_option(request.json['type'])
-  return {
-    'status': 'ok',
-    'order': update(service, request.json).to_dict()
-  }
+  return {'status': 'ok', 'order': update(service, request.json).to_dict()}
 
 
 @service_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
 def delete_service(user: ItalcoUser, id):
   delete(get_by_id(Service, int(id)))
-  return {
-    'status': 'ok',
-    'message': 'Operazione completata'
-  }
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @service_bp.route('customer', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def create_service_user(user: ItalcoUser):
-  if query_service_user(
-    request.json['service_id'], request.json['user_id']
-  ):
-    return {
-      'status': 'ko',
-      'error': 'Utente già associato al servivizio'
-    }
+  if query_service_user(request.json['service_id'], request.json['user_id']):
+    return {'status': 'ko', 'error': 'Utente già associato al servivizio'}
 
   service_user = create(ServiceUser, request.json)
   return {
     'status': 'ok',
-    'service_user': format_service_user(
-      service_user, get_by_id(ItalcoUser, service_user.user_id)
-    )
+    'service_user': format_service_user(service_user, get_by_id(ItalcoUser, service_user.user_id)),
   }
 
 
@@ -80,10 +61,7 @@ def create_service_user(user: ItalcoUser):
 @flask_session_authentication([UserRole.ADMIN])
 def delete_service_user(user: ItalcoUser, id):
   delete(get_by_id(ServiceUser, int(id)))
-  return {
-    'status': 'ok',
-    'message': 'Operazione completata'
-  }
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @service_bp.route('set-all-users', methods=['GET'])
@@ -94,41 +72,33 @@ def set_all_users(user: ItalcoUser):
   before_service_users_ids = [user.id for user in query_service_user(service.id)]
   service_users = []
   for user in users:
-    if not user.id in before_service_users_ids:
-      service_users.append(format_service_user(create(ServiceUser, {
-        'user_id': user.id,
-        'service_id': service.id,
-        'price': float(request.args['price'])
-      }), user))
-  return {
-    'status': 'ok',
-    'service_users': service_users
-  }
+    if user.id not in before_service_users_ids:
+      service_users.append(
+        format_service_user(
+          create(ServiceUser, {'user_id': user.id, 'service_id': service.id, 'price': float(request.args['price'])}),
+          user,
+        )
+      )
+  return {'status': 'ok', 'service_users': service_users}
 
 
 def query_services(user: ItalcoUser = None) -> list[tuple[Service, ServiceUser, ItalcoUser]]:
   with Session() as session:
-    query = session.query(Service, ServiceUser, ItalcoUser).outerjoin(
-      ServiceUser, ServiceUser.service_id == Service.id
-    ).outerjoin(
-      ItalcoUser, ItalcoUser.id == ServiceUser.user_id
+    query = (
+      session.query(Service, ServiceUser, ItalcoUser)
+      .outerjoin(ServiceUser, ServiceUser.service_id == Service.id)
+      .outerjoin(ItalcoUser, ItalcoUser.id == ServiceUser.user_id)
     )
     if user.role == UserRole.CUSTOMER:
-      query = query.filter(
-        ServiceUser.user_id == user.id
-      )
+      query = query.filter(ServiceUser.user_id == user.id)
     return query.all()
 
 
-def query_service_user(service_id: int, user_id: int = None) -> list[ServiceUser]|ServiceUser:
+def query_service_user(service_id: int, user_id: int = None) -> list[ServiceUser] | ServiceUser:
   with Session() as session:
-    query = session.query(ServiceUser).filter(
-      ServiceUser.service_id == service_id
-    )
+    query = session.query(ServiceUser).filter(ServiceUser.service_id == service_id)
     if user_id:
-      query = query.filter(
-        ServiceUser.user_id == user_id
-      )
+      query = query.filter(ServiceUser.user_id == user_id)
     return query.all() if not user_id else query.first()
 
 
@@ -166,7 +136,9 @@ def check_services_date() -> list[datetime]:
       start += timedelta(days=1)
     return allowed_dates
 
-  min_max_services = min(service.max_services for service in services_with_max_order if service.max_services is not None)
+  min_max_services = min(
+    service.max_services for service in services_with_max_order if service.max_services is not None
+  )
   orders = query_orders_in_range(services_id, start, end)
   while start <= end:
     order_count = 0
@@ -181,23 +153,19 @@ def check_services_date() -> list[datetime]:
 
 def query_max_order(services_id) -> list[Service]:
   with Session() as session:
-    services_with_max_order = session.query(Service).filter(
-      Service.id.in_(services_id),
-      Service.max_services.isnot(None)
-    ).all()
+    services_with_max_order = (
+      session.query(Service).filter(Service.id.in_(services_id), Service.max_services.isnot(None)).all()
+    )
     return services_with_max_order
 
 
 def query_orders_in_range(services_id, start_date, end_date):
   with Session() as session:
-    return session.query(Order).join(
-      OrderServiceUser, Order.id == OrderServiceUser.order_id
-    ).join(
-      ServiceUser, ServiceUser.id == OrderServiceUser.service_user_id
-    ).join(
-      Service, Service.id == ServiceUser.service_id
-    ).filter(
-      Service.id.in_(services_id),
-      Order.dpc >= start_date,
-      Order.dpc <= end_date
-    ).all()
+    return (
+      session.query(Order)
+      .join(OrderServiceUser, Order.id == OrderServiceUser.order_id)
+      .join(ServiceUser, ServiceUser.id == OrderServiceUser.service_user_id)
+      .join(Service, Service.id == ServiceUser.service_id)
+      .filter(Service.id.in_(services_id), Order.dpc >= start_date, Order.dpc <= end_date)
+      .all()
+    )

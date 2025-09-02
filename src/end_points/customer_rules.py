@@ -16,13 +16,10 @@ customer_rules_bp = Blueprint('customer_rules_bp', __name__)
 @customer_rules_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def create_customer_rules(user: ItalcoUser):
-  if not request.json['day_of_week'] in list(range(7)):
+  if request.json['day_of_week'] not in list(range(7)):
     raise ValueError('Invalid day_of_week value')
 
-  return {
-    'status': 'ok',
-    'customer_rules': create(CustomerRule, request.json).to_dict()
-  }
+  return {'status': 'ok', 'customer_rules': create(CustomerRule, request.json).to_dict()}
 
 
 @customer_rules_bp.route('', methods=['DELETE'])
@@ -30,10 +27,7 @@ def create_customer_rules(user: ItalcoUser):
 def delete_customer_rules(user: ItalcoUser):
   for id in request.json['ids']:
     delete(get_by_id(CustomerRule, int(id)))
-  return {
-    'status': 'ok',
-    'message': 'Operazione completata'
-  }
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @customer_rules_bp.route('', methods=['GET'])
@@ -43,19 +37,13 @@ def get_customer_rules(user: ItalcoUser):
   for tupla in query_customer_rules():
     customer_rules = format_query_result(tupla, customer_rules)
 
-  return {
-    'status': 'ok',
-    'customer_rules': customer_rules
-  }
+  return {'status': 'ok', 'customer_rules': customer_rules}
 
 
 @customer_rules_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.CUSTOMER])
 def get_my_customer_rules(user: ItalcoUser):
-  return {
-    'status': 'ok',
-    'customer_rules': [rule.to_dict() for rule in query_my_customer_rules(user)]
-  }
+  return {'status': 'ok', 'customer_rules': [rule.to_dict() for rule in query_my_customer_rules(user)]}
 
 
 def check_customer_rules(user: ItalcoUser) -> list[datetime]:
@@ -66,7 +54,7 @@ def check_customer_rules(user: ItalcoUser) -> list[datetime]:
   allowed_dates = []
   end = start + relativedelta(months=2)
   while start <= end:
-    if not start.weekday() in rule_days:
+    if start.weekday() not in rule_days:
       allowed_dates.append(start.strftime('%Y-%m-%d'))
     else:
       order_count = 0
@@ -83,36 +71,30 @@ def check_customer_rules(user: ItalcoUser) -> list[datetime]:
 
 def query_customer_rules() -> list[CustomerRule, ItalcoUser]:
   with Session() as session:
-    return session.query(
-      CustomerRule, ItalcoUser
-    ).join(
-      ItalcoUser, ItalcoUser.id == CustomerRule.user_id
-    ).all()
+    return session.query(CustomerRule, ItalcoUser).join(ItalcoUser, ItalcoUser.id == CustomerRule.user_id).all()
 
 
 def query_my_customer_rules(user: ItalcoUser) -> list[CustomerRule]:
   with Session() as session:
-    return session.query(
-      CustomerRule
-    ).filter(
-      CustomerRule.user_id == user.id
-    ).all()
+    return session.query(CustomerRule).filter(CustomerRule.user_id == user.id).all()
 
 
 def query_my_orders(user: ItalcoUser) -> list[Order]:
   with Session() as session:
-    return session.query(
-      Order
-    ).join(
-      OrderServiceUser, OrderServiceUser.order_id == Order.id
-    ).join(
-      ServiceUser, and_(
-        ServiceUser.id == OrderServiceUser.service_user_id,
-        ServiceUser.user_id == user.id,
-        Order.dpc > datetime.today(),
-        Order.dpc < datetime.today() + relativedelta(months=2)
+    return (
+      session.query(Order)
+      .join(OrderServiceUser, OrderServiceUser.order_id == Order.id)
+      .join(
+        ServiceUser,
+        and_(
+          ServiceUser.id == OrderServiceUser.service_user_id,
+          ServiceUser.user_id == user.id,
+          Order.dpc > datetime.today(),
+          Order.dpc < datetime.today() + relativedelta(months=2),
+        ),
       )
-    ).all()
+      .all()
+    )
 
 
 def format_query_result(tupla: tuple[CustomerRule, ItalcoUser], list: list[dict]) -> list[dict]:
@@ -121,8 +103,5 @@ def format_query_result(tupla: tuple[CustomerRule, ItalcoUser], list: list[dict]
       element['rules'].append(tupla[0].to_dict())
       return list
 
-  list.append({
-    **tupla[1].to_dict(),
-    'rules': [tupla[0].to_dict()]
-  })
+  list.append({**tupla[1].to_dict(), 'rules': [tupla[0].to_dict()]})
   return list

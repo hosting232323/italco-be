@@ -24,33 +24,27 @@ SERVICE_USER_ID = 0
 @flask_session_authentication([UserRole.ADMIN])
 def update_import(user: ItalcoUser):
   if 'file' not in request.files:
-    return {
-      'status': 'ko',
-      'error': 'Nessun file caricato'
-    }
+    return {'status': 'ko', 'error': 'Nessun file caricato'}
 
   df = pd.read_excel(request.files['file'])
   for index, row in df.iterrows():
-    order = create(Order, {
-      'type': OrderType.DELIVERY,
-      'collection_point_id': COLLECTION_POINT_ID,
-      'addressee_id': '',
-      'drc': row['DRC'],
-      'dpc': row['DPC'],
-      'customer_note': f'Ref: {row["Ref."]} ' \
-        f'Preavviso: {row["Preavviso"]} ' \
-        f'Fascia: {row["Fascia"]} ' \
-        f'Note: {row["Note + Note Conf. SIEM"]}'
-    })
-    create(OrderServiceUser, {
-      'order_id': order.id,
-      'service_user_id': SERVICE_USER_ID
-    })
+    order = create(
+      Order,
+      {
+        'type': OrderType.DELIVERY,
+        'collection_point_id': COLLECTION_POINT_ID,
+        'addressee_id': '',
+        'drc': row['DRC'],
+        'dpc': row['DPC'],
+        'customer_note': f'Ref: {row["Ref."]} '
+        f'Preavviso: {row["Preavviso"]} '
+        f'Fascia: {row["Fascia"]} '
+        f'Note: {row["Note + Note Conf. SIEM"]}',
+      },
+    )
+    create(OrderServiceUser, {'order_id': order.id, 'service_user_id': SERVICE_USER_ID})
 
-  return {
-    'status': 'ok',
-    'message': 'Operazione completata'
-  }
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 def get_cap_from_city(city_name: str) -> str:

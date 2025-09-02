@@ -14,32 +14,21 @@ delivery_group_bp = Blueprint('delivery_group_bp', __name__)
 @flask_session_authentication([UserRole.ADMIN])
 def assign_delivery_group_user(user: ItalcoUser):
   delivery_user: ItalcoUser = get_by_id(ItalcoUser, request.json['user_id'])
-  update(delivery_user, {
-    'delivery_group_id': request.json['delivery_group_id']
-  })
-  return {
-    'status': 'ok',
-    'user': delivery_user.format_user(user.role)
-  }
+  update(delivery_user, {'delivery_group_id': request.json['delivery_group_id']})
+  return {'status': 'ok', 'user': delivery_user.format_user(user.role)}
 
 
 @delivery_group_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def create_delivery_group(user: ItalcoUser):
-  return {
-    'status': 'ok',
-    'delivery_group': create(DeliveryGroup, request.json).to_dict()
-  }
+  return {'status': 'ok', 'delivery_group': create(DeliveryGroup, request.json).to_dict()}
 
 
 @delivery_group_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
 def delete_delivery_group(user: ItalcoUser, id):
   delete(get_by_id(DeliveryGroup, int(id)))
-  return {
-    'status': 'ok',
-    'message': 'Operazione completata'
-  }
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @delivery_group_bp.route('', methods=['GET'])
@@ -48,10 +37,7 @@ def get_delivery_groups(user: ItalcoUser):
   delivery_groups = []
   for tupla in query_delivery_groups():
     delivery_groups = format_query_result(tupla, delivery_groups, user.role)
-  return {
-    'status': 'ok',
-    'delivery_groups': delivery_groups
-  }
+  return {'status': 'ok', 'delivery_groups': delivery_groups}
 
 
 def format_query_result(tupla: tuple[DeliveryGroup, ItalcoUser], list: list[dict], role: UserRole) -> list[dict]:
@@ -71,6 +57,8 @@ def format_query_result(tupla: tuple[DeliveryGroup, ItalcoUser], list: list[dict
 
 def query_delivery_groups() -> list[tuple[DeliveryGroup, ItalcoUser]]:
   with Session() as session:
-    return session.query(DeliveryGroup, ItalcoUser).outerjoin(
-      ItalcoUser, DeliveryGroup.id == ItalcoUser.delivery_group_id
-    ).all()
+    return (
+      session.query(DeliveryGroup, ItalcoUser)
+      .outerjoin(ItalcoUser, DeliveryGroup.id == ItalcoUser.delivery_group_id)
+      .all()
+    )

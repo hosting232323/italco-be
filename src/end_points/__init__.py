@@ -12,23 +12,20 @@ from api.users import get_user_by_email, create_jwt_token
 
 def flask_session_authentication(roles: list[UserRole] = None):
   def decorator(func):
-
     @wraps(func)
     def wrapper(*args, **kwargs):
       try:
-        if not 'Authorization' in request.headers or request.headers['Authorization'] == 'null':
+        if 'Authorization' not in request.headers or request.headers['Authorization'] == 'null':
           return {'status': 'session', 'error': 'Token assente'}
 
-        user: ItalcoUser = get_user_by_email(jwt.decode(
-          request.headers['Authorization'],
-          os.environ['DECODE_JWT_TOKEN'],
-          algorithms=['HS256']
-        )['email'])
+        user: ItalcoUser = get_user_by_email(
+          jwt.decode(request.headers['Authorization'], os.environ['DECODE_JWT_TOKEN'], algorithms=['HS256'])['email']
+        )
         if not user:
           return {'status': 'session', 'error': 'Utente non trovato'}
 
         if roles:
-          if not user.role in roles:
+          if user.role not in roles:
             return {'status': 'session', 'error': 'Ruolo non autorizzato'}
 
         if user.role == UserRole.DELIVERY:
@@ -41,8 +38,12 @@ def flask_session_authentication(roles: list[UserRole] = None):
           if not delivery_group:
             return {'status': 'ko', 'error': 'Delivery Group non trovato'}
 
-          if not delivery_group.lat or not delivery_group.lon or \
-            float(delivery_group.lat) != lat or float(delivery_group.lon) != lon:
+          if (
+            not delivery_group.lat
+            or not delivery_group.lon
+            or float(delivery_group.lat) != lat
+            or float(delivery_group.lon) != lon
+          ):
             update(delivery_group, {'lat': lat, 'lon': lon})
 
         result = func(user, *args, **kwargs)
@@ -59,4 +60,5 @@ def flask_session_authentication(roles: list[UserRole] = None):
         return {'status': 'ko', 'message': 'Errore generico'}
 
     return wrapper
+
   return decorator

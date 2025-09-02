@@ -23,11 +23,7 @@ class ItalcoUser(User):
     if role == UserRole.ADMIN:
       return self.to_dict()
     else:
-      return {
-        'id': self.id,
-        'email': self.email,
-        'role': self.role.value
-      }
+      return {'id': self.id, 'email': self.email, 'role': self.role.value}
 
 
 class CustomerGroup(BaseEntity):
@@ -173,8 +169,8 @@ class GeographicCode(BaseEntity):
   type = Column(Boolean, nullable=False)
 
   zone = relationship('GeographicZone', back_populates='geographic_codes')
-  
-  
+
+
 class Constraint(BaseEntity):
   __tablename__ = 'constraints'
 

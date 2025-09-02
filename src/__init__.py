@@ -17,11 +17,7 @@ app = Flask(__name__, static_folder='../static', template_folder='../templates')
 
 # Swagger da eliminare?
 app.register_blueprint(
-  get_swaggerui_blueprint(
-    '/swagger',
-    '/static/swagger.json',
-    config={'app_name': 'Italco'}
-  ), url_prefix='/swagger'
+  get_swaggerui_blueprint('/swagger', '/static/swagger.json', config={'app_name': 'Italco'}), url_prefix='/swagger'
 )
 
 if IS_DEV:

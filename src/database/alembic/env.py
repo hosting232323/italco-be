@@ -6,7 +6,6 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 
 from database_api import Base
-from src.database.schema import *
 
 
 load_dotenv()
@@ -22,11 +21,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-config.set_section_option(
-  config.config_ini_section,
-  'sqlalchemy.url',
-  os.environ['DATABASE_URL']
-)
+config.set_section_option(config.config_ini_section, 'sqlalchemy.url', os.environ['DATABASE_URL'])
 
 
 def run_migrations_offline() -> None:
@@ -50,9 +45,7 @@ def run_migrations_online() -> None:
   )
 
   with connectable.connect() as connection:
-    context.configure(
-      connection=connection, target_metadata=target_metadata
-    )
+    context.configure(connection=connection, target_metadata=target_metadata)
 
     with context.begin_transaction():
       context.run_migrations()
