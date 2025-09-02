@@ -35,8 +35,7 @@ def mailer_check(order: Order, data: dict):
       states.append('con anomalia')
 
     subject = f'{" ".join(icons)} Ordine {order.id} {order.addressee} {" ".join(states)}'
+    text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {order.motivation}'
+    html = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {order.motivation}<br>Foto:<br>{photos_html}'
     for mail in DEFAULT_MAILS:
-      send_email(mail, {
-        'text': subject,
-        'html': f'<p>Test</p>{photos_html}'
-      }, subject)
+      send_email(mail, { 'text': text, 'html': html }, subject)
