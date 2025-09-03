@@ -24,10 +24,7 @@ def cancell_user(user: ItalcoUser, id):
     delete(user)
     return {'status': 'ok', 'message': 'Utente eliminato'}
   else:
-    return {
-      'status': 'ko',
-      'dependencies': count_user_dependencies(int(id))
-    }
+    return {'status': 'ko', 'dependencies': count_user_dependencies(int(id))}
 
 
 @user_bp.route('', methods=['GET'])
@@ -68,13 +65,13 @@ def query_users(user: ItalcoUser, role: UserRole = None) -> list[ItalcoUser]:
 def count_user_dependencies(id: int) -> dict:
   with Session() as session:
     return {
-    "serviceUsers": session.query(ServiceUser).filter(ServiceUser.user_id == id).count(),
-    "customerRules": session.query(CustomerRule).filter(CustomerRule.user_id == id).count(),
-    "collectionPoints": session.query(CollectionPoint).filter(CollectionPoint.user_id == id).count(),
-    "blockedOrders": (
-      session.query(OrderServiceUser)
-      .join(ServiceUser, ServiceUser.id == OrderServiceUser.service_user_id)
-      .filter(ServiceUser.user_id == id)
-      .count()
-    )
-  }
+      'serviceUsers': session.query(ServiceUser).filter(ServiceUser.user_id == id).count(),
+      'customerRules': session.query(CustomerRule).filter(CustomerRule.user_id == id).count(),
+      'collectionPoints': session.query(CollectionPoint).filter(CollectionPoint.user_id == id).count(),
+      'blockedOrders': (
+        session.query(OrderServiceUser)
+        .join(ServiceUser, ServiceUser.id == OrderServiceUser.service_user_id)
+        .filter(ServiceUser.user_id == id)
+        .count()
+      ),
+    }
