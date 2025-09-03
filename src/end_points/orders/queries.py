@@ -19,16 +19,15 @@ from database_api import Session
 
 def query_orders(
   user: ItalcoUser, filters: list, date_filter={}
-) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo]]:
+) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint]]:
   with Session() as session:
     query = (
-      session.query(Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo)
+      session.query(Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint)
       .outerjoin(CollectionPoint, Order.collection_point_id == CollectionPoint.id)
       .outerjoin(OrderServiceUser, OrderServiceUser.order_id == Order.id)
       .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
       .outerjoin(ItalcoUser, ServiceUser.user_id == ItalcoUser.id)
-      .outerjoin(Photo, Photo.order_id == Order.id)
     )
 
     if user.role == UserRole.CUSTOMER:
@@ -57,16 +56,15 @@ def query_orders(
 
 def query_delivery_orders(
   user: ItalcoUser,
-) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo]]:
+) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint]]:
   with Session() as session:
     return (
-      session.query(Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo)
+      session.query(Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint)
       .outerjoin(CollectionPoint, Order.collection_point_id == CollectionPoint.id)
       .outerjoin(OrderServiceUser, OrderServiceUser.order_id == Order.id)
       .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
       .outerjoin(ItalcoUser, ServiceUser.user_id == ItalcoUser.id)
-      .outerjoin(Photo, Photo.order_id == Order.id)
       .join(
         Schedule,
         and_(
@@ -96,25 +94,22 @@ def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -
 
 
 def format_query_result(
-  tupla: tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Photo],
+  tupla: tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint],
   list: list[dict],
   user: ItalcoUser,
 ) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      add_photo(element, tupla[6])
       add_service(element, tupla[3], tupla[1], tupla[2].price)
       return list
 
   output = {
     **tupla[0].to_dict(),
     'price': 0,
-    'photos': [],
     'products': {},
     'collection_point': tupla[5].to_dict(),
     'user': tupla[4].format_user(user.role),
   }
-  add_photo(output, tupla[6])
   add_service(output, tupla[3], tupla[1], tupla[2].price)
   list.append(output)
   return list
@@ -133,14 +128,6 @@ def add_service(object: dict, service: Service, order_service_user: OrderService
   object['price'] += price
   object['products'][order_service_user.product].append(service.to_dict())
   object['products'][order_service_user.product][-1]['order_service_user_id'] = order_service_user.id
-  return object
-
-
-def add_photo(object: dict, photo: Photo) -> dict:
-  if not photo or photo.id in object['photos']:
-    return object
-
-  object['photos'].append(photo.id)
   return object
 
 

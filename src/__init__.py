@@ -8,7 +8,8 @@ from api import swagger_decorator, internal_backup
 
 
 allowed_origins = [
-  # add allowed origins
+  'https://ares-logistics.it',
+  'https://www.ares-logistics.it',
 ]
 
 load_dotenv()
