@@ -3,8 +3,8 @@ from xhtml2pdf import pisa
 from flask import Blueprint, render_template, make_response, request
 
 from database_api import Session
-from ..database.enum import UserRole
 from . import flask_session_authentication
+from ..database.enum import UserRole, OrderStatus
 from .orders.queries import query_orders, format_query_result
 from ..database.schema import (
   Schedule,
@@ -63,7 +63,11 @@ def export_order_report(user: ItalcoUser, id):
 @flask_session_authentication([UserRole.ADMIN])
 def export_orders_invoice(user: ItalcoUser):
   orders = []
-  for tupla in query_orders(user, request.json['filters'], request.json['date_filter']):
+  for tupla in query_orders(
+    user,
+    request.json['filters'] + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.COMPLETED}],
+    request.json['date_filter'],
+  ):
     orders = format_query_result(tupla, orders, user)
 
   if len(orders) == 0:
