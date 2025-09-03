@@ -4,9 +4,9 @@ from database_api import Session
 from ...database.enum import UserRole
 from api import error_catching_decorator
 from api.users import register_user, login
-from database_api.operations import delete, get_by_id
 from .. import flask_session_authentication
 from api.users.setup import get_user_by_email
+from database_api.operations import delete, get_by_id
 from ...database.schema import ItalcoUser, ServiceUser, CollectionPoint, CustomerRule, OrderServiceUser
 
 
