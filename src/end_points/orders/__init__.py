@@ -79,7 +79,7 @@ def get_order(id):
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order(user: ItalcoUser, id):
   order: Order = get_by_id(Order, int(id))
-  if user.role in [UserRole.DELIVERY, UserRole.ADMIN]:
+  if user.role in [UserRole.DELIVERY, UserRole.ADMIN] and type(request.form.get('data')) == str:
     data = json.loads(request.form.get('data'))
     for file in request.files.keys():
       if request.files[file].mimetype in ['image/jpeg', 'image/png']:
@@ -106,8 +106,8 @@ def update_order(user: ItalcoUser, id):
     and data['delay']
     and order.addressee_contact
     and (
-      datetime.strptime(data['start_time_slot'], '%H:%M').time() != previous_start
-      or datetime.strptime(data['end_time_slot'], '%H:%M').time() != previous_end
+      parse_time(data['start_time_slot']) != previous_start
+      or parse_time(data['end_time_slot']) != previous_end
     )
   ):
     start = order.start_time_slot.strftime('%H:%M')
@@ -146,3 +146,12 @@ def view_order_photo(photo_id: int):
     as_attachment=False,
     download_name=f'order_photo_{photo_id}.jpg',
   )
+
+
+def parse_time(value: str):
+  for fmt in ['%H:%M', '%H:%M:%S']:
+    try:
+      return datetime.strptime(value, fmt).time()
+    except ValueError:
+      continue
+  raise ValueError(f'Formato orario non riconosciuto: {value}')
