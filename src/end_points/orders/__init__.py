@@ -105,10 +105,7 @@ def update_order(user: ItalcoUser, id):
     'delay' in data
     and data['delay']
     and order.addressee_contact
-    and (
-      parse_time(data['start_time_slot']) != previous_start
-      or parse_time(data['end_time_slot']) != previous_end
-    )
+    and (parse_time(data['start_time_slot']) != previous_start or parse_time(data['end_time_slot']) != previous_end)
   ):
     start = order.start_time_slot.strftime('%H:%M')
     end = order.end_time_slot.strftime('%H:%M')

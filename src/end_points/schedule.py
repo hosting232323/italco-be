@@ -1,8 +1,8 @@
 import os
+from hashids import Hashids
 from sqlalchemy import and_
 from datetime import datetime
 from flask import Blueprint, request
-from hashids import Hashids
 
 from api.sms import send_sms
 from database_api import Session
@@ -13,6 +13,7 @@ from ..database.schema import Schedule, ItalcoUser, Order, DeliveryGroup, Transp
 
 
 schedule_bp = Blueprint('schedule_bp', __name__)
+hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 
 
 @schedule_bp.route('', methods=['POST'])
@@ -133,8 +134,5 @@ def get_selling_point(order: Order) -> str:
     )
 
 
-hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
-
-
 def get_order_link(order: Order) -> str:
-  return f'https://ares-logistics.it/order/{hashids.encode(order.id)}'
+  return f'{request.headers.get("Origin")}/order/{hashids.encode(order.id)}'
