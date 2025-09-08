@@ -79,7 +79,7 @@ def get_order(id):
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order(user: ItalcoUser, id):
   order: Order = get_by_id(Order, int(id))
-  if user.role in [UserRole.DELIVERY, UserRole.ADMIN] and type(request.form.get('data')) == str:
+  if user.role in [UserRole.DELIVERY, UserRole.ADMIN] and isinstance(request.form.get('data'), str):
     data = json.loads(request.form.get('data'))
     for file in request.files.keys():
       if request.files[file].mimetype in ['image/jpeg', 'image/png']:
