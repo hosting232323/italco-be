@@ -21,7 +21,6 @@ hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 def create_schedule(user: ItalcoUser):
   order_ids = [o['id'] for o in request.json['orders']]
   orders_data = request.json['orders']
-
   del request.json['order_ids']
   del request.json['orders']
   orders: list[Order] = get_by_ids(Order, order_ids)
