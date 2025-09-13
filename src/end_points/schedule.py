@@ -1,7 +1,7 @@
 import os
 from hashids import Hashids
 from sqlalchemy import and_
-from datetime import datetime
+from datetime import datetime, timezone, time
 from flask import Blueprint, request
 
 from api.sms import send_sms
@@ -21,12 +21,22 @@ hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 def create_schedule(user: ItalcoUser):
   order_ids = [o['id'] for o in request.json['orders']]
   orders_data = request.json['orders']
+  delivery_group_id = request.json['delivery_group_id']
+  schedule_date = datetime.strptime(request.json['date'], "%Y-%m-%d").date()
+
   del request.json['order_ids']
   del request.json['orders']
   orders: list[Order] = get_by_ids(Order, order_ids)
   if not orders:
     return {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
+  
+  start_of_day = datetime.combine(schedule_date, time.min, tzinfo=timezone.utc)
+  end_of_day = datetime.combine(schedule_date, time.max, tzinfo=timezone.utc)
 
+  count = query_schedules_count(delivery_group_id, start_of_day, end_of_day)
+  if count > 0:
+    return {'status': 'ko', 'error': 'Esiste già un borderò per questa data'}
+  
   schedule = create(Schedule, request.json)
   orders_data_map = {o['id']: o for o in orders_data}
   for order in orders:
@@ -96,6 +106,18 @@ def query_schedules() -> list[tuple[Schedule, DeliveryGroup, Transport, Order]]:
       .join(Transport, Schedule.transport_id == Transport.id)
       .outerjoin(Order, Order.schedule_id == Schedule.id)
       .all()
+    )
+
+
+def query_schedules_count(delivery_group_id, start_of_day, end_of_day) -> int:
+  with Session() as session:
+    return (
+      session.query(Schedule)
+      .filter(
+        Schedule.delivery_group_id == delivery_group_id,
+        Schedule.date.between(start_of_day, end_of_day)
+      )
+        .count()
     )
 
 
