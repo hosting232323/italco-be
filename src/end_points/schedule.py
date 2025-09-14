@@ -27,6 +27,9 @@ def create_schedule(user: ItalcoUser):
   if not orders:
     return {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
 
+  if query_schedules_count(request.json['delivery_group_id'], request.json['date']) > 0:
+    return {'status': 'ko', 'error': 'Esiste già un borderò per questa data'}
+
   schedule = create(Schedule, request.json)
   orders_data_map = {o['id']: o for o in orders_data}
   for order in orders:
@@ -96,6 +99,18 @@ def query_schedules() -> list[tuple[Schedule, DeliveryGroup, Transport, Order]]:
       .join(Transport, Schedule.transport_id == Transport.id)
       .outerjoin(Order, Order.schedule_id == Schedule.id)
       .all()
+    )
+
+
+def query_schedules_count(delivery_group_id, schedule_date) -> int:
+  with Session() as session:
+    return (
+      session.query(Schedule)
+      .filter(
+        Schedule.delivery_group_id == delivery_group_id,
+        Schedule.date == datetime.strptime(schedule_date, '%Y-%m-%d').date(),
+      )
+      .count()
     )
 
 
