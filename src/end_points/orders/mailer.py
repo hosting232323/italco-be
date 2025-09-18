@@ -7,8 +7,11 @@ from ...database.enum import OrderStatus
 from .queries import get_order_photo_ids
 
 
-MAILS = ['coppolagabriele973@gmail.com', 'massiitalco.mi@gmail.com'] \
-  if not IS_DEV else ['coppolagabriele973@gmail.com', 'colasanto.giovanni.inf@gmail.com']
+MAILS = (
+  ['coppolagabriele973@gmail.com', 'massiitalco.mi@gmail.com']
+  if not IS_DEV
+  else ['coppolagabriele973@gmail.com', 'colasanto.giovanni.inf@gmail.com']
+)
 
 
 def mailer_check(order: Order, data: dict):
