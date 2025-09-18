@@ -4,7 +4,7 @@ from ...database.schema import Order
 from ...database.enum import OrderStatus
 from .queries import get_order_photo_ids
 
-DEFAULT_MAILS = ['coppolagabriele973@gmail.com']
+DEFAULT_MAILS = ['coppolagabriele973@gmail.com', 'massiitalco.mi@gmail.com']
 
 
 def mailer_check(order: Order, data: dict):
