@@ -85,7 +85,7 @@ def update_order(user: ItalcoUser, id):
       uploaded_file = request.files[file_key]
       if uploaded_file.mimetype in ['image/jpeg', 'image/png']:
         if file_key == 'signature':
-          order.signature = uploaded_file.read()
+          data['signature'] = uploaded_file.read()
         else:
           create(
             Photo, {'photo': uploaded_file.read(), 'mime_type': uploaded_file.mimetype, 'order_id': order.id}
@@ -146,6 +146,21 @@ def view_order_photo(photo_id: int):
     mimetype=photo.mime_type or 'application/octet-stream',
     as_attachment=False,
     download_name=f'order_photo_{photo_id}.jpg',
+  )
+
+
+@order_bp.route('signature/<order_id>', methods=['GET'])
+@error_catching_decorator
+def view_signature(order_id: int):
+  order: Order = get_by_id(Order, order_id)
+  if not order_id:
+    return {'status': 'ko', 'error': 'Order not found'}
+
+  return send_file(
+    io.BytesIO(order.signature),
+    mimetype=order.mime_type or 'application/octet-stream',
+    as_attachment=False,
+    download_name=f'order_signature_{order_id}.jpg',
   )
 
 
