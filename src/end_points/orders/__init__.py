@@ -149,21 +149,6 @@ def view_order_photo(photo_id: int):
   )
 
 
-@order_bp.route('signature/<order_id>', methods=['GET'])
-@error_catching_decorator
-def view_signature(order_id: int):
-  order: Order = get_by_id(Order, order_id)
-  if not order_id:
-    return {'status': 'ko', 'error': 'Order not found'}
-
-  return send_file(
-    io.BytesIO(order.signature),
-    mimetype=order.mime_type or 'application/octet-stream',
-    as_attachment=False,
-    download_name=f'order_signature_{order_id}.jpg',
-  )
-
-
 def parse_time(value: str):
   for fmt in ['%H:%M', '%H:%M:%S']:
     try:
