@@ -1,11 +1,12 @@
 from io import BytesIO
 from xhtml2pdf import pisa
 from flask import Blueprint, render_template, make_response, request
-
+import base64
 from database_api import Session
 from . import flask_session_authentication
 from ..database.enum import UserRole, OrderStatus
 from .orders.queries import query_orders, format_query_result
+from database_api.operations import get_by_id
 from ..database.schema import (
   Schedule,
   ItalcoUser,
@@ -31,6 +32,12 @@ def export_order_report(user: ItalcoUser, id):
     orders = format_query_result(tupla, orders, user)
   if len(orders) != 1:
     raise Exception('Numero di ordini trovati non valido')
+  
+  order: Order = get_by_id(Order, orders[0]['id'])
+  signature_data_uri = None
+  if order.signature:
+    signature_base64 = base64.b64encode(order.signature).decode('utf-8')
+    signature_data_uri = f'data:image/png;base64,{signature_base64}'
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
@@ -47,6 +54,7 @@ def export_order_report(user: ItalcoUser, id):
       products=orders[0]['products'],
       collection_point=orders[0]['collection_point'],
       note=orders[0].get('customer_note', '/'),
+      signature=signature_data_uri
     ),
     dest=result,
   )

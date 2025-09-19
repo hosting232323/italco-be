@@ -81,11 +81,15 @@ def update_order(user: ItalcoUser, id):
   order: Order = get_by_id(Order, int(id))
   if user.role in [UserRole.DELIVERY, UserRole.ADMIN] and isinstance(request.form.get('data'), str):
     data = json.loads(request.form.get('data'))
-    for file in request.files.keys():
-      if request.files[file].mimetype in ['image/jpeg', 'image/png']:
-        create(
-          Photo, {'photo': request.files[file].read(), 'mime_type': request.files[file].mimetype, 'order_id': order.id}
-        )
+    for file_key in request.files.keys():
+      uploaded_file = request.files[file_key]
+      if uploaded_file.mimetype in ['image/jpeg', 'image/png']:
+        if file_key == 'signature':
+          data['signature'] = uploaded_file.read()
+        else:
+          create(
+            Photo, {'photo': uploaded_file.read(), 'mime_type': uploaded_file.mimetype, 'order_id': order.id}
+          )
   else:
     data = request.json
 
