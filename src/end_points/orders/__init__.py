@@ -92,6 +92,8 @@ def update_order(user: ItalcoUser, id):
           )
   else:
     data = request.json
+    
+  print(data)
 
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
