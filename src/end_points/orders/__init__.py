@@ -91,6 +91,8 @@ def update_order(user: ItalcoUser, id):
           create(Photo, {'photo': uploaded_file.read(), 'mime_type': uploaded_file.mimetype, 'order_id': order.id})
   else:
     data = request.json
+    
+  print(data)
 
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
