@@ -34,10 +34,7 @@ def export_order_report(user: ItalcoUser, id):
     raise Exception('Numero di ordini trovati non valido')
   
   order: Order = get_by_id(Order, orders[0]['id'])
-  signature_data_uri = None
-  if order.signature:
-    signature_base64 = base64.b64encode(order.signature).decode('utf-8')
-    signature_data_uri = f'data:image/png;base64,{signature_base64}'
+  signature_data_uri = get_signature(order)
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
@@ -103,16 +100,20 @@ def export_orders_invoice(user: ItalcoUser):
 
 
 @export_bp.route('schedule/<id>', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_orders_schedule(user: ItalcoUser, id):
   orders = []
   schedule = {}
   for index, tupla in enumerate(query_schedule(id)):
     if index == 0:
       schedule = {**tupla[0].to_dict(), 'transport': tupla[2].to_dict(), 'delivery_group': tupla[1].to_dict()}
-    orders = format_query_result(
-      tuple(value for index, value in enumerate(tupla) if index not in [0, 1, 2]), orders, user
-    )
+
+    order_dict = format_query_result(
+      tuple(value for index, value in enumerate(tupla) if index not in [0, 1, 2]), [], user
+    )[0]
+    order_obj: Order = get_by_id(Order, order_dict['id'])
+    order_dict['signature'] = get_signature(order_obj)
+    orders.append(order_dict)
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
@@ -133,6 +134,14 @@ def export_orders_schedule(user: ItalcoUser, id):
   response.headers['Content-Type'] = 'application/pdf'
   response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
   return response
+
+
+def get_signature(order: Order):
+  if order.signature:
+    signature_base64 = base64.b64encode(order.signature).decode('utf-8')
+    return f'data:image/png;base64,{signature_base64}'
+  else:
+    return None
 
 
 def query_schedule(

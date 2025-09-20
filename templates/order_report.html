@@ -149,13 +149,15 @@
       <tr>
         <td style="width: 50%; vertical-align: top; border: none; padding-left: 0px;">
           <div style="border: 1px solid #999; padding: 10px 10px 30px;">
-            <em>Firma cliente</em>
+            <em>Firma trasportatore</em>
           </div>
         </td>
         <td style="width: 50%; vertical-align: top; border: none; padding-right: 0px;">
           <div style="border: 1px solid #999; padding: 10px 10px 30px;">
             <em>Firma destinatario</em>
-            <img src="{{ signature }}" alt="">
+              {% if signature %}
+                <img src="{{ signature }}" alt="Firma">
+              {% endif %}
           </div>
         </td>
       </tr>
