@@ -4,6 +4,7 @@ from sqlalchemy import and_
 from datetime import datetime
 from flask import Blueprint, request
 
+from .. import IS_DEV
 from api.sms import send_sms
 from database_api import Session
 from . import flask_session_authentication
@@ -47,7 +48,7 @@ def create_schedule(user: ItalcoUser):
         },
       )
 
-      if order.addressee_contact:
+      if not IS_DEV and order.addressee_contact:
         start = order.start_time_slot.strftime('%H:%M')
         end = order.end_time_slot.strftime('%H:%M')
         send_sms(

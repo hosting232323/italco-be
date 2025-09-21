@@ -5,6 +5,7 @@ from api.sms import send_sms
 from datetime import datetime
 from flask import Blueprint, request, send_file
 
+from ... import IS_DEV
 from .mailer import mailer_check
 from api import error_catching_decorator
 from .. import flask_session_authentication
@@ -106,6 +107,7 @@ def update_order(user: ItalcoUser, id):
   order = update(order, data)
 
   if (
+    not IS_DEV and
     'delay' in data
     and data['delay']
     and order.addressee_contact
