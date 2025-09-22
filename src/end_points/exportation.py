@@ -32,10 +32,8 @@ def export_order_report(user: ItalcoUser, id):
     orders = format_query_result(tupla, orders, user)
   if len(orders) != 1:
     raise Exception('Numero di ordini trovati non valido')
-  
-  order: Order = get_by_id(Order, orders[0]['id'])
-  signature_data_uri = get_signature(order)
 
+  order: Order = get_by_id(Order, orders[0]['id'])
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
     src=render_template(
@@ -51,7 +49,7 @@ def export_order_report(user: ItalcoUser, id):
       products=orders[0]['products'],
       collection_point=orders[0]['collection_point'],
       note=orders[0].get('customer_note', '/'),
-      signature=signature_data_uri
+      signature=get_signature(order),
     ),
     dest=result,
   )
