@@ -16,7 +16,7 @@ MAILS = (
 
 def mailer_check(order: Order, data: dict):
   if (
-    ('status' in data and data['status'] in [OrderStatus.COMPLETED, OrderStatus.CANCELLED])
+    ('status' in data and data['status'] == OrderStatus.CANCELLED)
     or ('anomaly' in data and data['anomaly'] is True)
     or ('delay' in data and data['delay'] is True)
   ):
