@@ -238,7 +238,7 @@
       </table>
     </div>
 
-    <div class="section">
+    <div class="section" style="page-break-inside: avoid; display: inline-block;">
       <h2>Firme</h2>
       <table class="info-table">
         <tr>
@@ -250,8 +250,8 @@
           <td style="width: 50%; vertical-align: top; border: none; padding-right: 0px;">
             <div style="border: 1px solid #999; padding: 10px 10px 30px;">
               <em>Firma destinatario</em>
-                {% if order.signature %}
-                  <img src="{{ order.signature }}" alt="Firma">
+              {% if order.signature %}
+                <img src="{{ signature }}" alt="Firma" style="height: 100%;">
               {% endif %}
             </div>
           </td>
