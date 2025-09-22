@@ -88,9 +88,7 @@ def update_order(user: ItalcoUser, id):
         if file_key == 'signature':
           data['signature'] = uploaded_file.read()
         else:
-          create(
-            Photo, {'photo': uploaded_file.read(), 'mime_type': uploaded_file.mimetype, 'order_id': order.id}
-          )
+          create(Photo, {'photo': uploaded_file.read(), 'mime_type': uploaded_file.mimetype, 'order_id': order.id})
   else:
     data = request.json
 
