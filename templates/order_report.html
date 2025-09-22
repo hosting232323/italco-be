@@ -143,21 +143,21 @@
     </table>
   </div>
 
-  <div class="section">
+  <div class="section" style="page-break-inside: avoid; display: inline-block;">
     <h2>Firme</h2>
     <table class="info-table">
       <tr>
         <td style="width: 50%; vertical-align: top; border: none; padding-left: 0px;">
-          <div style="border: 1px solid #999; padding: 10px 10px 30px;">
+          <div style="border: 1px solid #999; padding: 10px 10px 30px; height: 160px; box-sizing: border-box;">
             <em>Firma trasportatore</em>
           </div>
         </td>
         <td style="width: 50%; vertical-align: top; border: none; padding-right: 0px;">
-          <div style="border: 1px solid #999; padding: 10px 10px 30px;">
+          <div style="border: 1px solid #999; height: 160px; box-sizing: border-box; padding: {{ '10px 10px 0px' if signature else '10px 10px 30px' }};">
             <em>Firma destinatario</em>
-              {% if signature %}
-                <img src="{{ signature }}" alt="Firma">
-              {% endif %}
+            {% if signature %}
+              <img src="{{ signature }}" style="height: 100%;" alt="Firma">
+            {% endif %}
           </div>
         </td>
       </tr>
