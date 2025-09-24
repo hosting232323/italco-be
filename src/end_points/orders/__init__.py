@@ -105,8 +105,8 @@ def update_order(user: ItalcoUser, id):
   order = update(order, data)
 
   if (
-    not IS_DEV and
-    'delay' in data
+    not IS_DEV
+    and 'delay' in data
     and data['delay']
     and order.addressee_contact
     and (parse_time(data['start_time_slot']) != previous_start or parse_time(data['end_time_slot']) != previous_end)

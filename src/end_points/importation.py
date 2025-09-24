@@ -1,55 +1,58 @@
 import pandas as pd
 from flask import Blueprint, request
-from geopy.geocoders import Nominatim
 
+from database_api import Session
 from . import flask_session_authentication
 from database_api.operations import create
-from ..database.enum import UserRole, OrderType
-from ..database.schema import ItalcoUser, Order, OrderServiceUser
+from ..database.enum import UserRole, OrderType, OrderStatus
+from ..database.schema import ItalcoUser, Order, OrderServiceUser, ServiceUser
 
 
 import_bp = Blueprint('import_bp', __name__)
 
-# Euronics martinafranca
-# Euronics Monopoli	Eur026432 CL 9
-# consegna al piano con installazione (allaccio alla prese)
 
-
-USER_ID = 0
-COLLECTION_POINT_ID = 0
-SERVICE_USER_ID = 0
+PRODUCT_STRING = 'Ordine importato da file'
+USER_ID = 11
+SERVICE_ID = 2
+COLLECTION_POINT_ID = 1
 
 
 @import_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def update_import(user: ItalcoUser):
+def order_import(user: ItalcoUser):
   if 'file' not in request.files:
     return {'status': 'ko', 'error': 'Nessun file caricato'}
 
-  df = pd.read_excel(request.files['file'])
-  for index, row in df.iterrows():
-    order = create(
-      Order,
+  service_user = get_service_user()
+  for index, row in pd.read_excel(request.files['file']).iterrows():
+    create(
+      OrderServiceUser,
       {
-        'type': OrderType.DELIVERY,
-        'collection_point_id': COLLECTION_POINT_ID,
-        'addressee_id': '',
-        'drc': row['DRC'],
-        'dpc': row['DPC'],
-        'customer_note': f'Ref: {row["Ref."]} '
-        f'Preavviso: {row["Preavviso"]} '
-        f'Fascia: {row["Fascia"]} '
-        f'Note: {row["Note + Note Conf. SIEM"]}',
+        'product': PRODUCT_STRING,
+        'service_user_id': service_user.id,
+        'order_id': create(
+          Order,
+          {
+            'type': OrderType.DELIVERY,
+            'status': OrderStatus.PENDING,
+            'addressee': row['Destinatario'],
+            'address': f'{row["Località"]} {row["Prov."]}',
+            'addressee_contact': row['Ref. (n. di cellulare )'],
+            'cap': row['CAP'],
+            'drc': row['DRC'],
+            'dpc': row['DPC'],
+            'collection_point_id': COLLECTION_POINT_ID,
+            'customer_note': f'Ref: {row["Rif. Cli. (id)"]}, Note: {row["Note + Note Conf. SIEM"]}',
+          },
+        ).id,
       },
     )
-    create(OrderServiceUser, {'order_id': order.id, 'service_user_id': SERVICE_USER_ID})
 
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
-def get_cap_from_city(city_name: str) -> str:
-  location = Nominatim(user_agent='cap_lookup_app').geocode(f'{city_name}, Italy', addressdetails=True)
-  if location and 'postcode' in location.raw['address']:
-    return location.raw['address']['postcode']
-  else:
-    return 'CAP non trovato'
+def get_service_user() -> ServiceUser:
+  with Session() as session:
+    return (
+      session.query(ServiceUser).filter(ServiceUser.user_id == USER_ID, ServiceUser.service_id == SERVICE_ID).first()
+    )
