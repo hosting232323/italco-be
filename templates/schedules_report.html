@@ -114,21 +114,21 @@
       <tbody>
         {% for order in orders %}
         <tr>
-          <td>{{ order['id'] }}</td>
-          <td>{{ order['type'] }}</td>
-          <td>{{ order['addressee'] }}<br>{{ order['address'] }}, {{ order['cap'] }}<br>{{ order['addressee_contact']}}</td>
+          <td>{{ order.id }}</td>
+          <td>{{ order.type }}</td>
+          <td>{{ order.addressee }}<br>{{ order.address }}, {{ order.cap }}<br>{{ order.addressee_contact}}</td>
           <td>
-            {% for product_name, service_list in order['products'].items() %}
+            {% for product_name, service_list in order.products.items() %}
               <strong>{{ product_name }}</strong><br>
               {% for service in service_list %}
-                {{ service['name'] }}<br>
+                {{ service.name }}<br>
               {% endfor %}
               <br>
             {% endfor %}
           </td>
           <td>
-            <b>Punto vendita:</b><br>{{ order['user']['email'] }}<br>
-            <b>Punto di ritiro:</b><br>{{ order['collection_point']['address'] }}, {{ order['collection_point']['cap'] }}, {{ order['collection_point']['city'] }}
+            <b>Punto vendita:</b><br>{{ order.user.email }}<br>
+            <b>Punto di ritiro:</b><br>{{ order.collection_point.address }}, {{ order.collection_point.cap }}, {{ order.collection_point.city }}
           </td>
         </tr>
         {% endfor %}
@@ -173,19 +173,19 @@
   {% for order in orders %}
 
     <div class="section">
-      <h2>N° Ordine: {{ order['id'] }}</h2>
+      <h2>N° Ordine: {{ order.id }}</h2>
       <table class="info-table">
         <tr>
           <td style="width: 50%; vertical-align: top; border: none; padding-left: 0px;">
             <h3 style="margin: 0 0 10px;">Cliente</h3>
             <table class="info-table inner">
-              <tr><td class="label">Punto vendita</td><td>{{ order['user']['email'] }}</td></tr>
+              <tr><td class="label">Punto vendita</td><td>{{ order.user.email }}</td></tr>
               <tr>
               <td class="label">Punto di ritiro</td>
                 <td>
-                  {{ order['collection_point']['name'] }}<br>
-                  {{ order['collection_point']['address'] }}<br>
-                  {{ order['collection_point']['city'] }} ({{ order['collection_point']['province'] }})
+                  {{ order.collection_point.name }}<br>
+                  {{ order.collection_point.address }}<br>
+                  {{ order.collection_point.city }} ({{ order.collection_point.province }})
                 </td>
               </tr>
             </table>
@@ -193,9 +193,9 @@
           <td style="width: 50%; vertical-align: top; border: none; padding-right: 0px;">
             <h3 style="margin: 0 0 10px;">Destinatario</h3>
             <table class="info-table inner">
-              <tr><td class="label">Nome</td><td>{{ order['addressee'] }}</td></tr>
-              <tr><td class="label">Indirizzo</td><td>{{ order['address'] }}</td></tr>
-              <tr><td class="label">Recapito</td><td>{{ order['addressee_contact'] or '/' }}</td></tr>
+              <tr><td class="label">Nome</td><td>{{ order.addressee }}</td></tr>
+              <tr><td class="label">Indirizzo</td><td>{{ order.address }}</td></tr>
+              <tr><td class="label">Recapito</td><td>{{ order.addressee_contact or '/' }}</td></tr>
             </table>
           </td>
         </tr>
@@ -205,10 +205,10 @@
     <div class="section">
       <h2>Dettagli Consegna</h2>
       <table class="info-table">
-        <tr><td class="label">Data prevista consegna</td><td>{{ order['dpc'] }}</td></tr>
-        <tr><td class="label">Data richiesta consegna</td><td>{{ order['drc'] }}</td></tr>
-        <tr><td class="label">Data consegna effettiva</td><td>{{ order['booking_date'] or '/' }}</td></tr>
-        <tr><td class="label">Note aggiuntive</td><td>{{ order['customer_note'] or '/' }}</td></tr>
+        <tr><td class="label">Data prevista consegna</td><td>{{ order.dpc }}</td></tr>
+        <tr><td class="label">Data richiesta consegna</td><td>{{ order.drc }}</td></tr>
+        <tr><td class="label">Data consegna effettiva</td><td>{{ order.booking_date or '/' }}</td></tr>
+        <tr><td class="label">Note aggiuntive</td><td>{{ order.customer_note or '/' }}</td></tr>
       </table>
     </div>
 
@@ -222,7 +222,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for product_name, services in order['products'].items() %}
+          {% for product_name, services in order.products.items() %}
           <tr>
             <td>{{ product_name }}</td>
             <td>
@@ -251,7 +251,7 @@
             <div style="border: 1px solid #999; padding: 10px 10px 30px;">
               <em>Firma destinatario</em>
               {% if order.signature %}
-                <img src="{{ signature }}" alt="Firma" style="height: 100%;">
+                <img src="{{ order.signature }}" style="height: 100%;" alt="Firma">
               {% endif %}
             </div>
           </td>
