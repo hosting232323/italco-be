@@ -100,8 +100,9 @@ def export_orders_invoice(user: ItalcoUser):
 @export_bp.route('schedule/<id>', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_orders_schedule(user: ItalcoUser, id):
-  orders = []
+  orders_dict = {}
   schedule = {}
+
   for index, tupla in enumerate(query_schedule(id)):
     if index == 0:
       schedule = {**tupla[0].to_dict(), 'transport': tupla[2].to_dict(), 'delivery_group': tupla[1].to_dict()}
@@ -109,9 +110,19 @@ def export_orders_schedule(user: ItalcoUser, id):
     order_dict = format_query_result(
       tuple(value for index, value in enumerate(tupla) if index not in [0, 1, 2]), [], user
     )[0]
-    order_obj: Order = get_by_id(Order, order_dict['id'])
-    order_dict['signature'] = get_signature(order_obj)
-    orders.append(order_dict)
+    order_id = order_dict['id']
+
+    if order_id in orders_dict:
+      for pname, services in order_dict['products'].items():
+        if pname not in orders_dict[order_id]['products']:
+          orders_dict[order_id]['products'][pname] = []
+        orders_dict[order_id]['products'][pname].extend(services)
+    else:
+      order_obj: Order = get_by_id(Order, order_dict['id'])
+      order_dict['signature'] = get_signature(order_obj)
+      orders_dict[order_id] = order_dict
+
+  orders = list(orders_dict.values())
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
