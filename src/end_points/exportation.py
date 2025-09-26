@@ -100,9 +100,8 @@ def export_orders_invoice(user: ItalcoUser):
 @export_bp.route('schedule/<id>', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_orders_schedule(user: ItalcoUser, id):
-  orders_dict = {}
   schedule = {}
-
+  orders_dict = {}
   for index, tupla in enumerate(query_schedule(id)):
     if index == 0:
       schedule = {**tupla[0].to_dict(), 'transport': tupla[2].to_dict(), 'delivery_group': tupla[1].to_dict()}
@@ -110,19 +109,14 @@ def export_orders_schedule(user: ItalcoUser, id):
     order_dict = format_query_result(
       tuple(value for index, value in enumerate(tupla) if index not in [0, 1, 2]), [], user
     )[0]
-    order_id = order_dict['id']
-
-    if order_id in orders_dict:
+    if order_dict['id'] in orders_dict:
       for pname, services in order_dict['products'].items():
-        if pname not in orders_dict[order_id]['products']:
-          orders_dict[order_id]['products'][pname] = []
-        orders_dict[order_id]['products'][pname].extend(services)
+        if pname not in orders_dict[order_dict['id']]['products']:
+          orders_dict[order_dict['id']]['products'][pname] = []
+        orders_dict[order_dict['id']]['products'][pname].extend(services)
     else:
-      order_obj: Order = get_by_id(Order, order_dict['id'])
-      order_dict['signature'] = get_signature(order_obj)
-      orders_dict[order_id] = order_dict
-
-  orders = list(orders_dict.values())
+      order_dict['signature'] = get_signature(get_by_id(Order, order_dict['id']))
+      orders_dict[order_dict['id']] = order_dict
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
@@ -132,7 +126,7 @@ def export_orders_schedule(user: ItalcoUser, id):
       date=schedule['date'],
       delivery_group=schedule['delivery_group']['name'],
       transport=schedule['transport']['name'],
-      orders=orders,
+      orders=list(orders_dict.values()),
     ),
     dest=result,
   )
@@ -165,8 +159,7 @@ def query_schedule(
     ServiceUser,
     Service,
     ItalcoUser,
-    CollectionPoint,
-    Photo,
+    CollectionPoint
   ]
 ]:
   with Session() as session:
@@ -180,8 +173,7 @@ def query_schedule(
         ServiceUser,
         Service,
         ItalcoUser,
-        CollectionPoint,
-        Photo,
+        CollectionPoint
       )
       .join(DeliveryGroup, Schedule.delivery_group_id == DeliveryGroup.id)
       .join(Transport, Schedule.transport_id == Transport.id)
@@ -191,7 +183,6 @@ def query_schedule(
       .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
       .outerjoin(ItalcoUser, ServiceUser.user_id == ItalcoUser.id)
-      .outerjoin(Photo, Photo.order_id == Order.id)
       .filter(Schedule.id == id)
       .all()
     )
