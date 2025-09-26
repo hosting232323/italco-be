@@ -11,10 +11,8 @@ from ..database.schema import ItalcoUser, Order, OrderServiceUser, ServiceUser
 import_bp = Blueprint('import_bp', __name__)
 
 
+SERVICE_ID = 45
 PRODUCT_STRING = 'Ordine importato da file'
-USER_ID = 11
-SERVICE_ID = 2
-COLLECTION_POINT_ID = 1
 
 
 @import_bp.route('', methods=['POST'])
@@ -23,7 +21,7 @@ def order_import(user: ItalcoUser):
   if 'file' not in request.files:
     return {'status': 'ko', 'error': 'Nessun file caricato'}
 
-  service_user = get_service_user()
+  service_user = get_service_user(request.form['customer_id'])
   for index, row in pd.read_excel(request.files['file']).iterrows():
     create(
       OrderServiceUser,
@@ -41,7 +39,7 @@ def order_import(user: ItalcoUser):
             'cap': row['CAP'],
             'drc': row['DRC'],
             'dpc': row['DPC'],
-            'collection_point_id': COLLECTION_POINT_ID,
+            'collection_point_id': request.form['collection_point_id'],
             'customer_note': f'Ref: {row["Rif. Cli. (id)"]}, Note: {row["Note + Note Conf. SIEM"]}',
           },
         ).id,
@@ -51,8 +49,8 @@ def order_import(user: ItalcoUser):
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
-def get_service_user() -> ServiceUser:
+def get_service_user(user_id: int) -> ServiceUser:
   with Session() as session:
     return (
-      session.query(ServiceUser).filter(ServiceUser.user_id == USER_ID, ServiceUser.service_id == SERVICE_ID).first()
+      session.query(ServiceUser).filter(ServiceUser.user_id == user_id, ServiceUser.service_id == SERVICE_ID).first()
     )
