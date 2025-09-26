@@ -17,7 +17,6 @@ from ..database.schema import (
   ServiceUser,
   Service,
   CollectionPoint,
-  Photo,
 )
 
 
@@ -56,10 +55,7 @@ def export_order_report(user: ItalcoUser, id):
   if pisa_status.err:
     raise Exception('Errore nella creazione del PDF')
 
-  response = make_response(result.getvalue())
-  response.headers['Content-Type'] = 'application/pdf'
-  response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
-  return response
+  return export_pdf(result.getvalue())
 
 
 @export_bp.route('invoice', methods=['POST'])
@@ -91,10 +87,7 @@ def export_orders_invoice(user: ItalcoUser):
   if pisa_status.err:
     raise Exception('Errore nella creazione del PDF')
 
-  response = make_response(result.getvalue())
-  response.headers['Content-Type'] = 'application/pdf'
-  response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
-  return response
+  return export_pdf(result.getvalue())
 
 
 @export_bp.route('schedule/<id>', methods=['GET'])
@@ -133,10 +126,7 @@ def export_orders_schedule(user: ItalcoUser, id):
   if pisa_status.err:
     raise Exception('Errore nella creazione del PDF')
 
-  response = make_response(result.getvalue())
-  response.headers['Content-Type'] = 'application/pdf'
-  response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
-  return response
+  return export_pdf(result.getvalue())
 
 
 def get_signature(order: Order):
@@ -147,33 +137,22 @@ def get_signature(order: Order):
     return None
 
 
+def export_pdf(document):
+  response = make_response(document)
+  response.headers['Content-Type'] = 'application/pdf'
+  response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
+  return response
+
+
 def query_schedule(
   id: int,
 ) -> list[
-  tuple[
-    Schedule,
-    DeliveryGroup,
-    Transport,
-    Order,
-    OrderServiceUser,
-    ServiceUser,
-    Service,
-    ItalcoUser,
-    CollectionPoint
-  ]
+  tuple[Schedule, DeliveryGroup, Transport, Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint]
 ]:
   with Session() as session:
     return (
       session.query(
-        Schedule,
-        DeliveryGroup,
-        Transport,
-        Order,
-        OrderServiceUser,
-        ServiceUser,
-        Service,
-        ItalcoUser,
-        CollectionPoint
+        Schedule, DeliveryGroup, Transport, Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint
       )
       .join(DeliveryGroup, Schedule.delivery_group_id == DeliveryGroup.id)
       .join(Transport, Schedule.transport_id == Transport.id)
