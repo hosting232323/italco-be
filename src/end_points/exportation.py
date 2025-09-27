@@ -17,7 +17,6 @@ from ..database.schema import (
   ServiceUser,
   Service,
   CollectionPoint,
-  Photo,
 )
 
 
@@ -56,10 +55,7 @@ def export_order_report(user: ItalcoUser, id):
   if pisa_status.err:
     raise Exception('Errore nella creazione del PDF')
 
-  response = make_response(result.getvalue())
-  response.headers['Content-Type'] = 'application/pdf'
-  response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
-  return response
+  return export_pdf(result.getvalue())
 
 
 @export_bp.route('invoice', methods=['POST'])
@@ -91,17 +87,14 @@ def export_orders_invoice(user: ItalcoUser):
   if pisa_status.err:
     raise Exception('Errore nella creazione del PDF')
 
-  response = make_response(result.getvalue())
-  response.headers['Content-Type'] = 'application/pdf'
-  response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
-  return response
+  return export_pdf(result.getvalue())
 
 
 @export_bp.route('schedule/<id>', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_orders_schedule(user: ItalcoUser, id):
-  orders = []
   schedule = {}
+  orders_dict = {}
   for index, tupla in enumerate(query_schedule(id)):
     if index == 0:
       schedule = {**tupla[0].to_dict(), 'transport': tupla[2].to_dict(), 'delivery_group': tupla[1].to_dict()}
@@ -109,9 +102,14 @@ def export_orders_schedule(user: ItalcoUser, id):
     order_dict = format_query_result(
       tuple(value for index, value in enumerate(tupla) if index not in [0, 1, 2]), [], user
     )[0]
-    order_obj: Order = get_by_id(Order, order_dict['id'])
-    order_dict['signature'] = get_signature(order_obj)
-    orders.append(order_dict)
+    if order_dict['id'] in orders_dict:
+      for pname, services in order_dict['products'].items():
+        if pname not in orders_dict[order_dict['id']]['products']:
+          orders_dict[order_dict['id']]['products'][pname] = []
+        orders_dict[order_dict['id']]['products'][pname].extend(services)
+    else:
+      order_dict['signature'] = get_signature(get_by_id(Order, order_dict['id']))
+      orders_dict[order_dict['id']] = order_dict
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
@@ -121,17 +119,14 @@ def export_orders_schedule(user: ItalcoUser, id):
       date=schedule['date'],
       delivery_group=schedule['delivery_group']['name'],
       transport=schedule['transport']['name'],
-      orders=orders,
+      orders=list(orders_dict.values()),
     ),
     dest=result,
   )
   if pisa_status.err:
     raise Exception('Errore nella creazione del PDF')
 
-  response = make_response(result.getvalue())
-  response.headers['Content-Type'] = 'application/pdf'
-  response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
-  return response
+  return export_pdf(result.getvalue())
 
 
 def get_signature(order: Order):
@@ -142,35 +137,22 @@ def get_signature(order: Order):
     return None
 
 
+def export_pdf(document):
+  response = make_response(document)
+  response.headers['Content-Type'] = 'application/pdf'
+  response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
+  return response
+
+
 def query_schedule(
   id: int,
 ) -> list[
-  tuple[
-    Schedule,
-    DeliveryGroup,
-    Transport,
-    Order,
-    OrderServiceUser,
-    ServiceUser,
-    Service,
-    ItalcoUser,
-    CollectionPoint,
-    Photo,
-  ]
+  tuple[Schedule, DeliveryGroup, Transport, Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint]
 ]:
   with Session() as session:
     return (
       session.query(
-        Schedule,
-        DeliveryGroup,
-        Transport,
-        Order,
-        OrderServiceUser,
-        ServiceUser,
-        Service,
-        ItalcoUser,
-        CollectionPoint,
-        Photo,
+        Schedule, DeliveryGroup, Transport, Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint
       )
       .join(DeliveryGroup, Schedule.delivery_group_id == DeliveryGroup.id)
       .join(Transport, Schedule.transport_id == Transport.id)
@@ -180,7 +162,6 @@ def query_schedule(
       .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
       .outerjoin(ItalcoUser, ServiceUser.user_id == ItalcoUser.id)
-      .outerjoin(Photo, Photo.order_id == Order.id)
       .filter(Schedule.id == id)
       .all()
     )
