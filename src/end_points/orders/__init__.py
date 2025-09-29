@@ -94,7 +94,7 @@ def update_order(user: ItalcoUser, id):
 
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
-  if user.role == UserRole.DELIVERY and data['status'] in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
+  if data['status'] in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
     data['booking_date'] = datetime.now()
   if user.role != UserRole.DELIVERY:
     update_order_service_user(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'])
