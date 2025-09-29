@@ -20,19 +20,8 @@ hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 @schedule_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def create_schedule(user: ItalcoUser):
-  order_ids = [o['id'] for o in request.json['orders']]
-  orders_data = request.json['orders']
-  del request.json['order_ids']
-  del request.json['orders']
-  orders: list[Order] = get_by_ids(Order, order_ids)
-  if not orders:
-    return {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
-
-  if query_schedules_count(request.json['delivery_group_id'], request.json['date']) > 0:
-    return {'status': 'ko', 'error': 'Esiste già un borderò per questa data'}
-
-  schedule = create(Schedule, request.json)
-  orders_data_map = {o['id']: o for o in orders_data}
+  orders, orders_data_map, schedule_data = format_schedule_data(request.json)
+  schedule = create(Schedule, schedule_data)
   for order in orders:
     if order.id in orders_data_map:
       data_update = orders_data_map[order.id]
@@ -47,21 +36,7 @@ def create_schedule(user: ItalcoUser):
           'assignament_date': datetime.now(),
         },
       )
-
-      if not IS_DEV and order.addressee_contact:
-        start = order.start_time_slot.strftime('%H:%M')
-        end = order.end_time_slot.strftime('%H:%M')
-        send_sms(
-          os.environ['VONAGE_API_KEY'],
-          os.environ['VONAGE_API_SECRET'],
-          'Ares',
-          order.addressee_contact,
-          f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order)}, è programmata per il {order.assignament_date}'
-          f", fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell'arrivo. Per monitorare ogni f"
-          f'ase della sua consegna clicchi il link in questione {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilit'
-          'à al numero indicato. Buona Giornata!',
-        )
-
+      send_schedule_sms(order)
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
@@ -86,10 +61,26 @@ def get_schedules(user: ItalcoUser):
 
 
 @schedule_bp.route('<id>', methods=['PUT'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def update_schedule(user: ItalcoUser, id):
-  schedule: Schedule = get_by_id(Schedule, int(id))
-  return {'status': 'ok', 'order': update(schedule, request.json).to_dict()}
+  orders, orders_data_map, schedule_data = format_schedule_data(request.json)
+  schedule: Schedule = update(get_by_id(Schedule, int(id)), schedule_data)
+  for order in orders:
+    if order.id in orders_data_map:
+      data_update = orders_data_map[order.id]
+      diff = {
+        'schedule_id': schedule.id,
+        'start_time_slot': data_update['start_time_slot'],
+        'end_time_slot': data_update['end_time_slot'],
+        'schedule_index': data_update['schedule_index'],
+      }
+      if order.status == OrderStatus.PENDING:
+        diff['status'] = OrderStatus.IN_PROGRESS
+      if not order.assignament_date:
+        diff['assignament_date'] = datetime.now()
+      order = update(order, diff)
+      send_schedule_sms(order)
+  return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
 def query_schedules() -> list[tuple[Schedule, DeliveryGroup, Transport, Order]]:
@@ -147,6 +138,36 @@ def get_selling_point(order: Order) -> str:
         and_(ServiceUser.id == OrderServiceUser.service_user_id, OrderServiceUser.order_id == order.id),
       )
       .scalar()
+    )
+
+
+def format_schedule_data(schedule_data: dict):
+  orders_data = schedule_data['orders']
+  del schedule_data['order_ids']
+  del schedule_data['orders']
+  orders: list[Order] = get_by_ids(Order, [o['id'] for o in orders_data])
+  if not orders:
+    return {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
+
+  if query_schedules_count(schedule_data['delivery_group_id'], schedule_data['date']) > 0:
+    return {'status': 'ko', 'error': 'Esiste già un borderò per questa data'}
+
+  return orders, {o['id']: o for o in orders_data}, schedule_data
+
+
+def send_schedule_sms(order: Order):
+  if not IS_DEV and order.addressee_contact:
+    start = order.start_time_slot.strftime('%H:%M')
+    end = order.end_time_slot.strftime('%H:%M')
+    send_sms(
+      os.environ['VONAGE_API_KEY'],
+      os.environ['VONAGE_API_SECRET'],
+      'Ares',
+      order.addressee_contact,
+      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order)}, è programmata per il {order.assignament_date}'
+      f", fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell'arrivo. Per monitorare ogni f"
+      f'ase della sua consegna clicchi il link in questione {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilit'
+      'à al numero indicato. Buona Giornata!',
     )
 
 
