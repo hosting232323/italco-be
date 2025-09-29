@@ -6,6 +6,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 
 from database_api import Base
+from src.database.schema import *  # noqa: F403
 
 
 load_dotenv()
