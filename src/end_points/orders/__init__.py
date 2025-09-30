@@ -129,10 +129,10 @@ def update_order(user: ItalcoUser, id):
   return {'status': 'ok', 'order': order.to_dict()}
 
 
-@order_bp.route('get-photos/<order_id>', methods=['GET'])
+@order_bp.route('delivery-details/<order_id>', methods=['GET'])
 @error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN])
-def get_order_photos(user: ItalcoUser, order_id: int):
+def get_delivery_details(user: ItalcoUser, order_id: int):
   return {'status': 'ok', 'photos': get_order_photo_ids(order_id)}
 
 

@@ -30,9 +30,26 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['id_order'], ['order.id'], ),
     sa.PrimaryKeyConstraint('id')
   )
+  connection = op.get_bind()
+  orders = connection.execute(sa.text("SELECT id, motivation, status, delay, anomaly FROM 'order' WHERE motivation IS NOT NULL")).fetchall()
+  for order in orders:
+    connection.execute(
+      sa.text(
+        "INSERT INTO motivation (id_order, text, status, delay, anomaly, created_at, updated_at) "
+        "VALUES (:id_order, :text, :status, :delay, :anomaly, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+      ),
+      {"id_order": order.id, "text": order.motivation, "status": order.status, "delay": order.delay, "anomaly": order.anomaly}
+    )
   op.drop_column('order', 'motivation')
 
 
 def downgrade() -> None:
   op.add_column('order', sa.Column('motivation', sa.VARCHAR(), autoincrement=False, nullable=True))
+  connection = op.get_bind()
+  motivations = connection.execute(sa.text("SELECT id_order, text FROM motivation")).fetchall()
+  for m in motivations:
+    connection.execute(
+      sa.text("UPDATE 'order' SET motivation=:text WHERE id=:id_order"),
+      {"text": m.text, "id_order": m.id_order}
+    )
   op.drop_table('motivation')
