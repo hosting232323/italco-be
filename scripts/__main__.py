@@ -9,9 +9,9 @@ from database_api.operations import get_all, update
 if __name__ == '__main__':
   set_database(os.environ['DATABASE_URL'])
 
-  orders = get_all(Order)
+  orders: list[Order] = get_all(Order)
 
-  for order in tqdm(orders, desc="Aggiornamento delivery_date"):
+  for order in tqdm(orders, desc='Aggiornamento delivery_date'):
     if order.status in [OrderStatus.COMPLETED, OrderStatus.CANCELLED]:
-      if not getattr(order, "delivery_date", None):
-        update(order, {"delivery_date": order.dpc})
+      if not order.booking_date:
+        update(order, {'booking_date': order.dpc})
