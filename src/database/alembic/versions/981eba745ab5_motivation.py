@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
   op.create_table('motivation',
     sa.Column('id_order', sa.Integer(), nullable=False),
-    sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'AT_WAREHOUSE', name='orderstatus'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'AT_WAREHOUSE', name='orderstatusdup'), nullable=False),
     sa.Column('delay', sa.Boolean(), nullable=True),
     sa.Column('anomaly', sa.Boolean(), nullable=True),
     sa.Column('text', sa.String(), nullable=True),
@@ -31,7 +31,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
   )
   connection = op.get_bind()
-  orders = connection.execute(sa.text("SELECT id, motivation, status, delay, anomaly FROM 'order' WHERE motivation IS NOT NULL")).fetchall()
+  orders = connection.execute(sa.text("SELECT id, motivation, status, delay, anomaly FROM \"order\" WHERE motivation IS NOT NULL")).fetchall()
   for order in orders:
     connection.execute(
       sa.text(
