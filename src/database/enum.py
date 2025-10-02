@@ -15,6 +15,7 @@ class OrderStatus(BaseEnum):
   COMPLETED = 'Completed'
   CANCELLED = 'Cancelled'
   AT_WAREHOUSE = 'At Warehouse'
+  TO_RESCHEDULE = 'Da Riprogrammare'
 
 
 class OrderType(BaseEnum):
