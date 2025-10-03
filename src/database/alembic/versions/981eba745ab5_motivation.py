@@ -46,6 +46,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-  op.add_column('order', sa.Column('motivation', sa.Boolean(), autoincrement=False, nullable=True, default=False))
+  op.add_column('order', sa.Column('delay', sa.Boolean(), autoincrement=False, nullable=True, default=False))
   op.add_column('order', sa.Column('anomaly', sa.Boolean(), autoincrement=False, nullable=True, default=False))
   op.add_column('order', sa.Column('motivation', sa.String(), autoincrement=False, nullable=True))
