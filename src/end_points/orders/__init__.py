@@ -9,7 +9,7 @@ from ... import IS_DEV
 from .mailer import mailer_check
 from api import error_catching_decorator
 from .. import flask_session_authentication
-from ...database.schema import ItalcoUser, Order, Photo
+from ...database.schema import ItalcoUser, Order, Photo, Motivation
 from ..schedule import get_selling_point, get_order_link
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
@@ -73,6 +73,7 @@ def get_order(id):
       order['lat'] = delivery_group.lat
       order['lon'] = delivery_group.lon
 
+
   return {'status': 'ok', 'order': order}
 
 
@@ -92,7 +93,14 @@ def update_order(user: ItalcoUser, id):
   else:
     data = request.json
     
-  print(data)
+  motivation_params = {
+    'id_order': data['id'],
+    'status': OrderStatus(data['status']),
+    'delay': data['delay'],
+    'anomaly': data['anomaly'],
+    'text': data['motivation']
+  }
+  create(Motivation, motivation_params)
 
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
