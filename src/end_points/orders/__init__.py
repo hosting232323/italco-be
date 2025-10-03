@@ -111,7 +111,7 @@ def update_order(user: ItalcoUser, id):
 
   previous_start = order.start_time_slot
   previous_end = order.end_time_slot
-  data = {key: value for key, value in data.items() if key not in ['products', 'user_id']}
+  data = {key: value for key, value in data.items() if key not in ['products', 'user_id', 'motivation']}
   order = update(order, data)
 
   if (
