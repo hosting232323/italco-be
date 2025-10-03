@@ -11,8 +11,7 @@ from ...database.schema import (
   Photo,
   Schedule,
   DeliveryGroup,
-  CustomerGroup,
-  Motivation
+  CustomerGroup
 )
 from ...database.enum import UserRole, OrderType, OrderStatus
 from database_api import Session
