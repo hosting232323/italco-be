@@ -41,11 +41,8 @@ def upgrade() -> None:
       {"id_order": order.id, "text": order.motivation, "status": order.status, "delay": order.delay, "anomaly": order.anomaly}
     )
   op.drop_column('order', 'motivation')
-  op.drop_column('order', 'delay')
-  op.drop_column('order', 'anomaly')
 
 
 def downgrade() -> None:
-  op.add_column('order', sa.Column('delay', sa.Boolean(), autoincrement=False, nullable=True, default=False))
-  op.add_column('order', sa.Column('anomaly', sa.Boolean(), autoincrement=False, nullable=True, default=False))
   op.add_column('order', sa.Column('motivation', sa.String(), autoincrement=False, nullable=True))
+  op.drop_table('motivation')
