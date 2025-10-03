@@ -111,7 +111,7 @@ def query_schedules_count(delivery_group_id, schedule_date, this_id) -> int:
       .filter(
         Schedule.delivery_group_id == delivery_group_id,
         Schedule.date == datetime.strptime(schedule_date, '%Y-%m-%d').date(),
-        Schedule.id != this_id
+        Schedule.id != this_id,
       )
       .count()
     )
@@ -153,11 +153,7 @@ def get_selling_point(order: Order) -> str:
 
 
 def remove_order_from_schedule(order: Order):
-  update(order, {
-    'schedule_id': None,
-    'assignament_date': None,
-    'status': OrderStatus.PENDING}
-  )
+  update(order, {'schedule_id': None, 'assignament_date': None, 'status': OrderStatus.PENDING})
 
 
 def format_schedule_data(schedule_data: dict, schedule_id: int = None):
@@ -175,11 +171,7 @@ def format_schedule_data(schedule_data: dict, schedule_id: int = None):
   if not orders:
     return None, None, None, {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
 
-  if query_schedules_count(
-    schedule_data['delivery_group_id'],
-    schedule_data['date'],
-    schedule_id
-  ) > 0:
+  if query_schedules_count(schedule_data['delivery_group_id'], schedule_data['date'], schedule_id) > 0:
     return None, None, None, {'status': 'ko', 'error': 'Esiste già un borderò per questa data'}
 
   orders_data_map = {o['id']: o for o in orders_data}
