@@ -57,16 +57,15 @@ def query_orders(
 
 def query_delivery_orders(
   user: ItalcoUser,
-) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Motivation]]:
+) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint]]:
   with Session() as session:
     return (
-      session.query(Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Motivation)
+      session.query(Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint)
       .outerjoin(CollectionPoint, Order.collection_point_id == CollectionPoint.id)
       .outerjoin(OrderServiceUser, OrderServiceUser.order_id == Order.id)
       .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
       .outerjoin(ItalcoUser, ServiceUser.user_id == ItalcoUser.id)
-      .outerjoin(Motivation, Motivation.id_order == Order.id)
       .join(
         Schedule,
         and_(
@@ -96,7 +95,7 @@ def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -
 
 
 def format_query_result(
-  tupla: tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint, Motivation],
+  tupla: tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint],
   list: list[dict],
   user: ItalcoUser,
 ) -> list[dict]:
@@ -111,7 +110,6 @@ def format_query_result(
     'products': {},
     'collection_point': tupla[5].to_dict(),
     'user': tupla[4].format_user(user.role),
-    'motivation':  tupla[6].to_dict() if tupla[6] else None
   }
   add_service(output, tupla[3], tupla[1], tupla[2].price)
   list.append(output)
