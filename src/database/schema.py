@@ -74,8 +74,6 @@ class Order(BaseEntity):
   schedule_index = Column(Integer, nullable=True)
   start_time_slot = Column(Time, nullable=True)
   end_time_slot = Column(Time, nullable=True)
-  anomaly = Column(Boolean, nullable=True, default=False)
-  delay = Column(Boolean, nullable=True, default=False)
   signature = Column(LargeBinary, nullable=True)
 
   photo = relationship('Photo', back_populates='order')

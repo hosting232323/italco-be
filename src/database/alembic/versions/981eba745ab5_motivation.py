@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
   op.create_table('motivation',
     sa.Column('id_order', sa.Integer(), nullable=False),
-    sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'AT_WAREHOUSE', name='orderstatusdup'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'AT_WAREHOUSE', name='orderstatusdupl'), nullable=False),
     sa.Column('delay', sa.Boolean(), nullable=True),
     sa.Column('anomaly', sa.Boolean(), nullable=True),
     sa.Column('text', sa.String(), nullable=True),
@@ -41,15 +41,11 @@ def upgrade() -> None:
       {"id_order": order.id, "text": order.motivation, "status": order.status, "delay": order.delay, "anomaly": order.anomaly}
     )
   op.drop_column('order', 'motivation')
+  op.drop_column('order', 'delay')
+  op.drop_column('order', 'anomaly')
 
 
 def downgrade() -> None:
-  op.add_column('order', sa.Column('motivation', sa.VARCHAR(), autoincrement=False, nullable=True))
-  connection = op.get_bind()
-  motivations = connection.execute(sa.text("SELECT id_order, text FROM motivation")).fetchall()
-  for m in motivations:
-    connection.execute(
-      sa.text("UPDATE 'order' SET motivation=:text WHERE id=:id_order"),
-      {"text": m.text, "id_order": m.id_order}
-    )
-  op.drop_table('motivation')
+  op.add_column('order', sa.Column('motivation', sa.Boolean(), autoincrement=False, nullable=True, default=False))
+  op.add_column('order', sa.Column('anomaly', sa.Boolean(), autoincrement=False, nullable=True, default=False))
+  op.add_column('order', sa.Column('motivation', sa.String(), autoincrement=False, nullable=True))
