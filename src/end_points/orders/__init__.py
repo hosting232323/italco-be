@@ -92,8 +92,10 @@ def update_order(user: ItalcoUser, id):
   else:
     data = request.json
 
+  print(data['status'])
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
+  print(data['status'])
   if data['status'] in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
     data['booking_date'] = datetime.now()
   if user.role != UserRole.DELIVERY:
