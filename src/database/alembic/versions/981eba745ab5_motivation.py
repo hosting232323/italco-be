@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
   op.create_table('motivation',
     sa.Column('id_order', sa.Integer(), nullable=False),
-    sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'AT_WAREHOUSE', name='orderstatusdupl'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'AT_WAREHOUSE', name='orderstatusduplic'), nullable=False),
     sa.Column('delay', sa.Boolean(), nullable=True),
     sa.Column('anomaly', sa.Boolean(), nullable=True),
     sa.Column('text', sa.String(), nullable=True),
