@@ -14,7 +14,7 @@ MAILS = (
 )
 
 
-def mailer_check(order: Order, data: dict):
+def mailer_check(order: Order, data: dict, motivation: str):
   if (
     ('status' in data and data['status'] == OrderStatus.CANCELLED)
     or ('anomaly' in data and data['anomaly'] is True)
@@ -41,7 +41,7 @@ def mailer_check(order: Order, data: dict):
       states.append('con anomalia')
 
     subject = f'{" ".join(icons)} Ordine {order.id} {order.addressee} {" ".join(states)}'
-    text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {order.motivation}'
-    html = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {order.motivation}<br>Foto:<br>{photos_html}'
+    text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {motivation}'
+    html = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {motivation}<br>Foto:<br>{photos_html}'
     for mail in MAILS:
       send_email(mail, {'text': text, 'html': html}, subject)
