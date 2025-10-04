@@ -2,9 +2,9 @@ from flask import request
 
 from ... import IS_DEV
 from api.email import send_email
-from ...database.schema import Order
 from ...database.enum import OrderStatus
 from .queries import get_order_photo_ids
+from ...database.schema import Order, Motivation
 
 
 MAILS = (
@@ -14,7 +14,7 @@ MAILS = (
 )
 
 
-def mailer_check(order: Order, data: dict, motivation: str):
+def mailer_check(order: Order, data: dict, motivation: Motivation):
   if (
     ('status' in data and data['status'] == OrderStatus.CANCELLED)
     or ('anomaly' in data and data['anomaly'] is True)
@@ -41,7 +41,7 @@ def mailer_check(order: Order, data: dict, motivation: str):
       states.append('con anomalia')
 
     subject = f'{" ".join(icons)} Ordine {order.id} {order.addressee} {" ".join(states)}'
-    text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {motivation}'
-    html = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {motivation}<br>Foto:<br>{photos_html}'
+    text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {motivation.text}'
+    html = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {motivation.text}<br>Foto:<br>{photos_html}'
     for mail in MAILS:
       send_email(mail, {'text': text, 'html': html}, subject)

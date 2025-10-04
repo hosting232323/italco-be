@@ -73,7 +73,6 @@ def get_order(id):
       order['lat'] = delivery_group.lat
       order['lon'] = delivery_group.lon
 
-
   return {'status': 'ok', 'order': order}
 
 
@@ -92,16 +91,14 @@ def update_order(user: ItalcoUser, id):
           create(Photo, {'photo': uploaded_file.read(), 'mime_type': uploaded_file.mimetype, 'order_id': order.id})
   else:
     data = request.json
-    
-  motivation = data['motivation']
-  motivation_params = {
+
+  motivation = create(Motivation, {
     'id_order': data['id'],
     'status': OrderStatus(data['status']),
     'delay': data['delay'] if 'delay' in data else False,
     'anomaly': data['anomaly'] if 'delay' in data else False,
-    'text': motivation
-  }
-  create(Motivation, motivation_params)
+    'text': data['motivation']
+  })
 
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
@@ -147,7 +144,6 @@ def get_delivery_details(user: ItalcoUser, order_id: int):
     'motivations': [m.to_dict() for m in get_motivations_by_order_id(order_id)],
     'photos': get_order_photo_ids(order_id)
   }
-
 
 
 @order_bp.route('photo/<photo_id>', methods=['GET'])
