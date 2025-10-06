@@ -11,7 +11,6 @@ class ItalcoUser(User):
 
   role = Column(Enum(UserRole), nullable=False)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
-  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
   customer_group = relationship('CustomerGroup', back_populates='italco_user')
   delivery_group = relationship('DeliveryGroup', back_populates='italco_user')
@@ -40,7 +39,9 @@ class DeliveryGroup(BaseEntity):
   name = Column(String, nullable=False)
   lat = Column(Numeric(11, 8), nullable=True)
   lon = Column(Numeric(11, 8), nullable=True)
-
+  schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False) 
+  italco_user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
+  
   schedule = relationship('Schedule', back_populates='delivery_group')
   italco_user = relationship('ItalcoUser', back_populates='delivery_group')
 
@@ -102,7 +103,6 @@ class Schedule(BaseEntity):
 
   date = Column(Date, nullable=False)
   transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
-  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
   order = relationship('Order', back_populates='schedule')
   transport = relationship('Transport', back_populates='schedule')
