@@ -69,7 +69,6 @@ class Order(BaseEntity):
   assignament_date = Column(Date, nullable=True)
   customer_note = Column(String, nullable=True)
   operator_note = Column(String, nullable=True)
-  motivation = Column(String, nullable=True)
   schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=True)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
   schedule_index = Column(Integer, nullable=True)
@@ -83,6 +82,19 @@ class Order(BaseEntity):
   schedule = relationship('Schedule', back_populates='order')
   collection_point = relationship('CollectionPoint', back_populates='order')
   order_service_user = relationship('OrderServiceUser', back_populates='order')
+  motivations = relationship('Motivation', back_populates='order', cascade='all, delete-orphan')
+
+
+class Motivation(BaseEntity):
+  __tablename__ = 'motivation'
+
+  id_order = Column(Integer, ForeignKey('order.id'), nullable=False)
+  status = Column(Enum(OrderStatus), nullable=False)
+  delay = Column(Boolean, nullable=True, default=False)
+  anomaly = Column(Boolean, nullable=True, default=False)
+  text = Column(String, nullable=True)
+
+  order = relationship('Order', back_populates='motivations')
 
 
 class Schedule(BaseEntity):

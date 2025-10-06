@@ -9,12 +9,19 @@ from ... import IS_DEV
 from .mailer import mailer_check
 from api import error_catching_decorator
 from .. import flask_session_authentication
-from ...database.schema import ItalcoUser, Order, Photo
+from ...database.schema import ItalcoUser, Order, Photo, Motivation
 from ..schedule import get_selling_point, get_order_link
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
 from .services import create_order_service_user, update_order_service_user
-from .queries import query_orders, query_delivery_orders, format_query_result, query_delivery_group, get_order_photo_ids
+from .queries import (
+  query_orders,
+  query_delivery_orders,
+  format_query_result,
+  query_delivery_group,
+  get_order_photo_ids,
+  get_motivations_by_order_id,
+)
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -92,6 +99,17 @@ def update_order(user: ItalcoUser, id):
   else:
     data = request.json
 
+  motivation = create(
+    Motivation,
+    {
+      'id_order': data['id'],
+      'status': OrderStatus(data['status']),
+      'delay': data['delay'] if 'delay' in data else False,
+      'anomaly': data['anomaly'] if 'delay' in data else False,
+      'text': data['motivation'],
+    },
+  )
+
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
   if data['status'] in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
@@ -101,7 +119,7 @@ def update_order(user: ItalcoUser, id):
 
   previous_start = order.start_time_slot
   previous_end = order.end_time_slot
-  data = {key: value for key, value in data.items() if key not in ['products', 'user_id']}
+  data = {key: value for key, value in data.items() if key not in ['products', 'user_id', 'motivation']}
   order = update(order, data)
 
   if (
@@ -123,15 +141,19 @@ def update_order(user: ItalcoUser, id):
       f'e {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilità al numero indicato. Buona Giornata!',
     )
 
-  mailer_check(order, data)
+  mailer_check(order, data, motivation)
   return {'status': 'ok', 'order': order.to_dict()}
 
 
-@order_bp.route('get-photos/<order_id>', methods=['GET'])
+@order_bp.route('delivery-details/<order_id>', methods=['GET'])
 @error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN])
-def get_order_photos(user: ItalcoUser, order_id: int):
-  return {'status': 'ok', 'photos': get_order_photo_ids(order_id)}
+def get_delivery_details(user: ItalcoUser, order_id: int):
+  return {
+    'status': 'ok',
+    'motivations': [m.to_dict() for m in get_motivations_by_order_id(order_id)],
+    'photos': get_order_photo_ids(order_id),
+  }
 
 
 @order_bp.route('photo/<photo_id>', methods=['GET'])
