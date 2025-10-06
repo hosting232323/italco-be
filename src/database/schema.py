@@ -10,10 +10,11 @@ class User(BaseEntity):
 
   email = Column(String)
   password = Column(String)
+  lat = Column(Numeric(11, 8))
+  lon = Column(Numeric(11, 8))
   role = Column(Enum(UserRole), nullable=False)
   nickname = Column(String, unique=True, nullable=False)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
-  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
   customer_group = relationship('CustomerGroup', back_populates='user')
   delivery_group = relationship('DeliveryGroup', back_populates='user')
@@ -39,9 +40,8 @@ class CustomerGroup(BaseEntity):
 class DeliveryGroup(BaseEntity):
   __tablename__ = 'delivery_group'
 
-  name = Column(String, nullable=False)
-  lat = Column(Numeric(11, 8), nullable=True)
-  lon = Column(Numeric(11, 8), nullable=True)
+  schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)
+  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   schedule = relationship('Schedule', back_populates='delivery_group')
   user = relationship('User', back_populates='delivery_group')
@@ -104,7 +104,6 @@ class Schedule(BaseEntity):
 
   date = Column(Date, nullable=False)
   transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
-  delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
   order = relationship('Order', back_populates='schedule')
   transport = relationship('Transport', back_populates='schedule')
