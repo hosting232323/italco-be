@@ -99,16 +99,19 @@ def update_order(user: ItalcoUser, id):
   else:
     data = request.json
 
-  motivation = create(
-    Motivation,
-    {
-      'id_order': data['id'],
-      'status': OrderStatus(data['status']),
-      'delay': data['delay'] if 'delay' in data else False,
-      'anomaly': data['anomaly'] if 'delay' in data else False,
-      'text': data['motivation'],
-    },
-  )
+  if 'motivation' in data:
+    motivation = create(
+      Motivation,
+      {
+        'id_order': data['id'],
+        'status': OrderStatus(data['status']),
+        'delay': data['delay'] if 'delay' in data else False,
+        'anomaly': data['anomaly'] if 'delay' in data else False,
+        'text': data['motivation'],
+      },
+    )
+  else:
+    motivation = None
 
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])

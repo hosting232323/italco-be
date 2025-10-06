@@ -40,8 +40,9 @@ def mailer_check(order: Order, data: dict, motivation: Motivation):
       icons.append('⚠')
       states.append('con anomalia')
 
+    motivation_text = motivation.text if motivation else 'Nessuna motivazione fornita'
     subject = f'{" ".join(icons)} Ordine {order.id} {order.addressee} {" ".join(states)}'
-    text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {motivation.text}'
-    html = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {motivation.text}<br>Foto:<br>{photos_html}'
+    text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {motivation_text}'
+    html = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {motivation_text}<br>Foto:<br>{photos_html}'
     for mail in MAILS:
       send_email(mail, {'text': text, 'html': html}, subject)
