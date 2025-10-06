@@ -39,9 +39,9 @@ class DeliveryGroup(BaseEntity):
   name = Column(String, nullable=False)
   lat = Column(Numeric(11, 8), nullable=True)
   lon = Column(Numeric(11, 8), nullable=True)
-  schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False) 
+  schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)
   italco_user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
-  
+
   schedule = relationship('Schedule', back_populates='delivery_group')
   italco_user = relationship('ItalcoUser', back_populates='delivery_group')
 
