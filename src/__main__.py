@@ -5,6 +5,7 @@ from .database.schema import ItalcoUser
 from .end_points import flask_session_authentication
 
 from .end_points.orders import order_bp
+from .end_points.chatty import chatty_bp
 from .end_points.schedule import schedule_bp
 from .end_points.importation import import_bp
 from .end_points.exportation import export_bp
@@ -35,6 +36,7 @@ def check_constraints(user: ItalcoUser):
 
 app.register_blueprint(user_bp, url_prefix='/user')
 app.register_blueprint(order_bp, url_prefix='/order')
+app.register_blueprint(chatty_bp, url_prefix='/chatty')
 app.register_blueprint(import_bp, url_prefix='/import')
 app.register_blueprint(export_bp, url_prefix='/export')
 app.register_blueprint(service_bp, url_prefix='/service')
