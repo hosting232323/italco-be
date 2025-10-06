@@ -12,7 +12,7 @@ from ...database.schema import (
   Schedule,
   DeliveryGroup,
   CustomerGroup,
-  Motivation
+  Motivation,
 )
 from ...database.enum import UserRole, OrderType, OrderStatus
 from database_api import Session
@@ -150,8 +150,4 @@ def get_order_photo_ids(order_id: int) -> list[int]:
 
 def get_motivations_by_order_id(order_id: int) -> list[Motivation]:
   with Session() as session:
-    return (
-      session.query(Motivation)
-      .filter(Motivation.id_order == order_id)
-      .all()
-    )
+    return session.query(Motivation).filter(Motivation.id_order == order_id).all()

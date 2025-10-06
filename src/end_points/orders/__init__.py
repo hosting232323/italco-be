@@ -14,7 +14,14 @@ from ..schedule import get_selling_point, get_order_link
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
 from .services import create_order_service_user, update_order_service_user
-from .queries import query_orders, query_delivery_orders, format_query_result, query_delivery_group, get_order_photo_ids, get_motivations_by_order_id
+from .queries import (
+  query_orders,
+  query_delivery_orders,
+  format_query_result,
+  query_delivery_group,
+  get_order_photo_ids,
+  get_motivations_by_order_id,
+)
 
 
 order_bp = Blueprint('order_bp', __name__)
@@ -92,13 +99,16 @@ def update_order(user: ItalcoUser, id):
   else:
     data = request.json
 
-  motivation = create(Motivation, {
-    'id_order': data['id'],
-    'status': OrderStatus(data['status']),
-    'delay': data['delay'] if 'delay' in data else False,
-    'anomaly': data['anomaly'] if 'delay' in data else False,
-    'text': data['motivation']
-  })
+  motivation = create(
+    Motivation,
+    {
+      'id_order': data['id'],
+      'status': OrderStatus(data['status']),
+      'delay': data['delay'] if 'delay' in data else False,
+      'anomaly': data['anomaly'] if 'delay' in data else False,
+      'text': data['motivation'],
+    },
+  )
 
   data['type'] = OrderType.get_enum_option(data['type'])
   data['status'] = OrderStatus.get_enum_option(data['status'])
@@ -142,7 +152,7 @@ def get_delivery_details(user: ItalcoUser, order_id: int):
   return {
     'status': 'ok',
     'motivations': [m.to_dict() for m in get_motivations_by_order_id(order_id)],
-    'photos': get_order_photo_ids(order_id)
+    'photos': get_order_photo_ids(order_id),
   }
 
 

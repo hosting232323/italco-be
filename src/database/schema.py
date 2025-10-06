@@ -82,8 +82,8 @@ class Order(BaseEntity):
   schedule = relationship('Schedule', back_populates='order')
   collection_point = relationship('CollectionPoint', back_populates='order')
   order_service_user = relationship('OrderServiceUser', back_populates='order')
-  motivations = relationship("Motivation", back_populates="order", cascade="all, delete-orphan")
-  
+  motivations = relationship('Motivation', back_populates='order', cascade='all, delete-orphan')
+
 
 class Motivation(BaseEntity):
   __tablename__ = 'motivation'
@@ -94,7 +94,7 @@ class Motivation(BaseEntity):
   anomaly = Column(Boolean, nullable=True, default=False)
   text = Column(String, nullable=True)
 
-  order = relationship("Order", back_populates="motivations")
+  order = relationship('Order', back_populates='motivations')
 
 
 class Schedule(BaseEntity):
