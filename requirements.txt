@@ -1,4 +1,4 @@
-generic_lib[other] @ git+https://github.com/hosting232323/generic-lib.git
+generic_lib_italco.tar.gz[other]
 flask-swagger-ui
 xhtml2pdf
 pandas

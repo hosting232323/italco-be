@@ -1,15 +1,11 @@
-import os
 from sqlalchemy import pool
 from alembic import context
-from dotenv import load_dotenv
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 
+from src import DATABASE_URL
 from database_api import Base
 from src.database.schema import *  # noqa: F403
-
-
-load_dotenv()
 
 
 config = context.config
@@ -22,7 +18,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-config.set_section_option(config.config_ini_section, 'sqlalchemy.url', os.environ['DATABASE_URL'])
+config.set_section_option(config.config_ini_section, 'sqlalchemy.url', DATABASE_URL)
 
 
 def run_migrations_offline() -> None:

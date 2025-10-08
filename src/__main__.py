@@ -1,8 +1,8 @@
 import os
 
-from . import app, IS_DEV
 from .database.enum import UserRole
 from database_api import set_database
+from . import app, IS_DEV, DATABASE_URL
 from .database.schema import ItalcoUser
 from .end_points import flask_session_authentication
 
@@ -50,7 +50,7 @@ app.register_blueprint(collection_point_bp, url_prefix='/collection-point')
 
 
 if __name__ == '__main__':
-  set_database(os.environ['DATABASE_URL'])
+  set_database(DATABASE_URL)
   if IS_DEV:
     seed_users()
   app.run(host='0.0.0.0', port=8080)

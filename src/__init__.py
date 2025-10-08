@@ -4,7 +4,8 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from flask_swagger_ui import get_swaggerui_blueprint
 
-from api import swagger_decorator, internal_backup
+from api import swagger_decorator
+from database_api.backup import db_backup
 
 
 allowed_origins = [
@@ -14,6 +15,7 @@ allowed_origins = [
 
 load_dotenv()
 IS_DEV = int(os.environ.get('IS_DEV', 1)) == 1
+DATABASE_URL = os.environ['DATABASE_URL']
 app = Flask(__name__, static_folder='../static', template_folder='../templates')
 
 # Swagger da eliminare?
@@ -35,4 +37,4 @@ def index():
 @swagger_decorator
 @app.route('/internal-backup', methods=['POST'])
 def trigger_backup():
-  return internal_backup('italco-be')
+  return db_backup(DATABASE_URL, 'italco-be')
