@@ -1,7 +1,7 @@
 stages:
   - prepare
   - test
-image: python:3.11
+image: hosting23232323/python-node:3.11
 variables:
   POSTGRES_DB: mydb
   POSTGRES_USER: myuser
@@ -66,7 +66,6 @@ test_end_to_end:
     - alembic upgrade heads
     - python -m src &
 
-    - apt-get update && apt-get install -y npm
     - cd italco-fe
     - npm run build
     - npm run serve &
