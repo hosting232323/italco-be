@@ -1,17 +1,13 @@
 stages:
   - prepare
   - test
-image: python:3.11
+image: hosting23232323/python-node:3.11
 variables:
   POSTGRES_DB: mydb
   POSTGRES_USER: myuser
   POSTGRES_PASSWORD: mypassword
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   DECODE_JWT_TOKEN: token
-
-  VITE_GOOGLE_API_KEY: AIzaSyD0WOz5-uNYkUA3rp7V1iAm6U5Ro_-3vmI
-  VITE_SECRET_KEY: 12345678901234567890123456789012
-  VITE_IV: 1234567890123456
 
   GITLAB_PIPELINE: 'true'
 
@@ -34,7 +30,6 @@ be_dependencies:
   script:
     - python -m venv venv
     - source venv/bin/activate
-    - pip install --upgrade pip
     - pip install -r requirements.txt
     - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
@@ -66,7 +61,6 @@ test_end_to_end:
     - alembic upgrade heads
     - python -m src &
 
-    - apt-get update && apt-get install -y npm
     - cd italco-fe
     - npm run build
     - npm run serve &
