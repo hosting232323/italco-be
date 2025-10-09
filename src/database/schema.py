@@ -10,6 +10,8 @@ class ItalcoUser(User):
   __tablename__ = 'italco_user'
 
   role = Column(Enum(UserRole), nullable=False)
+  lat = Column(Numeric(11, 8), nullable=True)
+  lon = Column(Numeric(11, 8), nullable=True)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
 
   customer_group = relationship('CustomerGroup', back_populates='italco_user')
@@ -36,9 +38,6 @@ class CustomerGroup(BaseEntity):
 class DeliveryGroup(BaseEntity):
   __tablename__ = 'delivery_group'
 
-  name = Column(String, nullable=False)
-  lat = Column(Numeric(11, 8), nullable=True)
-  lon = Column(Numeric(11, 8), nullable=True)
   schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)
   italco_user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
 
