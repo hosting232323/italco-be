@@ -55,8 +55,12 @@ def login_():
 def query_users(user: ItalcoUser, role: UserRole = None) -> list[ItalcoUser]:
   with Session() as session:
     query = session.query(ItalcoUser)
-    if user.role in [UserRole.DELIVERY, UserRole.OPERATOR]:
+    if user.role == UserRole.DELIVERY:
       query = query.filter(ItalcoUser.role == UserRole.CUSTOMER)
+      
+    if user.role == UserRole.OPERATOR:
+      query = query.filter(ItalcoUser.role.in_([UserRole.CUSTOMER, UserRole.DELIVERY]))
+      
     if role:
       query = query.filter(ItalcoUser.role == role)
     return query.all()
