@@ -20,11 +20,20 @@ hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 @schedule_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def create_schedule(user: ItalcoUser):
+  users = request.json['users']
   orders, orders_data_map, schedule_data, response = format_schedule_data(request.json)
+
   if response:
     return response
 
   schedule = create(Schedule, schedule_data)
+  
+  for user in users:
+    create(DeliveryGroup, {
+      'schedule_id': schedule.id,
+      'italco_user_id': user['id']
+    })
+  
   for order in orders:
     if order.id in orders_data_map:
       data_update = orders_data_map[order.id]
@@ -97,7 +106,7 @@ def query_schedules() -> list[tuple[Schedule, DeliveryGroup, Transport, Order]]:
   with Session() as session:
     return (
       session.query(Schedule, DeliveryGroup, Transport, Order)
-      .join(DeliveryGroup, Schedule.delivery_group_id == DeliveryGroup.id)
+      .join(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
       .join(Transport, Schedule.transport_id == Transport.id)
       .outerjoin(Order, Order.schedule_id == Schedule.id)
       .all()
@@ -157,22 +166,23 @@ def remove_order_from_schedule(order: Order):
 
 
 def format_schedule_data(schedule_data: dict, schedule_id: int = None):
+  
   orders_data = schedule_data['orders']
   del schedule_data['orders']
   if 'order_ids' in schedule_data:
     del schedule_data['order_ids']
   if 'deleted_orders' in schedule_data:
     del schedule_data['deleted_orders']
-  if 'delivery_group' in schedule_data:
-    del schedule_data['delivery_group']
   if 'transport' in schedule_data:
     del schedule_data['transport']
+  if 'users' in schedule_data:
+    del schedule_data['users']
   orders: list[Order] = get_by_ids(Order, [o['id'] for o in orders_data])
   if not orders:
     return None, None, None, {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
 
-  if query_schedules_count(schedule_data['delivery_group_id'], schedule_data['date'], schedule_id) > 0:
-    return None, None, None, {'status': 'ko', 'error': 'Esiste già un borderò per questa data'}
+  # if query_schedules_count(schedule_data['delivery_group_id'], schedule_data['date'], schedule_id) > 0:
+  #   return None, None, None, {'status': 'ko', 'error': 'Esiste già un borderò per questa data'}
 
   orders_data_map = {o['id']: o for o in orders_data}
   return orders, orders_data_map, schedule_data, None

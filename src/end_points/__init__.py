@@ -34,17 +34,17 @@ def flask_session_authentication(roles: list[UserRole] = None):
           if lat is None or lon is None:
             return {'status': 'ko', 'error': 'Latitudine o Longitudine mancanti'}
 
-          delivery_group: DeliveryGroup = get_by_id(DeliveryGroup, user.delivery_group_id)
+          delivery_group: DeliveryGroup = get_by_id(DeliveryGroup, user.id)
           if not delivery_group:
             return {'status': 'ko', 'error': 'Delivery Group non trovato'}
 
           if (
-            not delivery_group.lat
-            or not delivery_group.lon
-            or float(delivery_group.lat) != lat
-            or float(delivery_group.lon) != lon
+            not user.lat
+            or not user.lon
+            or float(user.lat) != lat
+            or float(user.lon) != lon
           ):
-            update(delivery_group, {'lat': lat, 'lon': lon})
+            update(user, {'lat': lat, 'lon': lon})
 
         result = func(user, *args, **kwargs)
         if isinstance(result, dict):
