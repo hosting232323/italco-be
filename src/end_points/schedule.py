@@ -68,6 +68,7 @@ def delete_schedule(user: ItalcoUser, id):
 def get_schedules(user: ItalcoUser):
   schedules = []
   for tupla in query_schedules():
+    print(tupla)
     schedules = format_query_result(tupla, schedules)
   return {'status': 'ok', 'schedules': schedules}
 
@@ -102,17 +103,19 @@ def update_schedule(user: ItalcoUser, id):
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
-def query_schedules() -> list[tuple[Schedule, DeliveryGroup, Transport, Order]]:
+def query_schedules() -> list[tuple[Schedule, Transport, Order, ItalcoUser]]:
   with Session() as session:
     return (
-      session.query(Schedule, DeliveryGroup, Transport, Order)
-      .join(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
+      session.query(Schedule, Transport, Order, ItalcoUser)
+      .outerjoin(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
       .join(Transport, Schedule.transport_id == Transport.id)
       .outerjoin(Order, Order.schedule_id == Schedule.id)
+      .outerjoin(ItalcoUser, DeliveryGroup.italco_user_id == ItalcoUser.id)
       .all()
     )
 
 
+# prendere tutti gli schedule di tuti gli utenti in quella gironata e contarli in py
 def query_schedules_count(delivery_group_id, schedule_date, this_id) -> int:
   with Session() as session:
     return (
@@ -181,6 +184,8 @@ def format_schedule_data(schedule_data: dict, schedule_id: int = None):
   if not orders:
     return None, None, None, {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
 
+  # ogni utente delivery solo 1 borderò per giornata
+  
   # if query_schedules_count(schedule_data['delivery_group_id'], schedule_data['date'], schedule_id) > 0:
   #   return None, None, None, {'status': 'ko', 'error': 'Esiste già un borderò per questa data'}
 
