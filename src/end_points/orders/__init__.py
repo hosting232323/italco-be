@@ -150,7 +150,7 @@ def update_order(user: ItalcoUser, id):
 
 @order_bp.route('delivery-details/<order_id>', methods=['GET'])
 @error_catching_decorator
-@flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.ADMIN])
 def get_delivery_details(user: ItalcoUser, order_id: int):
   return {
     'status': 'ok',
