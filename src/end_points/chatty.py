@@ -18,9 +18,9 @@ def send_message(user: ItalcoUser):
     model='gpt-4o',
     messages=[
       {'role': 'system', 'content': 'Sei Chatty, l\'assistente di Italco.'},
-      {'role': 'system', 'content': 'Ecco la lista aggiornata degli ordini dell\'utente:\n\n'
-        f'{"\n".join([serialize_order(order) for order in query_orders(user, [])])}\n\n'
-        'Usa queste informazioni per rispondere alle domande dell\'utente o aggiornarlo sullo stato dei suoi ordini.'},
+      {'role': 'system', 'content': 'Ecco la lista aggiornata degli ordini dell\'utente:\n\n' +
+        ' - '.join([serialize_order(order) for order in query_orders(user, [])]) +
+        '\n\nUsa queste informazioni per rispondere alle domande dell\'utente o aggiornarlo sullo stato dei suoi ordini.'},
       {'role': 'user', 'content': request.json['message']}
     ]
   )
@@ -42,7 +42,7 @@ def serialize_order(order_tuple):
     f'Indirizzo: {order.address}\n'
     f'CAP: {order.cap}\n'
     f'Data prevista consegna: {order.dpc}\n'
-    f'Ritardo: {'Sì' if order.delay else 'No'}\n'
-    f'Anomalia: {'Sì' if order.anomaly else 'No'}\n'
+    f'Ritardo: {"Sì" if order.delay else "No"}\n'
+    f'Anomalia: {"Sì" if order.anomaly else "No"}\n'
     f'---'
   )
