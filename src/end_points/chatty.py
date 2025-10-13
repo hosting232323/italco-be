@@ -2,17 +2,18 @@ import os
 import openai
 from flask import request, Blueprint
 
-from ..database.schema import ItalcoUser
-from api.users import flask_session_authentication
+from ..database.enum import UserRole
 from .orders.queries import query_orders
+from ..database.schema import ItalcoUser
+from . import flask_session_authentication
 
 
-chatty_bp = Blueprint('chatty_bp', __name__)
 openai.api_key = os.getenv('OPEN_AI_KEY')
+chatty_bp = Blueprint('chatty_bp', __name__)
 
 
-@flask_session_authentication
 @chatty_bp.route('message', methods=['POST'])
+@flask_session_authentication([UserRole.ADMIN])
 def send_message(user: ItalcoUser):
   response = openai.chat.completions.create(
     model='gpt-4o',
