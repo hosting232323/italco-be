@@ -1,5 +1,3 @@
-import os
-
 from .database.enum import UserRole
 from database_api import set_database
 from . import app, IS_DEV, DATABASE_URL
