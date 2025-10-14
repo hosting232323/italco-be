@@ -18,6 +18,8 @@ chatty_bp = Blueprint('chatty_bp', __name__)
 def send_message(user: ItalcoUser):
   today = datetime.now().date()
   two_weeks_ago = today - timedelta(days=14)
+
+  orders = []
   for tupla in query_orders(user, [], {
     'start_date': two_weeks_ago.strftime('%Y-%m-%d'),
     'end_date': today.strftime('%Y-%m-%d')
