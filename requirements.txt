@@ -1,4 +1,4 @@
-generic_lib_italco.tar.gz[other]
+generic_lib[other] @ git+https://github.com/hosting232323/generic-lib.git
 xhtml2pdf
 pandas
 openpyxl
