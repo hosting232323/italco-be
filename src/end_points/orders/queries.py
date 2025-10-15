@@ -19,7 +19,7 @@ from database_api import Session
 
 
 def query_orders(
-  user: ItalcoUser, filters: list, date_filter={}, created_at_filter={}
+  user: ItalcoUser, filters: list, date_filter={}
 ) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint]]:
   with Session() as session:
     query = (
@@ -59,12 +59,6 @@ def query_orders(
       query = query.filter(
         Order.booking_date >= datetime.strptime(date_filter['start_date'], '%Y-%m-%d'),
         Order.booking_date <= datetime.strptime(date_filter['end_date'], '%Y-%m-%d'),
-      )
-      
-    if created_at_filter != {}:
-      query = query.filter(
-        Order.created_at >= datetime.strptime(date_filter['start_date'], '%Y-%m-%d'),
-        Order.created_at <= datetime.strptime(date_filter['end_date'], '%Y-%m-%d'),
       )
 
     return query.all()
