@@ -68,7 +68,6 @@ def delete_schedule(user: ItalcoUser, id):
 def get_schedules(user: ItalcoUser):
   schedules = []
   for tupla in query_schedules():
-    print(tupla)
     schedules = format_query_result(tupla, schedules)
   return {'status': 'ok', 'schedules': schedules}
 
@@ -107,9 +106,9 @@ def query_schedules() -> list[tuple[Schedule, Transport, Order, ItalcoUser]]:
   with Session() as session:
     return (
       session.query(Schedule, Transport, Order, ItalcoUser)
-      .outerjoin(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
       .join(Transport, Schedule.transport_id == Transport.id)
       .outerjoin(Order, Order.schedule_id == Schedule.id)
+      .outerjoin(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
       .outerjoin(ItalcoUser, DeliveryGroup.italco_user_id == ItalcoUser.id)
       .all()
     )
@@ -134,20 +133,25 @@ def get_related_orders(schedule: Schedule) -> list[Order]:
     return session.query(Order).filter(Order.schedule_id == schedule.id).all()
 
 
-def format_query_result(tupla: tuple[Schedule, DeliveryGroup, Transport, Order], list: list[dict]) -> list[dict]:
+def format_query_result(tupla: tuple[Schedule, Transport, Order, ItalcoUser], list: list[dict]) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      element['orders'].append(tupla[3].to_dict())
+      if tupla[2] and tupla[2].id not in [order['id'] for order in element['orders']]:
+        element['orders'].append(tupla[2].to_dict())
+      if tupla[3] and tupla[3].id not in [user['id'] for user in element['users']]:
+        element['users'].append(tupla[3].to_dict())
       return list
 
   list.append(
     {
       **tupla[0].to_dict(),
-      'orders': [tupla[3].to_dict()],
-      'transport': tupla[2].to_dict(),
-      'delivery_group': tupla[1].to_dict(),
+      'orders': [tupla[2].to_dict()],
+      'transport': tupla[1].to_dict()
     }
   )
+  if tupla[3]:
+    list[-1]['users'] = [tupla[3].to_dict()]
+  
   return list
 
 
