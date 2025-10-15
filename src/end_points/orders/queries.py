@@ -39,18 +39,18 @@ def query_orders(
       field = getattr(model, filter['field'])
       value = filter['value']
 
-      if filter['model'] == 'Schedule':
+      if model == Schedule:
         query = query.outerjoin(Schedule, Schedule.id == Order.schedule_id)
-      elif filter['model'] == 'CustomerGroup':
+      elif model == CustomerGroup:
         query = query.outerjoin(CustomerGroup, CustomerGroup.id == ItalcoUser.customer_group_id)
-      elif filter['model'] == 'DeliveryGroup':
+      elif model == DeliveryGroup:
         query = query.outerjoin(Schedule, Schedule.id == Order.schedule_id).outerjoin(
           DeliveryGroup, DeliveryGroup.id == Schedule.delivery_group_id
         )
 
-      if filter['model'] == 'Order' and filter['field'] == 'created_at':
+      if model == Order and field == Order.created_at:
         query = query.filter(field >= value[0], field <= value[1])
-      elif filter['model'] == 'Order' and filter['field'] == 'addressee':
+      elif model == Order and field == Order.addressee:
         query = query.filter(field.ilike(f"%{value}%"))
       else:
         query = query.filter(field == value)
