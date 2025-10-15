@@ -16,29 +16,27 @@ chatty_bp = Blueprint('chatty_bp', __name__)
 @chatty_bp.route('message', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def send_message(user: ItalcoUser):
-  today = datetime.now().date()
-  two_weeks_ago = today - timedelta(days=14)
-  
-  orders = []
-  for tupla in query_orders(user, [{
-    'model': 'Order', 
-    'field': 'created_at', 
-    'value': [ two_weeks_ago, today ]
-    }]):
-    orders = format_query_result(tupla, orders, user)
-  
   response = openai.chat.completions.create(
     model='gpt-4o',
     messages=[
-      {'role': 'system', 'content': 'Sei Chatty, l\'assistente di Italco.'},
-      {'role': 'system', 'content': 'Ecco la lista aggiornata degli ordini dell\'utente:\n\n' +
-        ' - '.join(str(order) for order in orders) +
-        '\n\nUsa queste informazioni per rispondere alle domande dell\'utente o aggiornarlo sullo stato dei suoi ordini.'},
-      {'role': 'user', 'content': request.json['message']}
-    ]
+      {'role': 'system', 'content': "Sei Chatty, l'assistente di Italcomi, un'azienda che si occupa di consegne di elettrodomestici."},
+      {
+        'role': 'system',
+        'content': "Ecco la lista aggiornata degli ordini dell'utente:\n\n"
+        + ' - '.join(str(order) for order in get_order_for_chatty(user))
+        + "\n\nUsa queste informazioni per rispondere alle domande dell'utente o aggiornarlo sullo stato dei suoi ordini.",
+      },
+      {'role': 'user', 'content': request.json['message']},
+    ],
   )
 
-  return {
-    'status': 'ok',
-    'message': response.choices[0].message.content
-  }
+  return {'status': 'ok', 'message': response.choices[0].message.content}
+
+
+def get_order_for_chatty(user: ItalcoUser) -> list[dict]:
+  today = datetime.now().date()
+  two_weeks_ago = today - timedelta(days=14)
+  orders = []
+  for tupla in query_orders(user, [{'model': 'Order', 'field': 'created_at', 'value': [two_weeks_ago, today]}]):
+    orders = format_query_result(tupla, orders, user)
+  return orders
