@@ -4,6 +4,7 @@ hidden = [".pythonlibs"]
 
 [nix]
 channel = "stable-23_05"
+packages = ["glibcLocales", "cairo", "pkg-config"]
 
 [unitTest]
 language = "python3"
@@ -15,3 +16,6 @@ deploymentTarget = "cloudrun"
 [[ports]]
 localPort = 8080
 externalPort = 80
+
+[agent]
+expertMode = true
