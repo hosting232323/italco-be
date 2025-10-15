@@ -12,7 +12,6 @@ from api.users import get_user_by_email, create_jwt_token
 
 def flask_session_authentication(roles: list[UserRole] = None):
   def decorator(func):
-
     @wraps(func)
     def wrapper(*args, **kwargs):
       try:
