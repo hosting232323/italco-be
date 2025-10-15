@@ -18,12 +18,13 @@ chatty_bp = Blueprint('chatty_bp', __name__)
 def send_message(user: ItalcoUser):
   today = datetime.now().date()
   two_weeks_ago = today - timedelta(days=14)
-
+  
   orders = []
-  for tupla in query_orders(user, [], {
-    'start_date': two_weeks_ago.strftime('%Y-%m-%d'),
-    'end_date': today.strftime('%Y-%m-%d')
-  }):
+  for tupla in query_orders(user, [{
+    'model': 'Order', 
+    'field': 'created_at', 
+    'value': [ two_weeks_ago, today ]
+    }]):
     orders = format_query_result(tupla, orders, user)
   
   response = openai.chat.completions.create(
@@ -31,7 +32,7 @@ def send_message(user: ItalcoUser):
     messages=[
       {'role': 'system', 'content': 'Sei Chatty, l\'assistente di Italco.'},
       {'role': 'system', 'content': 'Ecco la lista aggiornata degli ordini dell\'utente:\n\n' +
-        ' - '.join(order for order in orders) +
+        ' - '.join(str(order) for order in orders) +
         '\n\nUsa queste informazioni per rispondere alle domande dell\'utente o aggiornarlo sullo stato dei suoi ordini.'},
       {'role': 'user', 'content': request.json['message']}
     ]
