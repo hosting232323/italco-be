@@ -145,7 +145,7 @@ def format_query_result(tupla: tuple[Schedule, Transport, Order, ItalcoUser], li
   list.append(
     {
       **tupla[0].to_dict(),
-      'orders': [tupla[2].to_dict()],
+      'orders': [tupla[2].to_dict()] if tupla[2] else [],
       'transport': tupla[1].to_dict()
     }
   )
