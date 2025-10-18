@@ -22,12 +22,10 @@ hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 def create_schedule(user: ItalcoUser):
   users = request.json['users']
   orders, orders_data_map, schedule_data, response = format_schedule_data(request.json)
-
   if response:
     return response
 
   schedule = create(Schedule, schedule_data)
-  
   for user in users:
     create(DeliveryGroup, {
       'schedule_id': schedule.id,
@@ -145,13 +143,11 @@ def format_query_result(tupla: tuple[Schedule, Transport, Order, ItalcoUser], li
   list.append(
     {
       **tupla[0].to_dict(),
-      'orders': [tupla[2].to_dict()] if tupla[2] else [],
-      'transport': tupla[1].to_dict()
+      'transport': tupla[1].to_dict(),
+      'users': [tupla[3].to_dict()] if tupla[3] else [],
+      'orders': [tupla[2].to_dict()] if tupla[2] else []
     }
   )
-  if tupla[3]:
-    list[-1]['users'] = [tupla[3].to_dict()]
-  
   return list
 
 

@@ -34,10 +34,6 @@ def flask_session_authentication(roles: list[UserRole] = None):
           if lat is None or lon is None:
             return {'status': 'ko', 'error': 'Latitudine o Longitudine mancanti'}
 
-          delivery_group: DeliveryGroup = get_by_id(DeliveryGroup, user.id)
-          if not delivery_group:
-            return {'status': 'ko', 'error': 'Delivery Group non trovato'}
-
           if (
             not user.lat
             or not user.lon
