@@ -14,12 +14,16 @@ chatty_bp = Blueprint('chatty_bp', __name__)
 
 
 @chatty_bp.route('message', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.DELIVERY])
 def send_message(user: ItalcoUser):
   response = openai.chat.completions.create(
     model='gpt-4o',
     messages=[
-      {'role': 'system', 'content': "Sei Chatty, l'assistente di Italcomi, un'azienda che si occupa di consegne di elettrodomestici."},
+      {
+        'role': 'system',
+        'content': "Sei Chatty, l'assistente di Italcomi, un'azienda che si occupa di consegne di elettrodomestici."
+        + "Evita qualsiasi domanda che non abbia a che fare con l'azienda e i suoi ordini",
+      },
       {
         'role': 'system',
         'content': "Ecco la lista aggiornata degli ordini dell'utente:\n\n"
@@ -35,7 +39,7 @@ def send_message(user: ItalcoUser):
 
 def get_order_for_chatty(user: ItalcoUser) -> list[dict]:
   today = datetime.now().date()
-  two_weeks_ago = today - timedelta(days=14)
+  two_weeks_ago = today - timedelta(days=7)
   orders = []
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'created_at', 'value': [two_weeks_ago, today]}]):
     orders = format_query_result(tupla, orders, user)
