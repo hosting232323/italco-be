@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import and_, not_
+from sqlalchemy import and_, not_, desc
 
 from ...database.schema import (
   Order,
@@ -19,7 +19,7 @@ from database_api import Session
 
 
 def query_orders(
-  user: ItalcoUser, filters: list, date_filter={}
+  user: ItalcoUser, filters: list
 ) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint]]:
   with Session() as session:
     query = (
@@ -48,20 +48,17 @@ def query_orders(
           DeliveryGroup, DeliveryGroup.id == Schedule.delivery_group_id
         )
 
-      if model == Order and field == Order.created_at:
-        query = query.filter(field >= value[0], field <= value[1])
+      if model == Order and field in [Order.created_at, Order.booking_date]:
+        query = query.filter(
+          field >= (value[0] if isinstance(value[0], datetime) else datetime.strptime(value[0], '%Y-%m-%d')),
+          field <= (value[1] if isinstance(value[1], datetime) else datetime.strptime(value[1], '%Y-%m-%d')),
+        )
       elif model == Order and field == Order.addressee:
         query = query.filter(field.ilike(f'%{value}%'))
       else:
         query = query.filter(field == value)
 
-    if date_filter != {}:
-      query = query.filter(
-        Order.booking_date >= datetime.strptime(date_filter['start_date'], '%Y-%m-%d'),
-        Order.booking_date <= datetime.strptime(date_filter['end_date'], '%Y-%m-%d'),
-      )
-
-    return query.all()
+    return query.order_by(desc(Order.updated_at)).all()
 
 
 def query_delivery_orders(

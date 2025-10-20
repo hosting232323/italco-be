@@ -65,21 +65,26 @@ def export_orders_invoice(user: ItalcoUser):
   for tupla in query_orders(
     user,
     request.json['filters'] + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.COMPLETED}],
-    request.json['date_filter'],
   ):
     orders = format_query_result(tupla, orders, user)
 
   if len(orders) == 0:
     raise Exception('Numero di ordini trovati non valido')
 
+  for filter in request.json['filters']:
+    if filter['field'] == 'booking_date' and filter['model'] == 'Order':
+      start_date = filter['value'][0]
+      end_date = filter['value'][1]
+      break
+
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
     src=render_template(
       'orders_invoice.html',
       orders=orders,
+      end_date=start_date,
+      start_date=end_date,
       total=sum([order['price'] for order in orders]),
-      end_date=request.json['date_filter']['end_date'],
-      start_date=request.json['date_filter']['start_date'],
       customer=orders[0]['user']['email'] if orders else None,
     ),
     dest=result,

@@ -58,7 +58,7 @@ def get_orders_for_delivery(user: ItalcoUser):
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.CUSTOMER])
 def filter_orders(user: ItalcoUser):
   orders = []
-  for tupla in query_orders(user, request.json['filters'], request.json['date_filter']):
+  for tupla in query_orders(user, request.json['filters']):
     orders = format_query_result(tupla, orders, user)
   return {'status': 'ok', 'orders': orders}
 
