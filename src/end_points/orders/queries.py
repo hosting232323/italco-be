@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy import and_, not_, desc
 
 from ...database.schema import (
@@ -50,8 +50,8 @@ def query_orders(
 
       if model == Order and field in [Order.created_at, Order.booking_date]:
         query = query.filter(
-          field >= (value[0] if isinstance(value[0], datetime) else datetime.strptime(value[0], '%Y-%m-%d')),
-          field <= (value[1] if isinstance(value[1], datetime) else datetime.strptime(value[1], '%Y-%m-%d')),
+          field >= (value[0] if isinstance(value[0], date) else datetime.strptime(value[0], '%Y-%m-%d')),
+          field <= (value[1] if isinstance(value[1], date) else datetime.strptime(value[1], '%Y-%m-%d')),
         )
       elif model == Order and field == Order.addressee:
         query = query.filter(field.ilike(f'%{value}%'))
