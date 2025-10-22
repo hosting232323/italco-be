@@ -6,7 +6,7 @@ from ...database.schema import (
   OrderServiceUser,
   ServiceUser,
   Service,
-  ItalcoUser,
+  User,
   CollectionPoint,
   Photo,
   Schedule,
@@ -14,25 +14,25 @@ from ...database.schema import (
   CustomerGroup,
   Motivation,
 )
-from ...database.enum import UserRole, OrderType, OrderStatus
 from database_api import Session
+from ...database.enum import UserRole, OrderType, OrderStatus
 
 
 def query_orders(
-  user: ItalcoUser, filters: list
-) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint]]:
+  user: User, filters: list
+) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint]]:
   with Session() as session:
     query = (
-      session.query(Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint)
+      session.query(Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint)
       .outerjoin(CollectionPoint, Order.collection_point_id == CollectionPoint.id)
       .outerjoin(OrderServiceUser, OrderServiceUser.order_id == Order.id)
       .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
-      .outerjoin(ItalcoUser, ServiceUser.user_id == ItalcoUser.id)
+      .outerjoin(User, ServiceUser.user_id == User.id)
     )
 
     if user.role == UserRole.CUSTOMER:
-      query = query.filter(ItalcoUser.id == user.id)
+      query = query.filter(User.id == user.id)
 
     for filter in filters:
       model = globals()[filter['model']]
@@ -42,7 +42,7 @@ def query_orders(
       if model == Schedule:
         query = query.outerjoin(Schedule, Schedule.id == Order.schedule_id)
       elif model == CustomerGroup:
-        query = query.outerjoin(CustomerGroup, CustomerGroup.id == ItalcoUser.customer_group_id)
+        query = query.outerjoin(CustomerGroup, CustomerGroup.id == User.customer_group_id)
       elif model == DeliveryGroup:
         query = query.outerjoin(Schedule, Schedule.id == Order.schedule_id).outerjoin(
           DeliveryGroup, DeliveryGroup.id == Schedule.delivery_group_id
@@ -62,16 +62,16 @@ def query_orders(
 
 
 def query_delivery_orders(
-  user: ItalcoUser,
-) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint]]:
+  user: User,
+) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint]]:
   with Session() as session:
     return (
-      session.query(Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint)
+      session.query(Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint)
       .outerjoin(CollectionPoint, Order.collection_point_id == CollectionPoint.id)
       .outerjoin(OrderServiceUser, OrderServiceUser.order_id == Order.id)
       .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
-      .outerjoin(ItalcoUser, ServiceUser.user_id == ItalcoUser.id)
+      .outerjoin(User, ServiceUser.user_id == User.id)
       .join(
         Schedule,
         and_(
@@ -101,9 +101,9 @@ def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -
 
 
 def format_query_result(
-  tupla: tuple[Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint],
+  tupla: tuple[Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint],
   list: list[dict],
-  user: ItalcoUser,
+  user: User,
 ) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
@@ -157,3 +157,16 @@ def get_order_photo_ids(order_id: int) -> list[int]:
 def get_motivations_by_order_id(order_id: int) -> list[Motivation]:
   with Session() as session:
     return session.query(Motivation).filter(Motivation.id_order == order_id).all()
+
+
+def get_user_by_order(order: Order) -> User:
+  with Session() as session:
+    return (
+      session.query(User)
+      .join(ServiceUser, ServiceUser.user_id == User.id)
+      .join(
+        OrderServiceUser,
+        and_(OrderServiceUser.service_user_id == ServiceUser.id, OrderServiceUser.order_id == order.id),
+      )
+      .first()
+    )

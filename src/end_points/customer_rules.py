@@ -5,9 +5,9 @@ from dateutil.relativedelta import relativedelta
 
 from database_api import Session
 from ..database.enum import UserRole
-from . import flask_session_authentication
-from ..database.schema import CustomerRule, ItalcoUser, Order, OrderServiceUser, ServiceUser
+from .users.session import flask_session_authentication
 from database_api.operations import create, delete, get_by_id
+from ..database.schema import CustomerRule, User, Order, OrderServiceUser, ServiceUser
 
 
 customer_rules_bp = Blueprint('customer_rules_bp', __name__)
@@ -15,7 +15,7 @@ customer_rules_bp = Blueprint('customer_rules_bp', __name__)
 
 @customer_rules_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def create_customer_rules(user: ItalcoUser):
+def create_customer_rules(user: User):
   if request.json['day_of_week'] not in list(range(7)):
     raise ValueError('Invalid day_of_week value')
 
@@ -24,7 +24,7 @@ def create_customer_rules(user: ItalcoUser):
 
 @customer_rules_bp.route('', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-def delete_customer_rules(user: ItalcoUser):
+def delete_customer_rules(user: User):
   for id in request.json['ids']:
     delete(get_by_id(CustomerRule, int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
@@ -32,7 +32,7 @@ def delete_customer_rules(user: ItalcoUser):
 
 @customer_rules_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
-def get_customer_rules(user: ItalcoUser):
+def get_customer_rules(user: User):
   customer_rules = []
   for tupla in query_customer_rules():
     customer_rules = format_query_result(tupla, customer_rules)
@@ -42,11 +42,11 @@ def get_customer_rules(user: ItalcoUser):
 
 @customer_rules_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.CUSTOMER])
-def get_my_customer_rules(user: ItalcoUser):
+def get_my_customer_rules(user: User):
   return {'status': 'ok', 'customer_rules': [rule.to_dict() for rule in query_my_customer_rules(user)]}
 
 
-def check_customer_rules(user: ItalcoUser) -> list[datetime]:
+def check_customer_rules(user: User) -> list[datetime]:
   my_orders = query_my_orders(user)
   customer_rules = query_my_customer_rules(user)
   rule_days = [rule.day_of_week for rule in customer_rules]
@@ -69,17 +69,17 @@ def check_customer_rules(user: ItalcoUser) -> list[datetime]:
   return allowed_dates
 
 
-def query_customer_rules() -> list[CustomerRule, ItalcoUser]:
+def query_customer_rules() -> list[CustomerRule, User]:
   with Session() as session:
-    return session.query(CustomerRule, ItalcoUser).join(ItalcoUser, ItalcoUser.id == CustomerRule.user_id).all()
+    return session.query(CustomerRule, User).join(User, User.id == CustomerRule.user_id).all()
 
 
-def query_my_customer_rules(user: ItalcoUser) -> list[CustomerRule]:
+def query_my_customer_rules(user: User) -> list[CustomerRule]:
   with Session() as session:
     return session.query(CustomerRule).filter(CustomerRule.user_id == user.id).all()
 
 
-def query_my_orders(user: ItalcoUser) -> list[Order]:
+def query_my_orders(user: User) -> list[Order]:
   with Session() as session:
     return (
       session.query(Order)
@@ -97,7 +97,7 @@ def query_my_orders(user: ItalcoUser) -> list[Order]:
     )
 
 
-def format_query_result(tupla: tuple[CustomerRule, ItalcoUser], list: list[dict]) -> list[dict]:
+def format_query_result(tupla: tuple[CustomerRule, User], list: list[dict]) -> list[dict]:
   for element in list:
     if element['id'] == tupla[1].id:
       element['rules'].append(tupla[0].to_dict())
