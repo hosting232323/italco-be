@@ -23,24 +23,38 @@ def create_schedule(user: User):
   orders, orders_data_map, schedule_data, response = format_schedule_data(request.json)
   if response:
     return response
+  orders_to_notify = []
 
-  schedule = create(Schedule, schedule_data)
-  for order in orders:
-    if order.id in orders_data_map:
-      data_update = orders_data_map[order.id]
-      order = update(
-        order,
-        {
-          'schedule_id': schedule.id,
-          'status': OrderStatus.IN_PROGRESS,
-          'start_time_slot': data_update['start_time_slot'],
-          'end_time_slot': data_update['end_time_slot'],
-          'schedule_index': data_update['schedule_index'],
-          'assignament_date': datetime.now(),
-        },
-      )
+  try:
+    with Session() as session:
+      schedule = create(Schedule, schedule_data, session=session)
+
+      for order in orders:
+        if order.id in orders_data_map:
+          data_update = orders_data_map[order.id]
+          order = update(
+            order,
+            {
+              'schedule_id': schedule.id,
+              'status': OrderStatus.IN_PROGRESS,
+              'start_time_slot': data_update['start_time_slot'],
+              'end_time_slot': data_update['end_time_slot'],
+              'schedule_index': data_update['schedule_index'],
+              'assignament_date': datetime.now(),
+            },
+            session=session
+          )
+          orders_to_notify.append(order)
+
+      session.commit()
+
+    for order in orders_to_notify:
       send_schedule_sms(order)
-  return {'status': 'ok', 'schedule': schedule.to_dict()}
+
+    return {'status': 'ok', 'schedule': schedule.to_dict()}
+
+  except Exception as e:
+    return {'status': 'error', 'message': str(e)}
 
 
 @schedule_bp.route('<id>', methods=['DELETE'])
