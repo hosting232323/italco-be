@@ -1,15 +1,16 @@
+import base64
 from io import BytesIO
 from xhtml2pdf import pisa
 from flask import Blueprint, render_template, make_response, request
-import base64
+
 from database_api import Session
-from . import flask_session_authentication
-from ..database.enum import UserRole, OrderStatus
-from .orders.queries import query_orders, format_query_result
 from database_api.operations import get_by_id
+from ..database.enum import UserRole, OrderStatus
+from .users.session import flask_session_authentication
+from .orders.queries import query_orders, format_query_result
 from ..database.schema import (
   Schedule,
-  ItalcoUser,
+  User,
   Order,
   DeliveryGroup,
   Transport,
@@ -25,7 +26,7 @@ export_bp = Blueprint('export_bp', __name__)
 
 @export_bp.route('order/<id>', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-def export_order_report(user: ItalcoUser, id):
+def export_order_report(user: User, id):
   orders = []
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(id)}]):
     orders = format_query_result(tupla, orders, user)
@@ -60,7 +61,7 @@ def export_order_report(user: ItalcoUser, id):
 
 @export_bp.route('invoice', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def export_orders_invoice(user: ItalcoUser):
+def export_orders_invoice(user: User):
   orders = []
   for tupla in query_orders(
     user,
@@ -85,7 +86,7 @@ def export_orders_invoice(user: ItalcoUser):
       end_date=start_date,
       start_date=end_date,
       total=sum([order['price'] for order in orders]),
-      customer=orders[0]['user']['email'] if orders else None,
+      customer=orders[0]['user']['nickname'] if orders else None,
     ),
     dest=result,
   )
@@ -97,7 +98,7 @@ def export_orders_invoice(user: ItalcoUser):
 
 @export_bp.route('schedule/<id>', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-def export_orders_schedule(user: ItalcoUser, id):
+def export_orders_schedule(user: User, id):
   schedule = {}
   orders_dict = {}
   for index, tupla in enumerate(query_schedule(id)):
@@ -152,12 +153,12 @@ def export_pdf(document):
 def query_schedule(
   id: int,
 ) -> list[
-  tuple[Schedule, DeliveryGroup, Transport, Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint]
+  tuple[Schedule, DeliveryGroup, Transport, Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint]
 ]:
   with Session() as session:
     return (
       session.query(
-        Schedule, DeliveryGroup, Transport, Order, OrderServiceUser, ServiceUser, Service, ItalcoUser, CollectionPoint
+        Schedule, DeliveryGroup, Transport, Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint
       )
       .join(DeliveryGroup, Schedule.delivery_group_id == DeliveryGroup.id)
       .join(Transport, Schedule.transport_id == Transport.id)
@@ -166,7 +167,7 @@ def query_schedule(
       .outerjoin(OrderServiceUser, OrderServiceUser.order_id == Order.id)
       .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
-      .outerjoin(ItalcoUser, ServiceUser.user_id == ItalcoUser.id)
+      .outerjoin(User, ServiceUser.user_id == User.id)
       .filter(Schedule.id == id)
       .all()
     )

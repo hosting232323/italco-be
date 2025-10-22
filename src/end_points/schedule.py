@@ -7,10 +7,10 @@ from flask import Blueprint, request
 from .. import IS_DEV
 from api.sms import send_sms
 from database_api import Session
-from . import flask_session_authentication
 from ..database.enum import UserRole, OrderStatus
+from .users.session import flask_session_authentication
 from database_api.operations import create, delete, get_by_id, update, get_by_ids
-from ..database.schema import Schedule, ItalcoUser, Order, DeliveryGroup, Transport, ServiceUser, OrderServiceUser
+from ..database.schema import Schedule, User, Order, DeliveryGroup, Transport, ServiceUser, OrderServiceUser
 
 
 schedule_bp = Blueprint('schedule_bp', __name__)
@@ -19,7 +19,7 @@ hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 
 @schedule_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
-def create_schedule(user: ItalcoUser):
+def create_schedule(user: User):
   orders, orders_data_map, schedule_data, response = format_schedule_data(request.json)
   if response:
     return response
@@ -45,7 +45,7 @@ def create_schedule(user: ItalcoUser):
 
 @schedule_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-def delete_schedule(user: ItalcoUser, id):
+def delete_schedule(user: User, id):
   schedule = get_by_id(Schedule, int(id))
   orders = get_related_orders(schedule)
   delete(schedule)
@@ -56,7 +56,7 @@ def delete_schedule(user: ItalcoUser, id):
 
 @schedule_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
-def get_schedules(user: ItalcoUser):
+def get_schedules(user: User):
   schedules = []
   for tupla in query_schedules():
     schedules = format_query_result(tupla, schedules)
@@ -65,7 +65,7 @@ def get_schedules(user: ItalcoUser):
 
 @schedule_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
-def update_schedule(user: ItalcoUser, id):
+def update_schedule(user: User, id):
   if 'deleted_orders' in request.json:
     for order in get_by_ids(Order, request.json['deleted_orders']):
       remove_order_from_schedule(order)
@@ -142,8 +142,8 @@ def format_query_result(tupla: tuple[Schedule, DeliveryGroup, Transport, Order],
 def get_selling_point(order: Order) -> str:
   with Session() as session:
     return (
-      session.query(ItalcoUser.email)
-      .join(ServiceUser, ItalcoUser.id == ServiceUser.user_id)
+      session.query(User.nickname)
+      .join(ServiceUser, User.id == ServiceUser.user_id)
       .join(
         OrderServiceUser,
         and_(ServiceUser.id == OrderServiceUser.service_user_id, OrderServiceUser.order_id == order.id),

@@ -3,8 +3,8 @@ from flask import request
 from ... import IS_DEV
 from api.email import send_email
 from ...database.enum import OrderStatus
-from .queries import get_order_photo_ids
 from ...database.schema import Order, Motivation
+from .queries import get_order_photo_ids, get_user_by_order
 
 
 MAILS = (
@@ -27,9 +27,9 @@ def mailer_check(order: Order, data: dict, motivation: Motivation):
 
     icons = []
     states = []
-    if order.status == OrderStatus.COMPLETED:
-      icons.append('✅')
-      states.append('completato')
+    if order.status == OrderStatus.TO_RESCHEDULE:
+      icons.append('🚧')
+      states.append('da rischedulare')
     elif order.status == OrderStatus.CANCELLED:
       icons.append('❌')
       states.append('non completato')
@@ -44,5 +44,7 @@ def mailer_check(order: Order, data: dict, motivation: Motivation):
     subject = f'{" ".join(icons)} Ordine {order.id} {order.addressee} {" ".join(states)}'
     text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {motivation_text}'
     html = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {motivation_text}<br>Foto:<br>{photos_html}'
-    for mail in MAILS:
+
+    user = get_user_by_order(order)
+    for mail in list(set(MAILS + ([user.email] if user and user.email else []))):
       send_email(mail, {'text': text, 'html': html}, subject)

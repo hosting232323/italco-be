@@ -6,9 +6,9 @@ from dateutil.relativedelta import relativedelta
 
 from database_api import Session
 from ..database.enum import UserRole
-from . import flask_session_authentication
+from .users.session import flask_session_authentication
 from database_api.operations import create, delete, get_by_id
-from ..database.schema import GeographicZone, Constraint, GeographicCode, ItalcoUser, Order
+from ..database.schema import GeographicZone, Constraint, GeographicCode, User, Order
 
 
 geographic_zone_bp = Blueprint('geographic_zone_bp', __name__)
@@ -19,26 +19,26 @@ with open('static/caps.json', 'r') as file:
 
 @geographic_zone_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def create_geographic_zone(user: ItalcoUser):
+def create_geographic_zone(user: User):
   return {'status': 'ok', 'geographic_zone': create(GeographicZone, request.json).to_dict()}
 
 
 @geographic_zone_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-def delete_geographic_zone(user: ItalcoUser, id):
+def delete_geographic_zone(user: User, id):
   delete(get_by_id(GeographicZone, int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @geographic_zone_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.CUSTOMER])
-def get_geographic_zones(user: ItalcoUser):
+def get_geographic_zones(user: User):
   return {'status': 'ok', 'geographic_zones': execute_query_and_format_result()}
 
 
 @geographic_zone_bp.route('<entity>', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def create_entity(user: ItalcoUser, entity: str):
+def create_entity(user: User, entity: str):
   klass = get_class(entity)
   if klass == Constraint:
     if request.json['day_of_week'] not in list(range(7)):
@@ -49,7 +49,7 @@ def create_entity(user: ItalcoUser, entity: str):
 
 @geographic_zone_bp.route('<entity>/<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-def delete_constraint(user: ItalcoUser, entity, id):
+def delete_constraint(user: User, entity, id):
   delete(get_by_id(get_class(entity), int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
 

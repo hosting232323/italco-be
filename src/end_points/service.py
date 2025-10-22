@@ -4,10 +4,10 @@ from dateutil.relativedelta import relativedelta
 
 from .users import query_users
 from database_api import Session
-from . import flask_session_authentication
 from ..database.enum import UserRole, OrderType
+from .users.session import flask_session_authentication
 from database_api.operations import create, update, get_by_id, delete
-from ..database.schema import Service, ServiceUser, ItalcoUser, Order, OrderServiceUser
+from ..database.schema import Service, ServiceUser, User, Order, OrderServiceUser
 
 
 service_bp = Blueprint('service_bp', __name__)
@@ -15,14 +15,14 @@ service_bp = Blueprint('service_bp', __name__)
 
 @service_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def create_service(user: ItalcoUser):
+def create_service(user: User):
   request.json['type'] = OrderType.get_enum_option(request.json['type'])
   return {'status': 'ok', 'service': create(Service, request.json).to_dict()}
 
 
 @service_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
-def get_services(user: ItalcoUser):
+def get_services(user: User):
   services = []
   for tupla in query_services(user):
     services = format_query_result(tupla, services)
@@ -31,7 +31,7 @@ def get_services(user: ItalcoUser):
 
 @service_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
-def update_service(user: ItalcoUser, id):
+def update_service(user: User, id):
   service: Service = get_by_id(Service, int(id))
   request.json['type'] = OrderType.get_enum_option(request.json['type'])
   return {'status': 'ok', 'order': update(service, request.json).to_dict()}
@@ -39,34 +39,34 @@ def update_service(user: ItalcoUser, id):
 
 @service_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-def delete_service(user: ItalcoUser, id):
+def delete_service(user: User, id):
   delete(get_by_id(Service, int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @service_bp.route('customer', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def create_service_user(user: ItalcoUser):
+def create_service_user(user: User):
   if query_service_user(request.json['service_id'], request.json['user_id']):
     return {'status': 'ko', 'error': 'Utente già associato al servivizio'}
 
   service_user = create(ServiceUser, request.json)
   return {
     'status': 'ok',
-    'service_user': format_service_user(service_user, get_by_id(ItalcoUser, service_user.user_id)),
+    'service_user': format_service_user(service_user, get_by_id(User, service_user.user_id)),
   }
 
 
 @service_bp.route('customer/<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-def delete_service_user(user: ItalcoUser, id):
+def delete_service_user(user: User, id):
   delete(get_by_id(ServiceUser, int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @service_bp.route('set-all-users', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
-def set_all_users(user: ItalcoUser):
+def set_all_users(user: User):
   service: Service = get_by_id(Service, int(request.args['service_id']))
   users = query_users(user, UserRole.CUSTOMER)
   before_service_users_ids = [user.id for user in query_service_user(service.id)]
@@ -82,12 +82,12 @@ def set_all_users(user: ItalcoUser):
   return {'status': 'ok', 'service_users': service_users}
 
 
-def query_services(user: ItalcoUser = None) -> list[tuple[Service, ServiceUser, ItalcoUser]]:
+def query_services(user: User = None) -> list[tuple[Service, ServiceUser, User]]:
   with Session() as session:
     query = (
-      session.query(Service, ServiceUser, ItalcoUser)
+      session.query(Service, ServiceUser, User)
       .outerjoin(ServiceUser, ServiceUser.service_id == Service.id)
-      .outerjoin(ItalcoUser, ItalcoUser.id == ServiceUser.user_id)
+      .outerjoin(User, User.id == ServiceUser.user_id)
     )
     if user.role == UserRole.CUSTOMER:
       query = query.filter(ServiceUser.user_id == user.id)
@@ -102,7 +102,7 @@ def query_service_user(service_id: int, user_id: int = None) -> list[ServiceUser
     return query.all() if not user_id else query.first()
 
 
-def format_query_result(tupla: tuple[Service, ServiceUser, ItalcoUser], list: list[dict]) -> list[dict]:
+def format_query_result(tupla: tuple[Service, ServiceUser, User], list: list[dict]) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
       if tupla[1] and tupla[2]:
@@ -117,9 +117,9 @@ def format_query_result(tupla: tuple[Service, ServiceUser, ItalcoUser], list: li
   return list
 
 
-def format_service_user(service_user: ServiceUser, user: ItalcoUser) -> dict:
+def format_service_user(service_user: ServiceUser, user: User) -> dict:
   output = service_user.to_dict()
-  output['email'] = user.email
+  output['nickname'] = user.nickname
   return output
 
 
