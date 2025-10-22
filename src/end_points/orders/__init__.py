@@ -6,6 +6,7 @@ from datetime import datetime
 from flask import Blueprint, request, send_file
 
 from ... import IS_DEV
+from database_api import Session
 from .mailer import mailer_check
 from api import error_catching_decorator
 from ..users.session import flask_session_authentication
@@ -33,18 +34,23 @@ order_bp = Blueprint('order_bp', __name__)
 def create_order(user: User):
   data = {key: value for key, value in request.json.items() if key not in ['products', 'user_id', 'cloned_order_id']}
   data['type'] = OrderType.get_enum_option(data['type'])
-  if 'cloned_order_id' in request.json and request.json['cloned_order_id']:
-    update(
-      get_by_id(Order, request.json['cloned_order_id']),
-      {'booking_date': datetime.now(), 'status': OrderStatus.RESCHEDULED},
-    )
-    new_note = f'Clonato a partire da ordine {request.json["cloned_order_id"]}'
-    data['operator_note'] = f'{new_note}, {data["operator_note"]}' if 'operator_note' in data else new_note
 
-  order = create(Order, data)
-  create_order_service_user(
-    order, request.json['products'], user.id if user.role == UserRole.CUSTOMER else request.json['user_id']
-  )
+  with Session() as session:
+    if 'cloned_order_id' in request.json and request.json['cloned_order_id']:
+      update(
+        get_by_id(Order, request.json['cloned_order_id']),
+        {'booking_date': datetime.now(), 'status': OrderStatus.RESCHEDULED},
+        session=session
+      )
+      new_note = f'Clonato a partire da ordine {request.json["cloned_order_id"]}'
+      data['operator_note'] = f'{new_note}, {data["operator_note"]}' if 'operator_note' in data else new_note
+
+    order: Order = create(Order, data, session=session)
+    create_order_service_user(
+      order, request.json['products'], user.id if user.role == UserRole.CUSTOMER else request.json['user_id'], session=session
+    )
+    session.commit()
+
   return {'status': 'ok', 'order': order.to_dict()}
 
 
@@ -95,43 +101,46 @@ def get_order(id):
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order(user: User, id):
   order: Order = get_by_id(Order, int(id))
-  if user.role in [UserRole.DELIVERY, UserRole.ADMIN] and isinstance(request.form.get('data'), str):
-    data = json.loads(request.form.get('data'))
-    for file_key in request.files.keys():
-      uploaded_file = request.files[file_key]
-      if uploaded_file.mimetype in ['image/jpeg', 'image/png']:
-        if file_key == 'signature':
-          data['signature'] = uploaded_file.read()
-        else:
-          create(Photo, {'photo': uploaded_file.read(), 'mime_type': uploaded_file.mimetype, 'order_id': order.id})
-  else:
-    data = request.json
+  with Session() as session:
+    if user.role in [UserRole.DELIVERY, UserRole.ADMIN] and isinstance(request.form.get('data'), str):
+      data = json.loads(request.form.get('data'))
+      for file_key in request.files.keys():
+        uploaded_file = request.files[file_key]
+        if uploaded_file.mimetype in ['image/jpeg', 'image/png']:
+          if file_key == 'signature':
+            data['signature'] = uploaded_file.read()
+          else:
+            create(Photo, {'photo': uploaded_file.read(), 'mime_type': uploaded_file.mimetype, 'order_id': order.id}, session=session)
+    else:
+      data = request.json
 
-  if 'motivation' in data:
-    motivation = create(
-      Motivation,
-      {
-        'id_order': data['id'],
-        'status': OrderStatus(data['status']),
-        'delay': data['delay'] if 'delay' in data else False,
-        'anomaly': data['anomaly'] if 'delay' in data else False,
-        'text': data['motivation'],
-      },
-    )
-  else:
-    motivation = None
+    if 'motivation' in data:
+      motivation = create(
+        Motivation,
+        {
+          'id_order': data['id'],
+          'status': OrderStatus(data['status']),
+          'delay': data['delay'] if 'delay' in data else False,
+          'anomaly': data['anomaly'] if 'delay' in data else False,
+          'text': data['motivation'],
+        },
+        session=session
+      )
+    else:
+      motivation = None
 
-  data['type'] = OrderType.get_enum_option(data['type'])
-  data['status'] = OrderStatus.get_enum_option(data['status'])
-  if data['status'] in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
-    data['booking_date'] = datetime.now()
-  if user.role != UserRole.DELIVERY:
-    update_order_service_user(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'])
+    data['type'] = OrderType.get_enum_option(data['type'])
+    data['status'] = OrderStatus.get_enum_option(data['status'])
+    if data['status'] in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
+      data['booking_date'] = datetime.now()
+    if user.role != UserRole.DELIVERY:
+      update_order_service_user(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
 
-  previous_start = order.start_time_slot
-  previous_end = order.end_time_slot
-  data = {key: value for key, value in data.items() if key not in ['products', 'user_id', 'motivation']}
-  order = update(order, data)
+    previous_start = order.start_time_slot
+    previous_end = order.end_time_slot
+    data = {key: value for key, value in data.items() if key not in ['products', 'user_id', 'motivation']}
+    order = update(order, data, session=session)
+    session.commit()
 
   if (
     not IS_DEV
