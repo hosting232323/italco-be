@@ -1,29 +1,31 @@
 from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Enum, Date, String, Float, Integer, LargeBinary, ForeignKey, Boolean, Numeric, Time
 
-from api.users.setup import User
 from database_api import BaseEntity
 from .enum import UserRole, OrderStatus, OrderType
 
 
-class ItalcoUser(User):
-  __tablename__ = 'italco_user'
+class User(BaseEntity):
+  __tablename__ = 'user'
 
+  email = Column(String)
+  password = Column(String)
   role = Column(Enum(UserRole), nullable=False)
+  nickname = Column(String, unique=True, nullable=False)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
   delivery_group_id = Column(Integer, ForeignKey('delivery_group.id'), nullable=True)
 
-  customer_group = relationship('CustomerGroup', back_populates='italco_user')
-  delivery_group = relationship('DeliveryGroup', back_populates='italco_user')
-  service_user = relationship('ServiceUser', back_populates='italco_user', cascade='all, delete-orphan')
-  customer_rule = relationship('CustomerRule', back_populates='italco_user', cascade='all, delete-orphan')
-  collection_point = relationship('CollectionPoint', back_populates='italco_user', cascade='all, delete-orphan')
+  customer_group = relationship('CustomerGroup', back_populates='user')
+  delivery_group = relationship('DeliveryGroup', back_populates='user')
+  service_user = relationship('ServiceUser', back_populates='user', cascade='all, delete-orphan')
+  customer_rule = relationship('CustomerRule', back_populates='user', cascade='all, delete-orphan')
+  collection_point = relationship('CollectionPoint', back_populates='user', cascade='all, delete-orphan')
 
   def format_user(self, role: UserRole):
     if role == UserRole.ADMIN:
       return self.to_dict()
     else:
-      return {'id': self.id, 'email': self.email, 'role': self.role.value}
+      return {'id': self.id, 'nickname': self.nickname, 'role': self.role.value}
 
 
 class CustomerGroup(BaseEntity):
@@ -31,7 +33,7 @@ class CustomerGroup(BaseEntity):
 
   name = Column(String, nullable=False)
 
-  italco_user = relationship('ItalcoUser', back_populates='customer_group')
+  user = relationship('User', back_populates='customer_group')
 
 
 class DeliveryGroup(BaseEntity):
@@ -42,7 +44,7 @@ class DeliveryGroup(BaseEntity):
   lon = Column(Numeric(11, 8), nullable=True)
 
   schedule = relationship('Schedule', back_populates='delivery_group')
-  italco_user = relationship('ItalcoUser', back_populates='delivery_group')
+  user = relationship('User', back_populates='delivery_group')
 
 
 class Transport(BaseEntity):
@@ -125,10 +127,10 @@ class CollectionPoint(BaseEntity):
   name = Column(String, nullable=False)
   address = Column(String, nullable=False)
   cap = Column(String, nullable=False)
-  user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
+  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   order = relationship('Order', back_populates='collection_point')
-  italco_user = relationship('ItalcoUser', back_populates='collection_point')
+  user = relationship('User', back_populates='collection_point')
 
 
 class Service(BaseEntity):
@@ -146,11 +148,11 @@ class ServiceUser(BaseEntity):
   __tablename__ = 'service_user'
 
   price = Column(Float, nullable=False)
-  user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
+  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   service_id = Column(Integer, ForeignKey('service.id'), nullable=False)
 
   service = relationship('Service', back_populates='service_user')
-  italco_user = relationship('ItalcoUser', back_populates='service_user')
+  user = relationship('User', back_populates='service_user')
   order_service_user = relationship('OrderServiceUser', back_populates='service_user')
 
 
@@ -199,6 +201,6 @@ class CustomerRule(BaseEntity):
 
   day_of_week = Column(Integer, nullable=False)
   max_orders = Column(Integer, nullable=False)
-  user_id = Column(Integer, ForeignKey('italco_user.id'), nullable=False)
+  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
-  italco_user = relationship('ItalcoUser', back_populates='customer_rule')
+  user = relationship('User', back_populates='customer_rule')

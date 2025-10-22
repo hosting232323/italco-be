@@ -2,8 +2,8 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ..database.enum import UserRole
-from . import flask_session_authentication
-from ..database.schema import CustomerGroup, ItalcoUser
+from ..database.schema import CustomerGroup, User
+from .users.session import flask_session_authentication
 from database_api.operations import create, delete, get_by_id, update
 
 
@@ -12,35 +12,35 @@ customer_group_bp = Blueprint('customer_group_bp', __name__)
 
 @customer_group_bp.route('user', methods=['PATCH'])
 @flask_session_authentication([UserRole.ADMIN])
-def assign_customer_group_user(user: ItalcoUser):
-  customer_user: ItalcoUser = get_by_id(ItalcoUser, request.json['user_id'])
+def assign_customer_group_user(user: User):
+  customer_user: User = get_by_id(User, request.json['user_id'])
   update(customer_user, {'customer_group_id': request.json['customer_group_id']})
   return {'status': 'ok', 'user': customer_user.format_user(user.role)}
 
 
 @customer_group_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def create_customer_group(user: ItalcoUser):
+def create_customer_group(user: User):
   return {'status': 'ok', 'customer_group': create(CustomerGroup, request.json).to_dict()}
 
 
 @customer_group_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-def delete_customer_group(user: ItalcoUser, id):
+def delete_customer_group(user: User, id):
   delete(get_by_id(CustomerGroup, int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @customer_group_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY, UserRole.CUSTOMER])
-def get_customer_groups(user: ItalcoUser):
+def get_customer_groups(user: User):
   customer_groups = []
   for tupla in query_customer_groups():
     customer_groups = format_query_result(tupla, customer_groups, user.role)
   return {'status': 'ok', 'customer_groups': customer_groups}
 
 
-def format_query_result(tupla: tuple[CustomerGroup, ItalcoUser], list: list[dict], role: UserRole) -> list[dict]:
+def format_query_result(tupla: tuple[CustomerGroup, User], list: list[dict], role: UserRole) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
       if tupla[1]:
@@ -55,10 +55,6 @@ def format_query_result(tupla: tuple[CustomerGroup, ItalcoUser], list: list[dict
   return list
 
 
-def query_customer_groups() -> list[tuple[CustomerGroup, ItalcoUser]]:
+def query_customer_groups() -> list[tuple[CustomerGroup, User]]:
   with Session() as session:
-    return (
-      session.query(CustomerGroup, ItalcoUser)
-      .outerjoin(ItalcoUser, CustomerGroup.id == ItalcoUser.customer_group_id)
-      .all()
-    )
+    return session.query(CustomerGroup, User).outerjoin(User, CustomerGroup.id == User.customer_group_id).all()

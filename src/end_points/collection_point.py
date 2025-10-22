@@ -2,8 +2,8 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ..database.enum import UserRole
-from . import flask_session_authentication
-from ..database.schema import CollectionPoint, ItalcoUser
+from ..database.schema import CollectionPoint, User
+from .users.session import flask_session_authentication
 from database_api.operations import create, delete, get_by_id, update
 
 
@@ -12,21 +12,21 @@ collection_point_bp = Blueprint('collection_point_bp', __name__)
 
 @collection_point_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.CUSTOMER])
-def create_collection_point(user: ItalcoUser):
+def create_collection_point(user: User):
   request.json['user_id'] = user.id
   return {'status': 'ok', 'collection_point': create(CollectionPoint, request.json).to_dict()}
 
 
 @collection_point_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.CUSTOMER])
-def delete_collection_point(user: ItalcoUser, id):
+def delete_collection_point(user: User, id):
   delete(get_by_id(CollectionPoint, int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @collection_point_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY])
-def get_collection_points(user: ItalcoUser):
+def get_collection_points(user: User):
   return {
     'status': 'ok',
     'collection_points': [collection_point.to_dict() for collection_point in query_collection_points(user)],
@@ -35,12 +35,12 @@ def get_collection_points(user: ItalcoUser):
 
 @collection_point_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.CUSTOMER])
-def update_collection_point(user: ItalcoUser, id):
+def update_collection_point(user: User, id):
   collection_point: CollectionPoint = get_by_id(CollectionPoint, int(id))
   return {'status': 'ok', 'order': update(collection_point, request.json).to_dict()}
 
 
-def query_collection_points(user: ItalcoUser) -> list[CollectionPoint]:
+def query_collection_points(user: User) -> list[CollectionPoint]:
   with Session() as session:
     query = session.query(CollectionPoint)
     if user.role == UserRole.CUSTOMER:

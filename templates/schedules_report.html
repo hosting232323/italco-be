@@ -127,7 +127,7 @@
             {% endfor %}
           </td>
           <td>
-            <b>Punto vendita:</b><br>{{ order.user.email }}<br>
+            <b>Punto vendita:</b><br>{{ order.user.nickname }}<br>
             <b>Punto di ritiro:</b><br>{{ order.collection_point.address }}, {{ order.collection_point.cap }}, {{ order.collection_point.city }}
           </td>
         </tr>
@@ -179,7 +179,7 @@
           <td style="width: 50%; vertical-align: top; border: none; padding-left: 0px;">
             <h3 style="margin: 0 0 10px;">Cliente</h3>
             <table class="info-table inner">
-              <tr><td class="label">Punto vendita</td><td>{{ order.user.email }}</td></tr>
+              <tr><td class="label">Punto vendita</td><td>{{ order.user.nickname }}</td></tr>
               <tr>
               <td class="label">Punto di ritiro</td>
                 <td>

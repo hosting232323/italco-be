@@ -8,9 +8,9 @@ from flask import Blueprint, request, send_file
 from ... import IS_DEV
 from .mailer import mailer_check
 from api import error_catching_decorator
-from .. import flask_session_authentication
-from ...database.schema import ItalcoUser, Order, Photo, Motivation
+from ..users.session import flask_session_authentication
 from ..schedule import get_selling_point, get_order_link
+from ...database.schema import User, Order, Photo, Motivation
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
 from .services import create_order_service_user, update_order_service_user
@@ -30,7 +30,7 @@ order_bp = Blueprint('order_bp', __name__)
 # TODO CHECK ELIMINAZIONI RELAZIONI N A N
 @order_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
-def create_order(user: ItalcoUser):
+def create_order(user: User):
   data = {key: value for key, value in request.json.items() if key not in ['products', 'user_id']}
   data['type'] = OrderType.get_enum_option(data['type'])
   order = create(Order, data)
@@ -42,7 +42,7 @@ def create_order(user: ItalcoUser):
 
 @order_bp.route('delivery', methods=['GET'])
 @flask_session_authentication([UserRole.DELIVERY])
-def get_orders_for_delivery(user: ItalcoUser):
+def get_orders_for_delivery(user: User):
   orders = []
   for tupla in query_delivery_orders(user):
     orders = format_query_result(tupla, orders, user)
@@ -56,7 +56,7 @@ def get_orders_for_delivery(user: ItalcoUser):
 
 @order_bp.route('filter', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.CUSTOMER])
-def filter_orders(user: ItalcoUser):
+def filter_orders(user: User):
   orders = []
   for tupla in query_orders(user, request.json['filters']):
     orders = format_query_result(tupla, orders, user)
@@ -66,7 +66,7 @@ def filter_orders(user: ItalcoUser):
 @order_bp.route('<id>', methods=['GET'])
 @error_catching_decorator
 def get_order(id):
-  user = ItalcoUser(role=UserRole.DELIVERY)
+  user = User(role=UserRole.DELIVERY)
   orders = []
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(id)}]):
     orders = format_query_result(tupla, orders, user)
@@ -85,7 +85,7 @@ def get_order(id):
 
 @order_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
-def update_order(user: ItalcoUser, id):
+def update_order(user: User, id):
   order: Order = get_by_id(Order, int(id))
   if user.role in [UserRole.DELIVERY, UserRole.ADMIN] and isinstance(request.form.get('data'), str):
     data = json.loads(request.form.get('data'))
@@ -151,7 +151,7 @@ def update_order(user: ItalcoUser, id):
 @order_bp.route('delivery-details/<order_id>', methods=['GET'])
 @error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.ADMIN])
-def get_delivery_details(user: ItalcoUser, order_id: int):
+def get_delivery_details(user: User, order_id: int):
   return {
     'status': 'ok',
     'motivations': [m.to_dict() for m in get_motivations_by_order_id(order_id)],

@@ -2,10 +2,10 @@ import pandas as pd
 from flask import Blueprint, request
 
 from database_api import Session
-from . import flask_session_authentication
 from database_api.operations import create
+from .users.session import flask_session_authentication
 from ..database.enum import UserRole, OrderType, OrderStatus
-from ..database.schema import ItalcoUser, Order, OrderServiceUser, ServiceUser
+from ..database.schema import User, Order, OrderServiceUser, ServiceUser
 
 
 import_bp = Blueprint('import_bp', __name__)
@@ -17,7 +17,7 @@ PRODUCT_STRING = 'Ordine importato da file'
 
 @import_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def order_import(user: ItalcoUser):
+def order_import(user: User):
   if 'file' not in request.files:
     return {'status': 'ko', 'error': 'Nessun file caricato'}
 
