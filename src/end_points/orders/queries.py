@@ -161,11 +161,12 @@ def get_motivations_by_order_id(order_id: int) -> list[Motivation]:
 
 def get_user_by_order(order: Order) -> User:
   with Session() as session:
-    return session.query(User).join(
-      ServiceUser, ServiceUser.user_id == User.id
-    ).join(
-      OrderServiceUser, and_(
-        OrderServiceUser.service_user_id == ServiceUser.id,
-        OrderServiceUser.order_id == order.id
+    return (
+      session.query(User)
+      .join(ServiceUser, ServiceUser.user_id == User.id)
+      .join(
+        OrderServiceUser,
+        and_(OrderServiceUser.service_user_id == ServiceUser.id, OrderServiceUser.order_id == order.id),
       )
-    ).first()
+      .first()
+    )
