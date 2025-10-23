@@ -1,21 +1,45 @@
 import os
-import openai
 from flask import request, Blueprint
 from datetime import datetime, timedelta
 
-from ..database.schema import User
+from ..database.schema import User, Chatty
 from ..database.enum import UserRole
 from .users.session import flask_session_authentication
 from .orders.queries import query_orders, format_query_result
+from . import flask_session_authentication
+from openai import OpenAI
+from database_api.operations import create
 
-
-openai.api_key = os.getenv('OPEN_AI_KEY')
+client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
 chatty_bp = Blueprint('chatty_bp', __name__)
 
 
 @chatty_bp.route('message', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.DELIVERY])
 def send_message(user: User):
+  message = request.json['message']
+  if request.json['thread_id']:
+    thread_id = request.json['thread_id']
+  else:
+    thread_id = client.beta.threads.create().id
+    create(Chatty, {
+      thread_id: thread_id
+    })
+
+  orders = get_order_for_chatty(user)
+  orders_text = (
+    "Ecco la lista aggiornata dei tuoi ordini nelle ultime due settimane:\n\n"
+    + "\n".join(f"- {o}" for o in orders)
+    if orders
+    else "Non risultano ordini recenti nel sistema."
+  )
+  
+  client.beta.threads.messages.create(
+    thread_id=thread_id,
+    role="user",
+    content=f"{user_message}\n\n{orders_text}",
+  )
+
   response = openai.chat.completions.create(
     model='gpt-4o',
     messages=[

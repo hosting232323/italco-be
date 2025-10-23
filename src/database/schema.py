@@ -204,3 +204,9 @@ class CustomerRule(BaseEntity):
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='customer_rule')
+
+
+class Chatty(BaseEntity):
+  __tablename__ = 'chatty'
+
+  thread_id = Column(String, nullable=False)
