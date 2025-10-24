@@ -14,6 +14,14 @@ MAILS = (
 )
 
 
+def get_mails(order: Order):
+  if IS_DEV:
+    return MAILS
+  else:
+    user = get_user_by_order(order)
+    return list(set(MAILS + ([user.email] if user and user.email else [])))
+
+
 def mailer_check(order: Order, data: dict, motivation: Motivation):
   if (
     ('status' in data and data['status'] in [OrderStatus.CANCELLED, OrderStatus.TO_RESCHEDULE])
@@ -42,9 +50,8 @@ def mailer_check(order: Order, data: dict, motivation: Motivation):
 
     motivation_text = motivation.text if motivation else 'Nessuna motivazione fornita'
     subject = f'{" ".join(icons)} Ordine {order.id} {order.addressee} {" ".join(states)}'
-    text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {motivation_text}'
-    html = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {motivation_text}<br>Foto:<br>{photos_html}'
+    text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {motivation_text}\nNote Punto Vendita: {order.customer_note}'
+    html = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {motivation_text}<br>Note Punto Vendita: {order.customer_note}<br>Foto:<br>{photos_html}'
 
-    user = get_user_by_order(order)
-    for mail in list(set(MAILS + ([user.email] if user and user.email else []))):
+    for mail in get_mails(order):
       send_email(mail, {'text': text, 'html': html}, subject)
