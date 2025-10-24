@@ -12,7 +12,7 @@ from database_api.operations import create
 
 client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
 chatty_bp = Blueprint('chatty_bp', __name__)
-
+assistant_id = os.environ['ASSISTANT_ID']
 
 @chatty_bp.route('message', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.DELIVERY])
@@ -28,7 +28,7 @@ def send_message(user: User):
 
   orders = get_order_for_chatty(user)
   orders_text = (
-    "Ecco la lista aggiornata dei tuoi ordini nelle ultime due settimane:\n\n"
+    "Ecco la lista aggiornata degli ordini nelle ultime due settimane:\n\n"
     + "\n".join(f"- {o}" for o in orders)
     if orders
     else "Non risultano ordini recenti nel sistema."
@@ -37,28 +37,26 @@ def send_message(user: User):
   client.beta.threads.messages.create(
     thread_id=thread_id,
     role="user",
-    content=f"{user_message}\n\n{orders_text}",
+    content=f"{orders_text}\nDomanda: {message}"
+  )
+  
+  run = client.beta.threads.runs.create(
+    thread_id=thread_id,
+    assistant_id=assistant_id
   )
 
-  response = openai.chat.completions.create(
-    model='gpt-4o',
-    messages=[
-      {
-        'role': 'system',
-        'content': "Sei Chatty, l'assistente di Italcomi, un'azienda che si occupa di consegne di elettrodomestici."
-        + "Evita qualsiasi domanda che non abbia a che fare con l'azienda e i suoi ordini",
-      },
-      {
-        'role': 'system',
-        'content': "Ecco la lista aggiornata degli ordini dell'utente:\n\n"
-        + ' - '.join(str(order) for order in get_order_for_chatty(user))
-        + "\n\nUsa queste informazioni per rispondere alle domande dell'utente o aggiornarlo sullo stato dei suoi ordini.",
-      },
-      {'role': 'user', 'content': request.json['message']},
-    ],
-  )
+  while True:
+    run_status = client.beta.threads.runs.retrieve(
+      thread_id=thread_id,
+      run_id=run.id
+    )
 
-  return {'status': 'ok', 'message': response.choices[0].message.content}
+    if run_status.status == 'completed':
+      break
+
+  messages = client.beta.threads.messages.list(thread_id=thread_id)
+  response = messages.data[0].content[0].text.value
+  return {"response": response, "thread_id": thread_id, "status": "ok"}
 
 
 def get_order_for_chatty(user: User) -> list[dict]:
