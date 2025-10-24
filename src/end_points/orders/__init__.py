@@ -8,6 +8,7 @@ from flask import Blueprint, request, send_file
 from ... import IS_DEV
 from .mailer import mailer_check
 from api import error_catching_decorator
+from database_api import Session
 from ..users.session import flask_session_authentication
 from ..schedule import get_selling_point, get_order_link
 from ...database.schema import User, Order, Photo, Motivation
@@ -33,10 +34,12 @@ order_bp = Blueprint('order_bp', __name__)
 def create_order(user: User):
   data = {key: value for key, value in request.json.items() if key not in ['products', 'user_id']}
   data['type'] = OrderType.get_enum_option(data['type'])
-  order = create(Order, data)
-  create_order_service_user(
-    order, request.json['products'], user.id if user.role == UserRole.CUSTOMER else request.json['user_id']
-  )
+  with Session() as session:
+    order = create(Order, data, session=session)
+    create_order_service_user(
+      order, request.json['products'], user.id if user.role == UserRole.CUSTOMER else request.json['user_id'], session=session
+    )
+    session.commit()
   return {'status': 'ok', 'order': order.to_dict()}
 
 
