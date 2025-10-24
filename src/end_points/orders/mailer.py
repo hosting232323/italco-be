@@ -8,7 +8,7 @@ from .queries import get_order_photo_ids, get_user_by_order
 
 
 MAILS = (
-  ['coppolagabriele973@gmail.com', 'massitalco.mi@gmail.com']
+  ['coppolagabriele973@gmail.com']
   if not IS_DEV
   else ['coppolagabriele973@gmail.com', 'colasanto.giovanni.inf@gmail.com']
 )
