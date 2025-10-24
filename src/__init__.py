@@ -2,7 +2,6 @@ import os
 from flask import Flask
 from flask_cors import CORS
 from dotenv import load_dotenv
-
 from api import swagger_decorator
 from database_api.backup import db_backup
 
@@ -15,6 +14,7 @@ allowed_origins = [
 load_dotenv()
 IS_DEV = int(os.environ.get('IS_DEV', 1)) == 1
 DATABASE_URL = os.environ['DATABASE_URL']
+
 app = Flask(__name__, static_folder='../static', template_folder='../templates')
 
 if IS_DEV:
