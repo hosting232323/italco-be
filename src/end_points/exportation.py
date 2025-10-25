@@ -25,7 +25,7 @@ export_bp = Blueprint('export_bp', __name__)
 
 
 @export_bp.route('order/<id>', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER])
 def export_order_report(user: User, id):
   orders = []
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(id)}]):
@@ -33,7 +33,6 @@ def export_order_report(user: User, id):
   if len(orders) != 1:
     raise Exception('Numero di ordini trovati non valido')
 
-  order: Order = get_by_id(Order, orders[0]['id'])
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
     src=render_template(
@@ -49,7 +48,7 @@ def export_order_report(user: User, id):
       products=orders[0]['products'],
       collection_point=orders[0]['collection_point'],
       note=orders[0].get('customer_note', '/'),
-      signature=get_signature(order),
+      signature=get_signature(get_by_id(Order, orders[0]['id'])),
     ),
     dest=result,
   )

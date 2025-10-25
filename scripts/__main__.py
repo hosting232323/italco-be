@@ -1,17 +1,26 @@
-import os
-from tqdm import tqdm
-
-from database_api import set_database
-from src.database.schema import Order, OrderStatus
-from database_api.operations import get_all, update
-
-
-if __name__ == '__main__':
-  set_database(os.environ['DATABASE_URL'])
-
-  orders: list[Order] = get_all(Order)
-
-  for order in tqdm(orders, desc='Aggiornamento delivery_date'):
-    if order.status in [OrderStatus.COMPLETED, OrderStatus.CANCELLED]:
-      if not order.booking_date:
-        update(order, {'booking_date': order.dpc})
+{
+  16: [8, 19],
+  3: [17, 19],
+  4: [6, 5],
+  12: [19, 8],
+  6: [7], # Elmy??
+  25: [26, 6],
+  10: [], # Vulpo?? Addante??
+  18: [], # Vulpo??
+  20: [17, 26],
+  11: [7], # De Caro??
+  17: [5, 19],
+  15: [7], # Elmy??
+  13: [], # De Caro?? Abdullah??
+  21: [], # Squadra consegne aggiuntive??
+  5: [6, 8],
+  19: [26, 8, 19],
+  24: [], # Squadra 1??
+  8: [7], # Abdullah??
+  23: [], # De Caro?? Addante??
+  1: [], # Squadra Trony Taranto??
+  22: [], # Raspanti?? Abdullah??
+  14: [5, 6],
+  9: [5, 19],
+  7: [], # Abdullah?? Elmy??
+}
