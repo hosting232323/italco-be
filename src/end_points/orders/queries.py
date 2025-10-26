@@ -39,14 +39,14 @@ def query_orders(
       field = getattr(model, filter['field'])
       value = filter['value']
 
-      if model == Schedule:
+      if model in [Schedule, User]:
         query = query.outerjoin(Schedule, Schedule.id == Order.schedule_id)
+        if model == User:
+          query = query.outerjoin(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id).outerjoin(
+            User, DeliveryGroup.user_id == User.id
+          )
       elif model == CustomerGroup:
         query = query.outerjoin(CustomerGroup, CustomerGroup.id == User.customer_group_id)
-      elif model == DeliveryGroup:
-        query = query.outerjoin(Schedule, Schedule.id == Order.schedule_id).outerjoin(
-          DeliveryGroup, DeliveryGroup.id == Schedule.delivery_group_id
-        )
 
       if model == Order and field in [Order.created_at, Order.booking_date]:
         query = query.filter(
@@ -67,20 +67,20 @@ def query_delivery_orders(
   with Session() as session:
     return (
       session.query(Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint)
-      .outerjoin(CollectionPoint, Order.collection_point_id == CollectionPoint.id)
-      .outerjoin(OrderServiceUser, OrderServiceUser.order_id == Order.id)
-      .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
-      .outerjoin(Service, ServiceUser.service_id == Service.id)
-      .outerjoin(User, ServiceUser.user_id == User.id)
       .join(
         Schedule,
         and_(
-          Schedule.delivery_group_id == user.delivery_group_id,
           Schedule.date == datetime.now().date(),
           Schedule.id == Order.schedule_id,
           not_(Order.status.in_([OrderStatus.PENDING])),
         ),
       )
+      .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user.id))
+      .outerjoin(CollectionPoint, Order.collection_point_id == CollectionPoint.id)
+      .outerjoin(OrderServiceUser, OrderServiceUser.order_id == Order.id)
+      .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
+      .outerjoin(Service, ServiceUser.service_id == Service.id)
+      .outerjoin(User, ServiceUser.user_id == User.id)
       .all()
     )
 
@@ -138,16 +138,6 @@ def add_service(object: dict, service: Service, order_service_user: OrderService
   return object
 
 
-def query_delivery_group(schedule_id: int) -> DeliveryGroup:
-  with Session() as session:
-    return (
-      session.query(DeliveryGroup)
-      .join(Schedule, Schedule.delivery_group_id == DeliveryGroup.id)
-      .filter(Schedule.id == schedule_id)
-      .first()
-    )
-
-
 def get_order_photo_ids(order_id: int) -> list[int]:
   with Session() as session:
     photo_ids = session.query(Photo.id).filter(Photo.order_id == order_id).all()
@@ -159,7 +149,7 @@ def get_motivations_by_order_id(order_id: int) -> list[Motivation]:
     return session.query(Motivation).filter(Motivation.id_order == order_id).all()
 
 
-def get_user_by_order(order: Order) -> User:
+def get_customer_user_by_order(order: Order) -> User:
   with Session() as session:
     return (
       session.query(User)
@@ -168,5 +158,14 @@ def get_user_by_order(order: Order) -> User:
         OrderServiceUser,
         and_(OrderServiceUser.service_user_id == ServiceUser.id, OrderServiceUser.order_id == order.id),
       )
+      .first()
+    )
+
+
+def get_delivery_user_by_schedule_id(schedule_id: int) -> User:
+  with Session() as session:
+    return (
+      session.query(User)
+      .join(DeliveryGroup, and_(DeliveryGroup.user_id == User.id, DeliveryGroup.schedule_id == schedule_id))
       .first()
     )

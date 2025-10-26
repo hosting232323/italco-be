@@ -18,7 +18,7 @@ from .queries import (
   query_orders,
   query_delivery_orders,
   format_query_result,
-  query_delivery_group,
+  get_delivery_user_by_schedule_id,
   get_order_photo_ids,
   get_motivations_by_order_id,
 )
@@ -75,10 +75,10 @@ def get_order(id):
 
   order = orders[0]
   if order['status'] == 'On Board':
-    delivery_group = query_delivery_group(order['schedule_id'])
-    if delivery_group.lat is not None and delivery_group.lon is not None:
-      order['lat'] = delivery_group.lat
-      order['lon'] = delivery_group.lon
+    user = get_delivery_user_by_schedule_id(order['schedule_id'])
+    if user.lat is not None and user.lon is not None:
+      order['lat'] = user.lat
+      order['lon'] = user.lon
 
   return {'status': 'ok', 'order': order}
 
