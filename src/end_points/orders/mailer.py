@@ -4,7 +4,7 @@ from ... import IS_DEV
 from api.email import send_email
 from ...database.enum import OrderStatus
 from ...database.schema import Order, Motivation
-from .queries import get_order_photo_ids, get_user_by_order
+from .queries import get_order_photo_ids, get_customer_user_by_order
 
 
 MAILS = (
@@ -18,7 +18,7 @@ def get_mails(order: Order):
   if IS_DEV:
     return MAILS
   else:
-    user = get_user_by_order(order)
+    user = get_customer_user_by_order(order)
     return list(set(MAILS + ([user.email] if user and user.email else [])))
 
 

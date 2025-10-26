@@ -6,8 +6,11 @@ from ...database.schema import User, ServiceUser, CollectionPoint, CustomerRule,
 def query_users(user: User, role: UserRole = None) -> list[User]:
   with Session() as session:
     query = session.query(User)
-    if user.role in [UserRole.DELIVERY, UserRole.OPERATOR]:
+    if user.role == UserRole.DELIVERY:
       query = query.filter(User.role == UserRole.CUSTOMER)
+    if user.role == UserRole.OPERATOR:
+      query = query.filter(User.role.in_([UserRole.CUSTOMER, UserRole.DELIVERY]))
+
     if role:
       query = query.filter(User.role == role)
     return query.all()
