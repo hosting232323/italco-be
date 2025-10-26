@@ -26,7 +26,8 @@ def create_schedule(user: User):
 
   schedule = create(Schedule, schedule_data)
   for user in users:
-    create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']})
+    if query_schedules_count(user['id'], schedule.date) == 0:
+      create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']})
 
   for order in orders:
     if order.id in orders_data_map:
@@ -94,10 +95,8 @@ def update_schedule(user: User, id):
   actual_user_ids = list(
     set([delivery_group.user_id for delivery_group in delivery_groups]) - set(deleted_users)
   )
-  print(users)
-  print(actual_user_ids)
   for user in users:
-    if user['id'] not in actual_user_ids:
+    if user['id'] not in actual_user_ids and query_schedules_count(user['id'], schedule.date) == 0:
       create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']})
 
   for order in orders:
@@ -130,15 +129,17 @@ def query_schedules() -> list[tuple[Schedule, Transport, Order, User]]:
     )
 
 
-# prendere tutti gli schedule di tuti gli utenti in quella gironata e contarli in py
-def query_schedules_count(delivery_group_id, schedule_date, this_id) -> int:
+def query_schedules_count(user_id, schedule_date) -> int:
   with Session() as session:
     return (
-      session.query(Schedule)
-      .filter(
-        Schedule.delivery_group_id == delivery_group_id,
-        Schedule.date == datetime.strptime(schedule_date, '%Y-%m-%d').date(),
-        Schedule.id != this_id,
+      session.query(DeliveryGroup)
+      .join(
+        Schedule,
+        and_(
+          DeliveryGroup.schedule_id == Schedule.id,
+          DeliveryGroup.user_id == user_id,
+          Schedule.date == schedule_date
+        )
       )
       .count()
     )

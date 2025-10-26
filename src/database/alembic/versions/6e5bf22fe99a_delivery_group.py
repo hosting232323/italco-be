@@ -30,24 +30,7 @@ def upgrade() -> None:
   op.create_foreign_key('fk_delivery_group_user', 'delivery_group', 'user', ['user_id'], ['id'])
   op.drop_constraint('italco_user_delivery_group_id_fkey', 'user', type_='foreignkey')
   op.drop_constraint('schedule_delivery_group_id_fkey', 'schedule', type_='foreignkey')
-
-  op.execute("""
-    UPDATE delivery_group
-    SET user_id = "user".id
-    FROM "user"
-    WHERE "user".delivery_group_id = delivery_group.id
-  """)
-  op.execute("""
-    UPDATE delivery_group
-    SET schedule_id = schedule.id
-    FROM schedule
-    WHERE schedule.delivery_group_id = delivery_group.id
-  """)
-  op.execute("""
-    DELETE FROM delivery_group
-    WHERE user_id IS NULL OR schedule_id IS NULL
-  """)
-
+  op.execute('DELETE FROM delivery_group')
   op.drop_column('user', 'delivery_group_id')
   op.drop_column('schedule', 'delivery_group_id')
   op.alter_column('delivery_group', 'schedule_id', nullable=False)
