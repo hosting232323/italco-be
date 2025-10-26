@@ -75,13 +75,7 @@ def query_delivery_orders(
           not_(Order.status.in_([OrderStatus.PENDING])),
         ),
       )
-      .join(
-        DeliveryGroup,
-        and_(
-          DeliveryGroup.schedule_id == Schedule.id,
-          DeliveryGroup.user_id ==user.id
-        )
-      )
+      .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user.id))
       .outerjoin(CollectionPoint, Order.collection_point_id == CollectionPoint.id)
       .outerjoin(OrderServiceUser, OrderServiceUser.order_id == Order.id)
       .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
@@ -172,12 +166,6 @@ def get_delivery_user_by_schedule_id(schedule_id: int) -> User:
   with Session() as session:
     return (
       session.query(User)
-      .join(
-        DeliveryGroup,
-        and_(
-          DeliveryGroup.user_id == User.id,
-          DeliveryGroup.schedule_id == schedule_id
-        )
-      )
+      .join(DeliveryGroup, and_(DeliveryGroup.user_id == User.id, DeliveryGroup.schedule_id == schedule_id))
       .first()
     )

@@ -92,9 +92,7 @@ def update_schedule(user: User, id):
     return response
 
   schedule = update(schedule, schedule_data)
-  actual_user_ids = list(
-    set([delivery_group.user_id for delivery_group in delivery_groups]) - set(deleted_users)
-  )
+  actual_user_ids = list(set([delivery_group.user_id for delivery_group in delivery_groups]) - set(deleted_users))
   for user in users:
     if user['id'] not in actual_user_ids and query_schedules_count(user['id'], schedule.date) == 0:
       create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']})
@@ -136,10 +134,8 @@ def query_schedules_count(user_id, schedule_date) -> int:
       .join(
         Schedule,
         and_(
-          DeliveryGroup.schedule_id == Schedule.id,
-          DeliveryGroup.user_id == user_id,
-          Schedule.date == schedule_date
-        )
+          DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user_id, Schedule.date == schedule_date
+        ),
       )
       .count()
     )
