@@ -2,7 +2,7 @@ import os
 from openai import OpenAI
 from flask import request, Blueprint
 from datetime import datetime, timedelta
-
+import json
 from ..database.schema import User, Chatty
 from ..database.enum import UserRole
 from .users.session import flask_session_authentication
@@ -24,7 +24,8 @@ def send_message(user: User):
     thread_id = client.beta.threads.create().id
     create(Chatty, {'thread_id': thread_id})
 
-  client.beta.threads.messages.create(thread_id=thread_id, role='user', content=request.json['message'])
+  today = datetime.now().date()
+  client.beta.threads.messages.create(thread_id=thread_id, role='user', content=f"Oggi è: {today}\n\n{request.json['message']}")
   run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
   while True:
     run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
@@ -32,7 +33,10 @@ def send_message(user: User):
     if run_status.status == 'requires_action':
       for tool_call in run_status.required_action.submit_tool_outputs.tool_calls:
         if tool_call.function.name == 'get_order_for_chatty':
-          orders = get_order_for_chatty(user)
+          tool_inputs = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
+          start_date = tool_inputs.get('start_date')
+          end_date = tool_inputs.get('end_date')
+          orders = get_order_for_chatty(user, start_date, end_date)
           client.beta.threads.runs.submit_tool_outputs(
             thread_id=thread_id,
             run_id=run.id,
@@ -40,8 +44,8 @@ def send_message(user: User):
               {
                 'tool_call_id': tool_call.id,
                 'output': (
-                  'Ecco la lista aggiornata degli ordini nelle ultime due settimane:\n\n'
-                  + ('\n'.join(str(orders)) if orders else 'Non risultano ordini recenti nel sistema.')
+                  f'Ecco la lista aggiornata degli ordini:\n\n dal {start_date}" + (f" al {end_date}" if end_date else "")' + ('\n'.join(str(orders)) if orders 
+                  else 'Non risultano ordini recenti nel sistema.')
                 ),
               }
             ],
@@ -67,10 +71,10 @@ def get_thread_messages(thread_id):
   return {'status': 'ok', 'thread_id': thread_id, 'messages': messages}
 
 
-def get_order_for_chatty(user: User) -> list[dict]:
-  today = datetime.now().date()
-  two_weeks_ago = today - timedelta(days=7)
+def get_order_for_chatty(user: User, start_date: str = None, end_date: str = None) -> list[dict]:
   orders = []
-  for tupla in query_orders(user, [{'model': 'Order', 'field': 'created_at', 'value': [two_weeks_ago, today]}]):
+  start = datetime.strptime(start_date, "%Y-%m-%d").date()
+  end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else start
+  for tupla in query_orders(user, [{'model': 'Order', 'field': 'created_at', 'value': [start, end]}]):
     orders = format_query_result(tupla, orders, user)
   return orders
