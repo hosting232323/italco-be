@@ -39,18 +39,20 @@ def send_message(user: User):
     if run_status.status == "requires_action":
       for tool_call in run_status.required_action.submit_tool_outputs.tool_calls:
         if tool_call.function.name == "get_order_for_chatty":
-          args = json.loads(tool_call.function.arguments)
-          filters = args.get("filters", [])
+          orders = get_order_for_chatty(user)
+          orders_text = (
+            "Ecco la lista aggiornata degli ordini nelle ultime due settimane:\n\n"
+            + "\n".join(f"- {o}" for o in orders)
+            if orders
+            else "Non risultano ordini recenti nel sistema."
+          )
 
-          orders = []
-          for tupla in query_orders(user, filters):
-            orders = format_query_result(tupla, orders, user)
           client.beta.threads.runs.submit_tool_outputs(
             thread_id=thread_id,
             run_id=run.id,
             tool_outputs=[{
               "tool_call_id": tool_call.id,
-              "output": json.dumps(orders)
+              "output": orders_text
             }]
           )
 
