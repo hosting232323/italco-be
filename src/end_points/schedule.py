@@ -52,6 +52,8 @@ def create_schedule(user: User):
 def delete_schedule(user: User, id):
   schedule = get_by_id(Schedule, int(id))
   orders = get_related_orders(schedule)
+  for delivery_group in get_delivery_groups(schedule):
+    delete(delivery_group)
   delete(schedule)
   for order in orders:
     update(order, {'schedule_id': None, 'assignament_date': None, 'status': OrderStatus.PENDING})
