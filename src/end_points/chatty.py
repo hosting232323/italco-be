@@ -1,40 +1,70 @@
 import os
-import openai
+from openai import OpenAI
 from flask import request, Blueprint
 from datetime import datetime, timedelta
 
-from ..database.schema import User
+from ..database.schema import User, Chatty
 from ..database.enum import UserRole
 from .users.session import flask_session_authentication
 from .orders.queries import query_orders, format_query_result
+from database_api.operations import create
 
 
-openai.api_key = os.getenv('OPEN_AI_KEY')
+client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
+assistant_id = os.environ['ASSISTANT_ID']
 chatty_bp = Blueprint('chatty_bp', __name__)
 
 
 @chatty_bp.route('message', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.DELIVERY])
 def send_message(user: User):
-  response = openai.chat.completions.create(
-    model='gpt-4o',
-    messages=[
-      {
-        'role': 'system',
-        'content': "Sei Chatty, l'assistente di Italcomi, un'azienda che si occupa di consegne di elettrodomestici."
-        + "Evita qualsiasi domanda che non abbia a che fare con l'azienda e i suoi ordini",
-      },
-      {
-        'role': 'system',
-        'content': "Ecco la lista aggiornata degli ordini dell'utente:\n\n"
-        + ' - '.join(str(order) for order in get_order_for_chatty(user))
-        + "\n\nUsa queste informazioni per rispondere alle domande dell'utente o aggiornarlo sullo stato dei suoi ordini.",
-      },
-      {'role': 'user', 'content': request.json['message']},
-    ],
-  )
+  if 'thread_id' in request.json:
+    thread_id = request.json['thread_id']
+  else:
+    thread_id = client.beta.threads.create().id
+    create(Chatty, {'thread_id': thread_id})
 
-  return {'status': 'ok', 'message': response.choices[0].message.content}
+  client.beta.threads.messages.create(thread_id=thread_id, role='user', content=request.json['message'])
+  run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
+  while True:
+    run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+
+    if run_status.status == 'requires_action':
+      for tool_call in run_status.required_action.submit_tool_outputs.tool_calls:
+        if tool_call.function.name == 'get_order_for_chatty':
+          orders = get_order_for_chatty(user)
+          client.beta.threads.runs.submit_tool_outputs(
+            thread_id=thread_id,
+            run_id=run.id,
+            tool_outputs=[
+              {
+                'tool_call_id': tool_call.id,
+                'output': (
+                  'Ecco la lista aggiornata degli ordini nelle ultime due settimane:\n\n'
+                  + ('\n'.join(str(orders)) if orders else 'Non risultano ordini recenti nel sistema.')
+                ),
+              }
+            ],
+          )
+
+    elif run_status.status == 'completed':
+      break
+
+  return {
+    'status': 'ok',
+    'thread_id': thread_id,
+    'message': client.beta.threads.messages.list(thread_id=thread_id).data[0].content[0].text.value,
+  }
+
+
+@chatty_bp.route('thread/<thread_id>', methods=['GET'])
+def get_thread_messages(thread_id):
+  messages = []
+  for m in client.beta.threads.messages.list(thread_id=thread_id).data:
+    for c in m.content:
+      if hasattr(c, 'text') and hasattr(c.text, 'value'):
+        messages.append({'role': m.role, 'text': c.text.value})
+  return {'status': 'ok', 'thread_id': thread_id, 'messages': messages}
 
 
 def get_order_for_chatty(user: User) -> list[dict]:
