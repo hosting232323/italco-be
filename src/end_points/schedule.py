@@ -117,16 +117,18 @@ def update_schedule(user: User, id):
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
-def query_schedules() -> list[tuple[Schedule, Transport, Order, User]]:
+def query_schedules(id: int = None) -> list[tuple[Schedule, Transport, Order, User]]:
   with Session() as session:
-    return (
+    query = (
       session.query(Schedule, Transport, Order, User)
       .join(Transport, Schedule.transport_id == Transport.id)
       .outerjoin(Order, Order.schedule_id == Schedule.id)
       .outerjoin(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
       .outerjoin(User, DeliveryGroup.user_id == User.id)
-      .all()
     )
+    if id:
+      query = query.filter(Schedule.id == id)
+    return query.all()
 
 
 def query_schedules_count(user_id, schedule_date) -> int:
