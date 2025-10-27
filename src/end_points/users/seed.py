@@ -31,6 +31,8 @@ def seed_data():
       create(ServiceUser,
         {'price': 10, 'user_id': 4, 'service_id': 1},
         session=session)
+    
+    session.commit()
 
 
 CONFIG = [
