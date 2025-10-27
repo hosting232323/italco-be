@@ -35,18 +35,19 @@ def query_orders(
       query = query.filter(User.id == user.id)
 
     for filter in filters:
-      model = globals()[filter['model']]
+      model = globals()[filter['model']] if filter['model'] not in ['CustomerUser', 'DeliveryUser'] else User
       field = getattr(model, filter['field'])
       value = filter['value']
 
-      if model in [Schedule, User]:
+      if model == Schedule:
         query = query.outerjoin(Schedule, Schedule.id == Order.schedule_id)
-        if model == User:
-          query = query.outerjoin(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id).outerjoin(
-            User, DeliveryGroup.user_id == User.id
-          )
       elif model == CustomerGroup:
         query = query.outerjoin(CustomerGroup, CustomerGroup.id == User.customer_group_id)
+      elif filter['model'] == 'DeliveryUser':
+        query = query.join(Schedule, Schedule.id == Order.schedule_id).join(
+          DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == value)
+        )
+        continue
 
       if model == Order and field in [Order.created_at, Order.booking_date]:
         query = query.filter(

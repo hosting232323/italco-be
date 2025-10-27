@@ -108,10 +108,7 @@ def export_orders_schedule(user: User, id):
       date=schedules[0]['date'],
       users=', '.join([user['nickname'] for user in schedules[0]['users']]),
       transport=schedules[0]['transport']['name'],
-      orders=[{
-        **order,
-        'signature': get_signature(get_by_id(Order, order['id']))
-      } for order in orders],
+      orders=[{**order, 'signature': get_signature(get_by_id(Order, order['id']))} for order in orders],
     ),
     dest=result,
   )
