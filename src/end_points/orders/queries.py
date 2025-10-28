@@ -1,6 +1,8 @@
 from datetime import datetime, date
 from sqlalchemy import and_, not_, desc
 
+from database_api import Session
+from ...database.enum import UserRole, OrderType, OrderStatus
 from ...database.schema import (
   Order,
   OrderServiceUser,
@@ -14,8 +16,6 @@ from ...database.schema import (
   CustomerGroup,
   Motivation,
 )
-from database_api import Session
-from ...database.enum import UserRole, OrderType, OrderStatus
 
 
 def query_orders(
