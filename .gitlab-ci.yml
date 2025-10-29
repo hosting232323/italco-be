@@ -13,7 +13,6 @@ variables:
 
 fe_dependencies:
   stage: prepare
-  image: node:20
   script:
     - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
     - cd italco-fe
