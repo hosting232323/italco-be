@@ -1,7 +1,6 @@
 stages:
   - prepare
   - test
-
 image: hosting23232323/python-node:3.11
 variables:
   POSTGRES_DB: mydb
@@ -9,7 +8,26 @@ variables:
   POSTGRES_PASSWORD: mypassword
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   DECODE_JWT_TOKEN: token
+
   GITLAB_PIPELINE: 'true'
+
+fe_dependencies:
+  stage: prepare
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - echo "🔐 Login al GitLab Container Registry..."
+    - docker login -u "$CI_FE_USERNAME" -p "$CI_FE_TOKEN" registry.gitlab.com
+    - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
+  script:
+    - echo "Frontend già pronto nell'immagine, nessuna build necessaria"
+  artifacts:
+    paths:
+      - italco-fe
+    expire_in: 1h
+  tags:
+    - linux
 
 be_dependencies:
   stage: prepare
@@ -31,28 +49,26 @@ be_dependencies:
 test_end_to_end:
   stage: test
   needs:
+    - job: fe_dependencies
+      artifacts: true
     - job: be_dependencies
       artifacts: true
   services:
-    - name: registry.gitlab.com/generic-lab/italco/italco-fe:latest
-      alias: italco-fe
-      auth:
-        username: "$CI_FE_USERNAME"
-        password: "$CI_FE_TOKEN"
     - name: postgres:15
       alias: postgres
     - name: selenium/standalone-chromium:latest
       alias: selenium
   script:
+    - export VITE_HOSTNAME=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):8080/
+    - export VITE_HOSTNAME_ITALCO_FE=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
     - source venv/bin/activate
     - alembic upgrade heads
     - python -m src &
 
-    - echo "Aspetto che il frontend sia disponibile..."
-    - until curl -s http://italco-fe:3000 > /dev/null; do sleep 2; done
-    - echo "✅ Frontend pronto"
+    - cd italco-fe
+    - npm run serve &
 
-    - cd generic-test
+    - cd ../generic-test
     - pytest -s ./tests/italco/test_login.py
   artifacts:
     when: always
