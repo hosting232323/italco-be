@@ -56,7 +56,7 @@ def query_orders(
         )
       elif model == Order and field == Order.addressee:
         query = query.filter(field.ilike(f'%{value}%'))
-      elif model == Order and field == Order.id and type(value) == list:
+      elif model == Order and field == Order.id and isinstance(value, list):
         query = query.filter(Order.id.in_(value))
       else:
         query = query.filter(field == value)
