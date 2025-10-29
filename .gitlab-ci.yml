@@ -14,6 +14,8 @@ variables:
 fe_dependencies:
   stage: prepare
   image: registry.gitlab.com/generic-lab/italco/italco-fe:latest
+  before_script:
+    - echo $CI_FE_TOKEN | docker login registry.gitlab.com -u $CI_FE_USERNAME --password-stdin
   script:
     - echo "Frontend già pronto nell'immagine, nessuna build necessaria
   artifacts:
