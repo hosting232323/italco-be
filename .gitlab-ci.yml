@@ -46,6 +46,7 @@ test_end_to_end:
   variables:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
+  privileged: true
   script:
     - echo "Avvio Italco FE..."
     - docker run -d --name italco-fe -p 3000:3000 registry.gitlab.com/generic-lab/italco/italco-fe:latest
