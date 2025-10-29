@@ -13,10 +13,7 @@ variables:
 
 fe_dependencies:
   stage: prepare
-  script:
-    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
-    - cd italco-fe
-    - npm ci
+  image: registry.gitlab.com/generic-lab/italco/italco-fe:latest
   artifacts:
     paths:
       - italco-fe
@@ -61,7 +58,6 @@ test_end_to_end:
     - python -m src &
 
     - cd italco-fe
-    - npm run build
     - npm run serve &
 
     - cd ../generic-test
