@@ -1,48 +1,31 @@
 stages:
   - prepare
   - test
-image: python:3.11
+
+image: hosting23232323/python-node:3.11
+
 variables:
   POSTGRES_DB: mydb
   POSTGRES_USER: myuser
   POSTGRES_PASSWORD: mypassword
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   DECODE_JWT_TOKEN: token
-
-  VITE_GOOGLE_API_KEY: AIzaSyD0WOz5-uNYkUA3rp7V1iAm6U5Ro_-3vmI
-  VITE_SECRET_KEY: 12345678901234567890123456789012
-  VITE_IV: 1234567890123456
-
   GITLAB_PIPELINE: 'true'
 
 fe_dependencies:
   stage: prepare
-  image: node:20
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - echo "🔐 Login al GitLab Container Registry..."
+    - docker login -u "$CI_FE_USERNAME" -p "$CI_FE_TOKEN" registry.gitlab.com
+    - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
   script:
-    - git clone https://$CI_FE_USERNAME:$CI_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
-    - cd italco-fe
-    - npm ci
+    - echo "Frontend già pronto nell'immagine, nessuna build necessaria"
   artifacts:
     paths:
       - italco-fe
-    expire_in: 1h
-  tags:
-    - linux
-
-be_dependencies:
-  stage: prepare
-  script:
-    - python -m venv venv
-    - source venv/bin/activate
-    - pip install --upgrade pip
-    - pip install -r requirements.txt
-    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
-    - cd generic-test
-    - pip install -r ./requirements.txt
-  artifacts:
-    paths:
-      - generic-test
-      - venv
     expire_in: 1h
   tags:
     - linux
@@ -52,32 +35,31 @@ test_end_to_end:
   needs:
     - job: fe_dependencies
       artifacts: true
-    - job: be_dependencies
-      artifacts: true
+  image: docker:latest
   services:
     - name: postgres:15
       alias: postgres
     - name: selenium/standalone-chromium:latest
       alias: selenium
+    - name: docker:dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
   script:
-    - export VITE_HOSTNAME=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):8080/
-    - export VITE_HOSTNAME_ITALCO_FE=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):3000/
-    - source venv/bin/activate
-    - alembic upgrade heads
-    - python -m src &
+    - echo "Avvio Italco FE..."
+    - docker run -d --name italco-fe -p 3000:3000 registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
-    - apt-get update && apt-get install -y npm
-    - cd italco-fe
-    - npm run build
-    - npm run serve &
+    - echo "Aspetto che il FE sia pronto..."
+    - until curl -s http://localhost:3000 > /dev/null; do sleep 2; done
+    - echo "FE pronto! 🔥"
 
-    - cd ../generic-test
-    - pytest -s ./tests/italco/test_login.py
-  artifacts:
-    when: always
-    paths:
-      - generic-test/screenshots/
-    expire_in: 1 week
+    - echo "Eseguo test curl..."
+    - curl -v http://localhost:3000
+
+    - echo "Pulizia container FE..."
+    - docker stop italco-fe
+    - docker rm italco-fe
   tags:
     - linux
 
