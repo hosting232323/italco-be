@@ -32,4 +32,10 @@ def downgrade() -> None:
     ALTER COLUMN status TYPE orderstatus
     USING status::text::orderstatus;
   """)
+  op.execute("""
+    ALTER TABLE motivation
+    ALTER COLUMN status DROP DEFAULT,
+    ALTER COLUMN status TYPE orderstatus
+    USING status::text::orderstatus;
+  """)
   op.execute('DROP TYPE orderstatus_old;')
