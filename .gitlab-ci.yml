@@ -15,7 +15,7 @@ fe_dependencies:
   stage: prepare
   image: registry.gitlab.com/generic-lab/italco/italco-fe:latest
   script:
-    - echo "Frontend già pronto nell'immagine, nessuna build necessaria
+    - echo "Frontend già pronto nell'immagine, nessuna build necessaria"
   artifacts:
     paths:
       - italco-fe
