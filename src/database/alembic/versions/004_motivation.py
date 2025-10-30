@@ -1,7 +1,7 @@
 """Motivation
 
-Revision ID: 981eba745ab5
-Revises: 9b11ccdaf5ad
+Revision ID: 004
+Revises: 003
 Create Date: 2025-09-29 16:34:36.149158
 
 """
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '981eba745ab5'
-down_revision: Union[str, None] = 'bf3aab5227d5'
+revision: str = '004'
+down_revision: Union[str, None] = '003'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
