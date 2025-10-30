@@ -11,6 +11,7 @@ from .orders.queries import query_orders, format_query_result
 from database_api.operations import create
 
 
+MAX_TOOL_OUTPUT_BYTES = 500_000
 client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
 assistant_id = os.environ['ASSISTANT_ID']
 chatty_bp = Blueprint('chatty_bp', __name__)
@@ -39,7 +40,7 @@ def send_message(user: User):
           end_date = tool_inputs.get('end_date')
           orders = get_order_for_chatty(user, start_date, end_date)
           date_message = f'dal {start_date}{f" al {end_date}" if end_date else ""}'
-          submit_orders_to_thread_dynamic(client, thread_id, run.id, tool_call.id, orders, date_message)
+          submit_orders_to_thread_dynamic(thread_id, run.id, tool_call.id, orders, date_message)
 
     elif run_status.status == 'completed':
       break
@@ -70,28 +71,25 @@ def get_order_for_chatty(user: User, start_date: str = None, end_date: str = Non
   return orders
 
 
-MAX_TOOL_OUTPUT_BYTES = 500_000
-def submit_orders_to_thread_dynamic(client, thread_id: str, run_id: str, tool_call_id: str, orders: list[dict], date_message: str):
+def submit_orders_to_thread_dynamic(
+  thread_id: str, run_id: str, tool_call_id: str, orders: list[dict], date_message: str
+):
   if not orders:
-    output_text = f"{date_message}\nNon sono stati trovati ordini."
+    output_text = f'{date_message}\nNon sono stati trovati ordini.'
   else:
-    output_text = f"{date_message}\nEcco la lista degli ordini:\n"
+    output_text = f'{date_message}\nEcco la lista degli ordini:\n'
     output_bytes = len(output_text.encode('utf-8'))
 
     for o in orders:
-      order_str = json.dumps(o, ensure_ascii=False) + "\n"
+      order_str = json.dumps(o, ensure_ascii=False) + '\n'
       order_bytes = len(order_str.encode('utf-8'))
-
       if output_bytes + order_bytes > MAX_TOOL_OUTPUT_BYTES:
+        output_text += 'Elenco di ordini troncato'
         break
+
       output_text += order_str
       output_bytes += order_bytes
 
   client.beta.threads.runs.submit_tool_outputs(
-    thread_id=thread_id,
-    run_id=run_id,
-    tool_outputs=[{
-      'tool_call_id': tool_call_id,
-      'output': output_text
-    }]
+    thread_id=thread_id, run_id=run_id, tool_outputs=[{'tool_call_id': tool_call_id, 'output': output_text}]
   )
