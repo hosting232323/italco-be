@@ -11,7 +11,7 @@ from .users.session import flask_session_authentication
 from .orders.queries import query_orders, format_query_result
 
 
-MAX_TOOL_OUTPUT_BYTES = 500_000
+MAX_TOOL_OUTPUT_BYTES = 450_000
 client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
 assistant_id = os.environ['ASSISTANT_ID']
 chatty_bp = Blueprint('chatty_bp', __name__)
