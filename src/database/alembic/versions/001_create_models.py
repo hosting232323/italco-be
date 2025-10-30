@@ -1,6 +1,6 @@
 """Create models
 
-Revision ID: 8d5691ba121c
+Revision ID: 001
 Revises:
 Create Date: 2025-08-27 20:15:37.315312
 
@@ -12,7 +12,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '8d5691ba121c'
+revision: str = '001'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

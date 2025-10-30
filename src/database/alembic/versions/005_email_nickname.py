@@ -1,7 +1,7 @@
 """Email nickname
 
-Revision ID: 56f8abead30f
-Revises: 981eba745ab5
+Revision ID: 005
+Revises: 004
 Create Date: 2025-10-22 15:59:02.745065
 
 """
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '56f8abead30f'
-down_revision: Union[str, None] = '981eba745ab5'
+revision: str = '005'
+down_revision: Union[str, None] = '004'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

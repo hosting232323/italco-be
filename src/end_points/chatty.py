@@ -4,11 +4,11 @@ from openai import OpenAI
 from datetime import datetime
 from flask import request, Blueprint
 
-from ..database.schema import User, Chatty
 from ..database.enum import UserRole
+from ..database.schema import User, Chatty
+from database_api.operations import create
 from .users.session import flask_session_authentication
 from .orders.queries import query_orders, format_query_result
-from database_api.operations import create
 
 
 client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])

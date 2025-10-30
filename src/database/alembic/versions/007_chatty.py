@@ -1,7 +1,7 @@
 """Chatty
 
-Revision ID: 078a55caeb19
-Revises: 56f8abead30f
+Revision ID: 007
+Revises: 006
 Create Date: 2025-10-24 13:55:53.674028
 
 """
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '078a55caeb19'
-down_revision: Union[str, None] = '6e5bf22fe99a'
+revision: str = '007'
+down_revision: Union[str, None] = '006'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

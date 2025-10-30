@@ -1,7 +1,7 @@
 """Delivery group
 
-Revision ID: 6e5bf22fe99a
-Revises: 981eba745ab5
+Revision ID: 006
+Revises: 005
 Create Date: 2025-10-09 16:04:31.031537
 
 """
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '6e5bf22fe99a'
-down_revision: Union[str, None] = '56f8abead30f'
+revision: str = '006'
+down_revision: Union[str, None] = '005'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
