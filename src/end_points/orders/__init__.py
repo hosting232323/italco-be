@@ -31,8 +31,16 @@ order_bp = Blueprint('order_bp', __name__)
 @order_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def create_order(user: User):
-  data = {key: value for key, value in request.json.items() if key not in ['products', 'user_id']}
+  data = {key: value for key, value in request.json.items() if key not in ['products', 'user_id', 'cloned_order_id']}
   data['type'] = OrderType.get_enum_option(data['type'])
+  if 'cloned_order_id' in request.json and request.json['cloned_order_id']:
+    update(
+      get_by_id(Order, request.json['cloned_order_id']),
+      {'booking_date': datetime.now(), 'status': OrderStatus.RESCHEDULED},
+    )
+    new_note = f'Clonato a partire da ordine {request.json["cloned_order_id"]}'
+    data['operator_note'] = f'{new_note}, {data["operator_note"]}' if 'operator_note' in data else new_note
+
   order = create(Order, data)
   create_order_service_user(
     order, request.json['products'], user.id if user.role == UserRole.CUSTOMER else request.json['user_id']
