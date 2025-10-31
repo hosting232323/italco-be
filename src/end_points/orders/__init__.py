@@ -49,8 +49,8 @@ def create_order(user: User):
     create_order_service_user(
       order, request.json['products'], user.id if user.role == UserRole.CUSTOMER else request.json['user_id'], session=session
     )
-    session.commit()
 
+    session.commit()
   return {'status': 'ok', 'order': order.to_dict()}
 
 
