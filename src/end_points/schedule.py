@@ -52,7 +52,6 @@ def create_schedule(user: User):
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
-
 @schedule_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
 def delete_schedule(user: User, id):
@@ -158,20 +157,20 @@ def get_related_orders(schedule: Schedule) -> list[Order]:
     return session.query(Order).filter(Order.schedule_id == schedule.id).all()
 
 
-def format_query_result(tupla: tuple[Schedule, Transport, Order, User], list: list[dict]) -> list[dict]:
+def format_query_result(tupla: tuple[Schedule, Transport, Order, User], list: list[dict], user: User) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
       if tupla[2] and tupla[2].id not in [order['id'] for order in element['orders']]:
         element['orders'].append(tupla[2].to_dict())
       if tupla[3] and tupla[3].id not in [user['id'] for user in element['users']]:
-        element['users'].append(tupla[3].to_dict())
+        element['users'].append(tupla[3].format_user(user.role))
       return list
 
   list.append(
     {
       **tupla[0].to_dict(),
       'transport': tupla[1].to_dict(),
-      'users': [tupla[3].to_dict()] if tupla[3] else [],
+      'users': [tupla[3].format_user(user.role)] if tupla[3] else [],
       'orders': [tupla[2].to_dict()] if tupla[2] else [],
     }
   )
