@@ -48,7 +48,6 @@ def create_schedule(user: User):
         send_schedule_sms(order)
 
     session.commit()
-
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
@@ -120,6 +119,7 @@ def update_schedule(user: User, id):
           diff['assignament_date'] = datetime.now()
         order = update(order, diff, session=session)
         send_schedule_sms(order)
+
     session.commit()
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
