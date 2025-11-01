@@ -20,12 +20,13 @@ fe_dependencies:
   before_script:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_FE_USERNAME" -p "$CI_FE_TOKEN" registry.gitlab.com
-    - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
   script:
-    - echo "Frontend già pronto nell'immagine, nessuna build necessaria"
+    - echo "Scarico l'immagine FE..."
+    - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
+    - docker save registry.gitlab.com/generic-lab/italco/italco-fe:latest -o italco-fe.tar
   artifacts:
     paths:
-      - italco-fe
+      - italco-fe.tar
     expire_in: 1h
   tags:
     - linux
@@ -46,23 +47,25 @@ test_end_to_end:
   variables:
     DOCKER_HOST: tcp://docker:2375
     DOCKER_TLS_CERTDIR: ""
-  privileged: true
+  before_script:
+    - docker load -i italco-fe.tar
   script:
-    - echo "Avvio Italco FE..."
+    - echo "🚀 Avvio Italco FE..."
     - docker run -d --name italco-fe -p 3000:3000 registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
-    - echo "Aspetto che il FE sia pronto..."
+    - echo "⏳ Aspetto che il FE sia pronto..."
     - until curl -s http://localhost:3000 > /dev/null; do sleep 2; done
-    - echo "FE pronto! 🔥"
+    - echo "✅ FE pronto!"
 
-    - echo "Eseguo test curl..."
+    - echo "Eseguo test base di connessione..."
     - curl -v http://localhost:3000
 
-    - echo "Pulizia container FE..."
+    - echo "🧹 Pulizia container FE..."
     - docker stop italco-fe
     - docker rm italco-fe
   tags:
     - linux
+
 
 lint_backend:
   stage: test
@@ -72,3 +75,4 @@ lint_backend:
     - ruff format ./src --exit-non-zero-on-fix
   tags:
     - linux
+
