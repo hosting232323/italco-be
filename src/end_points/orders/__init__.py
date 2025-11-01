@@ -100,8 +100,8 @@ def get_order(id):
 @order_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order(user: User, id):
-  order: Order = get_by_id(Order, int(id))
   with Session() as session:
+    order: Order = get_by_id(Order, int(id), session=session)
     if user.role in [UserRole.DELIVERY, UserRole.ADMIN] and isinstance(request.form.get('data'), str):
       data = json.loads(request.form.get('data'))
       for file_key in request.files.keys():
