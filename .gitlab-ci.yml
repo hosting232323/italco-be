@@ -30,6 +30,9 @@ test_end_to_end:
     - echo "📦 Scarico l'immagine Italco FE..."
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
+    - echo "🧹 Rimuovo eventuali container esistenti..."
+    - docker rm -f italco-fe || true
+
     - echo "🚀 Avvio Italco FE..."
     - docker run -d --name italco-fe -p 3000:3000 registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
