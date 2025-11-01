@@ -15,8 +15,6 @@ variables:
 fe_dependencies:
   stage: prepare
   image: docker:latest
-  services:
-    - docker:dind
   before_script:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
