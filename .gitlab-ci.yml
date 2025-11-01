@@ -12,28 +12,9 @@ variables:
   DECODE_JWT_TOKEN: token
   GITLAB_PIPELINE: 'true'
 
-fe_dependencies:
-  stage: prepare
-  image: docker:latest
-  before_script:
-    - echo "🔐 Login al GitLab Container Registry..."
-    - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
-  script:
-    - echo "Scarico l'immagine FE..."
-    - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
-    - docker save registry.gitlab.com/generic-lab/italco/italco-fe:latest -o italco-fe.tar
-  artifacts:
-    paths:
-      - italco-fe.tar
-    expire_in: 1h
-  tags:
-    - linux
 
 test_end_to_end:
   stage: test
-  needs:
-    - job: fe_dependencies
-      artifacts: true
   image: docker:latest
   services:
     - name: postgres:15
@@ -43,8 +24,12 @@ test_end_to_end:
   variables:
     DOCKER_HOST: unix:///var/run/docker.sock
   before_script:
-    - docker load -i italco-fe.tar
+    - echo "🔐 Login al GitLab Container Registry..."
+    - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
   script:
+    - echo "📦 Scarico l'immagine Italco FE..."
+    - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
+
     - echo "🚀 Avvio Italco FE..."
     - docker run -d --name italco-fe -p 3000:3000 registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
