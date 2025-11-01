@@ -36,6 +36,9 @@ test_end_to_end:
     - echo "🚀 Avvio Italco FE..."
     - docker run -d --name italco-fe -p 3000:3000 registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
+    - echo "📥 Installo curl..."
+    - apk add --no-cache curl
+
     - echo "⏳ Aspetto che il FE sia pronto..."
     - until curl -s http://localhost:3000 > /dev/null; do sleep 2; done
     - echo "✅ FE pronto!"
