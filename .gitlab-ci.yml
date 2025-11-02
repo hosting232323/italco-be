@@ -23,7 +23,7 @@ test_end_to_end:
       alias: selenium
   variables:
     DOCKER_HOST: unix:///var/run/docker.sock
-    before_script:
+  before_script:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
   script:
