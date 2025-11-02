@@ -23,32 +23,42 @@ test_end_to_end:
       alias: selenium
   variables:
     DOCKER_HOST: unix:///var/run/docker.sock
-  before_script:
+    before_script:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
   script:
     - echo "📦 Scarico l'immagine Italco FE..."
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
-    - echo "🧹 Rimuovo eventuali container esistenti..."
+    - echo "🧹 Rimuovo eventuali container e reti precedenti..."
     - docker rm -f italco-fe || true
+    - docker network rm testnet || true
 
-    - echo "🚀 Avvio Italco FE..."
-    - docker run -d --name italco-fe --network host registry.gitlab.com/generic-lab/italco/italco-fe:latest
+    - echo "🌐 Creo rete condivisa..."
+    - docker network create testnet
+
+    - echo "🚀 Avvio Italco FE sulla rete testnet..."
+    - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
+
+    - echo "📋 Verifico container FE..."
+    - docker ps
+    - docker logs italco-fe || true
 
     - echo "📥 Installo curl..."
     - apk add --no-cache curl
 
-    - echo "⏳ Aspetto che il FE sia pronto..."
-    - until curl -s http://localhost:3000 > /dev/null; do sleep 2; done
+    - echo "⏳ Aspetto che il FE sia pronto (max 5 minuti)..."
+    # ✅ Qui curl raggiunge il container per nome, non localhost
+    - timeout 300 sh -c 'until docker run --rm --network testnet curlimages/curl:latest -s http://italco-fe:3000 > /dev/null; do echo "⏳ Attendo FE..."; sleep 5; done'
     - echo "✅ FE pronto!"
 
     - echo "Eseguo test base di connessione..."
-    - curl -v http://localhost:3000
+    - docker run --rm --network testnet curlimages/curl:latest -v http://italco-fe:3000
 
-    - echo "🧹 Pulizia container FE..."
-    - docker stop italco-fe
-    - docker rm italco-fe
+    - echo "🧹 Pulizia container e rete..."
+    - docker stop italco-fe || true
+    - docker rm italco-fe || true
+    - docker network rm testnet || true
   tags:
     - linux
 
