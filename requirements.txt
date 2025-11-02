@@ -1,4 +1,4 @@
-generic_lib[other] @ git+https://github.com/hosting232323/generic-lib.git
+generic_lib-4.4.0.tar.gz[other]
 xhtml2pdf
 pandas
 openpyxl
