@@ -9,16 +9,11 @@ variables:
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   DECODE_JWT_TOKEN: token
   GITLAB_PIPELINE: 'true'
-  DOCKER_HOST: tcp://docker:2375  # necessario per Docker-in-Docker
 
-# Job di preparazione FE
+# Job di preparazione FE (senza DinD)
 prepare_fe:
   stage: prepare
   image: docker:latest
-  services:
-    - docker:dind
-  variables:
-    DOCKER_TLS_CERTDIR: ""  # disabilita TLS per DinD
   script:
     - echo "🔐 Login al GitLab Registry..."
     - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
@@ -38,9 +33,12 @@ prepare_fe:
   artifacts:
     expire_in: 1h
     paths:
-      - fe_status.txt  # se vuoi salvare info del container
+      - fe_status.txt
   rules:
     - when: always
+  # Mount del docker socket per usare il docker host
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
 
 # Job E2E
 test_end_to_end:
