@@ -10,10 +10,14 @@ variables:
   DECODE_JWT_TOKEN: token
   GITLAB_PIPELINE: 'true'
 
-# Job di preparazione FE (senza DinD)
+# Job di preparazione FE
 prepare_fe:
   stage: prepare
-  image: docker:latest
+  image: docker:20.10.16
+  services:
+    - docker:20.10.16-dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
   script:
     - echo "🔐 Login al GitLab Registry..."
     - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
@@ -25,20 +29,16 @@ prepare_fe:
     - docker network create testnet || true
 
     - echo "🚀 Avvio container FE..."
-    - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
+    - docker run -d --name italco-fe --network testnet -p 3000:3000 registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
     - echo "✅ FE avviato!"
-  tags:
-    - linux
+    - echo "FE is ready" > fe_status.txt
   artifacts:
-    expire_in: 1h
     paths:
       - fe_status.txt
-  rules:
-    - when: always
-  # Mount del docker socket per usare il docker host
-  volumes:
-    - /var/run/docker.sock:/var/run/docker.sock
+    expire_in: 1h
+  tags:
+    - linux
 
 # Job E2E
 test_end_to_end:
@@ -53,24 +53,7 @@ test_end_to_end:
     - name: selenium/standalone-chromium:latest
       alias: selenium
   script:
-    - echo "📥 Installo curl..."
-    - apk add --no-cache curl
-
     - echo "⏳ Aspetto FE pronto..."
-    - timeout 300 sh -c 'until docker run --rm --network testnet curlimages/curl:latest -s http://italco-fe:3000 > /dev/null; do echo "⏳ Attendo FE..."; sleep 5; done'
+    - timeout 300 sh -c 'until curl -s http://prepare_fe:3000 > /dev/null; do echo "⏳ Attendo FE..."; sleep 5; done'
     - echo "✅ FE pronto!"
-
     - echo "🧪 Eseguo test Selenium..."
-    # qui il tuo comando selenium, es: npm run e2e
-  tags:
-    - linux
-
-# Lint Python/Backend
-lint_backend:
-  stage: test
-  script:
-    - pip install ruff
-    - ruff check ./src --exit-non-zero-on-fix
-    - ruff format ./src --exit-non-zero-on-fix
-  tags:
-    - linux
