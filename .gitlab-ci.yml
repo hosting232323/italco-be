@@ -1,5 +1,4 @@
 stages:
-  - prepare
   - test
 
 image: hosting23232323/python-node:3.11
@@ -12,56 +11,25 @@ variables:
   DECODE_JWT_TOKEN: token
   GITLAB_PIPELINE: 'true'
 
-
 test_end_to_end:
   stage: test
-  image: docker:latest
   services:
     - name: postgres:15
       alias: postgres
     - name: selenium/standalone-chromium:latest
       alias: selenium
-  variables:
-    DOCKER_HOST: unix:///var/run/docker.sock
-  before_script:
-    - echo "🔐 Login al GitLab Container Registry..."
-    - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
+    - name: registry.gitlab.com/generic-lab/italco/italco-fe:latest
+      alias: italco-fe
   script:
-    - echo "📦 Scarico l'immagine Italco FE..."
-    - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
-
-    - echo "🧹 Rimuovo eventuali container e reti precedenti..."
-    - docker rm -f italco-fe || true
-    - docker network rm testnet || true
-
-    - echo "🌐 Creo rete condivisa..."
-    - docker network create testnet
-
-    - echo "🚀 Avvio Italco FE sulla rete testnet..."
-    - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
-
-    - echo "📋 Verifico container FE..."
-    - docker ps
-    - docker logs italco-fe || true
-
     - echo "📥 Installo curl..."
     - apk add --no-cache curl
 
     - echo "⏳ Aspetto che il FE sia pronto (max 5 minuti)..."
-    # ✅ Qui curl raggiunge il container per nome, non localhost
-    - timeout 300 sh -c 'until docker run --rm --network testnet curlimages/curl:latest -s http://italco-fe:3000 > /dev/null; do echo "⏳ Attendo FE..."; sleep 5; done'
+    - timeout 300 sh -c 'until curl -s http://italco-fe:3000 > /dev/null; do echo "⏳ Attendo FE..."; sleep 5; done'
     - echo "✅ FE pronto!"
 
-    - echo "Eseguo test base di connessione..."
-    - docker run --rm --network testnet curlimages/curl:latest -v http://italco-fe:3000
-
-    - echo "🧹 Pulizia container e rete..."
-    - docker stop italco-fe || true
-    - docker rm italco-fe || true
-    - docker network rm testnet || true
   tags:
     - linux
-
 
 lint_backend:
   stage: test
@@ -71,4 +39,3 @@ lint_backend:
     - ruff format ./src --exit-non-zero-on-fix
   tags:
     - linux
-
