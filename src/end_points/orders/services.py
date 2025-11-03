@@ -11,7 +11,11 @@ def create_order_service_user(order: Order, products: dict, user_id: int, sessio
     for service in products[product]:
       for service_user in service_users:
         if service_user.service_id == service['id']:
-          create(OrderServiceUser, {'order_id': order.id, 'service_user_id': service_user.id, 'product': product}, session=session)
+          create(
+            OrderServiceUser,
+            {'order_id': order.id, 'service_user_id': service_user.id, 'product': product},
+            session=session,
+          )
           break
 
 
@@ -31,7 +35,11 @@ def update_order_service_user(order: Order, products: dict, user_id: int, sessio
     for service in products[product]:
       for service_user in service_users:
         if service_user.service_id == service['id']:
-          create(OrderServiceUser, {'order_id': order.id, 'service_user_id': service_user.id, 'product': product}, session=session)
+          create(
+            OrderServiceUser,
+            {'order_id': order.id, 'service_user_id': service_user.id, 'product': product},
+            session=session,
+          )
           break
 
   for product in list({order_service_user.product for order_service_user in order_service_users}):

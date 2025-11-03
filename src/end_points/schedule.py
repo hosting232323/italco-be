@@ -20,13 +20,12 @@ hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 @schedule_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def create_schedule(user: User):
-  orders, orders_data_map, schedule_data, users, response = format_schedule_data(request.json)
-  if response:
-    return response
-
   with Session() as session:
-    schedule: Schedule = create(Schedule, schedule_data, session=session)
+    orders, orders_data_map, schedule_data, users, response = format_schedule_data(request.json, session=session)
+    if response:
+      return response
 
+    schedule: Schedule = create(Schedule, schedule_data, session=session)
     for user in users:
       if query_schedules_count(user['id'], schedule.date) == 0:
         create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']}, session=session)
@@ -43,7 +42,7 @@ def create_schedule(user: User):
             'schedule_index': orders_data_map[order.id]['schedule_index'],
             'start_time_slot': orders_data_map[order.id]['start_time_slot'],
           },
-          session=session
+          session=session,
         )
         send_schedule_sms(order)
 
@@ -69,7 +68,7 @@ def delete_schedule(user: User, id):
 def get_schedules(user: User):
   schedules = []
   for tupla in query_schedules():
-    schedules = format_query_result(tupla, schedules)
+    schedules = format_query_result(tupla, schedules, user)
   return {'status': 'ok', 'schedules': schedules}
 
 
@@ -78,11 +77,11 @@ def get_schedules(user: User):
 def update_schedule(user: User, id):
   with Session() as session:
     if 'deleted_orders' in request.json:
-      for order in get_by_ids(Order, request.json['deleted_orders']):
+      for order in get_by_ids(Order, request.json['deleted_orders'], session=session):
         update(order, {'schedule_id': None, 'assignament_date': None, 'status': OrderStatus.PENDING}, session=session)
       del request.json['deleted_orders']
 
-    schedule: Schedule = get_by_id(Schedule, int(id))
+    schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     delivery_groups = get_delivery_groups(schedule)
     deleted_users = []
     if 'deleted_users' in request.json:
@@ -94,7 +93,7 @@ def update_schedule(user: User, id):
             break
       del request.json['deleted_users']
 
-    orders, orders_data_map, schedule_data, users, response = format_schedule_data(request.json)
+    orders, orders_data_map, schedule_data, users, response = format_schedule_data(request.json, session=session)
     if response:
       return response
 
@@ -190,9 +189,9 @@ def get_selling_point(order: Order) -> str:
     )
 
 
-def format_schedule_data(schedule_data: dict) -> list[list[Order], dict]:
+def format_schedule_data(schedule_data: dict, session=None) -> list[list[Order], dict]:
   orders_data = schedule_data['orders']
-  orders: list[Order] = get_by_ids(Order, [o['id'] for o in orders_data])
+  orders: list[Order] = get_by_ids(Order, [o['id'] for o in orders_data], session=session)
   if not orders:
     return None, None, None, None, {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
 

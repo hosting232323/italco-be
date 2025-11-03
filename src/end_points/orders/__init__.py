@@ -40,14 +40,17 @@ def create_order(user: User):
       update(
         get_by_id(Order, request.json['cloned_order_id']),
         {'booking_date': datetime.now(), 'status': OrderStatus.RESCHEDULED},
-        session=session
+        session=session,
       )
       new_note = f'Clonato a partire da ordine {request.json["cloned_order_id"]}'
       data['operator_note'] = f'{new_note}, {data["operator_note"]}' if 'operator_note' in data else new_note
 
     order: Order = create(Order, data, session=session)
     create_order_service_user(
-      order, request.json['products'], user.id if user.role == UserRole.CUSTOMER else request.json['user_id'], session=session
+      order,
+      request.json['products'],
+      user.id if user.role == UserRole.CUSTOMER else request.json['user_id'],
+      session=session,
     )
 
     session.commit()
@@ -110,7 +113,11 @@ def update_order(user: User, id):
           if file_key == 'signature':
             data['signature'] = uploaded_file.read()
           else:
-            create(Photo, {'photo': uploaded_file.read(), 'mime_type': uploaded_file.mimetype, 'order_id': order.id}, session=session)
+            create(
+              Photo,
+              {'photo': uploaded_file.read(), 'mime_type': uploaded_file.mimetype, 'order_id': order.id},
+              session=session,
+            )
     else:
       data = request.json
 
@@ -124,7 +131,7 @@ def update_order(user: User, id):
           'anomaly': data['anomaly'] if 'delay' in data else False,
           'text': data['motivation'],
         },
-        session=session
+        session=session,
       )
     else:
       motivation = None
@@ -134,7 +141,9 @@ def update_order(user: User, id):
     if data['status'] in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
       data['booking_date'] = datetime.now()
     if user.role != UserRole.DELIVERY:
-      update_order_service_user(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
+      update_order_service_user(
+        order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session
+      )
 
     previous_start = order.start_time_slot
     previous_end = order.end_time_slot
