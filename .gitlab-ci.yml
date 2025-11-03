@@ -1,7 +1,6 @@
 stages:
+  - prepare
   - test
-
-image: hosting23232323/python-node:3.11
 
 variables:
   POSTGRES_DB: mydb
@@ -10,27 +9,65 @@ variables:
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   DECODE_JWT_TOKEN: token
   GITLAB_PIPELINE: 'true'
+  DOCKER_HOST: tcp://docker:2375  # necessario per Docker-in-Docker
 
+# Job di preparazione FE
+prepare_fe:
+  stage: prepare
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""  # disabilita TLS per DinD
+  script:
+    - echo "🔐 Login al GitLab Registry..."
+    - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
+
+    - echo "📦 Pull dell'immagine FE..."
+    - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
+
+    - echo "🌐 Creo rete condivisa..."
+    - docker network create testnet || true
+
+    - echo "🚀 Avvio container FE..."
+    - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
+
+    - echo "✅ FE avviato!"
+  tags:
+    - linux
+  artifacts:
+    expire_in: 1h
+    paths:
+      - fe_status.txt  # se vuoi salvare info del container
+  rules:
+    - when: always
+
+# Job E2E
 test_end_to_end:
   stage: test
+  needs:
+    - job: prepare_fe
+      artifacts: true
+  image: hosting23232323/python-node:3.11
   services:
     - name: postgres:15
       alias: postgres
     - name: selenium/standalone-chromium:latest
       alias: selenium
-    - name: registry.gitlab.com/generic-lab/italco/italco-fe:latest
-      alias: italco-fe
   script:
     - echo "📥 Installo curl..."
     - apk add --no-cache curl
 
-    - echo "⏳ Aspetto che il FE sia pronto (max 5 minuti)..."
-    - timeout 300 sh -c 'until curl -s http://italco-fe:3000 > /dev/null; do echo "⏳ Attendo FE..."; sleep 5; done'
+    - echo "⏳ Aspetto FE pronto..."
+    - timeout 300 sh -c 'until docker run --rm --network testnet curlimages/curl:latest -s http://italco-fe:3000 > /dev/null; do echo "⏳ Attendo FE..."; sleep 5; done'
     - echo "✅ FE pronto!"
 
+    - echo "🧪 Eseguo test Selenium..."
+    # qui il tuo comando selenium, es: npm run e2e
   tags:
     - linux
 
+# Lint Python/Backend
 lint_backend:
   stage: test
   script:
