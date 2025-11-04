@@ -20,30 +20,33 @@ hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 @schedule_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def create_schedule(user: User):
-  orders, orders_data_map, schedule_data, users, response = format_schedule_data(request.json)
-  if response:
-    return response
+  with Session() as session:
+    orders, orders_data_map, schedule_data, users, response = format_schedule_data(request.json, session=session)
+    if response:
+      return response
 
-  schedule = create(Schedule, schedule_data)
-  for user in users:
-    if query_schedules_count(user['id'], schedule.date) == 0:
-      create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']})
+    schedule: Schedule = create(Schedule, schedule_data, session=session)
+    for user in users:
+      if query_schedules_count(user['id'], schedule.date) == 0:
+        create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']}, session=session)
 
-  for order in orders:
-    if order.id in orders_data_map:
-      data_update = orders_data_map[order.id]
-      order = update(
-        order,
-        {
-          'schedule_id': schedule.id,
-          'status': OrderStatus.IN_PROGRESS,
-          'start_time_slot': data_update['start_time_slot'],
-          'end_time_slot': data_update['end_time_slot'],
-          'schedule_index': data_update['schedule_index'],
-          'assignament_date': datetime.now(),
-        },
-      )
-      send_schedule_sms(order)
+    for order in orders:
+      if order.id in orders_data_map:
+        order = update(
+          order,
+          {
+            'schedule_id': schedule.id,
+            'status': OrderStatus.IN_PROGRESS,
+            'assignament_date': datetime.now(),
+            'end_time_slot': orders_data_map[order.id]['end_time_slot'],
+            'schedule_index': orders_data_map[order.id]['schedule_index'],
+            'start_time_slot': orders_data_map[order.id]['start_time_slot'],
+          },
+          session=session,
+        )
+        send_schedule_sms(order)
+
+    session.commit()
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
@@ -65,55 +68,58 @@ def delete_schedule(user: User, id):
 def get_schedules(user: User):
   schedules = []
   for tupla in query_schedules():
-    schedules = format_query_result(tupla, schedules)
+    schedules = format_query_result(tupla, schedules, user)
   return {'status': 'ok', 'schedules': schedules}
 
 
 @schedule_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def update_schedule(user: User, id):
-  if 'deleted_orders' in request.json:
-    for order in get_by_ids(Order, request.json['deleted_orders']):
-      update(order, {'schedule_id': None, 'assignament_date': None, 'status': OrderStatus.PENDING})
-    del request.json['deleted_orders']
+  with Session() as session:
+    if 'deleted_orders' in request.json:
+      for order in get_by_ids(Order, request.json['deleted_orders'], session=session):
+        update(order, {'schedule_id': None, 'assignament_date': None, 'status': OrderStatus.PENDING}, session=session)
+      del request.json['deleted_orders']
 
-  schedule: Schedule = get_by_id(Schedule, int(id))
-  delivery_groups = get_delivery_groups(schedule)
-  deleted_users = []
-  if 'deleted_users' in request.json:
-    deleted_users = request.json['deleted_users']
-    for user_id in deleted_users:
-      for delivery_group in delivery_groups:
-        if delivery_group.user_id == user_id:
-          delete(delivery_group)
-          break
-    del request.json['deleted_users']
+    schedule: Schedule = get_by_id(Schedule, int(id), session=session)
+    delivery_groups = get_delivery_groups(schedule)
+    deleted_users = []
+    if 'deleted_users' in request.json:
+      deleted_users = request.json['deleted_users']
+      for user_id in deleted_users:
+        for delivery_group in delivery_groups:
+          if delivery_group.user_id == user_id:
+            delete(delivery_group, session=session)
+            break
+      del request.json['deleted_users']
 
-  orders, orders_data_map, schedule_data, users, response = format_schedule_data(request.json)
-  if response:
-    return response
+    orders, orders_data_map, schedule_data, users, response = format_schedule_data(request.json, session=session)
+    if response:
+      return response
 
-  schedule = update(schedule, schedule_data)
-  actual_user_ids = list(set([delivery_group.user_id for delivery_group in delivery_groups]) - set(deleted_users))
-  for user in users:
-    if user['id'] not in actual_user_ids and query_schedules_count(user['id'], schedule.date) == 0:
-      create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']})
+    schedule = update(schedule, schedule_data, session=session)
+    actual_user_ids = list(set([delivery_group.user_id for delivery_group in delivery_groups]) - set(deleted_users))
+    for user in users:
+      if user['id'] not in actual_user_ids and query_schedules_count(user['id'], schedule.date) == 0:
+        create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']}, session=session)
 
-  for order in orders:
-    if order.id in orders_data_map:
-      data_update = orders_data_map[order.id]
-      diff = {
-        'schedule_id': schedule.id,
-        'start_time_slot': data_update['start_time_slot'],
-        'end_time_slot': data_update['end_time_slot'],
-        'schedule_index': data_update['schedule_index'],
-      }
-      if order.status == OrderStatus.PENDING:
-        diff['status'] = OrderStatus.IN_PROGRESS
-      if not order.assignament_date:
-        diff['assignament_date'] = datetime.now()
-      order = update(order, diff)
-      send_schedule_sms(order)
+    for order in orders:
+      if order.id in orders_data_map:
+        data_update = orders_data_map[order.id]
+        diff = {
+          'schedule_id': schedule.id,
+          'start_time_slot': data_update['start_time_slot'],
+          'end_time_slot': data_update['end_time_slot'],
+          'schedule_index': data_update['schedule_index'],
+        }
+        if order.status == OrderStatus.PENDING:
+          diff['status'] = OrderStatus.IN_PROGRESS
+        if not order.assignament_date:
+          diff['assignament_date'] = datetime.now()
+        order = update(order, diff, session=session)
+        send_schedule_sms(order)
+
+    session.commit()
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
@@ -122,9 +128,9 @@ def query_schedules(id: int = None) -> list[tuple[Schedule, Transport, Order, Us
     query = (
       session.query(Schedule, Transport, Order, User)
       .join(Transport, Schedule.transport_id == Transport.id)
-      .outerjoin(Order, Order.schedule_id == Schedule.id)
-      .outerjoin(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
-      .outerjoin(User, DeliveryGroup.user_id == User.id)
+      .join(Order, Order.schedule_id == Schedule.id)
+      .join(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
+      .join(User, DeliveryGroup.user_id == User.id)
     )
     if id:
       query = query.filter(Schedule.id == id)
@@ -150,20 +156,20 @@ def get_related_orders(schedule: Schedule) -> list[Order]:
     return session.query(Order).filter(Order.schedule_id == schedule.id).all()
 
 
-def format_query_result(tupla: tuple[Schedule, Transport, Order, User], list: list[dict]) -> list[dict]:
+def format_query_result(tupla: tuple[Schedule, Transport, Order, User], list: list[dict], user: User) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
       if tupla[2] and tupla[2].id not in [order['id'] for order in element['orders']]:
         element['orders'].append(tupla[2].to_dict())
       if tupla[3] and tupla[3].id not in [user['id'] for user in element['users']]:
-        element['users'].append(tupla[3].to_dict())
+        element['users'].append(tupla[3].format_user(user.role))
       return list
 
   list.append(
     {
       **tupla[0].to_dict(),
       'transport': tupla[1].to_dict(),
-      'users': [tupla[3].to_dict()] if tupla[3] else [],
+      'users': [tupla[3].format_user(user.role)] if tupla[3] else [],
       'orders': [tupla[2].to_dict()] if tupla[2] else [],
     }
   )
@@ -183,9 +189,9 @@ def get_selling_point(order: Order) -> str:
     )
 
 
-def format_schedule_data(schedule_data: dict) -> list[list[Order], dict]:
+def format_schedule_data(schedule_data: dict, session=None) -> list[list[Order], dict]:
   orders_data = schedule_data['orders']
-  orders: list[Order] = get_by_ids(Order, [o['id'] for o in orders_data])
+  orders: list[Order] = get_by_ids(Order, [o['id'] for o in orders_data], session=session)
   if not orders:
     return None, None, None, None, {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
 
