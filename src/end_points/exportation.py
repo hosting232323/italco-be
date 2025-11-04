@@ -89,7 +89,7 @@ def export_orders_invoice(user: User):
 def export_orders_schedule(user: User, id):
   schedules = []
   for tupla in query_schedules(int(id)):
-    schedules = format_schedule_query_result(tupla, schedules)
+    schedules = format_schedule_query_result(tupla, schedules, user)
   if len(schedules) != 1:
     raise Exception('Numero di schedule trovati non valido')
 

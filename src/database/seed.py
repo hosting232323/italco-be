@@ -1,7 +1,9 @@
+from datetime import date
+
 from database_api import Session
-from .enum import UserRole, OrderType
 from database_api.operations import create
-from .schema import User, Transport, CollectionPoint, Service, ServiceUser
+from .enum import UserRole, OrderType, OrderStatus
+from .schema import User, Transport, CollectionPoint, Service, ServiceUser, Order, OrderServiceUser
 
 
 def seed_data():
@@ -13,6 +15,8 @@ def seed_data():
         session.query(CollectionPoint).count() == 0,
         session.query(Service).count() == 0,
         session.query(ServiceUser).count() == 0,
+        session.query(Order).count() == 0,
+        session.query(OrderServiceUser).count() == 0,
       ]
     ):
       create(
@@ -63,5 +67,22 @@ def seed_data():
       create(Service, {'name': 'Servizio', 'type': OrderType.DELIVERY}, session=session)
 
       create(ServiceUser, {'price': 10, 'user_id': 4, 'service_id': 1}, session=session)
+
+      create(
+        Order,
+        {
+          'status': OrderStatus.PENDING,
+          'type': OrderType.DELIVERY,
+          'addressee': 'Destinatario di prova',
+          'address': "27, Via Simone D'Orsenigo, Milano, MI",
+          'cap': '20135',
+          'dpc': date.today().strftime('%Y-%m-%d'),
+          'drc': date.today().strftime('%Y-%m-%d'),
+          'collection_point_id': 1,
+        },
+        session=session,
+      )
+
+      create(OrderServiceUser, {'order_id': 1, 'product': 'Prodotto di prova', 'service_user_id': 1}, session=session)
 
       session.commit()
