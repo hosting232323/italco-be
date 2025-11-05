@@ -65,14 +65,16 @@ def get_thread_messages(thread_id):
 def get_order_for_chatty(user: User, start_date: str = None, end_date: str = None) -> list[dict]:
   orders = []
   start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-  if end_date:
-    end_dt = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)
-  else:
-    end_dt = start_dt + timedelta(days=1)
-
-  for tupla in query_orders(user, [
-    {'model': 'Order', 'field': 'created_at', 'value': [start_dt, end_dt]}
-  ]):
+  for tupla in query_orders(
+    user,
+    [
+      {
+        'model': 'Order',
+        'field': 'created_at',
+        'value': [start_dt, (datetime.strptime(end_date, '%Y-%m-%d') if end_date else start_dt) + timedelta(days=1)],
+      }
+    ],
+  ):
     orders = format_query_result(tupla, orders, user)
   return orders
 
