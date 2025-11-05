@@ -36,15 +36,6 @@ def create_order(user: User):
   data['type'] = OrderType.get_enum_option(data['type'])
 
   with Session() as session:
-    if 'cloned_order_id' in request.json and request.json['cloned_order_id']:
-      update(
-        get_by_id(Order, request.json['cloned_order_id']),
-        {'booking_date': datetime.now(), 'status': OrderStatus.RESCHEDULED},
-        session=session,
-      )
-      new_note = f'Clonato a partire da ordine {request.json["cloned_order_id"]}'
-      data['operator_note'] = f'{new_note}, {data["operator_note"]}' if 'operator_note' in data else new_note
-
     order: Order = create(Order, data, session=session)
     create_order_service_user(
       order,
@@ -52,6 +43,25 @@ def create_order(user: User):
       user.id if user.role == UserRole.CUSTOMER else request.json['user_id'],
       session=session,
     )
+
+    if 'cloned_order_id' in request.json and request.json['cloned_order_id']:
+      cloned_order: Order = get_by_id(Order, request.json['cloned_order_id'], session=session)
+      new_note = f"Rischedulato con l'ordine {order.id}"
+      update(
+        cloned_order,
+        {
+          'booking_date': datetime.now(),
+          'status': OrderStatus.RESCHEDULED,
+          'operator_note': f'{new_note}, {cloned_order.operator_note}' if cloned_order.operator_note else new_note,
+        },
+        session=session,
+      )
+      new_note = f'Clonato da ordine {request.json["cloned_order_id"]}'
+      update(
+        order,
+        {'operator_note': f'{new_note}, {data["operator_note"]}' if 'operator_note' in data else new_note},
+        session=session,
+      )
 
     session.commit()
   return {'status': 'ok', 'order': order.to_dict()}
