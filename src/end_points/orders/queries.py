@@ -141,10 +141,8 @@ def add_service(object: dict, service: Service, order_service_user: OrderService
   return object
 
 
-def get_order_photo_ids(order_id: int) -> list[int]:
-  with Session() as session:
-    photo_ids = session.query(Photo.id).filter(Photo.order_id == order_id).all()
-  return [pid[0] for pid in photo_ids]
+def get_order_photo_ids(order_id: int, session=None) -> list[int]:
+  return [pid[0] for pid in session.query(Photo.id).filter(Photo.order_id == order_id).all()]
 
 
 def get_motivations_by_order_id(order_id: int) -> list[Motivation]:

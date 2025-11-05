@@ -22,14 +22,14 @@ def get_mails(order: Order):
     return list(set(MAILS + ([user.email] if user and user.email else [])))
 
 
-def mailer_check(order: Order, data: dict, motivation: Motivation):
+def mailer_check(order: Order, data: dict, motivation: Motivation, session=None):
   if (
     ('status' in data and data['status'] in [OrderStatus.CANCELLED, OrderStatus.TO_RESCHEDULE])
     or ('anomaly' in data and data['anomaly'] is True)
     or ('delay' in data and data['delay'] is True)
   ):
     photos_html = ''
-    for photo_id in get_order_photo_ids(order.id):
+    for photo_id in get_order_photo_ids(order.id, session=session):
       photo_url = f'{request.host_url}order/photo/{photo_id}'
       photos_html += f'<img src="{photo_url}" alt="Foto ordine" style="max-width:200px; margin:5px;"><br>'
 

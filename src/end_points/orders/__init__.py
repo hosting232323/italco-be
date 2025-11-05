@@ -170,7 +170,7 @@ def update_order(user: User, id):
       f'e {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilità al numero indicato. Buona Giornata!',
     )
 
-  mailer_check(order, data, motivation)
+    mailer_check(order, data, motivation, session=session)
   return {'status': 'ok', 'order': order.to_dict()}
 
 
