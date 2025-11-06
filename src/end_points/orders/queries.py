@@ -62,9 +62,10 @@ def query_orders(
       else:
         query = query.filter(field == value)
 
+    query = query.order_by(desc(Order.created_at))
     if limit:
       query = query.limit(limit)
-    return query.order_by(desc(Order.updated_at)).all()
+    return query.all()
 
 
 def query_delivery_orders(
