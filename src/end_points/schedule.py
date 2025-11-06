@@ -176,16 +176,16 @@ def format_query_result(tupla: tuple[Schedule, Transport, Order, User], list: li
   return list
 
 
-def get_selling_point(order: Order) -> str:
+def get_selling_point(order: Order) -> User:
   with Session() as session:
     return (
-      session.query(User.nickname)
+      session.query(User)
       .join(ServiceUser, User.id == ServiceUser.user_id)
       .join(
         OrderServiceUser,
         and_(ServiceUser.id == OrderServiceUser.service_user_id, OrderServiceUser.order_id == order.id),
       )
-      .scalar()
+      .first()
     )
 
 
@@ -220,7 +220,7 @@ def send_schedule_sms(order: Order):
       os.environ['VONAGE_API_SECRET'],
       'Ares',
       order.addressee_contact,
-      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order)}, è programmata per il {order.assignament_date}'
+      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order).nickname}, è programmata per il {order.assignament_date}'
       f", fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell'arrivo. Per monitorare ogni f"
       f'ase della sua consegna clicchi il link in questione {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilit'
       'à al numero indicato. Buona Giornata!',

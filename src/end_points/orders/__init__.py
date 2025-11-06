@@ -175,7 +175,7 @@ def update_order(user: User, id):
       os.environ['VONAGE_API_SECRET'],
       'Ares',
       order.addressee_contact,
-      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order)}, è stata riprogrammata per il {order.assignament_date}'
+      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order).nickname}, è stata riprogrammata per il {order.assignament_date}'
       f", fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell'arrivo. Per monitorare ogni fase della sua consegna clicchi il link in question"
       f'e {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilità al numero indicato. Buona Giornata!',
     )
