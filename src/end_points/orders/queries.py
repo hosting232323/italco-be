@@ -19,7 +19,7 @@ from ...database.schema import (
 
 
 def query_orders(
-  user: User, filters: list, limit = None
+  user: User, filters: list, limit: int = None
 ) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint]]:
   with Session() as session:
     query = (
@@ -60,11 +60,10 @@ def query_orders(
         query = query.filter(Order.id.in_(value))
       else:
         query = query.filter(field == value)
-    query = query.order_by(desc(Order.updated_at))
 
+    query = query.order_by(desc(Order.updated_at))
     if limit:
       query = query.limit(limit)
-
     return query.all()
 
 
