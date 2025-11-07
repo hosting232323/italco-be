@@ -65,7 +65,7 @@ test_end_to_end:
     - npm run serve &
 
     - cd ../generic-test
-    - pytest -s ./tests/italco/test_login.py
+    - pytest -s ./src/tests/italco/test_login.py
   artifacts:
     when: always
     paths:
