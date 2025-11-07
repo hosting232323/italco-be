@@ -116,8 +116,9 @@ def update_schedule(user: User, id):
           diff['status'] = OrderStatus.IN_PROGRESS
         if not order.assignament_date:
           diff['assignament_date'] = datetime.now()
+        was_unscheduled = order.schedule_id is None
         order = update(order, diff, session=session)
-        send_schedule_sms(order)
+        send_schedule_sms(order, was_unscheduled)
 
     session.commit()
   return {'status': 'ok', 'schedule': schedule.to_dict()}
@@ -211,8 +212,8 @@ def format_schedule_data(schedule_data: dict, session=None) -> list[list[Order],
   return orders, orders_data_map, schedule_data, users, None
 
 
-def send_schedule_sms(order: Order):
-  if not IS_DEV and order.addressee_contact:
+def send_schedule_sms(order: Order, was_unscheduled: bool = True):
+  if not IS_DEV and was_unscheduled and order.addressee_contact:
     start = order.start_time_slot.strftime('%H:%M')
     end = order.end_time_slot.strftime('%H:%M')
     send_sms(
