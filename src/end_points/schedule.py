@@ -105,8 +105,6 @@ def update_schedule(user: User, id):
 
     for order in orders:
       if order.id in orders_data_map:
-        print(order.schedule_id)
-        was_unscheduled = order.schedule_id is None
         data_update = orders_data_map[order.id]
         diff = {
           'schedule_id': schedule.id,
@@ -119,7 +117,7 @@ def update_schedule(user: User, id):
         if not order.assignament_date:
           diff['assignament_date'] = datetime.now()
         order = update(order, diff, session=session)
-        if was_unscheduled:
+        if order.schedule_id is None:
           send_schedule_sms(order)
 
     session.commit()
