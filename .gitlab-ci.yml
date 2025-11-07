@@ -76,6 +76,7 @@ test_end_to_end:
 
 lint_backend:
   stage: test
+  image: python:3.11
   script:
     - pip install ruff
     - ruff check ./src --exit-non-zero-on-fix
