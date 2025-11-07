@@ -1,7 +1,7 @@
 stages:
   - prepare
   - test
-image: python:3.11
+image: hosting23232323/python-node:3.11
 variables:
   POSTGRES_DB: mydb
   POSTGRES_USER: myuser
@@ -13,7 +13,6 @@ variables:
 
 fe_dependencies:
   stage: prepare
-  image: node:20
   script:
     - git clone https://$CI_ITALCO_FE_USERNAME:$CI_ITALCO_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git
     - cd italco-fe
@@ -30,7 +29,6 @@ be_dependencies:
   script:
     - python -m venv venv
     - source venv/bin/activate
-    - pip install --upgrade pip
     - pip install -r requirements.txt
     - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
@@ -62,7 +60,6 @@ test_end_to_end:
     - alembic upgrade heads
     - python -m src &
 
-    - apt-get update && apt-get install -y npm
     - cd italco-fe
     - npm run build
     - npm run serve &
