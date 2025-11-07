@@ -116,8 +116,9 @@ def update_schedule(user: User, id):
           diff['status'] = OrderStatus.IN_PROGRESS
         if not order.assignament_date:
           diff['assignament_date'] = datetime.now()
+        was_unscheduled = order.schedule_id is None
         order = update(order, diff, session=session)
-        if order.schedule_id is None:
+        if was_unscheduled:
           send_schedule_sms(order)
 
     session.commit()
