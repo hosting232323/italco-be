@@ -20,7 +20,6 @@ be_dependencies:
     - source venv/bin/activate
     - pip install --upgrade pip
     - pip install -r requirements.txt
-    - alembic upgrade heads
     - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
     - pip install -r ./requirements.txt
@@ -53,6 +52,7 @@ test_end_to_end:
     - export VITE_HOSTNAME_ITALCO_FE=http://italco-fe:3000/
 
     - source venv/bin/activate
+    - alembic upgrade heads
     - python -m src &
 
     - echo "📦 Scarico l'immagine Italco FE..."
