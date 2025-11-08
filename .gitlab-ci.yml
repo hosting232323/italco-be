@@ -20,6 +20,7 @@ be_dependencies:
     - source venv/bin/activate
     - pip install --upgrade pip
     - pip install -r requirements.txt
+    - alembic upgrade heads
     - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
     - pip install -r ./requirements.txt
@@ -48,13 +49,11 @@ test_end_to_end:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
   script:
-  
     - export VITE_HOSTNAME=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):8080/
     - export VITE_HOSTNAME_ITALCO_FE=http://italco-fe:3000/
-    - source venv/bin/activate
-    - alembic upgrade heads
-    - python -m src &
 
+    - source venv/bin/activate
+    - python -m src &
 
     - echo "📦 Scarico l'immagine Italco FE..."
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
@@ -86,6 +85,7 @@ test_end_to_end:
 
 lint_backend:
   stage: test
+  image: python:3.11
   script:
     - pip install ruff
     - ruff check ./src --exit-non-zero-on-fix
