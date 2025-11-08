@@ -13,8 +13,29 @@ variables:
   GITLAB_PIPELINE: 'true'
 
 
+be_dependencies:
+  stage: prepare
+  script:
+    - python -m venv venv
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
+    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
+    - cd generic-test
+    - pip install -r ./requirements.txt
+  artifacts:
+    paths:
+      - generic-test
+      - venv
+    expire_in: 1h
+  tags:
+    - linux
+
 test_end_to_end:
   stage: test
+  needs:
+    - job: be_dependencies
+      artifacts: true
   image: docker:latest
   services:
     - name: postgres:15
@@ -27,6 +48,14 @@ test_end_to_end:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
   script:
+  
+    - export VITE_HOSTNAME=http://$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$'):8080/
+    - export VITE_HOSTNAME_ITALCO_FE=http://italco-fe:3000/
+    - source venv/bin/activate
+    - alembic upgrade heads
+    - python -m src &
+
+
     - echo "📦 Scarico l'immagine Italco FE..."
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
@@ -44,16 +73,8 @@ test_end_to_end:
     - docker ps
     - docker logs italco-fe || true
 
-    - echo "📥 Installo curl..."
-    - apk add --no-cache curl
-
-    - echo "⏳ Aspetto che il FE sia pronto (max 5 minuti)..."
-    # ✅ Qui curl raggiunge il container per nome, non localhost
-    - timeout 300 sh -c 'until docker run --rm --network testnet curlimages/curl:latest -s http://italco-fe:3000 > /dev/null; do echo "⏳ Attendo FE..."; sleep 5; done'
-    - echo "✅ FE pronto!"
-
-    - echo "Eseguo test base di connessione..."
-    - docker run --rm --network testnet curlimages/curl:latest -v http://italco-fe:3000
+    - cd ../generic-test
+    - pytest -s ./src/tests/italco/test_login.py
 
     - echo "🧹 Pulizia container e rete..."
     - docker stop italco-fe || true
