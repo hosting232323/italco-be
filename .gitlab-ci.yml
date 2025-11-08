@@ -49,10 +49,10 @@ test_end_to_end:
 
     # Costruisco backend
     - docker build -t italco-be:latest .
+    - docker run --rm italco-be:latest alembic upgrade heads
 
     # Avvio backend sulla rete testnet
-    - docker run -d --name italco-be --network testnet -e DATABASE_URL=$DATABASE_URL italco-be:latest
-    - docker exec italco-be alembic upgrade heads
+    - docker run -d --name italco-be --network testnet -e DATABASE_URL=$DATABASE_URL -e OPENAI_API_KEY='test' italco-be:latest
 
     # Avvio FE sulla stessa rete
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
