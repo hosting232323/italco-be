@@ -52,15 +52,11 @@ test_end_to_end:
 
     # Avvio backend sulla rete testnet
     - docker run -d --name italco-be --network testnet -e DATABASE_URL=$DATABASE_URL italco-be:latest
+    - docker exec italco-be alembic upgrade heads
 
     # Avvio FE sulla stessa rete
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
     - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
-
-    # Controllo container
-    - docker ps
-    - docker logs italco-be || true
-    - docker logs italco-fe || true
 
     # Esecuzione test end-to-end
     - cd generic-test
