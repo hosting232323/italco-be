@@ -7,8 +7,8 @@ from ..database.schema import User, Order
 from database_api.operations import get_by_id
 from ..database.enum import UserRole, OrderStatus
 from .users.session import flask_session_authentication
-from .schedule import query_schedules, format_query_result as format_schedule_query_result
 from .orders.queries import query_orders, format_query_result as format_order_query_result
+from .schedule.queries import query_schedules, format_query_result as format_schedule_query_result
 
 
 export_bp = Blueprint('export_bp', __name__)

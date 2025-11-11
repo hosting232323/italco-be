@@ -1,20 +1,16 @@
-import os
-from hashids import Hashids
-from sqlalchemy import and_
 from datetime import datetime
 from flask import Blueprint, request
 
-from .. import IS_DEV
-from api.sms import send_sms
 from database_api import Session
-from ..database.enum import UserRole, OrderStatus
-from .users.session import flask_session_authentication
+from .sms_sender import schedule_sms_check
+from ...database.enum import UserRole, OrderStatus
+from ..users.session import flask_session_authentication
+from ...database.schema import Schedule, User, Order, DeliveryGroup
 from database_api.operations import create, delete, get_by_id, update, get_by_ids
-from ..database.schema import Schedule, User, Order, DeliveryGroup, Transport, ServiceUser, OrderServiceUser
+from .queries import query_schedules, query_schedules_count, get_related_orders, format_query_result, get_delivery_groups
 
 
 schedule_bp = Blueprint('schedule_bp', __name__)
-hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 
 
 @schedule_bp.route('', methods=['POST'])
@@ -44,7 +40,7 @@ def create_schedule(user: User):
           },
           session=session,
         )
-        send_schedule_sms(order)
+        schedule_sms_check(order)
 
     session.commit()
   return {'status': 'ok', 'schedule': schedule.to_dict()}
@@ -118,76 +114,10 @@ def update_schedule(user: User, id):
           diff['assignament_date'] = datetime.now()
         was_unscheduled = order.schedule_id is None
         order = update(order, diff, session=session)
-        send_schedule_sms(order, was_unscheduled)
+        schedule_sms_check(order, was_unscheduled)
 
     session.commit()
   return {'status': 'ok', 'schedule': schedule.to_dict()}
-
-
-def query_schedules(id: int = None) -> list[tuple[Schedule, Transport, Order, User]]:
-  with Session() as session:
-    query = (
-      session.query(Schedule, Transport, Order, User)
-      .join(Transport, Schedule.transport_id == Transport.id)
-      .join(Order, Order.schedule_id == Schedule.id)
-      .join(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
-      .join(User, DeliveryGroup.user_id == User.id)
-    )
-    if id:
-      query = query.filter(Schedule.id == id)
-    return query.all()
-
-
-def query_schedules_count(user_id, schedule_date) -> int:
-  with Session() as session:
-    return (
-      session.query(DeliveryGroup)
-      .join(
-        Schedule,
-        and_(
-          DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user_id, Schedule.date == schedule_date
-        ),
-      )
-      .count()
-    )
-
-
-def get_related_orders(schedule: Schedule) -> list[Order]:
-  with Session() as session:
-    return session.query(Order).filter(Order.schedule_id == schedule.id).all()
-
-
-def format_query_result(tupla: tuple[Schedule, Transport, Order, User], list: list[dict], user: User) -> list[dict]:
-  for element in list:
-    if element['id'] == tupla[0].id:
-      if tupla[2] and tupla[2].id not in [order['id'] for order in element['orders']]:
-        element['orders'].append(tupla[2].to_dict())
-      if tupla[3] and tupla[3].id not in [user['id'] for user in element['users']]:
-        element['users'].append(tupla[3].format_user(user.role))
-      return list
-
-  list.append(
-    {
-      **tupla[0].to_dict(),
-      'transport': tupla[1].to_dict(),
-      'users': [tupla[3].format_user(user.role)] if tupla[3] else [],
-      'orders': [tupla[2].to_dict()] if tupla[2] else [],
-    }
-  )
-  return list
-
-
-def get_selling_point(order: Order) -> User:
-  with Session() as session:
-    return (
-      session.query(User)
-      .join(ServiceUser, User.id == ServiceUser.user_id)
-      .join(
-        OrderServiceUser,
-        and_(ServiceUser.id == OrderServiceUser.service_user_id, OrderServiceUser.order_id == order.id),
-      )
-      .first()
-    )
 
 
 def format_schedule_data(schedule_data: dict, session=None) -> list[list[Order], dict]:
@@ -210,28 +140,3 @@ def format_schedule_data(schedule_data: dict, session=None) -> list[list[Order],
 
   orders_data_map = {o['id']: o for o in orders_data}
   return orders, orders_data_map, schedule_data, users, None
-
-
-def send_schedule_sms(order: Order, was_unscheduled: bool = True):
-  if not IS_DEV and was_unscheduled and order.addressee_contact:
-    start = order.start_time_slot.strftime('%H:%M')
-    end = order.end_time_slot.strftime('%H:%M')
-    send_sms(
-      os.environ['VONAGE_API_KEY'],
-      os.environ['VONAGE_API_SECRET'],
-      'Ares',
-      order.addressee_contact,
-      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order).nickname}, è programmata per il {order.assignament_date}'
-      f", fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell'arrivo. Per monitorare ogni f"
-      f'ase della sua consegna clicchi il link in questione {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilit'
-      'à al numero indicato. Buona Giornata!',
-    )
-
-
-def get_order_link(order: Order) -> str:
-  return f'{request.headers.get("Origin")}/order/{hashids.encode(order.id)}'
-
-
-def get_delivery_groups(schedule: Schedule) -> list[DeliveryGroup]:
-  with Session() as session:
-    return session.query(DeliveryGroup).filter(DeliveryGroup.schedule_id == schedule.id).all()

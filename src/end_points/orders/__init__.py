@@ -1,16 +1,13 @@
-import os
 import io
 import json
-from api.sms import send_sms
 from datetime import datetime
 from flask import Blueprint, request, send_file
 
-from ... import IS_DEV
 from database_api import Session
 from .mailer import mailer_check
+from .sms_sender import delay_sms_check
 from api import error_catching_decorator
 from ..users.session import flask_session_authentication
-from ..schedule import get_selling_point, get_order_link
 from ...database.schema import User, Order, Photo, Motivation
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
@@ -161,26 +158,8 @@ def update_order(user: User, id):
     order = update(order, data, session=session)
     session.commit()
 
-  if (
-    not IS_DEV
-    and 'delay' in data
-    and data['delay']
-    and order.addressee_contact
-    and (parse_time(data['start_time_slot']) != previous_start or parse_time(data['end_time_slot']) != previous_end)
-  ):
-    start = order.start_time_slot.strftime('%H:%M')
-    end = order.end_time_slot.strftime('%H:%M')
-    send_sms(
-      os.environ['VONAGE_API_KEY'],
-      os.environ['VONAGE_API_SECRET'],
-      'Ares',
-      order.addressee_contact,
-      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order).nickname}, è stata riprogrammata per il {order.assignament_date}'
-      f", fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell'arrivo. Per monitorare ogni fase della sua consegna clicchi il link in question"
-      f'e {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilità al numero indicato. Buona Giornata!',
-    )
-
     mailer_check(order, data, motivation, session=session)
+  delay_sms_check(order, data, previous_start, previous_end)
   return {'status': 'ok', 'order': order.to_dict()}
 
 
@@ -208,12 +187,3 @@ def view_order_photo(photo_id: int):
     as_attachment=False,
     download_name=f'order_photo_{photo_id}.jpg',
   )
-
-
-def parse_time(value: str):
-  for fmt in ['%H:%M', '%H:%M:%S']:
-    try:
-      return datetime.strptime(value, fmt).time()
-    except ValueError:
-      continue
-  raise ValueError(f'Formato orario non riconosciuto: {value}')

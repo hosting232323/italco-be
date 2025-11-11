@@ -175,3 +175,16 @@ def get_delivery_user_by_schedule_id(schedule_id: int) -> User:
       .join(DeliveryGroup, and_(DeliveryGroup.user_id == User.id, DeliveryGroup.schedule_id == schedule_id))
       .first()
     )
+
+
+def get_selling_point(order: Order) -> User:
+  with Session() as session:
+    return (
+      session.query(User)
+      .join(ServiceUser, User.id == ServiceUser.user_id)
+      .join(
+        OrderServiceUser,
+        and_(ServiceUser.id == OrderServiceUser.service_user_id, OrderServiceUser.order_id == order.id),
+      )
+      .first()
+    )
