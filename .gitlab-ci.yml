@@ -4,7 +4,7 @@ stages:
   - lint
   - cleanup
 
-image: hosting23232323/python-node:3.11
+image: hosting23232323/python-node:3.11-dockercli
 
 variables:
   DOCKER_HOST: unix:///var/run/docker.sock
