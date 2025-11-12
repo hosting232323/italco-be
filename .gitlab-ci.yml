@@ -16,8 +16,6 @@ variables:
   GITLAB_PIPELINE: 'true'
 
 
-# ---------- PREPARE ----------
-
 be_dependencies:
   stage: prepare
   script:
@@ -44,8 +42,6 @@ build_backend:
   tags:
     - linux
 
-
-# ---------- TEST ----------
 
 test_end_to_end:
   stage: test
@@ -104,8 +100,6 @@ test_end_to_end:
     - linux
 
 
-# ---------- LINT ----------
-
 lint_backend:
   stage: lint
   image: python:3.11
@@ -116,8 +110,6 @@ lint_backend:
   tags:
     - linux
 
-
-# ---------- CLEANUP ----------
 
 cleanup:
   stage: cleanup
