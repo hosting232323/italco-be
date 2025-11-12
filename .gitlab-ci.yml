@@ -1,8 +1,7 @@
 stages:
   - prepare
-  - build
-  - lint
   - test
+  - lint
   - cleanup
 
 image: hosting23232323/python-node:3.11
@@ -15,9 +14,7 @@ variables:
   DECODE_JWT_TOKEN: token
   GITLAB_PIPELINE: 'true'
 
-# ------------------------------
-# PREPARE STAGE
-# ------------------------------
+
 be_dependencies:
   stage: prepare
   script:
@@ -32,11 +29,9 @@ be_dependencies:
   tags:
     - linux
 
-# ------------------------------
-# BUILD STAGE
-# ------------------------------
+
 build_backend:
-  stage: build
+  stage: prepare
   image: docker:latest
   variables:
     DOCKER_HOST: unix:///var/run/docker.sock
@@ -50,22 +45,7 @@ build_backend:
   tags:
     - linux
 
-# ------------------------------
-# LINT STAGE
-# ------------------------------
-lint_backend:
-  stage: lint
-  image: python:3.11
-  script:
-    - pip install ruff
-    - ruff check ./src --exit-non-zero-on-fix
-    - ruff format ./src --exit-non-zero-on-fix
-  tags:
-    - linux
 
-# ------------------------------
-# TEST STAGE
-# ------------------------------
 test_end_to_end:
   stage: test
   services:
@@ -87,7 +67,7 @@ test_end_to_end:
     - docker network create testnet
 
     # Alembic migration
-    - docker run --rm italco-be:latest alembic upgrade heads
+    - docker run --rm -e DATABASE_URL="$DATABASE_URL" italco-be:latest alembic upgrade heads
 
     # Run containers
     - docker run -d --name italco-be --network testnet -e DATABASE_URL=$DATABASE_URL -e OPENAI_API_KEY='test' italco-be:latest
@@ -105,9 +85,18 @@ test_end_to_end:
   tags:
     - linux
 
-# ------------------------------
-# CLEANUP STAGE (optional)
-# ------------------------------
+
+lint_backend:
+  stage: lint
+  image: python:3.11
+  script:
+    - pip install ruff
+    - ruff check ./src --exit-non-zero-on-fix
+    - ruff format ./src --exit-non-zero-on-fix
+  tags:
+    - linux
+
+
 cleanup:
   stage: cleanup
   image: docker:latest
