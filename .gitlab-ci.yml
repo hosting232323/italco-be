@@ -1,6 +1,9 @@
 stages:
   - prepare
+  - build
+  - lint
   - test
+  - cleanup
 
 image: hosting23232323/python-node:3.11
 
@@ -12,7 +15,9 @@ variables:
   DECODE_JWT_TOKEN: token
   GITLAB_PIPELINE: 'true'
 
-
+# ------------------------------
+# PREPARE STAGE
+# ------------------------------
 be_dependencies:
   stage: prepare
   script:
@@ -27,6 +32,40 @@ be_dependencies:
   tags:
     - linux
 
+# ------------------------------
+# BUILD STAGE
+# ------------------------------
+build_backend:
+  stage: build
+  image: docker:latest
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+  script:
+    - docker build -t italco-be:latest .
+    - docker save italco-be:latest -o italco-be.tar
+  artifacts:
+    paths:
+      - italco-be.tar
+    expire_in: 1h
+  tags:
+    - linux
+
+# ------------------------------
+# LINT STAGE
+# ------------------------------
+lint_backend:
+  stage: lint
+  image: python:3.11
+  script:
+    - pip install ruff
+    - ruff check ./src --exit-non-zero-on-fix
+    - ruff format ./src --exit-non-zero-on-fix
+  tags:
+    - linux
+
+# ------------------------------
+# TEST STAGE
+# ------------------------------
 test_end_to_end:
   stage: test
   services:
@@ -41,44 +80,41 @@ test_end_to_end:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
   script:
+    - docker load -i italco-be.tar
     - docker rm -f italco-be italco-fe || true
     - docker network rm testnet || true
 
-    # Creo rete Docker condivisa
     - docker network create testnet
 
-    # Costruisco backend
-    - docker build -t italco-be:latest .
+    # Alembic migration
     - docker run --rm italco-be:latest alembic upgrade heads
 
-    # Avvio backend sulla rete testnet
+    # Run containers
     - docker run -d --name italco-be --network testnet -e DATABASE_URL=$DATABASE_URL -e OPENAI_API_KEY='test' italco-be:latest
-
-    # Avvio FE sulla stessa rete
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
     - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
-    # Esecuzione test end-to-end
+    # Run tests
     - cd generic-test
     - export VITE_HOSTNAME="http://italco-be:8080/"
     - export VITE_HOSTNAME_ITALCO_FE="http://italco-fe:3000/"
     - pytest -s ./src/tests/italco/test_login.py
+  dependencies:
+    - be_dependencies
+    - build_backend
+  tags:
+    - linux
 
-    # Pulizia finale
+# ------------------------------
+# CLEANUP STAGE (optional)
+# ------------------------------
+cleanup:
+  stage: cleanup
+  image: docker:latest
+  script:
     - docker stop italco-be italco-fe || true
     - docker rm italco-be italco-fe || true
     - docker network rm testnet || true
+  when: always
   tags:
     - linux
-
-
-lint_backend:
-  stage: test
-  image: python:3.11
-  script:
-    - pip install ruff
-    - ruff check ./src --exit-non-zero-on-fix
-    - ruff format ./src --exit-non-zero-on-fix
-  tags:
-    - linux
-
