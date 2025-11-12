@@ -16,6 +16,8 @@ variables:
   GITLAB_PIPELINE: 'true'
 
 
+# ---------- PREPARE ----------
+
 be_dependencies:
   stage: prepare
   image: hosting23232323/python-node:3.11
@@ -26,7 +28,6 @@ be_dependencies:
   artifacts:
     paths:
       - generic-test
-      - venv
     expire_in: 1h
   tags:
     - linux
@@ -45,6 +46,8 @@ build_backend:
     - linux
 
 
+# ---------- TEST ----------
+
 test_end_to_end:
   stage: test
   needs:
@@ -59,45 +62,53 @@ test_end_to_end:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
   script:
+    # Carico immagine backend
     - docker load -i italco-be.tar
 
+    # Pulizia rete e container precedenti
     - docker rm -f italco-be italco-fe postgres selenium || true
     - docker network rm testnet || true
     - docker network create testnet
 
-    - docker run -d --name postgres --network testnet
-      -e POSTGRES_DB=$POSTGRES_DB
-      -e POSTGRES_USER=$POSTGRES_USER
-      -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-      postgres:15
+    # Avvio PostgreSQL
+    - docker run -d --name postgres --network testnet \
+        -e POSTGRES_DB=$POSTGRES_DB \
+        -e POSTGRES_USER=$POSTGRES_USER \
+        -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+        postgres:15
 
+    # Aspetto che Postgres sia disponibile
+    - echo "⏳ Waiting for Postgres..."
     - until docker exec postgres pg_isready -U $POSTGRES_USER -d $POSTGRES_DB; do sleep 1; done
 
-    # Alembic migration
-    - docker run --rm --network testnet
-      -e DATABASE_URL="$DATABASE_URL" 
-      -e OPENAI_API_KEY="test" 
-      -e ASSISTANT_ID="test" 
-      italco-be:latest alembic upgrade heads
+    # Eseguo le migrazioni Alembic
+    - docker run --rm --network testnet \
+        -e DATABASE_URL="$DATABASE_URL" \
+        -e OPENAI_API_KEY="test" \
+        -e ASSISTANT_ID="test" \
+        italco-be:latest alembic upgrade heads
 
-    # Run containers
-    - docker run -d --name italco-be --network testnet 
-      -e DATABASE_URL="$DATABASE_URL" 
-      -e OPENAI_API_KEY="test" 
-      -e ASSISTANT_ID="test" 
-      italco-be:latest
+    # Avvio backend
+    - docker run -d --name italco-be --network testnet \
+        -e DATABASE_URL="$DATABASE_URL" \
+        -e OPENAI_API_KEY="test" \
+        -e ASSISTANT_ID="test" \
+        italco-be:latest
 
+    # Avvio frontend
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
-    - docker run -d --name italco-fe --network testnet 
-      registry.gitlab.com/generic-lab/italco/italco-fe:latest
+    - docker run -d --name italco-fe --network testnet \
+        registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
+    # Avvio Selenium
     - docker run -d --name selenium --network testnet selenium/standalone-chromium:latest
 
-    # Run tests
+    # Eseguo i test end-to-end
     - cd generic-test
     - export VITE_HOSTNAME="http://italco-be:8080/"
     - export VITE_HOSTNAME_ITALCO_FE="http://italco-fe:3000/"
     - pytest -s ./src/tests/italco/test_login.py
+
   artifacts:
     when: always
     paths:
@@ -106,6 +117,8 @@ test_end_to_end:
   tags:
     - linux
 
+
+# ---------- LINT ----------
 
 lint_backend:
   stage: lint
@@ -118,12 +131,14 @@ lint_backend:
     - linux
 
 
+# ---------- CLEANUP ----------
+
 cleanup:
   stage: cleanup
   image: docker:latest
   script:
-    - docker stop italco-be italco-fe || true
-    - docker rm italco-be italco-fe || true
+    - docker stop italco-be italco-fe postgres selenium || true
+    - docker rm italco-be italco-fe postgres selenium || true
     - docker network rm testnet || true
   when: always
   tags:
