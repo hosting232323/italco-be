@@ -21,6 +21,8 @@ be_dependencies:
   script:
     - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
+    - python -m venv venv
+    - source venv/bin/activate
     - pip install -r ./requirements.txt
   artifacts:
     paths:
