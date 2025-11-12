@@ -88,11 +88,7 @@ test_end_to_end:
     - docker run -d --name selenium --network testnet selenium/standalone-chromium:latest
 
     # Eseguo i test end-to-end
-    - cd generic-test
-    - export VITE_HOSTNAME="http://italco-be:8080/"
-    - export VITE_HOSTNAME_ITALCO_FE="http://italco-fe:3000/"
-    - source venv/bin/activate
-    - pytest -s ./src/tests/italco/test_login.py
+    - docker run --rm --network testnet -v $PWD/generic-test:/app -w /app hosting23232323/python-node:3.11-dockercli     bash -c "source venv/bin/activate && export VITE_HOSTNAME='http://italco-be:8080/' && export VITE_HOSTNAME_ITALCO_FE='http://italco-fe:3000/' && pytest -s ./src/tests/italco/test_login.py"
 
   artifacts:
     when: always
