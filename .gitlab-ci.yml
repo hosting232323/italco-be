@@ -91,7 +91,7 @@ test_end_to_end:
     - cd generic-test
     - export VITE_HOSTNAME="http://italco-be:8080/"
     - export VITE_HOSTNAME_ITALCO_FE="http://italco-fe:3000/"
-    - source generic-test/venv/bin/activate
+    - source venv/bin/activate
     - pytest -s ./src/tests/italco/test_login.py
 
   artifacts:
