@@ -4,9 +4,10 @@ stages:
   - lint
   - cleanup
 
-image: hosting23232323/python-node:3.11
+image: docker:latest
 
 variables:
+  DOCKER_HOST: unix:///var/run/docker.sock
   POSTGRES_DB: mydb
   POSTGRES_USER: myuser
   POSTGRES_PASSWORD: mypassword
@@ -17,6 +18,7 @@ variables:
 
 be_dependencies:
   stage: prepare
+  image: hosting23232323/python-node:3.11
   script:
     - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
@@ -32,9 +34,6 @@ be_dependencies:
 
 build_backend:
   stage: prepare
-  image: docker:latest
-  variables:
-    DOCKER_HOST: unix:///var/run/docker.sock
   script:
     - docker build -t italco-be:latest .
     - docker save italco-be:latest -o italco-be.tar
@@ -48,40 +47,62 @@ build_backend:
 
 test_end_to_end:
   stage: test
+  needs:
+    - job: be_dependencies
+      artifacts: true
+    - job: build_backend
+      artifacts: true
   services:
-    - name: postgres:15
-      alias: postgres
-    - name: selenium/standalone-chromium:latest
-      alias: selenium
-  image: docker:latest
-  variables:
-    DOCKER_HOST: unix:///var/run/docker.sock
+    - name: docker:dind
+      alias: docker
   before_script:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
   script:
     - docker load -i italco-be.tar
-    - docker rm -f italco-be italco-fe || true
-    - docker network rm testnet || true
 
+    - docker rm -f italco-be italco-fe postgres selenium || true
+    - docker network rm testnet || true
     - docker network create testnet
 
+    - docker run -d --name postgres --network testnet
+      -e POSTGRES_DB=$POSTGRES_DB
+      -e POSTGRES_USER=$POSTGRES_USER
+      -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+      postgres:15
+
+    - until docker exec postgres pg_isready -U $POSTGRES_USER -d $POSTGRES_DB; do sleep 1; done
+
     # Alembic migration
-    - docker run --rm -e DATABASE_URL="$DATABASE_URL" italco-be:latest alembic upgrade heads
+    - docker run --rm --network testnet
+      -e DATABASE_URL="$DATABASE_URL" 
+      -e OPENAI_API_KEY="test" 
+      -e ASSISTANT_ID="test" 
+      italco-be:latest alembic upgrade heads
 
     # Run containers
-    - docker run -d --name italco-be --network testnet -e DATABASE_URL=$DATABASE_URL -e OPENAI_API_KEY='test' italco-be:latest
+    - docker run -d --name italco-be --network testnet 
+      -e DATABASE_URL="$DATABASE_URL" 
+      -e OPENAI_API_KEY="test" 
+      -e ASSISTANT_ID="test" 
+      italco-be:latest
+
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
-    - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
+    - docker run -d --name italco-fe --network testnet 
+      registry.gitlab.com/generic-lab/italco/italco-fe:latest
+
+    - docker run -d --name selenium --network testnet selenium/standalone-chromium:latest
 
     # Run tests
     - cd generic-test
     - export VITE_HOSTNAME="http://italco-be:8080/"
     - export VITE_HOSTNAME_ITALCO_FE="http://italco-fe:3000/"
     - pytest -s ./src/tests/italco/test_login.py
-  dependencies:
-    - be_dependencies
-    - build_backend
+  artifacts:
+    when: always
+    paths:
+      - generic-test/screenshots/
+    expire_in: 1 week
   tags:
     - linux
 
