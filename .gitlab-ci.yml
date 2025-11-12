@@ -4,7 +4,7 @@ stages:
   - lint
   - cleanup
 
-image: docker:latest
+image: hosting23232323/python-node:3.11
 
 variables:
   DOCKER_HOST: unix:///var/run/docker.sock
@@ -20,7 +20,6 @@ variables:
 
 be_dependencies:
   stage: prepare
-  image: hosting23232323/python-node:3.11
   script:
     - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
