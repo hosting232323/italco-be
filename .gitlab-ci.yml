@@ -71,34 +71,21 @@ test_end_to_end:
     - docker network create testnet
 
     # Avvio PostgreSQL
-    - docker run -d --name postgres --network testnet \
-        -e POSTGRES_DB=$POSTGRES_DB \
-        -e POSTGRES_USER=$POSTGRES_USER \
-        -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
-        postgres:15
+    - docker run -d --name postgres --network testnet -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD postgres:15
 
     # Aspetto che Postgres sia disponibile
     - echo "⏳ Waiting for Postgres..."
     - until docker exec postgres pg_isready -U $POSTGRES_USER -d $POSTGRES_DB; do sleep 1; done
 
     # Eseguo le migrazioni Alembic
-    - docker run --rm --network testnet \
-        -e DATABASE_URL="$DATABASE_URL" \
-        -e OPENAI_API_KEY="test" \
-        -e ASSISTANT_ID="test" \
-        italco-be:latest alembic upgrade heads
+    - docker run --rm --network testnet -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest alembic upgrade heads
 
     # Avvio backend
-    - docker run -d --name italco-be --network testnet \
-        -e DATABASE_URL="$DATABASE_URL" \
-        -e OPENAI_API_KEY="test" \
-        -e ASSISTANT_ID="test" \
-        italco-be:latest
+    - docker run -d --name italco-be --network testnet -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest
 
     # Avvio frontend
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
-    - docker run -d --name italco-fe --network testnet \
-        registry.gitlab.com/generic-lab/italco/italco-fe:latest
+    - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
     # Avvio Selenium
     - docker run -d --name selenium --network testnet selenium/standalone-chromium:latest
