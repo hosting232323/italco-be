@@ -158,7 +158,7 @@ def update_order(user: User, id):
     order = update(order, data, session=session)
     session.commit()
 
-    mailer_check(order, data, motivation, session=session)
+    mailer_check(order, data, motivation)
   delay_sms_check(order, data, previous_start, previous_end)
   return {'status': 'ok', 'order': order.to_dict()}
 

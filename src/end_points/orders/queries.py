@@ -2,7 +2,6 @@ from datetime import datetime, date
 from sqlalchemy import and_, not_, desc
 
 from database_api import Session
-from database_api.operations import db_session_decorator
 from ...database.enum import UserRole, OrderType, OrderStatus
 from ...database.schema import (
   Order,
@@ -145,9 +144,9 @@ def add_service(object: dict, service: Service, order_service_user: OrderService
   return object
 
 
-@db_session_decorator(commit=False)
-def get_order_photo_ids(order_id: int, session=None) -> list[int]:
-  return [pid[0] for pid in session.query(Photo.id).filter(Photo.order_id == order_id).all()]
+def get_order_photo_ids(order_id: int) -> list[int]:
+  with Session() as session:
+    return [pid[0] for pid in session.query(Photo.id).filter(Photo.order_id == order_id).all()]
 
 
 def get_motivations_by_order_id(order_id: int) -> list[Motivation]:

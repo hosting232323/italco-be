@@ -7,7 +7,13 @@ from ...database.enum import UserRole, OrderStatus
 from ..users.session import flask_session_authentication
 from ...database.schema import Schedule, User, Order, DeliveryGroup
 from database_api.operations import create, delete, get_by_id, update, get_by_ids
-from .queries import query_schedules, query_schedules_count, get_related_orders, format_query_result, get_delivery_groups
+from .queries import (
+  query_schedules,
+  query_schedules_count,
+  get_related_orders,
+  format_query_result,
+  get_delivery_groups,
+)
 
 
 schedule_bp = Blueprint('schedule_bp', __name__)
@@ -114,8 +120,8 @@ def update_schedule(user: User, id):
           diff['assignament_date'] = datetime.now()
         was_unscheduled = order.schedule_id is None
         order = update(order, diff, session=session)
-        schedule_sms_check(order, was_unscheduled)
 
+        schedule_sms_check(order, was_unscheduled)
     session.commit()
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 

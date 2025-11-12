@@ -1,7 +1,7 @@
 from sqlalchemy import and_
 
 from database_api import Session
-from ...database.schema import Schedule, User, Order, DeliveryGroup, Transport, ServiceUser, OrderServiceUser
+from ...database.schema import Schedule, User, Order, DeliveryGroup, Transport
 
 
 def query_schedules(id: int = None) -> list[tuple[Schedule, Transport, Order, User]]:
