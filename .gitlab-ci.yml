@@ -16,22 +16,6 @@ variables:
   GITLAB_PIPELINE: 'true'
 
 
-be_dependencies:
-  stage: prepare
-  script:
-    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
-    - cd generic-test
-    - python -m venv venv
-    - source venv/bin/activate
-    - pip install -r ./requirements.txt
-  artifacts:
-    paths:
-      - generic-test
-    expire_in: 1h
-  tags:
-    - linux
-
-
 build_backend:
   stage: prepare
   script:
@@ -58,6 +42,7 @@ test_end_to_end:
   before_script:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_ITALCO_FE_USERNAME" -p "$CI_ITALCO_FE_TOKEN" registry.gitlab.com
+    - docker login -u "$CI_GENERIC_TEST_USERNAME" -p "$CI_GENERIC_TEST_TOKEN" registry.gitlab.com
   script:
     # Carico immagine backend
     - docker load -i italco-be.tar
