@@ -32,8 +32,6 @@ build_backend:
 test_end_to_end:
   stage: test
   needs:
-    - job: be_dependencies
-      artifacts: true
     - job: build_backend
       artifacts: true
   services:
