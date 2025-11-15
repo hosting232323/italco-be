@@ -76,6 +76,7 @@ test_end_to_end:
       --name generic-test \
       --network testnet \
       -e GITLAB_PIPELINE="true" \
+      -e VITE_HOSTNAME_ITALCO_FE="http://italco-fe:8080" \
       registry.gitlab.com/generic-lab/generics/generic-test:latest \
       bash -c "pytest -s ./src/tests/italco/"
 
