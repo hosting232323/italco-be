@@ -64,7 +64,7 @@ test_end_to_end:
 
     # Avvio frontend
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
-    - docker run --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
+    - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
     # Avvio Selenium
     - docker run -d --name selenium --network testnet selenium/standalone-chromium:latest
