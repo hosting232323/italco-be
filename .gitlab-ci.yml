@@ -61,10 +61,12 @@ test_end_to_end:
 
     # Avvio backend
     - docker run -d --name italco-be --network testnet -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest
+    - docker logs italco-be
 
     # Avvio frontend
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
     - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
+    - docker logs italco-fe
 
     # Avvio Selenium
     - docker run -d --name selenium --network testnet selenium/standalone-chromium:latest
