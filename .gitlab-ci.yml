@@ -45,7 +45,7 @@ test_end_to_end:
     - docker load -i italco-be.tar
 
     # Pulizia rete e container precedenti
-    - docker rm -f italco-be italco-fe postgres selenium || true
+    - docker rm -f italco-be italco-fe generic-test postgres selenium || true
     - docker network rm testnet || true
     - docker network create testnet
 
@@ -97,8 +97,8 @@ cleanup:
   stage: cleanup
   image: docker:latest
   script:
-    - docker stop italco-be italco-fe postgres selenium || true
-    - docker rm italco-be italco-fe postgres selenium || true
+    - docker stop italco-be italco-fe generic-test postgres selenium || true
+    - docker rm italco-be italco-fe generic-test postgres selenium || true
     - docker network rm testnet || true
   when: always
   tags:
