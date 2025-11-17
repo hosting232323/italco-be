@@ -34,8 +34,8 @@ test_end_to_end:
     - job: build_backend
       artifacts: true
   services:
-  - name: selenium/standalone-chromium:latest
-    alias: selenium
+    - name: selenium/standalone-chromium:latest
+      alias: selenium
   before_script:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_DEPLOY_USER" -p "$CI_DEPLOY_TOKEN" registry.gitlab.com
@@ -43,13 +43,15 @@ test_end_to_end:
     # Carico immagine backend
     - docker load -i italco-be.tar
 
-    # Pulizia rete e container precedenti
-    - docker rm -f italco-be italco-fe generic-test postgres selenium || true
+    # Pulizia container e rete precedenti
+    - docker rm -f italco-be italco-fe generic-test postgres || true
+    - docker network rm testnet || true
+    - docker network create testnet
 
-    # Avvio PostgreSQL
-    - docker run -d --name postgres -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD postgres:15
+    # Avvio PostgreSQL sulla rete testnet
+    - docker run -d --name postgres --network testnet -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD postgres:15
 
-    # Aspetto che Postgres sia disponibile
+    # Aspetto Postgres
     - echo "⏳ Waiting for Postgres..."
     - |
       timeout=60
@@ -63,40 +65,36 @@ test_end_to_end:
         fi
       done
 
-    # Eseguo le migrazioni Alembic
-    - docker run --rm -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest alembic upgrade heads
+    # Migrazioni Alembic
+    - docker run --rm --network testnet -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest alembic upgrade heads
 
-    # Avvio backend
-    - docker run -d --name italco-be -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest
-
-    # Avvio frontend
+    # Avvio backend e frontend sulla rete testnet
+    - docker run -d --name italco-be --network testnet -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
-    - docker run -d --name italco-fe registry.gitlab.com/generic-lab/italco/italco-fe:latest
+    - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
-    # Aspetto che Selenium sia disponibile
+    # Attendo Selenium (service GitLab)
     - echo "⏳ Waiting for Selenium..."
     - |
       timeout=120
-      while ! curl -s http://selenium:4444/status; do
+      while ! curl -s http://selenium:4444/status | grep -q '"ready":true'; do
         sleep 1
         ((timeout--))
         if [ $timeout -le 0 ]; then
           echo "❌ Selenium non è pronto in tempo"
-          docker logs selenium
           exit 1
         fi
       done
 
-    # Eseguo i test end-to-end
+    # Eseguo test end-to-end dal container generic-test
     - docker pull registry.gitlab.com/generic-lab/generics/generic-test:latest
     - |
-      docker run \
-      --name generic-test \
-      \
-      -e GITLAB_PIPELINE="true" \
-      -e VITE_HOSTNAME_ITALCO_FE="http://italco-fe:3000" \
-      registry.gitlab.com/generic-lab/generics/generic-test:latest \
-      bash -c "pytest -s ./src/tests/italco/"
+      docker run --rm \
+        --network testnet \
+        -e GITLAB_PIPELINE="true" \
+        -e VITE_HOSTNAME_ITALCO_FE="http://italco-fe:3000" \
+        registry.gitlab.com/generic-lab/generics/generic-test:latest \
+        bash -c "pytest -s ./src/tests/italco/"
 
   artifacts:
     when: always
@@ -120,8 +118,8 @@ cleanup:
   stage: cleanup
   image: docker:latest
   script:
-    - docker stop italco-be italco-fe generic-test postgres selenium || true
-    - docker rm -f italco-be italco-fe generic-test postgres selenium || true
+    - docker stop italco-be italco-fe generic-test postgres || true
+    - docker rm -f italco-be italco-fe generic-test postgres || true
     - docker network rm testnet || true
   when: always
   tags:
