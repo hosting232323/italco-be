@@ -45,11 +45,9 @@ test_end_to_end:
 
     # Pulizia rete e container precedenti
     - docker rm -f italco-be italco-fe generic-test postgres selenium || true
-    - docker network rm testnet || true
-    - docker network create testnet
 
     # Avvio PostgreSQL
-    - docker run -d --name postgres --network testnet -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD postgres:15
+    - docker run -d --name postgres -e POSTGRES_DB=$POSTGRES_DB -e POSTGRES_USER=$POSTGRES_USER -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD postgres:15
 
     # Aspetto che Postgres sia disponibile
     - echo "⏳ Waiting for Postgres..."
@@ -66,14 +64,14 @@ test_end_to_end:
       done
 
     # Eseguo le migrazioni Alembic
-    - docker run --rm --network testnet -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest alembic upgrade heads
+    - docker run --rm -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest alembic upgrade heads
 
     # Avvio backend
-    - docker run -d --name italco-be --network testnet -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest
+    - docker run -d --name italco-be -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest
 
     # Avvio frontend
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
-    - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
+    - docker run -d --name italco-fe registry.gitlab.com/generic-lab/italco/italco-fe:latest
 
     # Aspetto che Selenium sia disponibile
     - echo "⏳ Waiting for Selenium..."
@@ -94,7 +92,7 @@ test_end_to_end:
     - |
       docker run \
       --name generic-test \
-      --network testnet \
+      \
       -e GITLAB_PIPELINE="true" \
       -e VITE_HOSTNAME_ITALCO_FE="http://italco-fe:3000" \
       registry.gitlab.com/generic-lab/generics/generic-test:latest \
