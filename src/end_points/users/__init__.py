@@ -6,7 +6,8 @@ from ...database.schema import User
 from .session import flask_session_authentication, create_jwt_token
 from database_api.operations import delete, get_by_id, create
 from .queries import query_users, count_user_dependencies, get_user_by_nickname
-
+import traceback
+import requests
 
 user_bp = Blueprint('user_bp', __name__)
 
@@ -53,8 +54,22 @@ def create_user(user: User):
   return {'status': 'ok', 'message': 'Utente registrato'}
 
 
-@error_catching_decorator
+def error_catching_decoratorr(func):
+  def wrapper(*args, **kwargs):
+    try:
+      return func(*args, **kwargs)
+    except Exception:
+      traceback.print_exc()
+      requests.post("http://127.0.0.1:8081/test",json={"value": "ItalcoBe"})
+      return {'status': 'ko', 'message': 'Errore generico'}
+
+  wrapper.__name__ = func.__name__
+  return wrapper
+
+
+@error_catching_decoratorr
 def login_():
+  x = 1/0
   user: User = get_user_by_nickname(request.json['email'])
   if not user:
     return {'status': 'ko', 'error': 'Utente non trovato'}
