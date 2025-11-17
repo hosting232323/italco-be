@@ -79,7 +79,7 @@ test_end_to_end:
     - echo "⏳ Waiting for Selenium..."
     - |
       timeout=120
-      while ! curl -s http://selenium:4444/status | grep -q '"ready":true'; do
+      while ! curl -s http://selenium:4444/status; do
         sleep 1
         ((timeout--))
         if [ $timeout -le 0 ]; then
