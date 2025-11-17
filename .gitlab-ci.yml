@@ -15,7 +15,6 @@ variables:
   DECODE_JWT_TOKEN: token
   GITLAB_PIPELINE: 'true'
 
-
 build_backend:
   stage: prepare
   script:
@@ -27,7 +26,6 @@ build_backend:
     expire_in: 1h
   tags:
     - linux
-
 
 test_end_to_end:
   stage: test
@@ -54,7 +52,17 @@ test_end_to_end:
 
     # Aspetto che Postgres sia disponibile
     - echo "⏳ Waiting for Postgres..."
-    - until docker exec postgres pg_isready -U $POSTGRES_USER -d $POSTGRES_DB; do sleep 1; done
+    - |
+      timeout=60
+      until docker exec postgres pg_isready -U $POSTGRES_USER -d $POSTGRES_DB; do
+        sleep 1
+        ((timeout--))
+        if [ $timeout -le 0 ]; then
+          echo "❌ Postgres non è pronto in tempo"
+          docker logs postgres
+          exit 1
+        fi
+      done
 
     # Eseguo le migrazioni Alembic
     - docker run --rm --network testnet -e DATABASE_URL="$DATABASE_URL" -e OPENAI_API_KEY="test" -e ASSISTANT_ID="test" italco-be:latest alembic upgrade heads
@@ -102,7 +110,6 @@ test_end_to_end:
   tags:
     - linux
 
-
 lint_backend:
   stage: lint
   image: python:3.11
@@ -113,13 +120,12 @@ lint_backend:
   tags:
     - linux
 
-
 cleanup:
   stage: cleanup
   image: docker:latest
   script:
     - docker stop italco-be italco-fe generic-test postgres selenium || true
-    - docker rm italco-be italco-fe generic-test postgres selenium || true
+    - docker rm -f italco-be italco-fe generic-test postgres selenium || true
     - docker network rm testnet || true
   when: always
   tags:
