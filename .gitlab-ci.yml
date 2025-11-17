@@ -78,7 +78,7 @@ test_end_to_end:
     # Aspetto che Selenium sia disponibile
     - echo "⏳ Waiting for Selenium..."
     - |
-      timeout=60
+      timeout=120
       while ! curl -s http://selenium:4444/status | grep -q '"ready":true'; do
         sleep 1
         ((timeout--))
