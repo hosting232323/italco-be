@@ -69,6 +69,10 @@ test_end_to_end:
     # Avvio Selenium
     - docker run -d --name selenium --network testnet selenium/standalone-chromium:latest
 
+    # Aspetto che Selenium sia disponibile
+    - echo "⏳ Waiting for Selenium..."
+    - until curl -s http://selenium:4444/wd/hub/status | grep -q '"ready":true'; do sleep 1; done
+
     # Eseguo i test end-to-end
     - docker pull registry.gitlab.com/generic-lab/generics/generic-test:latest
     - |
