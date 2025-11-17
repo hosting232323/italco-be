@@ -1,4 +1,4 @@
-"""Collection Point Service Attributes
+"""Collection Point Service
 
 Revision ID: 010
 Revises: 009
