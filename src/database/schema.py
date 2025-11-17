@@ -153,7 +153,7 @@ class Service(BaseEntity):
 class ServiceUser(BaseEntity):
   __tablename__ = 'service_user'
 
-  code = Column(Integer)
+  code = Column(String)
   price = Column(Float, nullable=False)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   service_id = Column(Integer, ForeignKey('service.id'), nullable=False)
