@@ -71,7 +71,17 @@ test_end_to_end:
 
     # Aspetto che Selenium sia disponibile
     - echo "⏳ Waiting for Selenium..."
-    - until curl -s http://selenium:4444/wd/hub/status | grep -q '"ready":true'; do sleep 1; done
+    - |
+      timeout=60
+      while ! curl -s http://selenium:4444/status | grep -q '"ready":true'; do
+        sleep 1
+        ((timeout--))
+        if [ $timeout -le 0 ]; then
+          echo "❌ Selenium non è pronto in tempo"
+          docker logs selenium
+          exit 1
+        fi
+      done
 
     # Eseguo i test end-to-end
     - docker pull registry.gitlab.com/generic-lab/generics/generic-test:latest
