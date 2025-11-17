@@ -130,6 +130,8 @@ class CollectionPoint(BaseEntity):
   name = Column(String, nullable=False)
   address = Column(String, nullable=False)
   cap = Column(String, nullable=False)
+  opening_time = Column(Time)
+  closing_time = Column(Time)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   order = relationship('Order', back_populates='collection_point')
@@ -143,6 +145,7 @@ class Service(BaseEntity):
   type = Column(Enum(OrderType), nullable=False)
   description = Column(String, nullable=True)
   max_services = Column(Integer, nullable=True)
+  duration = Column(Integer)
 
   service_user = relationship('ServiceUser', back_populates='service')
 
