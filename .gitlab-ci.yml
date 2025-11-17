@@ -33,6 +33,9 @@ test_end_to_end:
   needs:
     - job: build_backend
       artifacts: true
+  services:
+  - name: selenium/standalone-chromium:latest
+    alias: selenium
   before_script:
     - echo "🔐 Login al GitLab Container Registry..."
     - docker login -u "$CI_DEPLOY_USER" -p "$CI_DEPLOY_TOKEN" registry.gitlab.com
@@ -71,9 +74,6 @@ test_end_to_end:
     # Avvio frontend
     - docker pull registry.gitlab.com/generic-lab/italco/italco-fe:latest
     - docker run -d --name italco-fe --network testnet registry.gitlab.com/generic-lab/italco/italco-fe:latest
-
-    # Avvio Selenium
-    - docker run -d --name selenium --network testnet selenium/standalone-chromium:latest
 
     # Aspetto che Selenium sia disponibile
     - echo "⏳ Waiting for Selenium..."
