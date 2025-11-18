@@ -9,7 +9,6 @@ from ..database.enum import UserRole, OrderType, OrderStatus
 from ..database.schema import User, Order, OrderServiceUser, ServiceUser
 
 
-PRODUCT_NOTE = 'Ordine importato da file'
 import_bp = Blueprint('import_bp', __name__)
 
 
@@ -23,15 +22,11 @@ def order_import(user: User):
   imported_orders_count = 0
   orders = parse_orders(request.files['file'], request.form['customer_id'])
   for order_ref, order_data in orders.items():
-    if len(order_data['products']) > 1:
-      conflicted_orders[order_ref] = order_data['rows']
+    if len(order_data['products']) > 1 or len(order_data['services']) == 0:
+      conflicted_orders[order_ref] = [row.to_dict() for row in order_data['rows']]
       continue
 
-    order = create(Order, {
-      'type': OrderType.DELIVERY,
-      'status': OrderStatus.PENDING,
-      'operator_note': PRODUCT_NOTE
-    })
+    order = create(Order, build_order(order_data['rows'][0], request.form['collection_point_id']))
     for service_user_id in order_data['services']:
       create(OrderServiceUser, {
         'order_id': order.id,
@@ -46,16 +41,12 @@ def order_import(user: User):
 @flask_session_authentication([UserRole.ADMIN])
 def handle_conflict(user: User):
   imported_orders_count = 0
-  for order in request.json['orders']:
-    new_order = create(Order, {
-      'type': OrderType.DELIVERY,
-      'status': OrderStatus.PENDING,
-      'operator_note': PRODUCT_NOTE
-    })
+  for order_data in request.json['orders']:
+    order = create(Order, build_order(order_data, request.json['collection_point_id']))
     for product, service_user_id in order['products'].items():
       create(OrderServiceUser, {
         'product': product,
-        'order_id': new_order.id,
+        'order_id': order.id,
         'service_user_id': service_user_id
       })
     imported_orders_count += 1
@@ -64,22 +55,38 @@ def handle_conflict(user: User):
 
 def parse_orders(file, customer_id):
   service_users = get_service_users(customer_id)
-  df = pd.read_excel(file)
+  df = pd.read_excel(file, dtype=str).fillna('')
   df.columns = [c.strip() for c in df.columns]
   orders = defaultdict(lambda: {'products': [], 'services': [], 'rows': []})
   for _, row in df.iterrows():
-    if row['Cos. Serv'] != 404:
+    if row['Cod.  Serv'] in ['', '404']:
       continue
 
     orders[row['Rif. Com']]['rows'].append(row)
     service_user = next((
-      service_user for service_user in service_users if service_user.code == row['Cos. Serv']
+      service_user for service_user in service_users if service_user.code == row['Cod.  Serv']
     ), None)
     if service_user:
       orders[row['Rif. Com']]['services'].append(service_user.id)
     else:
       orders[row['Rif. Com']]['products'].append(row['Descr. Serv'])
   return orders
+
+
+def build_order(order, collection_point_id):
+  return {
+    'type': OrderType.DELIVERY,
+    'status': OrderStatus.PENDING,
+    'addressee': order['Indirizzo Dest.'],
+    'address': f"{order['Destinatario']}, {order['Localita']}, {order['Provincia']}",
+    'cap': order['CAP'],
+    'dpc': order['DPC'],
+    'drc': order['DRC'],
+    'collection_point_id': collection_point_id,
+    'floor': order['Piano'],
+    'operator_note': 'Ordine importato da file',
+    'customer_note': order['Note MW + Note']
+  }
 
 
 def get_service_users(user_id: int) -> list[ServiceUser]:
