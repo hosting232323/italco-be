@@ -67,11 +67,11 @@ class Order(BaseEntity):
   dpc = Column(Date, nullable=False)
   drc = Column(Date, nullable=False)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
-  anomaly = Column(Boolean, nullable=True, default=False)
-  delay = Column(Boolean, nullable=True, default=False)
-  floor = Column(Integer, nullable=True)
-  elevator = Column(Boolean, nullable=True)
 
+  anomaly = Column(Boolean, default=False)
+  delay = Column(Boolean, default=False)
+  floor = Column(Integer)
+  elevator = Column(Boolean)
   addressee_contact = Column(String)
   booking_date = Column(Date)
   assignament_date = Column(Date)
@@ -96,9 +96,9 @@ class Motivation(BaseEntity):
 
   id_order = Column(Integer, ForeignKey('order.id'), nullable=False)
   status = Column(Enum(OrderStatus), nullable=False)
-  delay = Column(Boolean, nullable=True, default=False)
-  anomaly = Column(Boolean, nullable=True, default=False)
-  text = Column(String, nullable=True)
+  delay = Column(Boolean, default=False)
+  anomaly = Column(Boolean, default=False)
+  text = Column(String)
 
   order = relationship('Order', back_populates='motivations')
 
@@ -143,8 +143,8 @@ class Service(BaseEntity):
 
   name = Column(String, nullable=False)
   type = Column(Enum(OrderType), nullable=False)
-  description = Column(String, nullable=True)
-  max_services = Column(Integer, nullable=True)
+  description = Column(String)
+  max_services = Column(Integer)
   duration = Column(Integer)
 
   service_user = relationship('ServiceUser', back_populates='service')
@@ -153,6 +153,7 @@ class Service(BaseEntity):
 class ServiceUser(BaseEntity):
   __tablename__ = 'service_user'
 
+  code = Column(String)
   price = Column(Float, nullable=False)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   service_id = Column(Integer, ForeignKey('service.id'), nullable=False)
