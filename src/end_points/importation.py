@@ -26,17 +26,16 @@ def order_import(user: User):
       conflicted_orders[order_ref] = {
         'products': order_data['products'],
         'services': order_data['services'],
-        'rows': [row.to_dict() for row in order_data['rows']]
+        'rows': [row.to_dict() for row in order_data['rows']],
       }
       continue
 
     order = create(Order, build_order(order_data['rows'][0], request.form['collection_point_id']))
     for service_user in order_data['services']:
-      create(OrderServiceUser, {
-        'order_id': order.id,
-        'service_user_id': service_user['id'],
-        'product': order_data['products'][0]
-      })
+      create(
+        OrderServiceUser,
+        {'order_id': order.id, 'service_user_id': service_user['id'], 'product': order_data['products'][0]},
+      )
     imported_orders_count += 1
   return {'status': 'ok', 'imported_orders_count': imported_orders_count, 'conflicted_orders': conflicted_orders}
 
@@ -49,11 +48,7 @@ def handle_conflict(user: User):
     order = create(Order, build_order(order_data, request.json['collection_point_id']))
     for product, service_user_ids in order_data['products'].items():
       for service_user_id in service_user_ids:
-        create(OrderServiceUser, {
-          'product': product,
-          'order_id': order.id,
-          'service_user_id': service_user_id
-        })
+        create(OrderServiceUser, {'product': product, 'order_id': order.id, 'service_user_id': service_user_id})
     imported_orders_count += 1
   return {'status': 'ok', 'imported_orders_count': imported_orders_count}
 
@@ -68,14 +63,11 @@ def parse_orders(file, customer_id):
       continue
 
     orders[row['Rif. Com']]['rows'].append(row)
-    service_user = next((
-      service_user for service_user in service_users if service_user.code == row['Cod.  Serv']
-    ), None)
+    service_user = next(
+      (service_user for service_user in service_users if service_user.code == row['Cod.  Serv']), None
+    )
     if service_user:
-      orders[row['Rif. Com']]['services'].append({
-        'id': service_user.id,
-        'name': row['Descr. Serv']
-      })
+      orders[row['Rif. Com']]['services'].append({'id': service_user.id, 'name': row['Descr. Serv']})
     else:
       orders[row['Rif. Com']]['products'].append(row['Descr. Serv'])
   return orders
@@ -86,14 +78,14 @@ def build_order(order, collection_point_id):
     'type': OrderType.DELIVERY,
     'status': OrderStatus.PENDING,
     'addressee': order['Indirizzo Dest.'],
-    'address': f"{order['Destinatario']}, {order['Localita']}, {order['Provincia']}",
+    'address': f'{order["Destinatario"]}, {order["Localita"]}, {order["Provincia"]}',
     'cap': order['CAP'],
     'dpc': order['DPC'],
     'drc': order['DRC'],
     'collection_point_id': collection_point_id,
     'floor': order['Piano'],
     'operator_note': 'Ordine importato da file',
-    'customer_note': order['Note MW + Note']
+    'customer_note': order['Note MW + Note'],
   }
 
 
