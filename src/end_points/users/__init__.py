@@ -60,7 +60,7 @@ def error_catching_decoratorr(func):
       return func(*args, **kwargs)
     except Exception:
       traceback.print_exc()
-      requests.post("http://127.0.0.1:8081/test",json={"value": "ItalcoBe"})
+      requests.post("http://127.0.0.1:8081/alert",json={"topic": "ItalcoBe"})
       return {'status': 'ko', 'message': 'Errore generico'}
 
   wrapper.__name__ = func.__name__
