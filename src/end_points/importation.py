@@ -1,4 +1,5 @@
 import pandas as pd
+from collections import defaultdict
 from flask import Blueprint, request
 
 from database_api import Session
@@ -11,46 +12,83 @@ from ..database.schema import User, Order, OrderServiceUser, ServiceUser
 import_bp = Blueprint('import_bp', __name__)
 
 
-SERVICE_ID = 45
-PRODUCT_STRING = 'Ordine importato da file'
-
-
 @import_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def order_import(user: User):
   if 'file' not in request.files:
     return {'status': 'ko', 'error': 'Nessun file caricato'}
 
-  service_user = get_service_user(request.form['customer_id'])
-  for index, row in pd.read_excel(request.files['file']).iterrows():
-    create(
-      OrderServiceUser,
-      {
-        'product': PRODUCT_STRING,
-        'service_user_id': service_user.id,
-        'order_id': create(
-          Order,
-          {
-            'type': OrderType.DELIVERY,
-            'status': OrderStatus.PENDING,
-            'addressee': row['Destinatario'],
-            'address': f'{row["Località"]} {row["Prov."]}',
-            'addressee_contact': row['Ref.'],
-            'cap': row['CAP'],
-            'drc': row['DRC'],
-            'dpc': row['DPC'],
-            'collection_point_id': request.form['collection_point_id'],
-            'customer_note': f'Ref: {row["Rif. Cli."]}, Note: {row["Note + Note Conf. SIEM"]}',
-          },
-        ).id,
-      },
+  conflicted_orders = {}
+  imported_orders_count = 0
+  orders = parse_orders(request.files['file'], request.form['customer_id'])
+  for order_ref, order_data in orders.items():
+    if len(order_data['products']) > 1 or len(order_data['services']) == 0:
+      conflicted_orders[order_ref] = {
+        'products': order_data['products'],
+        'services': order_data['services'],
+        'rows': [row.to_dict() for row in order_data['rows']],
+      }
+      continue
+
+    order = create(Order, build_order(order_data['rows'][0], request.form['collection_point_id']))
+    for service_user in order_data['services']:
+      create(
+        OrderServiceUser,
+        {'order_id': order.id, 'service_user_id': service_user['id'], 'product': order_data['products'][0]},
+      )
+    imported_orders_count += 1
+  return {'status': 'ok', 'imported_orders_count': imported_orders_count, 'conflicted_orders': conflicted_orders}
+
+
+@import_bp.route('conflict', methods=['POST'])
+@flask_session_authentication([UserRole.ADMIN])
+def handle_conflict(user: User):
+  imported_orders_count = 0
+  for order_data in request.json['orders']:
+    order = create(Order, build_order(order_data, request.json['collection_point_id']))
+    for product, service_user_ids in order_data['products'].items():
+      for service_user_id in service_user_ids:
+        create(OrderServiceUser, {'product': product, 'order_id': order.id, 'service_user_id': service_user_id})
+    imported_orders_count += 1
+  return {'status': 'ok', 'imported_orders_count': imported_orders_count}
+
+
+def parse_orders(file, customer_id):
+  service_users = get_service_users(customer_id)
+  df = pd.read_excel(file, dtype=str).fillna('')
+  df.columns = [c.strip() for c in df.columns]
+  orders = defaultdict(lambda: {'products': [], 'services': [], 'rows': []})
+  for _, row in df.iterrows():
+    if row['Cod.  Serv'] in ['', '404']:
+      continue
+
+    orders[row['Rif. Com']]['rows'].append(row)
+    service_user = next(
+      (service_user for service_user in service_users if service_user.code == row['Cod.  Serv']), None
     )
+    if service_user:
+      orders[row['Rif. Com']]['services'].append({'id': service_user.id, 'name': row['Descr. Serv']})
+    else:
+      orders[row['Rif. Com']]['products'].append(row['Descr. Serv'])
+  return orders
 
-  return {'status': 'ok', 'message': 'Operazione completata'}
+
+def build_order(order, collection_point_id):
+  return {
+    'type': OrderType.DELIVERY,
+    'status': OrderStatus.PENDING,
+    'addressee': order['Indirizzo Dest.'],
+    'address': f'{order["Destinatario"]}, {order["Localita"]}, {order["Provincia"]}',
+    'cap': order['CAP'],
+    'dpc': order['DPC'],
+    'drc': order['DRC'],
+    'collection_point_id': collection_point_id,
+    'floor': order['Piano'],
+    'operator_note': 'Ordine importato da file',
+    'customer_note': order['Note MW + Note'],
+  }
 
 
-def get_service_user(user_id: int) -> ServiceUser:
+def get_service_users(user_id: int) -> list[ServiceUser]:
   with Session() as session:
-    return (
-      session.query(ServiceUser).filter(ServiceUser.user_id == user_id, ServiceUser.service_id == SERVICE_ID).first()
-    )
+    return session.query(ServiceUser).filter(ServiceUser.user_id == user_id).all()

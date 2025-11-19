@@ -10,7 +10,7 @@ from database_api.operations import create, delete, get_by_id, update
 customer_group_bp = Blueprint('customer_group_bp', __name__)
 
 
-@customer_group_bp.route('user', methods=['PATCH'])
+@customer_group_bp.route('user', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def assign_customer_group_user(user: User):
   customer_user: User = get_by_id(User, request.json['user_id'])
