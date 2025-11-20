@@ -18,16 +18,16 @@ def order_import(user: User):
   if 'file' not in request.files:
     return {'status': 'ko', 'error': 'Nessun file caricato'}
 
-  conflicted_orders = {}
+  conflicted_orders = []
   imported_orders_count = 0
   orders = parse_orders(request.files['file'], request.form['customer_id'])
-  for order_ref, order_data in orders.items():
+  for _, order_data in orders.items():
     if len(order_data['products']) > 1 or len(order_data['services']) == 0:
-      conflicted_orders[order_ref] = {
-        'products': order_data['products'],
+      conflicted_orders.append({
+        **order_data['rows'][0].to_dict(),
         'services': order_data['services'],
-        'rows': [row.to_dict() for row in order_data['rows']],
-      }
+        'products': {product: [] for product in order_data['products']},
+      })
       continue
 
     order = create(Order, build_order(order_data['rows'][0], request.form['collection_point_id']))
@@ -77,8 +77,8 @@ def build_order(order, collection_point_id):
   return {
     'type': OrderType.DELIVERY,
     'status': OrderStatus.PENDING,
-    'addressee': order['Indirizzo Dest.'],
-    'address': f'{order["Destinatario"]}, {order["Localita"]}, {order["Provincia"]}',
+    'addressee': order['Destinatario'],
+    'address': f'{order["Indirizzo Dest."]}, {order["Localita"]}, {order["Provincia"]}',
     'cap': order['CAP'],
     'dpc': order['DPC'],
     'drc': order['DRC'],
