@@ -23,11 +23,13 @@ def order_import(user: User):
   orders = parse_orders(request.files['file'], request.form['customer_id'])
   for _, order_data in orders.items():
     if len(order_data['products']) > 1 or len(order_data['services']) == 0:
-      conflicted_orders.append({
-        **order_data['rows'][0].to_dict(),
-        'services': order_data['services'],
-        'products': {product: [] for product in order_data['products']},
-      })
+      conflicted_orders.append(
+        {
+          **order_data['rows'][0].to_dict(),
+          'services': order_data['services'],
+          'products': {product: [] for product in order_data['products']},
+        }
+      )
       continue
 
     order = create(Order, build_order(order_data['rows'][0], request.form['collection_point_id']))
