@@ -22,7 +22,7 @@ def order_import(user: User):
   imported_orders_count = 0
   orders = parse_orders(request.files['file'], request.form['customer_id'])
   for _, order_data in orders.items():
-    if len(order_data['products']) > 1 or len(order_data['services']) == 0:
+    if len(order_data['products']) != 1 or len(order_data['services']) == 0:
       conflicted_orders.append(
         {
           **order_data['rows'][0].to_dict(),
@@ -88,6 +88,7 @@ def build_order(order, collection_point_id):
     'floor': order['Piano'],
     'operator_note': 'Ordine importato da file',
     'customer_note': order['Note MW + Note'],
+    'external_id': order['Rif. Com'],
   }
 
 

@@ -83,6 +83,7 @@ class Order(BaseEntity):
   end_time_slot = Column(Time)
   signature = Column(LargeBinary)
   mark = Column(Float)
+  external_id = Column(String)
 
   photo = relationship('Photo', back_populates='order')
   schedule = relationship('Schedule', back_populates='order')
