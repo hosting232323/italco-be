@@ -2,7 +2,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy import Column, Enum, Date, String, Float, Integer, LargeBinary, ForeignKey, Boolean, Numeric, Time
 
 from database_api import BaseEntity
-from .enum import UserRole, OrderStatus, OrderType
+from .enum import UserRole, OrderStatus, OrderType, ScheduleType
 
 
 class User(BaseEntity):
@@ -77,16 +77,16 @@ class Order(BaseEntity):
   assignament_date = Column(Date)
   customer_note = Column(String)
   operator_note = Column(String)
-  schedule_id = Column(Integer, ForeignKey('schedule.id'))
   signature = Column(LargeBinary)
   mark = Column(Float)
   external_id = Column(String)
 
   photo = relationship('Photo', back_populates='order')
-  schedule = relationship('Schedule', back_populates='order')
   collection_point = relationship('CollectionPoint', back_populates='order')
   order_service_user = relationship('OrderServiceUser', back_populates='order')
+  schedule_item_order = relationship('ScheduleItemOrder', back_populates='order')
   motivations = relationship('Motivation', back_populates='order', cascade='all, delete-orphan')
+  schedule_item_collection_point = relationship('ScheduleItemCollectionPoint', back_populates='order')
 
 
 class Motivation(BaseEntity):
@@ -107,9 +107,9 @@ class Schedule(BaseEntity):
   date = Column(Date, nullable=False)
   transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
 
-  order = relationship('Order', back_populates='schedule')
   transport = relationship('Transport', back_populates='schedule')
   delivery_group = relationship('DeliveryGroup', back_populates='schedule')
+  schedule_item = relationship('ScheduleItem', back_populates='schedule')
 
 
 class ScheduleItem(BaseEntity):
@@ -120,21 +120,33 @@ class ScheduleItem(BaseEntity):
   start_time_slot = Column(Time)
   end_time_slot = Column(Time)
   schedule_id = Column(ForeignKey("schedule.id"))
-  operation_type = Column(Enum("order", "collection", name="operation_type"))
+  operation_type = Column(Enum(ScheduleType))
+  
+  schedule = relationship('Schedule', back_populates='schedule_item')
+  schedule_item_order = relationship('ScheduleItemOrder', back_populates='schedule_item')
+  schedule_item_collection_point = relationship('ScheduleItemCollectionPoint', back_populates='schedule_item')
 
 
-class ScheduleItemOrder(ScheduleItem):
+class ScheduleItemOrder(BaseEntity):
   __tablename__ = "schedule_item_order"
 
   id = Column(Integer, ForeignKey("schedule_item.id"), primary_key=True)
   order_id = Column(ForeignKey("order.id"), nullable=False)
+  schedule_item_id = Column(Integer)
+  
+  schedule = relationship('Schedule', back_populates='schedule_item_order')
+  schedule_item_order = relationship('ScheduleItemOrder', back_populates='schedule_item_order')
 
 
-class ScheduleItemCollectionPoint(ScheduleItem):
+class ScheduleItemCollectionPoint(BaseEntity):
   __tablename__ = "schedule_item_collection"
 
   id = Column(Integer, ForeignKey("schedule_item.id"), primary_key=True)
   collection_point_id = Column(ForeignKey("collection_point.id"), nullable=False)
+  schedule_item_id = Column(Integer)
+
+  schedule = relationship('Schedule', back_populates='schedule_item_collection')
+  schedule_item_collection_point = relationship('ScheduleItemCollectionPoint', back_populates='schedule_item_collection')
 
 
 class Photo(BaseEntity):
