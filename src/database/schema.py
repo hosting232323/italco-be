@@ -116,11 +116,11 @@ class ScheduleItem(BaseEntity):
   __tablename__ = "schedule_item"
 
   id = Column(Integer, primary_key=True)
-  schedule_id = Column(ForeignKey("schedule.id"))
-  operation_type = Column(Enum("order", "collection", name="operation_type"))
-  schedule_index = Column(Integer)
+  index = Column(Integer)
   start_time_slot = Column(Time)
   end_time_slot = Column(Time)
+  schedule_id = Column(ForeignKey("schedule.id"))
+  operation_type = Column(Enum("order", "collection", name="operation_type"))
 
 
 class ScheduleItemOrder(ScheduleItem):
