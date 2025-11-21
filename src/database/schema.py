@@ -78,9 +78,6 @@ class Order(BaseEntity):
   customer_note = Column(String)
   operator_note = Column(String)
   schedule_id = Column(Integer, ForeignKey('schedule.id'))
-  schedule_index = Column(Integer)
-  start_time_slot = Column(Time)
-  end_time_slot = Column(Time)
   signature = Column(LargeBinary)
   mark = Column(Float)
   external_id = Column(String)
@@ -113,6 +110,31 @@ class Schedule(BaseEntity):
   order = relationship('Order', back_populates='schedule')
   transport = relationship('Transport', back_populates='schedule')
   delivery_group = relationship('DeliveryGroup', back_populates='schedule')
+
+
+class ScheduleItem(BaseEntity):
+  __tablename__ = "schedule_item"
+
+  id = Column(Integer, primary_key=True)
+  schedule_id = Column(ForeignKey("schedule.id"))
+  operation_type = Column(Enum("order", "collection", name="operation_type"))
+  schedule_index = Column(Integer)
+  start_time_slot = Column(Time)
+  end_time_slot = Column(Time)
+
+
+class ScheduleItemOrder(ScheduleItem):
+  __tablename__ = "schedule_item_order"
+
+  id = Column(Integer, ForeignKey("schedule_item.id"), primary_key=True)
+  order_id = Column(ForeignKey("order.id"), nullable=False)
+
+
+class ScheduleItemCollectionPoint(ScheduleItem):
+  __tablename__ = "schedule_item_collection"
+
+  id = Column(Integer, ForeignKey("schedule_item.id"), primary_key=True)
+  collection_point_id = Column(ForeignKey("collection_point.id"), nullable=False)
 
 
 class Photo(BaseEntity):
