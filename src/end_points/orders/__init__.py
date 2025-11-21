@@ -7,11 +7,12 @@ from database_api import Session
 from .mailer import mailer_check
 from .sms_sender import delay_sms_check
 from api import error_catching_decorator
+from ..service.queries import get_service_users
 from ..users.session import flask_session_authentication
-from ...database.schema import User, Order, Photo, Motivation
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id
 from .services import create_order_service_user, update_order_service_user
+from ...database.schema import User, Order, Photo, Motivation, ServiceUser
 from .queries import (
   query_orders,
   query_delivery_orders,
@@ -19,6 +20,7 @@ from .queries import (
   get_delivery_user_by_schedule_id,
   get_order_photo_ids,
   get_motivations_by_order_id,
+  query_order_service_users,
 )
 
 
@@ -161,6 +163,28 @@ def update_order(user: User, id):
     mailer_check(order, data, motivation)
   delay_sms_check(order, data, previous_start, previous_end)
   return {'status': 'ok', 'order': order.to_dict()}
+
+
+@order_bp.route('customer', methods=['POST'])
+@error_catching_decorator
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+def update_order_customer(user: User):
+  updates = []
+  service_users = get_service_users(request.json['user_id'])
+  order_service_users = query_order_service_users(get_by_id(Order, request.json['order_id']))
+  for order_service_user in order_service_users:
+    old_service_user: ServiceUser = get_by_id(ServiceUser, order_service_user.service_user_id)
+    service_user = next(
+      (service_user for service_user in service_users if service_user.service_id == old_service_user.service_id), None
+    )
+    if service_user:
+      updates.append((order_service_user, service_user))
+  if len(updates) != len(order_service_users):
+    return {'status': 'ko', 'error': "Il nuovo utente non possiete gli stessi servizi dell'utente precedente"}
+
+  for order_service_user, service_user in updates:
+    update(order_service_user, {'service_user_id': service_user.id})
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @order_bp.route('delivery-details/<order_id>', methods=['GET'])

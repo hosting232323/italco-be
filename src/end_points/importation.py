@@ -2,11 +2,11 @@ import pandas as pd
 from collections import defaultdict
 from flask import Blueprint, request
 
-from database_api import Session
 from database_api.operations import create
+from .service.queries import get_service_users
 from .users.session import flask_session_authentication
+from ..database.schema import User, Order, OrderServiceUser
 from ..database.enum import UserRole, OrderType, OrderStatus
-from ..database.schema import User, Order, OrderServiceUser, ServiceUser
 
 
 import_bp = Blueprint('import_bp', __name__)
@@ -90,8 +90,3 @@ def build_order(order, collection_point_id):
     'customer_note': order['Note MW + Note'],
     'external_id': order['Rif. Com'],
   }
-
-
-def get_service_users(user_id: int) -> list[ServiceUser]:
-  with Session() as session:
-    return session.query(ServiceUser).filter(ServiceUser.user_id == user_id).all()

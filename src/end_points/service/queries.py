@@ -62,3 +62,8 @@ def query_orders_in_range(services_id, start_date, end_date):
       .filter(Service.id.in_(services_id), Order.dpc >= start_date, Order.dpc <= end_date)
       .all()
     )
+
+
+def get_service_users(user_id: int) -> list[ServiceUser]:
+  with Session() as session:
+    return session.query(ServiceUser).filter(ServiceUser.user_id == user_id).all()
