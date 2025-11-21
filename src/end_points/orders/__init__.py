@@ -10,6 +10,7 @@ from api import error_catching_decorator
 from ..service.queries import get_service_users
 from .services import create_product, update_product
 from ..users.session import flask_session_authentication
+from ..schedule.queries import get_schedule_item_by_order
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id, delete
 from ...database.schema import User, Order, Photo, Motivation, ServiceUser
@@ -152,14 +153,25 @@ def update_order(user: User, id):
     if user.role != UserRole.DELIVERY:
       update_product(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
 
-    previous_start = order.start_time_slot
-    previous_end = order.end_time_slot
-    data = {key: value for key, value in data.items() if key not in ['products', 'user_id', 'motivation']}
+    if 'start_time_slot' in data and 'end_time_slot' in data:
+      schedule_item = get_schedule_item_by_order(order)
+      if (
+        parse_time(data['start_time_slot']) != schedule_item.start_time_slot or parse_time(data['end_time_slot']) != schedule_item.end_time_slot
+      ):
+        update(
+          schedule_item,
+          {'start_time_slot': data['start_time_slot'], 'end_time_slot': data['end_time_slot']},
+          session=session
+        )
+        delay_sms_check(order, data)
+
+    data = {key: value for key, value in data.items() if key not in [
+      'products', 'user_id', 'motivation', 'start_time_slot', 'end_time_slot'
+    ]}
     order = update(order, data, session=session)
     session.commit()
 
     mailer_check(order, data, motivation)
-  delay_sms_check(order, data, previous_start, previous_end)
   return {'status': 'ok', 'order': order.to_dict()}
 
 
@@ -226,3 +238,12 @@ def delete_order(user: User, id):
     delete(product)
   delete(order)
   return {'status': 'ok', 'message': 'Operazione completata'}
+
+
+def parse_time(value: str) -> datetime.time:
+  for fmt in ['%H:%M', '%H:%M:%S']:
+    try:
+      return datetime.strptime(value, fmt).time()
+    except ValueError:
+      continue
+  raise ValueError(f'Formato orario non riconosciuto: {value}')

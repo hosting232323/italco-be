@@ -5,8 +5,8 @@ from database_api import Session
 from .sms_sender import schedule_sms_check
 from ...database.enum import UserRole, OrderStatus
 from ..users.session import flask_session_authentication
-from ...database.schema import Schedule, User, Order, DeliveryGroup
 from database_api.operations import create, delete, get_by_id, update, get_by_ids
+from ...database.schema import Schedule, User, Order, DeliveryGroup, CollectionPoint
 from .queries import (
   query_schedules,
   query_schedules_count,
@@ -127,22 +127,25 @@ def update_schedule(user: User, id):
 
 
 def format_schedule_data(schedule_data: dict, session=None) -> list[list[Order], dict]:
-  orders_data = schedule_data['orders']
-  orders: list[Order] = get_by_ids(Order, [o['id'] for o in orders_data], session=session)
-  if not orders:
+  schedule_items = schedule_data['schedule_items']
+  order_ids = []
+  collection_point_ids = []
+  for item in schedule_items:
+    if item['operation_type'] == 'Order':
+      order_ids.append(item['id'])
+    elif item['operation_type'] == 'CollectionPoint':
+      collection_point_ids.append(item['id'])
+  orders: list[Order] = get_by_ids(Order, order_ids, session=session)
+  collection_points = list[CollectionPoint] = get_by_ids(CollectionPoint, collection_point_ids, session=session)
+  users = schedule_data['users']
+  if not orders or not collection_points and not users or len(users) == 0:
     return None, None, None, None, {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
 
   del schedule_data['orders']
-  if 'order_ids' in schedule_data:
-    del schedule_data['order_ids']
+  del schedule_data['users']
   if 'deleted_orders' in schedule_data:
     del schedule_data['deleted_orders']
   if 'transport' in schedule_data:
     del schedule_data['transport']
-  users = []
-  if 'users' in schedule_data:
-    users = schedule_data['users']
-    del schedule_data['users']
 
-  orders_data_map = {o['id']: o for o in orders_data}
-  return orders, orders_data_map, schedule_data, users, None
+  return orders, {o['id']: o for o in orders_data}, schedule_data, users, None
