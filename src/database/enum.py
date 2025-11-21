@@ -24,3 +24,8 @@ class OrderType(BaseEnum):
   WITHDRAW = 'Withdraw'
   REPLACEMENT = 'Replacement'
   CHECK = 'Check'
+
+
+class ScheduleType(BaseEnum):
+  ORDER = 'Order'
+  COLLECTIONPOINT = 'CollectionPoint'
