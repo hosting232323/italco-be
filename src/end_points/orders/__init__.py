@@ -90,7 +90,7 @@ def filter_orders(user: User):
 
 
 @order_bp.route('<id>', methods=['GET'])
-@error_catching_decorator('italco-be')
+@error_catching_decorator
 def get_order(id):
   user = User(role=UserRole.DELIVERY)
   orders = []
@@ -186,7 +186,7 @@ def update_order_customer(user: User):
 
 
 @order_bp.route('delivery-details/<order_id>', methods=['GET'])
-@error_catching_decorator('italco-be')
+@error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.ADMIN])
 def get_delivery_details(user: User, order_id: int):
   return {
@@ -197,7 +197,7 @@ def get_delivery_details(user: User, order_id: int):
 
 
 @order_bp.route('photo/<photo_id>', methods=['GET'])
-@error_catching_decorator('italco-be')
+@error_catching_decorator
 def view_order_photo(photo_id: int):
   photo: Photo = get_by_id(Photo, photo_id)
   if not photo:
