@@ -53,7 +53,7 @@ def create_user(user: User):
   return {'status': 'ok', 'message': 'Utente registrato'}
 
 
-@error_catching_decorator('italco-be')
+@error_catching_decorator
 def login_():
   user: User = get_user_by_nickname(request.json['email'])
   if not user:
