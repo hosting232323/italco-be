@@ -1,9 +1,9 @@
 import os
+import re
 import json
 from openai import OpenAI
-from flask import request, Blueprint
+from flask import request, Blueprint, Response
 from datetime import datetime, timedelta
-
 from ..database.enum import UserRole
 from ..database.schema import User, Chatty
 from database_api.operations import create
@@ -28,28 +28,38 @@ def send_message(user: User):
 
   user_message = f'Oggi è: {datetime.now().date()}\n\n{request.json["message"]}'
   client.beta.threads.messages.create(thread_id=thread_id, role='user', content=user_message)
-  run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
-  while True:
-    run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
+  
+  def generate():
+    with client.beta.threads.runs.stream(
+      thread_id=thread_id,
+      assistant_id=assistant_id
+    ) as stream:
+      for text in stream.text_deltas:
+        yield text
+  return Response(generate(), mimetype='text/event-stream')
+      
+  # run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
+  # while True:
+  #   run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
 
-    if run_status.status == 'requires_action':
-      for tool_call in run_status.required_action.submit_tool_outputs.tool_calls:
-        if tool_call.function.name == 'get_order_for_chatty':
-          tool_inputs = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
-          start_date = tool_inputs.get('start_date')
-          end_date = tool_inputs.get('end_date')
-          orders = get_order_for_chatty(user, start_date, end_date)
-          date_message = f'dal {start_date}{f" al {end_date}" if end_date else ""}'
-          submit_orders_to_thread_dynamic(thread_id, run.id, tool_call.id, orders, date_message)
+  #   if run_status.status == 'requires_action':
+  #     for tool_call in run_status.required_action.submit_tool_outputs.tool_calls:
+  #       if tool_call.function.name == 'get_order_for_chatty':
+  #         tool_inputs = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
+  #         start_date = tool_inputs.get('start_date')
+  #         end_date = tool_inputs.get('end_date')
+  #         orders = get_order_for_chatty(user, start_date, end_date)
+  #         date_message = f'dal {start_date}{f" al {end_date}" if end_date else ""}'
+  #         submit_orders_to_thread_dynamic(thread_id, run.id, tool_call.id, orders, date_message)
 
-    elif run_status.status == 'completed':
-      break
+  #   elif run_status.status == 'completed':
+  #     break
 
-  return {
-    'status': 'ok',
-    'thread_id': thread_id,
-    'message': client.beta.threads.messages.list(thread_id=thread_id).data[0].content[0].text.value,
-  }
+  # return {
+  #   'status': 'ok',
+  #   'thread_id': thread_id,
+  #   'message': client.beta.threads.messages.list(thread_id=thread_id).data[0].content[0].text.value,
+  # }
 
 
 @chatty_bp.route('thread/<thread_id>', methods=['GET'])
