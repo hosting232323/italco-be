@@ -65,11 +65,11 @@ def delete_schedule(user: User, id):
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
-@schedule_bp.route('', methods=['GET'])
+@schedule_bp.route('filter', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def get_schedules(user: User):
   schedules = []
-  for tupla in query_schedules():
+  for tupla in query_schedules(None, request.json['filters']):
     schedules = format_query_result(tupla, schedules, user)
   return {'status': 'ok', 'schedules': schedules}
 
