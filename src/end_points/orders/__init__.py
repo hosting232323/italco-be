@@ -10,7 +10,7 @@ from api import error_catching_decorator
 from ..service.queries import get_service_users
 from ..users.session import flask_session_authentication
 from ...database.enum import OrderStatus, UserRole, OrderType
-from database_api.operations import create, update, get_by_id
+from database_api.operations import create, update, get_by_id, delete
 from .services import create_order_service_user, update_order_service_user
 from ...database.schema import User, Order, Photo, Motivation, ServiceUser
 from .queries import (
@@ -211,3 +211,20 @@ def view_order_photo(photo_id: int):
     as_attachment=False,
     download_name=f'order_photo_{photo_id}.jpg',
   )
+
+
+@order_bp.route('<id>', methods=['DELETE'])
+@error_catching_decorator
+@flask_session_authentication([UserRole.ADMIN])
+def delete_order(user: User, id):
+  order: Order = get_by_id(Order, int(id))
+  if not order or order.schedule_id or order.status != OrderStatus.PENDING:
+    return {
+      'status': 'ko',
+      'error': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",
+    }
+
+  for order_service_user in query_order_service_users(order):
+    delete(order_service_user)
+  delete(order)
+  return {'status': 'ok', 'message': 'Operazione completata'}
