@@ -30,7 +30,7 @@ be_dependencies:
     - python -m venv venv
     - source venv/bin/activate
     - pip install -r requirements.txt
-    - git clone https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
+    - git clone -b fix-italco https://$CI_GENERIC_TEST_USERNAME:$CI_GENERIC_TEST_TOKEN@gitlab.com/generic-lab/generics/generic-test.git
     - cd generic-test
     - pip install -r ./requirements.txt
   artifacts:
