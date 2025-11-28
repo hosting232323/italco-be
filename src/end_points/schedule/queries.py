@@ -1,9 +1,8 @@
-from sqlalchemy import and_
+from sqlalchemy import and_, desc
+from datetime import datetime, date
 
 from database_api import Session
 from ...database.schema import Schedule, User, Order, DeliveryGroup, Transport
-from sqlalchemy import desc
-from datetime import datetime, date
 
 
 def query_schedules(filters: list, limit: int = None) -> list[tuple[Schedule, Transport, Order, User]]:
