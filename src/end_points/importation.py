@@ -24,15 +24,22 @@ def order_import(user: User):
   imported_orders_count = 0
   orders = parse_orders(request.files['file'], request.form['customer_id'])
   for _, order_data in orders.items():
-    if len(order_data['products']) != 1 or len(order_data['services']) == 0 or any(not product['collection_point'] for product in order_data['products']):
+    if (
+      len(order_data['products']) != 1
+      or len(order_data['services']) == 0
+      or any(not product['collection_point'] for product in order_data['products'])
+    ):
       conflicted_orders.append(
         {
           **order_data['rows'][0].to_dict(),
           'services': order_data['services'],
-          'products': {product['name']: {
-            'services': [],
-            'collection_point': product['collection_point'].to_dict() if product['collection_point'] else None,
-          } for product in order_data['products']},
+          'products': {
+            product['name']: {
+              'services': [],
+              'collection_point': product['collection_point'].to_dict() if product['collection_point'] else None,
+            }
+            for product in order_data['products']
+          },
         }
       )
       continue
@@ -60,12 +67,15 @@ def handle_conflict(user: User):
     order = create(Order, build_order(order_data))
     for product_name, product in order_data['products'].items():
       for service_user_id in product['services']:
-        create(Product, {
-          'name': product_name,
-          'order_id': order.id,
-          'service_user_id': service_user_id,
-          'collection_point_id': product['collection_point']['id'],
-        })
+        create(
+          Product,
+          {
+            'name': product_name,
+            'order_id': order.id,
+            'service_user_id': service_user_id,
+            'collection_point_id': product['collection_point']['id'],
+          },
+        )
     imported_orders_count += 1
   return {'status': 'ok', 'imported_orders_count': imported_orders_count}
 
@@ -88,10 +98,12 @@ def parse_orders(file, customer_id):
     else:
       print(row['LDP'])
       print(get_collection_point(row['LDP'], customer_id))
-      orders[row['Rif. Com']]['products'].append({
-        'name': row['Descr. Serv'],
-        'collection_point': get_collection_point(row['LDP'], customer_id),
-      })
+      orders[row['Rif. Com']]['products'].append(
+        {
+          'name': row['Descr. Serv'],
+          'collection_point': get_collection_point(row['LDP'], customer_id),
+        }
+      )
   return orders
 
 
@@ -113,6 +125,8 @@ def build_order(order: dict):
 
 def get_collection_point(name: str, customer_id: int) -> CollectionPoint:
   with Session() as session:
-    return session.query(CollectionPoint).filter(
-      CollectionPoint.user_id == customer_id, func.trim(CollectionPoint.name) == name.strip()
-    ).first()
+    return (
+      session.query(CollectionPoint)
+      .filter(CollectionPoint.user_id == customer_id, func.trim(CollectionPoint.name) == name.strip())
+      .first()
+    )
