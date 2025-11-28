@@ -3,20 +3,48 @@ import json
 from openai import OpenAI
 from flask import request, Blueprint
 from datetime import datetime, timedelta
+import re
 
 from ..database.enum import UserRole
 from ..database.schema import User, Chatty
 from database_api.operations import create
 from .users.session import flask_session_authentication
 from .orders.queries import query_orders, format_query_result
-
+from flask import Response, stream_with_context, request
 
 MAX_TOOL_OUTPUT_BYTES = 450_000
 client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
 assistant_id = os.environ['ASSISTANT_ID']
 chatty_bp = Blueprint('chatty_bp', __name__)
 
+@chatty_bp.route('message/stream', methods=['POST'])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.DELIVERY])
+def send_stream(user: User):
 
+  body = request.get_json()  # ← lo prendo una volta prima dello stream
+
+  if body.get("thread_id"):
+    thread_id = body["thread_id"]
+  else:
+    thread_id = client.beta.threads.create().id
+    create(Chatty, {'thread_id': thread_id})
+    
+  client.beta.threads.messages.create(
+    thread_id=thread_id,
+    role="user",
+    content=body["message"]
+  )
+
+  def generate():  # ← wrapper per mantenere vivo il contesto
+    with client.beta.threads.runs.stream(
+      thread_id=thread_id,
+      assistant_id=assistant_id
+    ) as stream:
+      for text in stream.text_deltas:
+        yield text
+
+  return Response(stream_with_context(generate()), mimetype="text/plain")
+  
 @chatty_bp.route('message', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.DELIVERY])
 def send_message(user: User):
@@ -27,7 +55,9 @@ def send_message(user: User):
     create(Chatty, {'thread_id': thread_id})
 
   user_message = f'Oggi è: {datetime.now().date()}\n\n{request.json["message"]}'
+  
   client.beta.threads.messages.create(thread_id=thread_id, role='user', content=user_message)
+  
   run = client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
   while True:
     run_status = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
