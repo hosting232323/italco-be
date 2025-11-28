@@ -5,16 +5,39 @@ import traceback
 from flask import request
 from functools import wraps
 from datetime import datetime, timedelta
-
+from ... import IS_DEV
 from ...database.schema import User
 from ...database.enum import UserRole
 from .queries import get_user_by_nickname
 from database_api.operations import update
+import asyncio
+import threading
+from telegram import Bot
 
 
 DECODE_JWT_TOKEN = os.getenv('DECODE_JWT_TOKEN')
 SESSION_HOURS = int(os.environ.get('SESSION_HOURS', 5))
+bot = Bot(os.environ['TELEGRAM_TOKEN'])
+CHAT_ID = -1003410500390
+topic = {
+  "default": 4294967297,
+  "wooffy-be": 4294967352,
+  "italco-be": 4294967355,
+  "chatty-be": 4294967354,
+  "generic-be": 4294967350,
+  "strongbox-be": 4294967353,
+  "generic-booking": 4294967351
+}
+THREAD_ID = topic[os.environ.get("PROJECT_NAME", 'default')]
 
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+
+def start_loop(loop):
+  asyncio.set_event_loop(loop)
+  loop.run_forever()
+
+threading.Thread(target=start_loop, args=(loop,), daemon=True).start()
 
 def flask_session_authentication(roles: list[UserRole] = None):
   def decorator(func):
@@ -53,7 +76,18 @@ def flask_session_authentication(roles: list[UserRole] = None):
       except jwt.InvalidTokenError:
         return {'status': 'session', 'error': 'Token non valido'}
       except Exception:
-        traceback.print_exc()
+        error_trace = traceback.format_exc()
+        print(error_trace)
+        # if not IS_DEV:
+        async def send():
+          await bot.send_message(
+            chat_id=CHAT_ID,
+            text=error_trace,
+            message_thread_id=THREAD_ID,
+            parse_mode="Markdown"
+          )
+        asyncio.run_coroutine_threadsafe(send(), loop)
+
         return {'status': 'ko', 'message': 'Errore generico'}
 
     return wrapper
