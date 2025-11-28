@@ -36,7 +36,6 @@ def export_order_report(user: User, id):
       addressee=orders[0]['addressee'],
       addressee_contact=orders[0].get('addressee_contact', '/'),
       products=orders[0]['products'],
-      collection_point=orders[0]['collection_point'],
       note=orders[0].get('customer_note', '/'),
       signature=get_signature(get_by_id(Order, orders[0]['id'])),
     ),

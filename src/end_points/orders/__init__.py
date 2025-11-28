@@ -8,10 +8,10 @@ from .mailer import mailer_check
 from .sms_sender import delay_sms_check
 from api import error_catching_decorator
 from ..service.queries import get_service_users
+from .services import create_product, update_product
 from ..users.session import flask_session_authentication
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id, delete
-from .services import create_order_service_user, update_order_service_user
 from ...database.schema import User, Order, Photo, Motivation, ServiceUser
 from .queries import (
   query_orders,
@@ -20,7 +20,7 @@ from .queries import (
   get_delivery_user_by_schedule_id,
   get_order_photo_ids,
   get_motivations_by_order_id,
-  query_order_service_users,
+  query_products,
 )
 
 
@@ -36,7 +36,7 @@ def create_order(user: User):
 
   with Session() as session:
     order: Order = create(Order, data, session=session)
-    create_order_service_user(
+    create_product(
       order,
       request.json['products'],
       user.id if user.role == UserRole.CUSTOMER else request.json['user_id'],
@@ -150,9 +150,7 @@ def update_order(user: User, id):
     if data['status'] in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
       data['booking_date'] = datetime.now()
     if user.role != UserRole.DELIVERY:
-      update_order_service_user(
-        order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session
-      )
+      update_product(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
 
     previous_start = order.start_time_slot
     previous_end = order.end_time_slot
@@ -171,19 +169,19 @@ def update_order(user: User, id):
 def update_order_customer(user: User):
   updates = []
   service_users = get_service_users(request.json['user_id'])
-  order_service_users = query_order_service_users(get_by_id(Order, request.json['order_id']))
-  for order_service_user in order_service_users:
-    old_service_user: ServiceUser = get_by_id(ServiceUser, order_service_user.service_user_id)
+  products = query_products(get_by_id(Order, request.json['order_id']))
+  for product in products:
+    old_service_user: ServiceUser = get_by_id(ServiceUser, product.service_user_id)
     service_user = next(
       (service_user for service_user in service_users if service_user.service_id == old_service_user.service_id), None
     )
     if service_user:
-      updates.append((order_service_user, service_user))
-  if len(updates) != len(order_service_users):
+      updates.append((product, service_user))
+  if len(updates) != len(products):
     return {'status': 'ko', 'error': "Il nuovo utente non possiete gli stessi servizi dell'utente precedente"}
 
-  for order_service_user, service_user in updates:
-    update(order_service_user, {'service_user_id': service_user.id})
+  for product, service_user in updates:
+    update(product, {'service_user_id': service_user.id})
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
@@ -224,7 +222,7 @@ def delete_order(user: User, id):
       'error': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",
     }
 
-  for order_service_user in query_order_service_users(order):
-    delete(order_service_user)
+  for product in query_products(order):
+    delete(product)
   delete(order)
   return {'status': 'ok', 'message': 'Operazione completata'}
