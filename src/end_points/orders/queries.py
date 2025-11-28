@@ -113,35 +113,35 @@ def format_query_result(
 ) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      add_service(element, tupla[3], tupla[1], tupla[2].price)
+      add_service(element, tupla[3], tupla[1], tupla[5], tupla[2].price)
       return list
 
   output = {
     **tupla[0].to_dict(),
     'price': 0,
     'products': {},
-    'collection_point': tupla[5].to_dict(),
     'user': tupla[4].format_user(user.role),
   }
-  add_service(output, tupla[3], tupla[1], tupla[2].price)
+  add_service(output, tupla[3], tupla[1], tupla[5], tupla[2].price)
   list.append(output)
   return list
 
 
-def add_service(object: dict, service: Service, product: Product, price: float) -> dict:
+def add_service(
+  object: dict, service: Service, product: Product, collection_point: CollectionPoint, price: float
+) -> dict:
   if product.name not in object['products'].keys():
-    object['products'][product.name] = []
+    object['products'][product.name] = {'services': [], 'collection_point': collection_point.to_dict()}
 
   if next(
-    (s for s in object['products'][product.name] if s['product_id'] == product.id),
+    (s for s in object['products'][product.name]['services'] if s['product_id'] == product.id),
     None,
   ):
-    return object
+    return
 
   object['price'] += price
-  object['products'][product.name].append(service.to_dict())
-  object['products'][product.name][-1]['product_id'] = product.id
-  return object
+  object['products'][product.name]['services'].append(service.to_dict())
+  object['products'][product.name]['services'][-1]['product_id'] = product.id
 
 
 def get_order_photo_ids(order_id: int) -> list[int]:

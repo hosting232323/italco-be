@@ -1,32 +1,33 @@
-from database_api.operations import create, delete
 from ...database.schema import Order, Product
+from database_api.operations import create, delete
 from .queries import query_service_users, query_products
 
 
 def create_product(order: Order, products: dict, user_id: int, session=None):
-  service_users = query_service_users(
-    list(set(service['id'] for services in products.values() for service in services)), user_id, order.type
-  )
+  service_users = get_service_users(order, products, user_id)
   for product in products.keys():
-    for service in products[product]:
+    for service in products[product]['services']:
       for service_user in service_users:
         if service_user.service_id == service['id']:
           create(
             Product,
-            {'order_id': order.id, 'service_user_id': service_user.id, 'product': product},
+            {
+              'name': product,
+              'order_id': order.id,
+              'service_user_id': service_user.id,
+              'collection_point_id': products[product]['collection_point']['id'],
+            },
             session=session,
           )
           break
 
 
 def update_product(order: Order, products: dict, user_id: int, session=None):
-  service_users = query_service_users(
-    list(set(service['id'] for services in products.values() for service in services)), user_id, order.type
-  )
-  products = query_products(order)
+  service_users = get_service_users(order, products, user_id)
+  old_products = query_products(order)
 
   for product in products.keys():
-    if len([product for product in products if product.name == product]) > 0:
+    if len([old_product for old_product in old_products if old_product.name == product]) > 0:
       continue
 
     for service in products[product]:
@@ -34,12 +35,23 @@ def update_product(order: Order, products: dict, user_id: int, session=None):
         if service_user.service_id == service['id']:
           create(
             Product,
-            {'order_id': order.id, 'service_user_id': service_user.id, 'product': product},
+            {
+              'name': product,
+              'order_id': order.id,
+              'service_user_id': service_user.id,
+              'collection_point_id': products[product]['collection_point']['id'],
+            },
             session=session,
           )
           break
 
-  for product in list({product.name for product in products}):
-    for product in [product for product in products if product.name == product]:
-      if product.name not in products:
+  for product in list({old_product.name for old_product in old_products}):
+    for old_product in [old_product for old_product in old_products if old_product.name == product]:
+      if old_product.name not in products:
         delete(product, session=session)
+
+
+def get_service_users(order: Order, products: dict, user_id: int):
+  return query_service_users(
+    list(set(service['id'] for product in products.values() for service in product['services'])), user_id, order.type
+  )
