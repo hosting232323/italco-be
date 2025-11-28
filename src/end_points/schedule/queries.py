@@ -6,7 +6,7 @@ from sqlalchemy import desc
 from datetime import datetime, date
 
 
-def query_schedules(id: int = None, filters: list = []) -> list[tuple[Schedule, Transport, Order, User]]:
+def query_schedules(filters: list, limit: int = None) -> list[tuple[Schedule, Transport, Order, User]]:
   with Session() as session:
     query = (
       session.query(Schedule, Transport, Order, User)
@@ -20,18 +20,19 @@ def query_schedules(id: int = None, filters: list = []) -> list[tuple[Schedule, 
       model = globals()[filter['model']]
       field = getattr(model, filter['field'])
       value = filter['value']
-      if model == Schedule and field == Schedule.id:
-        query = query.filter(Schedule.id == value)
-      if model == Order and field == Order.id:
-        query = query.filter(Order.id == value)
+
       if model == Schedule and field in [Schedule.created_at, Schedule.date]:
         query = query.filter(
           field >= (value[0] if isinstance(value[0], date) else datetime.strptime(value[0], '%Y-%m-%d')),
           field <= (value[1] if isinstance(value[1], date) else datetime.strptime(value[1], '%Y-%m-%d')),
         )
-    if id:
-      query = query.filter(Schedule.id == id)
-    return query.limit(100).all()
+      else:
+        query = query.filter(field == value)
+
+    query = query.order_by(desc(Schedule.created_at))
+    if limit:
+      query = query.limit(limit)
+    return query.all()
 
 
 def query_schedules_count(user_id, schedule_date) -> int:
