@@ -7,7 +7,7 @@ from database_api import Session
 from ..database.enum import UserRole
 from .users.session import flask_session_authentication
 from database_api.operations import create, delete, get_by_id
-from ..database.schema import CustomerRule, User, Order, OrderServiceUser, ServiceUser
+from ..database.schema import CustomerRule, User, Order, Product, ServiceUser
 
 
 customer_rules_bp = Blueprint('customer_rules_bp', __name__)
@@ -83,11 +83,11 @@ def query_my_orders(user: User) -> list[Order]:
   with Session() as session:
     return (
       session.query(Order)
-      .join(OrderServiceUser, OrderServiceUser.order_id == Order.id)
+      .join(Product, Product.order_id == Order.id)
       .join(
         ServiceUser,
         and_(
-          ServiceUser.id == OrderServiceUser.service_user_id,
+          ServiceUser.id == Product.service_user_id,
           ServiceUser.user_id == user.id,
           Order.dpc > datetime.today(),
           Order.dpc < datetime.today() + relativedelta(months=2),

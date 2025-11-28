@@ -1,6 +1,6 @@
 from database_api import Session
 from ...database.enum import UserRole
-from ...database.schema import User, ServiceUser, CollectionPoint, CustomerRule, OrderServiceUser
+from ...database.schema import User, ServiceUser, CollectionPoint, CustomerRule, Product
 
 
 def query_users(user: User, role: UserRole = None) -> list[User]:
@@ -23,8 +23,8 @@ def count_user_dependencies(id: int) -> dict:
       'customerRules': session.query(CustomerRule).filter(CustomerRule.user_id == id).count(),
       'collectionPoints': session.query(CollectionPoint).filter(CollectionPoint.user_id == id).count(),
       'blockedOrders': (
-        session.query(OrderServiceUser)
-        .join(ServiceUser, ServiceUser.id == OrderServiceUser.service_user_id)
+        session.query(Product)
+        .join(ServiceUser, ServiceUser.id == Product.service_user_id)
         .filter(ServiceUser.user_id == id)
         .count()
       ),

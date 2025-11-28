@@ -1,6 +1,6 @@
 from database_api import Session
 from ...database.enum import UserRole
-from ...database.schema import Service, ServiceUser, User, Order, OrderServiceUser
+from ...database.schema import Service, ServiceUser, User, Order, Product
 
 
 def query_services(user: User = None) -> list[tuple[Service, ServiceUser, User]]:
@@ -56,8 +56,8 @@ def query_orders_in_range(services_id, start_date, end_date):
   with Session() as session:
     return (
       session.query(Order)
-      .join(OrderServiceUser, Order.id == OrderServiceUser.order_id)
-      .join(ServiceUser, ServiceUser.id == OrderServiceUser.service_user_id)
+      .join(Product, Order.id == Product.order_id)
+      .join(ServiceUser, ServiceUser.id == Product.service_user_id)
       .join(Service, Service.id == ServiceUser.service_id)
       .filter(Service.id.in_(services_id), Order.dpc >= start_date, Order.dpc <= end_date)
       .all()

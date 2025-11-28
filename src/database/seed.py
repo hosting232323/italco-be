@@ -3,7 +3,7 @@ from datetime import date
 from database_api import Session
 from database_api.operations import create
 from .enum import UserRole, OrderType, OrderStatus
-from .schema import User, Transport, CollectionPoint, Service, ServiceUser, Order, OrderServiceUser
+from .schema import User, Transport, CollectionPoint, Service, ServiceUser, Order, Product
 
 
 def seed_data():
@@ -16,7 +16,7 @@ def seed_data():
         session.query(Service).count() == 0,
         session.query(ServiceUser).count() == 0,
         session.query(Order).count() == 0,
-        session.query(OrderServiceUser).count() == 0,
+        session.query(Product).count() == 0,
       ]
     ):
       create(
@@ -78,11 +78,14 @@ def seed_data():
           'cap': '20135',
           'dpc': date.today().strftime('%Y-%m-%d'),
           'drc': date.today().strftime('%Y-%m-%d'),
-          'collection_point_id': 1,
         },
         session=session,
       )
 
-      create(OrderServiceUser, {'order_id': 1, 'product': 'Prodotto di prova', 'service_user_id': 1}, session=session)
+      create(
+        Product,
+        {'order_id': 1, 'product': 'Prodotto di prova', 'service_user_id': 1, 'collection_point_id': 1},
+        session=session,
+      )
 
       session.commit()

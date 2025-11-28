@@ -40,11 +40,11 @@ class CustomerGroup(BaseEntity):
 class DeliveryGroup(BaseEntity):
   __tablename__ = 'delivery_group'
 
-  schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+  schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)
 
-  schedule = relationship('Schedule', back_populates='delivery_group')
   user = relationship('User', back_populates='delivery_group')
+  schedule = relationship('Schedule', back_populates='delivery_group')
 
 
 class Transport(BaseEntity):
@@ -66,10 +66,9 @@ class Order(BaseEntity):
   cap = Column(String, nullable=False)
   dpc = Column(Date, nullable=False)
   drc = Column(Date, nullable=False)
-  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
-
   anomaly = Column(Boolean, default=False)
   delay = Column(Boolean, default=False)
+
   floor = Column(Integer)
   elevator = Column(Boolean)
   addressee_contact = Column(String)
@@ -87,8 +86,7 @@ class Order(BaseEntity):
 
   photo = relationship('Photo', back_populates='order')
   schedule = relationship('Schedule', back_populates='order')
-  collection_point = relationship('CollectionPoint', back_populates='order')
-  order_service_user = relationship('OrderServiceUser', back_populates='order')
+  product = relationship('Product', back_populates='order', cascade='all, delete-orphan')
   motivations = relationship('Motivation', back_populates='order', cascade='all, delete-orphan')
 
 
@@ -128,15 +126,15 @@ class Photo(BaseEntity):
 class CollectionPoint(BaseEntity):
   __tablename__ = 'collection_point'
 
-  name = Column(String, nullable=False)
-  address = Column(String, nullable=False)
-  cap = Column(String, nullable=False)
   opening_time = Column(Time)
   closing_time = Column(Time)
+  cap = Column(String, nullable=False)
+  name = Column(String, nullable=False)
+  address = Column(String, nullable=False)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
-  order = relationship('Order', back_populates='collection_point')
   user = relationship('User', back_populates='collection_point')
+  product = relationship('Product', back_populates='collection_point')
 
 
 class Service(BaseEntity):
@@ -159,20 +157,22 @@ class ServiceUser(BaseEntity):
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   service_id = Column(Integer, ForeignKey('service.id'), nullable=False)
 
-  service = relationship('Service', back_populates='service_user')
   user = relationship('User', back_populates='service_user')
-  order_service_user = relationship('OrderServiceUser', back_populates='service_user')
+  service = relationship('Service', back_populates='service_user')
+  product = relationship('Product', back_populates='service_user')
 
 
-class OrderServiceUser(BaseEntity):
-  __tablename__ = 'order_service_user'
+class Product(BaseEntity):
+  __tablename__ = 'product'
 
+  name = Column(String, nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
-  product = Column(String, nullable=False)
   service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
+  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
 
-  order = relationship('Order', back_populates='order_service_user')
-  service_user = relationship('ServiceUser', back_populates='order_service_user')
+  order = relationship('Order', back_populates='product')
+  service_user = relationship('ServiceUser', back_populates='product')
+  collection_point = relationship('CollectionPoint', back_populates='product')
 
 
 class GeographicZone(BaseEntity):

@@ -51,11 +51,6 @@
       text-align: left;
     }
 
-    .info-table.inner {
-      border-collapse: separate;
-      border-spacing: 0;
-    }
-
     .flex-row {
       display: flex;
       gap: 20px;
@@ -78,38 +73,18 @@
   <h1>N° Bolla: {{ id }}</h1>
 
   <div class="section">
-    <h2>Informazioni</h2>
+    <h2>Informazioni Destinatario</h2>
     <table class="info-table">
-      <tr>
-        <td style="width: 50%; vertical-align: top; border: none; padding-left: 0px;">
-          <h3 style="margin: 0 0 10px;">Cliente</h3>
-          <table class="info-table inner">
-            <tr><td class="label">Punto vendita</td><td>{{ customer.nickname }}</td></tr>
-            <tr>
-            <td class="label">Punto di ritiro</td>
-              <td>
-                {{ collection_point.name }}<br>
-                {{ collection_point.address }}<br>
-                {{ collection_point.city }} ({{ collection_point.province }})
-              </td>
-            </tr>
-          </table>
-        </td>
-        <td style="width: 50%; vertical-align: top; border: none; padding-right: 0px;">
-          <h3 style="margin: 0 0 10px;">Destinatario</h3>
-          <table class="info-table inner">
-            <tr><td class="label">Nome</td><td>{{ addressee }}</td></tr>
-            <tr><td class="label">Indirizzo</td><td>{{ address }}</td></tr>
-            <tr><td class="label">Recapito</td><td>{{ addressee_contact }}</td></tr>
-          </table>
-        </td>
-      </tr>
+      <tr><td class="label">Nome</td><td>{{ addressee }}</td></tr>
+      <tr><td class="label">Indirizzo</td><td>{{ address }}</td></tr>
+      <tr><td class="label">Recapito</td><td>{{ addressee_contact }}</td></tr>
     </table>
   </div>
 
   <div class="section">
     <h2>Dettagli Consegna</h2>
     <table class="info-table">
+      <tr><td class="label">Committente</td><td>{{ customer.nickname }}</td></tr>
       <tr><td class="label">Data prevista consegna</td><td>{{ dpc }}</td></tr>
       <tr><td class="label">Data richiesta consegna</td><td>{{ drc }}</td></tr>
       <tr><td class="label">Data consegna effettiva</td><td>{{ booking_date }}</td></tr>
@@ -127,12 +102,15 @@
         </tr>
       </thead>
       <tbody>
-        {% for product_name, services in products.items() %}
+        {% for product_name, product in products.items() %}
         <tr>
-          <td>{{ product_name }}</td>
+          <td>
+            {{ product_name }}
+            [{{ product.collection_point.name }}]
+          </td>
           <td>
             <ul style="margin: 0; padding-left: 16px;">
-              {% for service in services %}
+              {% for service in product.services %}
               <li>{{ service.name }}</li>
               {% endfor %}
             </ul>

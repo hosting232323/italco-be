@@ -51,11 +51,6 @@
       text-align: left;
     }
 
-    .info-table.inner {
-      border-collapse: separate;
-      border-spacing: 0;
-    }
-
     .flex-row {
       display: flex;
       gap: 20px;
@@ -118,17 +113,17 @@
           <td>{{ order.type }}</td>
           <td>{{ order.addressee }}<br>{{ order.address }}, {{ order.cap }}<br>{{ order.addressee_contact}}</td>
           <td>
-            {% for product_name, service_list in order.products.items() %}
-              <strong>{{ product_name }}</strong><br>
-              {% for service in service_list %}
+            {% for product_name, product in order.products.items() %}
+              <strong>{{ product_name }}</strong>
+              [{{ product.collection_point.name }}]<br>
+              {% for service in product.services %}
                 {{ service.name }}<br>
               {% endfor %}
               <br>
             {% endfor %}
           </td>
           <td>
-            <b>Punto vendita:</b><br>{{ order.user.nickname }}<br>
-            <b>Punto di ritiro:</b><br>{{ order.collection_point.address }}, {{ order.collection_point.cap }}, {{ order.collection_point.city }}
+            <b>Punto vendita:</b><br>{{ order.user.nickname }}
           </td>
         </tr>
         {% endfor %}
@@ -174,31 +169,12 @@
 
     <div class="section">
       <h2>N° Ordine: {{ order.id }}</h2>
+      <h3 style="margin: 0 0 10px;">Informazioni</h3>
       <table class="info-table">
-        <tr>
-          <td style="width: 50%; vertical-align: top; border: none; padding-left: 0px;">
-            <h3 style="margin: 0 0 10px;">Cliente</h3>
-            <table class="info-table inner">
-              <tr><td class="label">Punto vendita</td><td>{{ order.user.nickname }}</td></tr>
-              <tr>
-              <td class="label">Punto di ritiro</td>
-                <td>
-                  {{ order.collection_point.name }}<br>
-                  {{ order.collection_point.address }}<br>
-                  {{ order.collection_point.city }} ({{ order.collection_point.province }})
-                </td>
-              </tr>
-            </table>
-          </td>
-          <td style="width: 50%; vertical-align: top; border: none; padding-right: 0px;">
-            <h3 style="margin: 0 0 10px;">Destinatario</h3>
-            <table class="info-table inner">
-              <tr><td class="label">Nome</td><td>{{ order.addressee }}</td></tr>
-              <tr><td class="label">Indirizzo</td><td>{{ order.address }}</td></tr>
-              <tr><td class="label">Recapito</td><td>{{ order.addressee_contact or '/' }}</td></tr>
-            </table>
-          </td>
-        </tr>
+        <tr><td class="label">Committente</td><td>{{ order.user.nickname }}</td></tr>
+        <tr><td class="label">Destinatario</td><td>{{ order.addressee }}</td></tr>
+        <tr><td class="label">Indirizzo</td><td>{{ order.address }}</td></tr>
+        <tr><td class="label">Recapito</td><td>{{ order.addressee_contact or '/' }}</td></tr>
       </table>
     </div>
 
@@ -222,12 +198,15 @@
           </tr>
         </thead>
         <tbody>
-          {% for product_name, services in order.products.items() %}
+          {% for product_name, product in order.products.items() %}
           <tr>
-            <td>{{ product_name }}</td>
+            <td>
+              {{ product_name }}
+              [{{ product.collection_point.name }}]
+            </td>
             <td>
               <ul style="margin: 0; padding-left: 16px;">
-                {% for service in services %}
+                {% for service in product.services %}
                 <li>{{ service.name }}</li>
                 {% endfor %}
               </ul>
