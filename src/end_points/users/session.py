@@ -77,16 +77,14 @@ def flask_session_authentication(roles: list[UserRole] = None):
         return {'status': 'session', 'error': 'Token non valido'}
       except Exception:
         error_trace = traceback.format_exc()
-        print(error_trace)
-        # if not IS_DEV:
-        async def send():
-          await bot.send_message(
-            chat_id=CHAT_ID,
-            text=error_trace,
-            message_thread_id=THREAD_ID,
-            parse_mode="Markdown"
-          )
-        asyncio.run_coroutine_threadsafe(send(), loop)
+        if not IS_DEV:
+          async def send_error(trace):
+            await bot.send_message(
+              chat_id=CHAT_ID, 
+              text=trace, 
+              message_thread_id=THREAD_ID
+            )
+          asyncio.run_coroutine_threadsafe(send_error(error_trace), loop)
 
         return {'status': 'ko', 'message': 'Errore generico'}
 
