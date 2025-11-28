@@ -5,7 +5,7 @@ from database_api import Session
 from ...database.enum import UserRole, OrderType, OrderStatus
 from ...database.schema import (
   Order,
-  OrderServiceUser,
+  Product,
   ServiceUser,
   Service,
   User,
@@ -20,13 +20,13 @@ from ...database.schema import (
 
 def query_orders(
   user: User, filters: list, limit: int = None
-) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint]]:
+) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint]]:
   with Session() as session:
     query = (
-      session.query(Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint)
-      .outerjoin(CollectionPoint, Order.collection_point_id == CollectionPoint.id)
-      .outerjoin(OrderServiceUser, OrderServiceUser.order_id == Order.id)
-      .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
+      session.query(Order, Product, ServiceUser, Service, User, CollectionPoint)
+      .outerjoin(Product, Product.order_id == Order.id)
+      .outerjoin(CollectionPoint, Product.collection_point_id == CollectionPoint.id)
+      .outerjoin(ServiceUser, Product.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
       .outerjoin(User, ServiceUser.user_id == User.id)
     )
@@ -69,10 +69,10 @@ def query_orders(
 
 def query_delivery_orders(
   user: User,
-) -> list[tuple[Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint]]:
+) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint]]:
   with Session() as session:
     return (
-      session.query(Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint)
+      session.query(Order, Product, ServiceUser, Service, User, CollectionPoint)
       .join(
         Schedule,
         and_(
@@ -82,18 +82,18 @@ def query_delivery_orders(
         ),
       )
       .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user.id))
-      .outerjoin(CollectionPoint, Order.collection_point_id == CollectionPoint.id)
-      .outerjoin(OrderServiceUser, OrderServiceUser.order_id == Order.id)
-      .outerjoin(ServiceUser, OrderServiceUser.service_user_id == ServiceUser.id)
+      .outerjoin(Product, Product.order_id == Order.id)
+      .outerjoin(CollectionPoint, Product.collection_point_id == CollectionPoint.id)
+      .outerjoin(ServiceUser, Product.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
       .outerjoin(User, ServiceUser.user_id == User.id)
       .all()
     )
 
 
-def query_order_service_users(order: Order) -> list[OrderServiceUser]:
+def query_products(order: Order) -> list[Product]:
   with Session() as session:
-    return session.query(OrderServiceUser).filter(OrderServiceUser.order_id == order.id).all()
+    return session.query(Product).filter(Product.order_id == order.id).all()
 
 
 def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -> list[ServiceUser]:
@@ -107,7 +107,7 @@ def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -
 
 
 def format_query_result(
-  tupla: tuple[Order, OrderServiceUser, ServiceUser, Service, User, CollectionPoint],
+  tupla: tuple[Order, Product, ServiceUser, Service, User, CollectionPoint],
   list: list[dict],
   user: User,
 ) -> list[dict]:
@@ -128,19 +128,19 @@ def format_query_result(
   return list
 
 
-def add_service(object: dict, service: Service, order_service_user: OrderServiceUser, price: float) -> dict:
-  if order_service_user.product not in object['products'].keys():
-    object['products'][order_service_user.product] = []
+def add_service(object: dict, service: Service, product: Product, price: float) -> dict:
+  if product.name not in object['products'].keys():
+    object['products'][product.name] = []
 
   if next(
-    (s for s in object['products'][order_service_user.product] if s['order_service_user_id'] == order_service_user.id),
+    (s for s in object['products'][product.name] if s['product_id'] == product.id),
     None,
   ):
     return object
 
   object['price'] += price
-  object['products'][order_service_user.product].append(service.to_dict())
-  object['products'][order_service_user.product][-1]['order_service_user_id'] = order_service_user.id
+  object['products'][product.name].append(service.to_dict())
+  object['products'][product.name][-1]['product_id'] = product.id
   return object
 
 
@@ -159,10 +159,7 @@ def get_customer_user_by_order(order: Order) -> User:
     return (
       session.query(User)
       .join(ServiceUser, ServiceUser.user_id == User.id)
-      .join(
-        OrderServiceUser,
-        and_(OrderServiceUser.service_user_id == ServiceUser.id, OrderServiceUser.order_id == order.id),
-      )
+      .join(Product, and_(Product.service_user_id == ServiceUser.id, Product.order_id == order.id))
       .first()
     )
 
@@ -181,9 +178,6 @@ def get_selling_point(order: Order) -> User:
     return (
       session.query(User)
       .join(ServiceUser, User.id == ServiceUser.user_id)
-      .join(
-        OrderServiceUser,
-        and_(ServiceUser.id == OrderServiceUser.service_user_id, OrderServiceUser.order_id == order.id),
-      )
+      .join(Product, and_(ServiceUser.id == Product.service_user_id, Product.order_id == order.id))
       .first()
     )

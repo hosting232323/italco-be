@@ -1,9 +1,9 @@
 from database_api.operations import create, delete
-from ...database.schema import Order, OrderServiceUser
-from .queries import query_service_users, query_order_service_users
+from ...database.schema import Order, Product
+from .queries import query_service_users, query_products
 
 
-def create_order_service_user(order: Order, products: dict, user_id: int, session=None):
+def create_product(order: Order, products: dict, user_id: int, session=None):
   service_users = query_service_users(
     list(set(service['id'] for services in products.values() for service in services)), user_id, order.type
   )
@@ -12,39 +12,34 @@ def create_order_service_user(order: Order, products: dict, user_id: int, sessio
       for service_user in service_users:
         if service_user.service_id == service['id']:
           create(
-            OrderServiceUser,
+            Product,
             {'order_id': order.id, 'service_user_id': service_user.id, 'product': product},
             session=session,
           )
           break
 
 
-def update_order_service_user(order: Order, products: dict, user_id: int, session=None):
+def update_product(order: Order, products: dict, user_id: int, session=None):
   service_users = query_service_users(
     list(set(service['id'] for services in products.values() for service in services)), user_id, order.type
   )
-  order_service_users = query_order_service_users(order)
+  products = query_products(order)
 
   for product in products.keys():
-    if (
-      len([order_service_user for order_service_user in order_service_users if order_service_user.product == product])
-      > 0
-    ):
+    if len([product for product in products if product.name == product]) > 0:
       continue
 
     for service in products[product]:
       for service_user in service_users:
         if service_user.service_id == service['id']:
           create(
-            OrderServiceUser,
+            Product,
             {'order_id': order.id, 'service_user_id': service_user.id, 'product': product},
             session=session,
           )
           break
 
-  for product in list({order_service_user.product for order_service_user in order_service_users}):
-    for order_service_user in [
-      order_service_user for order_service_user in order_service_users if order_service_user.product == product
-    ]:
-      if order_service_user.product not in products:
-        delete(order_service_user, session=session)
+  for product in list({product.name for product in products}):
+    for product in [product for product in products if product.name == product]:
+      if product.name not in products:
+        delete(product, session=session)
