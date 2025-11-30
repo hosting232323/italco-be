@@ -84,7 +84,7 @@ def seed_data():
 
       create(
         Product,
-        {'order_id': 1, 'product': 'Prodotto di prova', 'service_user_id': 1, 'collection_point_id': 1},
+        {'order_id': 1, 'name': 'Prodotto di prova', 'service_user_id': 1, 'collection_point_id': 1},
         session=session,
       )
 
