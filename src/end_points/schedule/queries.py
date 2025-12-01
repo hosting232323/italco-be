@@ -1,10 +1,11 @@
-from sqlalchemy import and_
+from sqlalchemy import and_, desc
+from datetime import datetime, date
 
 from database_api import Session
 from ...database.schema import Schedule, User, Order, DeliveryGroup, Transport
 
 
-def query_schedules(id: int = None) -> list[tuple[Schedule, Transport, Order, User]]:
+def query_schedules(filters: list, limit: int = None) -> list[tuple[Schedule, Transport, Order, User]]:
   with Session() as session:
     query = (
       session.query(Schedule, Transport, Order, User)
@@ -12,9 +13,24 @@ def query_schedules(id: int = None) -> list[tuple[Schedule, Transport, Order, Us
       .join(Order, Order.schedule_id == Schedule.id)
       .join(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
       .join(User, DeliveryGroup.user_id == User.id)
+      .order_by(desc(Schedule.updated_at))
     )
-    if id:
-      query = query.filter(Schedule.id == id)
+    for filter in filters:
+      model = globals()[filter['model']]
+      field = getattr(model, filter['field'])
+      value = filter['value']
+
+      if model == Schedule and field in [Schedule.created_at, Schedule.date]:
+        query = query.filter(
+          field >= (value[0] if isinstance(value[0], date) else datetime.strptime(value[0], '%Y-%m-%d')),
+          field <= (value[1] if isinstance(value[1], date) else datetime.strptime(value[1], '%Y-%m-%d')),
+        )
+      else:
+        query = query.filter(field == value)
+
+    query = query.order_by(desc(Schedule.created_at))
+    if limit:
+      query = query.limit(limit)
     return query.all()
 
 
