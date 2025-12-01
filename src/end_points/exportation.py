@@ -87,7 +87,7 @@ def export_orders_invoice(user: User):
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_orders_schedule(user: User, id):
   schedules = []
-  for tupla in query_schedules(int(id)):
+  for tupla in query_schedules([{'model': 'Schedule', 'field': 'id', 'value': int(id)}]):
     schedules = format_schedule_query_result(tupla, schedules, user)
   if len(schedules) != 1:
     raise Exception('Numero di schedule trovati non valido')
