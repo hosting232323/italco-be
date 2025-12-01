@@ -4,3 +4,4 @@ pandas
 openpyxl
 hashids
 openai
+python-telegram-bot

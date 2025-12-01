@@ -15,6 +15,7 @@ allowed_origins = [
 load_dotenv()
 IS_DEV = int(os.environ.get('IS_DEV', 1)) == 1
 DATABASE_URL = os.environ['DATABASE_URL']
+PROJECT_NAME = os.environ.get('PROJECT_NAME', 'default')
 app = Flask(__name__, static_folder='../static', template_folder='../templates')
 
 if IS_DEV:
@@ -31,4 +32,4 @@ def index():
 @swagger_decorator
 @app.route('/internal-backup', methods=['POST'])
 def trigger_backup():
-  return db_backup(DATABASE_URL, 'italco-be')
+  return db_backup(DATABASE_URL, PROJECT_NAME)
