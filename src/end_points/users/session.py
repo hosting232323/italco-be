@@ -9,15 +9,15 @@ from flask import request
 from functools import wraps
 from datetime import datetime, timedelta
 
-from ... import IS_DEV
 from ...database.schema import User
+from ... import IS_DEV, PROJECT_NAME
 from ...database.enum import UserRole
 from .queries import get_user_by_nickname
 from database_api.operations import update
 
 
 bot = Bot(os.environ['TELEGRAM_TOKEN'])
-DECODE_JWT_TOKEN = os.getenv('DECODE_JWT_TOKEN')
+DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
 SESSION_HOURS = int(os.environ.get('SESSION_HOURS', 5))
 CHAT_ID = -1003410500390
 TELEGRAM_TOPIC = {
@@ -27,9 +27,9 @@ TELEGRAM_TOPIC = {
   'chatty-be': 4294967354,
   'generic-be': 4294967350,
   'strongbox-be': 4294967353,
-  'generic-booking': 4294967351
+  'generic-booking': 4294967351,
 }
-THREAD_ID = TELEGRAM_TOPIC[os.environ.get('PROJECT_NAME', 'default')]
+THREAD_ID = TELEGRAM_TOPIC[PROJECT_NAME]
 
 
 loop = asyncio.new_event_loop()
@@ -84,12 +84,10 @@ def flask_session_authentication(roles: list[UserRole] = None):
       except Exception:
         traceback.print_exc()
         if not IS_DEV:
+
           async def send_error(trace):
-            await bot.send_message(
-              chat_id=CHAT_ID, 
-              text=trace, 
-              message_thread_id=THREAD_ID
-            )
+            await bot.send_message(chat_id=CHAT_ID, text=trace, message_thread_id=THREAD_ID)
+
           asyncio.run_coroutine_threadsafe(send_error(traceback.format_exc()), loop)
         return {'status': 'ko', 'message': 'Errore generico'}
 
