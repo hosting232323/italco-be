@@ -30,7 +30,7 @@ def update_product(order: Order, products: dict, user_id: int, session=None):
     if len([old_product for old_product in old_products if old_product.name == product]) > 0:
       continue
 
-    for service in products[product]:
+    for service in products[product]['services']:
       for service_user in service_users:
         if service_user.service_id == service['id']:
           create(
@@ -45,10 +45,9 @@ def update_product(order: Order, products: dict, user_id: int, session=None):
           )
           break
 
-  for product in list({old_product.name for old_product in old_products}):
-    for old_product in [old_product for old_product in old_products if old_product.name == product]:
-      if old_product.name not in products:
-        delete(product, session=session)
+  for old_product in old_products:
+    if old_product.name not in products:
+      delete(old_product, session=session)
 
 
 def get_service_users(order: Order, products: dict, user_id: int):
