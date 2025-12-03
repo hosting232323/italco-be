@@ -21,7 +21,7 @@ chatty_bp = Blueprint('chatty_bp', __name__)
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.DELIVERY])
 def send_stream(user: User):
 
-  body = request.get_json()  # ← lo prendo una volta prima dello stream
+  body = request.get_json()
 
   if body.get("thread_id"):
     thread_id = body["thread_id"]
@@ -35,13 +35,14 @@ def send_stream(user: User):
     content=body["message"]
   )
 
-  def generate():  # ← wrapper per mantenere vivo il contesto
+  def generate():
     with client.beta.threads.runs.stream(
       thread_id=thread_id,
       assistant_id=assistant_id
     ) as stream:
-      for text in stream.text_deltas:
-        yield text
+      for event in stream:
+        print(event)
+        yield event.delta
 
   return Response(stream_with_context(generate()), mimetype="text/plain")
   
