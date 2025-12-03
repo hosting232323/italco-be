@@ -104,6 +104,7 @@
           <th style="width: 22%;">Destinatario</th>
           <th style="width: 31%;">Prodotti e Servizi</th>
           <th style="width: 23%;">Punto Vendita</th>
+          <th style="width: 23%;">Note</th>
         </tr>
       </thead>
       <tbody>
@@ -123,7 +124,10 @@
             {% endfor %}
           </td>
           <td>
-            <b>Punto vendita:</b><br>{{ order.user.nickname }}
+            {{ order.user.nickname }}
+          </td>
+          <td>
+            {{ [order.customer_note, order.operator_note] | select | join(', ') or '/' }}
           </td>
         </tr>
         {% endfor %}
@@ -175,6 +179,7 @@
         <tr><td class="label">Destinatario</td><td>{{ order.addressee }}</td></tr>
         <tr><td class="label">Indirizzo</td><td>{{ order.address }}</td></tr>
         <tr><td class="label">Recapito</td><td>{{ order.addressee_contact or '/' }}</td></tr>
+        <tr><td class="label">Note</td><td>{{ order.customer_note or '/' }}</td></tr>
       </table>
     </div>
 
@@ -184,7 +189,7 @@
         <tr><td class="label">Data prevista consegna</td><td>{{ order.dpc }}</td></tr>
         <tr><td class="label">Data richiesta consegna</td><td>{{ order.drc }}</td></tr>
         <tr><td class="label">Data consegna effettiva</td><td>{{ order.booking_date or '/' }}</td></tr>
-        <tr><td class="label">Note aggiuntive</td><td>{{ order.customer_note or '/' }}</td></tr>
+        <tr><td class="label">Note aggiuntive</td><td>{{ order.operator_note or '/' }}</td></tr>
       </table>
     </div>
 
