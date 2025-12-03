@@ -63,8 +63,20 @@ def flask_session_authentication(roles: list[UserRole] = None):
             return {'status': 'session', 'error': 'Ruolo non autorizzato'}
 
         if user.role == UserRole.DELIVERY:
-          lat = float(request.headers['X-Lat'])
-          lon = float(request.headers['X-Lon'])
+          try:
+            lat = float(request.headers['X-Lat'])
+            lon = float(request.headers['X-Lon'])
+          except KeyError as e:
+            async def send_error(trace):
+              await bot.send_message(
+              chat_id=CHAT_ID,
+              text=f"{trace}\n\nUser: {user.nickname}",
+              message_thread_id=THREAD_ID,
+              )
+
+            asyncio.run_coroutine_threadsafe(send_error(traceback.format_exc()), loop)
+            return {'status': 'ko', 'error': 'Latitudine o Longitudine mancanti'}
+
           if lat is None or lon is None:
             return {'status': 'ko', 'error': 'Latitudine o Longitudine mancanti'}
 
