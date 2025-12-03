@@ -116,7 +116,8 @@ class Schedule(BaseEntity):
 class Photo(BaseEntity):
   __tablename__ = 'photo'
 
-  photo = Column(LargeBinary, nullable=False)
+  path = Column(String)
+  photo = Column(LargeBinary)
   mime_type = Column(String, nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
 

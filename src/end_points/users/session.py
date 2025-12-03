@@ -67,11 +67,12 @@ def flask_session_authentication(roles: list[UserRole] = None):
             lat = float(request.headers['X-Lat'])
             lon = float(request.headers['X-Lon'])
           except KeyError as e:
+
             async def send_error(trace):
               await bot.send_message(
-              chat_id=CHAT_ID,
-              text=f"{trace}\n\nUser: {user.nickname}",
-              message_thread_id=THREAD_ID,
+                chat_id=CHAT_ID,
+                text=f'{trace}\n\nUser: {user.nickname}',
+                message_thread_id=THREAD_ID,
               )
 
             asyncio.run_coroutine_threadsafe(send_error(traceback.format_exc()), loop)
