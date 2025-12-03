@@ -1,35 +1,60 @@
 import os
+from pathlib import Path
 from tqdm import tqdm
 
-from src.database.enum import UserRole
-from database_api.operations import create
 from database_api import set_database, Session
-from src.database.schema import DeliveryGroup, Schedule, User
+from database_api.operations import update
+from src.database.schema import Photo
 
 
-def get_wrong_schedules() -> list[Schedule]:
+PHOTOS_DIR = Path("/media/vanni/Volume/Italco/photos")
+BATCH_SIZE = 50
+START_ID = 0
+
+
+def get_photos(last_id) -> list[Photo]:
   with Session() as session:
-    return session.query(Schedule).outerjoin(
-      DeliveryGroup, Schedule.id == DeliveryGroup.schedule_id
-    ).filter(
-      DeliveryGroup.schedule_id == None
+    return session.query(Photo).filter(
+      Photo.id > last_id
+    ).order_by(
+      Photo.id.asc()
+    ).limit(
+      BATCH_SIZE
     ).all()
 
 
-def get_sample_user() -> User:
-  with Session() as session:
-    return session.query(User).filter(
-      User.role == UserRole.DELIVERY,
-      User.nickname == 'delivery',
-    ).first()
+def guess_extension(mime_type: str) -> str:
+  if mime_type == "image/jpeg":
+    return ".jpg"
+  if mime_type == "image/png":
+    return ".png"
+  if mime_type == "image/webp":
+    return ".webp"
+  return ""
 
 
-if __name__ == '__main__':
+def save_file(photo_obj: Photo):
+  PHOTOS_DIR.mkdir(exist_ok=True)
+  ext = guess_extension(photo_obj.mime_type)
+  file_path = PHOTOS_DIR / f"{photo_obj.id}{ext}"
+
+  with open(file_path, "wb") as f:
+    f.write(photo_obj.photo)
+
+  return str(file_path)
+
+
+def migrate_photo(photo_obj: Photo):
+  new_path = save_file(photo_obj)
+  update(photo_obj, {"photo": None, "path": new_path})
+  print(f"[OK] Migrato ID {photo_obj.id}: {new_path}")
+
+
+if __name__ == "__main__":
   set_database(os.environ['DATABASE_URL'])
-  delivery_user = get_sample_user()
-  for schedule in tqdm(get_wrong_schedules()):
-    print(schedule)
-    create(DeliveryGroup, {
-      'user_id': delivery_user.id,
-      'schedule_id': schedule.id
-    })
+
+  last_id = START_ID
+  photos = get_photos(last_id)
+
+  for p in tqdm(photos):
+    migrate_photo(p)

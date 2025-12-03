@@ -7,8 +7,73 @@ from .schema import User, Transport, CollectionPoint, Service, ServiceUser, Orde
 
 
 def seed_data():
+  if can_create():
+    create(
+      User,
+      {
+        'nickname': 'admin',
+        'password': 'MTIzNDU2Nzg5MDEyMzQ1Nk74aeshlmbNA9Dmmq+dowI=',
+        'role': UserRole.get_enum_option('Admin'),
+      },
+    )
+    create(
+      User,
+      {
+        'nickname': 'operator',
+        'password': 'MTIzNDU2Nzg5MDEyMzQ1NhB1m3hNtcmV3SS6RJWD/lM=',
+        'role': UserRole.get_enum_option('Operator'),
+      },
+    )
+    create(
+      User,
+      {
+        'nickname': 'delivery',
+        'password': 'MTIzNDU2Nzg5MDEyMzQ1NveX8dFMr4LXoKyncdgq94g=',
+        'role': UserRole.get_enum_option('Delivery'),
+      },
+    )
+    create(
+      User,
+      {
+        'nickname': 'customer',
+        'password': 'MTIzNDU2Nzg5MDEyMzQ1NlDCtaLDuTiPZS2I6jtlNI4=',
+        'role': UserRole.get_enum_option('Customer'),
+      },
+    )
+
+    create(Transport, {'name': 'Auto', 'plate': 'AA123BB'})
+
+    create(
+      CollectionPoint,
+      {'name': 'Punto di ritiro', 'address': 'Barletta, 76121 Barletta BT, Italia', 'cap': '76121', 'user_id': 4},
+    )
+
+    create(Service, {'name': 'Servizio', 'type': OrderType.DELIVERY})
+
+    create(ServiceUser, {'price': 10, 'user_id': 4, 'service_id': 1})
+
+    create(
+      Order,
+      {
+        'status': OrderStatus.PENDING,
+        'type': OrderType.DELIVERY,
+        'addressee': 'Destinatario di prova',
+        'address': "27, Via Simone D'Orsenigo, Milano, MI",
+        'cap': '20135',
+        'dpc': date.today().strftime('%Y-%m-%d'),
+        'drc': date.today().strftime('%Y-%m-%d'),
+      },
+    )
+
+    create(
+      Product,
+      {'order_id': 1, 'name': 'Prodotto di prova', 'service_user_id': 1, 'collection_point_id': 1},
+    )
+
+
+def can_create() -> bool:
   with Session() as session:
-    if all(
+    return all(
       [
         session.query(User).count() == 0,
         session.query(Transport).count() == 0,
@@ -18,74 +83,4 @@ def seed_data():
         session.query(Order).count() == 0,
         session.query(Product).count() == 0,
       ]
-    ):
-      create(
-        User,
-        {
-          'nickname': 'admin',
-          'password': 'MTIzNDU2Nzg5MDEyMzQ1Nk74aeshlmbNA9Dmmq+dowI=',
-          'role': UserRole.get_enum_option('Admin'),
-        },
-        session=session,
-      )
-      create(
-        User,
-        {
-          'nickname': 'operator',
-          'password': 'MTIzNDU2Nzg5MDEyMzQ1NhB1m3hNtcmV3SS6RJWD/lM=',
-          'role': UserRole.get_enum_option('Operator'),
-        },
-        session=session,
-      )
-      create(
-        User,
-        {
-          'nickname': 'delivery',
-          'password': 'MTIzNDU2Nzg5MDEyMzQ1NveX8dFMr4LXoKyncdgq94g=',
-          'role': UserRole.get_enum_option('Delivery'),
-        },
-        session=session,
-      )
-      create(
-        User,
-        {
-          'nickname': 'customer',
-          'password': 'MTIzNDU2Nzg5MDEyMzQ1NlDCtaLDuTiPZS2I6jtlNI4=',
-          'role': UserRole.get_enum_option('Customer'),
-        },
-        session=session,
-      )
-
-      create(Transport, {'name': 'Auto', 'plate': 'AA123BB'}, session=session)
-
-      create(
-        CollectionPoint,
-        {'name': 'Punto di ritiro', 'address': 'Barletta, 76121 Barletta BT, Italia', 'cap': '76121', 'user_id': 4},
-        session=session,
-      )
-
-      create(Service, {'name': 'Servizio', 'type': OrderType.DELIVERY}, session=session)
-
-      create(ServiceUser, {'price': 10, 'user_id': 4, 'service_id': 1}, session=session)
-
-      create(
-        Order,
-        {
-          'status': OrderStatus.PENDING,
-          'type': OrderType.DELIVERY,
-          'addressee': 'Destinatario di prova',
-          'address': "27, Via Simone D'Orsenigo, Milano, MI",
-          'cap': '20135',
-          'dpc': date.today().strftime('%Y-%m-%d'),
-          'drc': date.today().strftime('%Y-%m-%d'),
-        },
-        session=session,
-      )
-
-      create(
-        Product,
-        {'order_id': 1, 'product': 'Prodotto di prova', 'service_user_id': 1, 'collection_point_id': 1},
-        session=session,
-      )
-
-      session.commit()
+    )
