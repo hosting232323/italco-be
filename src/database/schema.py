@@ -10,17 +10,11 @@ class User(BaseEntity):
 
   email = Column(String)
   password = Column(String)
-  lat = Column(Numeric(11, 8))
-  lon = Column(Numeric(11, 8))
   role = Column(Enum(UserRole), nullable=False)
   nickname = Column(String, unique=True, nullable=False)
-  customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
-
-  customer_group = relationship('CustomerGroup', back_populates='user')
-  delivery_group = relationship('DeliveryGroup', back_populates='user')
-  service_user = relationship('ServiceUser', back_populates='user', cascade='all, delete-orphan')
-  customer_rule = relationship('CustomerRule', back_populates='user', cascade='all, delete-orphan')
-  collection_point = relationship('CollectionPoint', back_populates='user', cascade='all, delete-orphan')
+  
+  delivery_user = relationship('DeliveryUser', back_populates='user')
+  customer_user = relationship('CustomerUser', back_populates='user')
 
   def format_user(self, role: UserRole):
     if role == UserRole.ADMIN:
@@ -29,12 +23,37 @@ class User(BaseEntity):
       return {'id': self.id, 'nickname': self.nickname, 'role': self.role.value}
 
 
+class DeliveryUser(BaseEntity):
+  __tablename__ = 'delivery_user'
+
+  lat = Column(Numeric(11, 8))
+  lon = Column(Numeric(11, 8))
+  location = Column(String, nullable=False)
+  user_id = Column(ForeignKey('user.id'), nullable=False)
+
+  user = relationship('User', back_populates='delivery_user')
+  delivery_groups = relationship('DeliveryGroup', backref='delivery_user')
+
+
+class CustomerUser(BaseEntity):
+  __tablename__ = 'customer_user'
+  
+  user_id = Column(ForeignKey('user.id'), nullable=False)
+  customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
+  
+  user = relationship('User', back_populates='customer_user')
+  customer_group = relationship('CustomerGroup', back_populates='customer_user')
+  service_user = relationship('ServiceUser', back_populates='customer_user', cascade='all, delete-orphan')
+  customer_rule = relationship('CustomerRule', back_populates='customer_user', cascade='all, delete-orphan')
+  collection_point = relationship('CollectionPoint', back_populates='customer_user', cascade='all, delete-orphan')
+
+
 class CustomerGroup(BaseEntity):
   __tablename__ = 'customer_group'
 
   name = Column(String, nullable=False)
 
-  user = relationship('User', back_populates='customer_group')
+  customer_user = relationship('CustomerUser', back_populates='customer_group')
 
 
 class DeliveryGroup(BaseEntity):
@@ -43,8 +62,8 @@ class DeliveryGroup(BaseEntity):
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)
 
-  user = relationship('User', back_populates='delivery_group')
   schedule = relationship('Schedule', back_populates='delivery_group')
+  delivery_user = relationship('DeliveryUser', back_populates='delivery_group')
 
 
 class Transport(BaseEntity):
@@ -52,6 +71,7 @@ class Transport(BaseEntity):
 
   name = Column(String, nullable=False)
   plate = Column(String, nullable=False)
+  location = Column(String, nullable=True)
 
   schedule = relationship('Schedule', back_populates='transport')
 
@@ -160,9 +180,10 @@ class CollectionPoint(BaseEntity):
   cap = Column(String, nullable=False)
   name = Column(String, nullable=False)
   address = Column(String, nullable=False)
-  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+  
+  customer_user_id = Column(Integer, ForeignKey('customer_user.id'), nullable=False)
 
-  user = relationship('User', back_populates='collection_point')
+  customer_user = relationship('CustomerUser', back_populates='collection_point')
   product = relationship('Product', back_populates='collection_point')
   schedule_item_collection_point = relationship('ScheduleItemCollectionPoint', back_populates='collection_point')
 
@@ -184,10 +205,11 @@ class ServiceUser(BaseEntity):
 
   code = Column(String)
   price = Column(Float, nullable=False)
-  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+  
+  customer_user_id = Column(Integer, ForeignKey('customer_user.id'), nullable=False)
   service_id = Column(Integer, ForeignKey('service.id'), nullable=False)
 
-  user = relationship('User', back_populates='service_user')
+  customer_user = relationship('CustomerUser', back_populates='service_user')
   service = relationship('Service', back_populates='service_user')
   product = relationship('Product', back_populates='service_user')
 
@@ -239,9 +261,9 @@ class CustomerRule(BaseEntity):
 
   day_of_week = Column(Integer, nullable=False)
   max_orders = Column(Integer, nullable=False)
-  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+  customer_user_id = Column(Integer, ForeignKey('customer_user.id'), nullable=False)
 
-  user = relationship('User', back_populates='customer_rule')
+  customer_user = relationship('CustomerUser', back_populates='customer_rule')
 
 
 class Chatty(BaseEntity):
