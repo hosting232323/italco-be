@@ -6,11 +6,12 @@ from flask import request
 from functools import wraps
 from datetime import datetime, timedelta
 
+from api import send_telegram_error
 from ...database.schema import User
 from ...database.enum import UserRole
 from .queries import get_user_by_nickname
 from database_api.operations import update
-from api import send_telegram_error
+
 
 DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
 SESSION_HOURS = int(os.environ.get('SESSION_HOURS', 5))
