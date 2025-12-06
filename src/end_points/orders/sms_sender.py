@@ -13,18 +13,20 @@ hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
 
 def delay_sms_check(order: Order, data: dict):
   if (
-    #  not IS_DEV
-    'delay' in data
+    not IS_DEV
+    and 'delay' in data
     and data['delay']
     and order.addressee_contact
   ):
-    start = order.start_time_slot.strftime('%H:%M')
-    end = order.end_time_slot.strftime('%H:%M')
-    print(
+    send_sms(
+      os.environ['VONAGE_API_KEY'],
+      os.environ['VONAGE_API_SECRET'],
+      'Ares',
+      order.addressee_contact,
       f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order).nickname}, è stata riprogrammata per il '
-      f"{order.assignament_date}, fascia {start} - {end}. Riceverà un preavviso di 30 minuti prima dell'arrivo. Per monitorare ogni fase della "
-      f'sua consegna clicchi il link in questione {get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilità al numero indicato. '
-      'Buona Giornata!',
+      f"{order.assignament_date}, fascia {order.start_time_slot.strftime('%H:%M')} - {order.end_time_slot.strftime('%H:%M')}. Riceverà un preavviso"
+      f" di 30 minuti prima dell'arrivo. Per monitorare ogni fase della sua consegna clicchi il link in questione {get_order_link(order)}. La pregh"
+      'iamo di garantire la presenza e la reperibilità al numero indicato. Buona Giornata!',
     )
 
 

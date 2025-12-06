@@ -23,7 +23,7 @@ schedule_bp = Blueprint('schedule_bp', __name__)
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def create_schedule(user: User):
   with Session() as session:
-    orders, orders_data_map, schedule_data, users, response = format_schedule_data(request.json, session=session)
+    orders, orders_data_map, schedule_data, users, collection_points, response = format_schedule_data(request.json, session=session)
     if response:
       return response
 
@@ -95,7 +95,7 @@ def update_schedule(user: User, id):
             break
       del request.json['deleted_users']
 
-    orders, orders_data_map, schedule_data, users, response = format_schedule_data(request.json, session=session)
+    orders, orders_data_map, schedule_data, users, collection_points, response = format_schedule_data(request.json, session=session)
     if response:
       return response
 
@@ -126,26 +126,25 @@ def update_schedule(user: User, id):
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
-def format_schedule_data(schedule_data: dict, session=None) -> list[list[Order], dict]:
+def format_schedule_data(schedule_data: dict, session=None):
   schedule_items = schedule_data['schedule_items']
-  order_ids = []
+  orders_data_map = {}
   collection_point_ids = []
   for item in schedule_items:
     if item['operation_type'] == 'Order':
-      order_ids.append(item['id'])
+      orders_data_map[int(item['id'])] = {
+        'start_time_slot': item['start_time_slot'],
+        'end_time_slot': item['end_time_slot'],
+        'schedule_index': item['index'],
+      }
     elif item['operation_type'] == 'CollectionPoint':
       collection_point_ids.append(item['id'])
-  orders: list[Order] = get_by_ids(Order, order_ids, session=session)
+  orders: list[Order] = get_by_ids(Order, orders_data_map.keys(), session=session)
   collection_points = list[CollectionPoint] = get_by_ids(CollectionPoint, collection_point_ids, session=session)
   users = schedule_data['users']
   if not orders or not collection_points and not users or len(users) == 0:
     return None, None, None, None, {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
 
-  del schedule_data['orders']
   del schedule_data['users']
-  if 'deleted_orders' in schedule_data:
-    del schedule_data['deleted_orders']
-  if 'transport' in schedule_data:
-    del schedule_data['transport']
-
-  return orders, {o['id']: o for o in orders_data}, schedule_data, users, None
+  del schedule_data['schedule_items']
+  return orders, orders_data_map, schedule_data, users, collection_points, None
