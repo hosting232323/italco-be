@@ -32,7 +32,7 @@ class DeliveryUser(BaseEntity):
   user_id = Column(ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='delivery_user')
-  delivery_groups = relationship('DeliveryGroup', backref='delivery_user')
+  delivery_group = relationship('DeliveryGroup', back_populates='delivery_user')
 
 
 class CustomerUser(BaseEntity):
@@ -59,8 +59,8 @@ class CustomerGroup(BaseEntity):
 class DeliveryGroup(BaseEntity):
   __tablename__ = 'delivery_group'
 
-  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)
+  delivery_user_id = Column(Integer, ForeignKey('delivery_user.id'), nullable=False)
 
   schedule = relationship('Schedule', back_populates='delivery_group')
   delivery_user = relationship('DeliveryUser', back_populates='delivery_group')
