@@ -129,7 +129,8 @@ def format_schedule_item(
   elif (
     schedule_item.operation_type == ScheduleType.COLLECTIONPOINT
     and collection_point
-    and collection_point.id not in [item['collection_point_id'] for item in schedule_items if 'collection_point_id' in item]
+    and collection_point.id
+    not in [item['collection_point_id'] for item in schedule_items if 'collection_point_id' in item]
   ):
     item = collection_point.to_dict()
     item['collection_point_id'] = collection_point.id

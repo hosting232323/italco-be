@@ -43,8 +43,7 @@ def query_orders(
 
       if filter['model'] == 'DeliveryUser' and field == User.id:
         query = (
-          query
-          .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
+          query.join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
           .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
           .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
           .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == value))
@@ -53,8 +52,7 @@ def query_orders(
 
       if model in [Schedule]:
         query = (
-          query
-          .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
+          query.join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
           .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
           .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
         )

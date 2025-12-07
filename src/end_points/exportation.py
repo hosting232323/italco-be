@@ -95,7 +95,13 @@ def export_orders_schedule(user: User, id):
   orders = []
   for tupla in query_orders(
     user,
-    [{'model': 'Order', 'field': 'id', 'value': [order['id'] for order in schedules[0]['orders']]}],
+    [
+      {
+        'model': 'Order',
+        'field': 'id',
+        'value': [order['order_id'] for order in schedules[0]['schedule_items'] if order['operation_type'] == 'Order'],
+      }
+    ],
   ):
     orders = format_order_query_result(tupla, orders, user)
 
