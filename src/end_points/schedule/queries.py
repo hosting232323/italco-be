@@ -1,8 +1,10 @@
 from sqlalchemy import and_, desc
 from datetime import datetime, date
+from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
 from ...database.enum import ScheduleType
+from database_api.operations import db_session_decorator
 from ...database.schema import (
   Schedule,
   User,
@@ -90,11 +92,6 @@ def get_schedule_item_by_order(order: Order) -> ScheduleItem:
     )
 
 
-def get_related_orders(schedule: Schedule) -> list[Order]:
-  with Session() as session:
-    return session.query(Order).filter(Order.schedule_id == schedule.id).all()
-
-
 def format_query_result(
   tupla: tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, User], list: list[dict], user: User
 ) -> list[dict]:
@@ -145,8 +142,9 @@ def format_schedule_item(
   schedule_items.append(item)
 
 
+@db_session_decorator(commit=False)
 def get_schedule_items(
-  schedule: Schedule, session
+  schedule: Schedule, session: session_type = None
 ) -> list[tuple[ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder]]:
   return (
     session.query(ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder)
@@ -174,3 +172,27 @@ def get_schedule_items(
 def get_delivery_groups(schedule: Schedule) -> list[DeliveryGroup]:
   with Session() as session:
     return session.query(DeliveryGroup).filter(DeliveryGroup.schedule_id == schedule.id).all()
+
+
+def get_delivery_groups_by_order_id(order_id: int) -> list[DeliveryGroup]:
+  with Session() as session:
+    return (
+      session.query(DeliveryGroup)
+      .join(
+        Schedule,
+        DeliveryGroup.schedule_id == Schedule.id,
+      )
+      .join(
+        ScheduleItem,
+        ScheduleItem.schedule_id == Schedule.id,
+      )
+      .join(
+        ScheduleItemOrder,
+        and_(
+          ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
+          ScheduleItemOrder.order_id == order_id,
+          ScheduleItem.operation_type == ScheduleType.ORDER,
+        ),
+      )
+      .all()
+    )

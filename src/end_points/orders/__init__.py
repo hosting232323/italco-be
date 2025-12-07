@@ -10,15 +10,14 @@ from api import error_catching_decorator
 from ..service.queries import get_service_users
 from .services import create_product, update_product
 from ..users.session import flask_session_authentication
-from ..schedule.queries import get_schedule_item_by_order
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id, delete
 from ...database.schema import User, Order, Photo, Motivation, ServiceUser
+from ..schedule.queries import get_schedule_item_by_order, get_delivery_groups_by_order_id
 from .queries import (
   query_orders,
   query_delivery_orders,
   format_query_result,
-  get_delivery_user_by_schedule_id,
   get_order_photo_ids,
   get_motivations_by_order_id,
   query_products,
@@ -100,14 +99,15 @@ def get_order(id):
   if len(orders) != 1:
     raise Exception('Numero di ordini trovati non valido')
 
-  order = orders[0]
-  if order['status'] == 'On Board':
-    user = get_delivery_user_by_schedule_id(order['schedule_id'])
-    if user.lat is not None and user.lon is not None:
-      order['lat'] = user.lat
-      order['lon'] = user.lon
+  if orders[0]['status'] == 'On Board':
+    for delivery_group in get_delivery_groups_by_order_id(orders[0]['id']):
+      delivery_user: User = get_by_id(User, delivery_group.user_id)
+      if delivery_user.lat is not None and delivery_user.lon is not None:
+        orders[0]['lat'] = delivery_user.lat
+        orders[0]['lon'] = delivery_user.lon
+        break
 
-  return {'status': 'ok', 'order': order}
+  return {'status': 'ok', 'order': orders[0]}
 
 
 @order_bp.route('<id>', methods=['PUT'])
@@ -231,7 +231,8 @@ def view_order_photo(photo_id: int):
 @flask_session_authentication([UserRole.ADMIN])
 def delete_order(user: User, id):
   order: Order = get_by_id(Order, int(id))
-  if not order or order.schedule_id or order.status != OrderStatus.PENDING:
+  item = get_schedule_item_by_order(order)
+  if not order or item or order.status != OrderStatus.PENDING:
     return {
       'status': 'ko',
       'error': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",
