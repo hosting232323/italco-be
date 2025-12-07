@@ -66,7 +66,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
           try:
             lat = float(request.headers['X-Lat'])
             lon = float(request.headers['X-Lon'])
-          except KeyError as e:
+          except KeyError:
 
             async def send_error(trace):
               await bot.send_message(
