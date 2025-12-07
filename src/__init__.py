@@ -26,7 +26,7 @@ app = Flask(__name__, static_folder='../static', template_folder='../templates')
 if IS_DEV:
   CORS(app)
 else:
-  app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=os.environ.get('API_PREFIX', 'api'))
+  app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f"/{os.environ.get('API_PREFIX', 'api')}")
   CORS(app, origins=allowed_origins)
 
 
