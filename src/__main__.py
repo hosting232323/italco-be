@@ -1,8 +1,10 @@
+import subprocess
+
 from .database.schema import User
 from .database.enum import UserRole
 from .database.seed import seed_data
 from database_api import set_database
-from . import app, IS_DEV, DATABASE_URL
+from . import app, IS_DEV, DATABASE_URL, PORT
 from .end_points.users.session import flask_session_authentication
 
 from .end_points.orders import order_bp
@@ -48,8 +50,27 @@ app.register_blueprint(geographic_zone_bp, url_prefix='/geographic-zone')
 app.register_blueprint(collection_point_bp, url_prefix='/collection-point')
 
 
+set_database(DATABASE_URL)
+
+
 if __name__ == '__main__':
-  set_database(DATABASE_URL)
-  if IS_DEV:
+  if not IS_DEV:
+    print('Avvio in corso in modalità produzione...')
+    subprocess.run(
+      [
+        'gunicorn',
+        '-w',
+        '4',
+        '-b',
+        f'127.0.0.1:{PORT}',
+        '--access-logfile',
+        '-',
+        '--error-logfile',
+        '-',
+        'src.__main__:app',
+      ]
+    )
+  else:
+    print('Avvio in corso in modalità sviluppo...')
     seed_data()
-  app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=PORT)
