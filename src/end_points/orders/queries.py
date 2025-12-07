@@ -156,9 +156,9 @@ def add_service(
   object['products'][product.name]['services'][-1]['product_id'] = product.id
 
 
-def get_order_photo_ids(order_id: int) -> list[int]:
+def get_order_photos(order_id: int) -> list[Photo]:
   with Session() as session:
-    return [pid[0] for pid in session.query(Photo.id).filter(Photo.order_id == order_id).all()]
+    return session.query(Photo).filter(Photo.order_id == order_id).all()
 
 
 def get_motivations_by_order_id(order_id: int) -> list[Motivation]:

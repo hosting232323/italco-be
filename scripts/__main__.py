@@ -1,60 +1,31 @@
 import os
-from pathlib import Path
 from tqdm import tqdm
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session as session_type
 
-from database_api import set_database, Session
-from database_api.operations import update
 from src.database.schema import Photo
+from database_api.operations import get_by_id, update
+from src.end_points.orders.photo import PHOTO_HOSTNAME
 
 
-PHOTOS_DIR = Path("/media/vanni/Volume/Italco/photos")
-BATCH_SIZE = 50
-START_ID = 0
+OLD_ENGINE_DB_URL = 'XXX'
 
 
-def get_photos(last_id) -> list[Photo]:
+def get_old_photos(Session: sessionmaker) -> list[Photo]:
   with Session() as session:
-    return session.query(Photo).filter(
-      Photo.id > last_id
-    ).order_by(
-      Photo.id.asc()
-    ).limit(
-      BATCH_SIZE
-    ).all()
+    session: session_type
+    return session.query(Photo).all()
 
 
-def guess_extension(mime_type: str) -> str:
-  if mime_type == "image/jpeg":
-    return ".jpg"
-  if mime_type == "image/png":
-    return ".png"
-  if mime_type == "image/webp":
-    return ".webp"
-  return ""
+if __name__ == '__main__':
+  old_Session = sessionmaker(bind=create_engine(OLD_ENGINE_DB_URL))
+  new_Session = sessionmaker(bind=create_engine(os.environ['DATABASE_URL']))
 
-
-def save_file(photo_obj: Photo):
-  PHOTOS_DIR.mkdir(exist_ok=True)
-  ext = guess_extension(photo_obj.mime_type)
-  file_path = PHOTOS_DIR / f"{photo_obj.id}{ext}"
-
-  with open(file_path, "wb") as f:
-    f.write(photo_obj.photo)
-
-  return str(file_path)
-
-
-def migrate_photo(photo_obj: Photo):
-  new_path = save_file(photo_obj)
-  update(photo_obj, {"photo": None, "path": new_path})
-  print(f"[OK] Migrato ID {photo_obj.id}: {new_path}")
-
-
-if __name__ == "__main__":
-  set_database(os.environ['DATABASE_URL'])
-
-  last_id = START_ID
-  photos = get_photos(last_id)
-
-  for p in tqdm(photos):
-    migrate_photo(p)
+  for old_photo in tqdm(get_old_photos(old_Session)):
+    new_photo: Photo = get_by_id(Photo, old_photo.id, session=new_Session())
+    if new_photo:
+      update(
+        new_photo,
+        {'link': f'{PHOTO_HOSTNAME}{os.path.basename(old_photo.link)}'},
+        session=new_Session(),
+      )

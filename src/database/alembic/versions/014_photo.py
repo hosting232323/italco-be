@@ -1,4 +1,4 @@
-"""update photo
+"""Photo
 
 Revision ID: 014
 Revises: 013

@@ -1,24 +1,24 @@
-import io
 import json
 from datetime import datetime
-from flask import Blueprint, request, send_file
+from flask import Blueprint, request
 
 from database_api import Session
 from .mailer import mailer_check
+from .photo import handle_photos
 from .sms_sender import delay_sms_check
 from api import error_catching_decorator
 from ..service.queries import get_service_users
 from .services import create_product, update_product
 from ..users.session import flask_session_authentication
 from ...database.enum import OrderStatus, UserRole, OrderType
+from ...database.schema import User, Order, Motivation, ServiceUser
 from database_api.operations import create, update, get_by_id, delete
-from ...database.schema import User, Order, Photo, Motivation, ServiceUser
 from ..schedule.queries import get_schedule_item_by_order, get_delivery_groups_by_order_id
 from .queries import (
   query_orders,
   query_delivery_orders,
   format_query_result,
-  get_order_photo_ids,
+  get_order_photos,
   get_motivations_by_order_id,
   query_products,
 )
@@ -116,18 +116,7 @@ def update_order(user: User, id):
   with Session() as session:
     order: Order = get_by_id(Order, int(id), session=session)
     if user.role in [UserRole.DELIVERY, UserRole.ADMIN] and isinstance(request.form.get('data'), str):
-      data = json.loads(request.form.get('data'))
-      for file_key in request.files.keys():
-        uploaded_file = request.files[file_key]
-        if uploaded_file.mimetype in ['image/jpeg', 'image/png']:
-          if file_key == 'signature':
-            data['signature'] = uploaded_file.read()
-          else:
-            create(
-              Photo,
-              {'photo': uploaded_file.read(), 'mime_type': uploaded_file.mimetype, 'order_id': order.id},
-              session=session,
-            )
+      data = handle_photos(json.loads(request.form.get('data')), order, session=session)
     else:
       data = request.json
 
@@ -207,23 +196,8 @@ def get_delivery_details(user: User, order_id: int):
   return {
     'status': 'ok',
     'motivations': [m.to_dict() for m in get_motivations_by_order_id(order_id)],
-    'photos': get_order_photo_ids(order_id),
+    'photos': [photo.link for photo in get_order_photos(order_id)],
   }
-
-
-@order_bp.route('photo/<photo_id>', methods=['GET'])
-@error_catching_decorator
-def view_order_photo(photo_id: int):
-  photo: Photo = get_by_id(Photo, photo_id)
-  if not photo:
-    return {'status': 'ko', 'error': 'Photo not found'}
-
-  return send_file(
-    io.BytesIO(photo.photo),
-    mimetype=photo.mime_type or 'application/octet-stream',
-    as_attachment=False,
-    download_name=f'order_photo_{photo_id}.jpg',
-  )
 
 
 @order_bp.route('<id>', methods=['DELETE'])

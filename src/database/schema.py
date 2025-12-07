@@ -146,9 +146,7 @@ class ScheduleItemCollectionPoint(BaseEntity):
 class Photo(BaseEntity):
   __tablename__ = 'photo'
 
-  path = Column(String)
-  photo = Column(LargeBinary)
-  mime_type = Column(String, nullable=False)
+  link = Column(String, nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
 
   order = relationship('Order', back_populates='photo')
