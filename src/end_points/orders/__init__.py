@@ -156,18 +156,21 @@ def update_order(user: User, id):
     if 'start_time_slot' in data and 'end_time_slot' in data:
       schedule_item = get_schedule_item_by_order(order)
       if (
-        parse_time(data['start_time_slot']) != schedule_item.start_time_slot or parse_time(data['end_time_slot']) != schedule_item.end_time_slot
+        parse_time(data['start_time_slot']) != schedule_item.start_time_slot
+        or parse_time(data['end_time_slot']) != schedule_item.end_time_slot
       ):
         update(
           schedule_item,
           {'start_time_slot': data['start_time_slot'], 'end_time_slot': data['end_time_slot']},
-          session=session
+          session=session,
         )
         delay_sms_check(order, data)
 
-    data = {key: value for key, value in data.items() if key not in [
-      'products', 'user_id', 'motivation', 'start_time_slot', 'end_time_slot'
-    ]}
+    data = {
+      key: value
+      for key, value in data.items()
+      if key not in ['products', 'user_id', 'motivation', 'start_time_slot', 'end_time_slot']
+    }
     order = update(order, data, session=session)
     session.commit()
 

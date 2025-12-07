@@ -3,23 +3,38 @@ from datetime import datetime, date
 
 from database_api import Session
 from ...database.enum import ScheduleType
-from ...database.schema import Schedule, User, Order, DeliveryGroup, Transport, ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder, CollectionPoint
+from ...database.schema import (
+  Schedule,
+  User,
+  Order,
+  DeliveryGroup,
+  Transport,
+  ScheduleItem,
+  ScheduleItemCollectionPoint,
+  ScheduleItemOrder,
+  CollectionPoint,
+)
 
 
-def query_schedules(filters: list, limit: int = None) -> list[tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, User]]:
+def query_schedules(
+  filters: list, limit: int = None
+) -> list[tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, User]]:
   with Session() as session:
     query = (
       session.query(Schedule, Transport, ScheduleItem, CollectionPoint, Order, User)
       .join(Transport, Schedule.transport_id == Transport.id)
       .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
-      .outerjoin(ScheduleItemCollectionPoint, and_(
-        ScheduleItem.operation_type == ScheduleType.COLLECTIONPOINT, ScheduleItemCollectionPoint.schedule_item_id == ScheduleItem.id
-        )
+      .outerjoin(
+        ScheduleItemCollectionPoint,
+        and_(
+          ScheduleItem.operation_type == ScheduleType.COLLECTIONPOINT,
+          ScheduleItemCollectionPoint.schedule_item_id == ScheduleItem.id,
+        ),
       )
       .outerjoin(CollectionPoint, CollectionPoint.id == ScheduleItemCollectionPoint.collection_point_id)
-      .outerjoin(ScheduleItemOrder, and_(
-          ScheduleItem.operation_type == ScheduleType.ORDER, ScheduleItemOrder.schedule_item_id == ScheduleItem.id
-        )
+      .outerjoin(
+        ScheduleItemOrder,
+        and_(ScheduleItem.operation_type == ScheduleType.ORDER, ScheduleItemOrder.schedule_item_id == ScheduleItem.id),
       )
       .outerjoin(Order, ScheduleItemOrder.order_id == Order.id)
       .join(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
@@ -61,13 +76,18 @@ def query_schedules_count(user_id, schedule_date) -> int:
 
 def get_schedule_item_by_order(order: Order) -> ScheduleItem:
   with Session() as session:
-    return session.query(ScheduleItem).join(
-      ScheduleItemOrder, and_(
-        ScheduleItemOrder.order_id == order.id,
-        ScheduleItem.operation_type == ScheduleType.ORDER,
-        ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
+    return (
+      session.query(ScheduleItem)
+      .join(
+        ScheduleItemOrder,
+        and_(
+          ScheduleItemOrder.order_id == order.id,
+          ScheduleItem.operation_type == ScheduleType.ORDER,
+          ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
+        ),
       )
-    ).first()
+      .first()
+    )
 
 
 def get_related_orders(schedule: Schedule) -> list[Order]:
@@ -75,7 +95,9 @@ def get_related_orders(schedule: Schedule) -> list[Order]:
     return session.query(Order).filter(Order.schedule_id == schedule.id).all()
 
 
-def format_query_result(tupla: tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, User], list: list[dict], user: User) -> list[dict]:
+def format_query_result(
+  tupla: tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, User], list: list[dict], user: User
+) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
       format_schedule_item(element['schedule_items'], tupla[2], tupla[3], tupla[4])
@@ -94,19 +116,58 @@ def format_query_result(tupla: tuple[Schedule, Transport, ScheduleItem, Collecti
   return list
 
 
-def format_schedule_item(schedule_items: list, schedule_item: ScheduleItem, collection_point: CollectionPoint, order: Order):
-  if schedule_item.operation_type == ScheduleType.ORDER and order and order.id not in [item['id'] for item in schedule_items]:
+def format_schedule_item(
+  schedule_items: list, schedule_item: ScheduleItem, collection_point: CollectionPoint, order: Order
+):
+  if (
+    schedule_item.operation_type == ScheduleType.ORDER
+    and order
+    and order.id not in [item['order_id'] for item in schedule_items if 'order_id' in item]
+  ):
     item = order.to_dict()
-  elif schedule_item.operation_type == ScheduleType.COLLECTIONPOINT and collection_point and collection_point.id not in [item['id'] for item in schedule_items]:
+    item['order_id'] = order.id
+  elif (
+    schedule_item.operation_type == ScheduleType.COLLECTIONPOINT
+    and collection_point
+    and collection_point.id not in [item['collection_point_id'] for item in schedule_items if 'collection_point_id' in item]
+  ):
     item = collection_point.to_dict()
+    item['collection_point_id'] = collection_point.id
   else:
     return
 
+  item['id'] = schedule_item.id
   item['index'] = schedule_item.index
   item['operation_type'] = schedule_item.operation_type.value
   item['end_time_slot'] = schedule_item.end_time_slot.strftime('%H:%M:%S')
   item['start_time_slot'] = schedule_item.start_time_slot.strftime('%H:%M:%S')
   schedule_items.append(item)
+
+
+def get_schedule_items(
+  schedule: Schedule, session
+) -> list[tuple[ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder]]:
+  return (
+    session.query(ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder)
+    .outerjoin(
+      ScheduleItemCollectionPoint,
+      and_(
+        ScheduleItem.schedule_id == schedule.id,
+        ScheduleItemCollectionPoint.schedule_item_id == ScheduleItem.id,
+        ScheduleItem.operation_type == ScheduleType.COLLECTIONPOINT,
+      ),
+    )
+    .outerjoin(
+      ScheduleItemOrder,
+      and_(
+        ScheduleItem.schedule_id == schedule.id,
+        ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
+        ScheduleItem.operation_type == ScheduleType.ORDER,
+      ),
+    )
+    .filter(ScheduleItem.schedule_id == schedule.id)
+    .all()
+  )
 
 
 def get_delivery_groups(schedule: Schedule) -> list[DeliveryGroup]:

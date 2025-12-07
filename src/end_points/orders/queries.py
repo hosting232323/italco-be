@@ -15,6 +15,8 @@ from ...database.schema import (
   DeliveryGroup,
   CustomerGroup,
   Motivation,
+  ScheduleItem,
+  ScheduleItemOrder,
 )
 
 
@@ -39,15 +41,25 @@ def query_orders(
       field = getattr(model, filter['field'])
       value = filter['value']
 
-      if model == Schedule:
-        query = query.outerjoin(Schedule, Schedule.id == Order.schedule_id)
-      elif model == CustomerGroup:
-        query = query.outerjoin(CustomerGroup, CustomerGroup.id == User.customer_group_id)
-      elif filter['model'] == 'DeliveryUser':
-        query = query.join(Schedule, Schedule.id == Order.schedule_id).join(
-          DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == value)
+      if filter['model'] == 'DeliveryUser' and field == User.id:
+        query = (
+          query
+          .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
+          .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+          .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
+          .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == value))
         )
         continue
+
+      if model in [Schedule]:
+        query = (
+          query
+          .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
+          .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+          .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
+        )
+      elif model == CustomerGroup:
+        query = query.join(CustomerGroup, CustomerGroup.id == User.customer_group_id)
 
       if model == Order and field in [Order.created_at, Order.booking_date]:
         query = query.filter(
@@ -73,11 +85,13 @@ def query_delivery_orders(
   with Session() as session:
     return (
       session.query(Order, Product, ServiceUser, Service, User, CollectionPoint)
+      .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
+      .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
       .join(
         Schedule,
         and_(
           Schedule.date == datetime.now().date(),
-          Schedule.id == Order.schedule_id,
+          Schedule.id == ScheduleItem.schedule_id,
           not_(Order.status.in_([OrderStatus.PENDING])),
         ),
       )

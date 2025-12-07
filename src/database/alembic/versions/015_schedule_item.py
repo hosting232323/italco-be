@@ -78,10 +78,23 @@ def upgrade() -> None:
     WHERE schedule_id IS NOT NULL;
     """)
   op.execute("""
+    SELECT setval(
+      pg_get_serial_sequence('schedule_item', 'id'),
+      (SELECT COALESCE(MAX(id), 0) FROM schedule_item)
+    );
+    """)
+
+  op.execute("""
     INSERT INTO schedule_item_order (id, order_id, schedule_item_id)
     SELECT id, id AS order_id, id AS schedule_item_id
     FROM "order"
     WHERE schedule_id IS NOT NULL;
+    """)
+  op.execute("""
+    SELECT setval(
+      pg_get_serial_sequence('schedule_item_order', 'id'),
+      (SELECT COALESCE(MAX(id), 0) FROM schedule_item_order)
+    );
     """)
 
   op.drop_constraint(op.f('order_schedule_id_fkey'), 'order', type_='foreignkey')
