@@ -16,10 +16,10 @@ from .queries import get_user_by_nickname
 from database_api.operations import update
 
 
-bot = Bot(os.environ['TELEGRAM_TOKEN'])
+CHAT_ID = -1003410500390
 DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
 SESSION_HOURS = int(os.environ.get('SESSION_HOURS', 5))
-CHAT_ID = -1003410500390
+BOT = Bot(os.environ['TELEGRAM_TOKEN']) if 'TELEGRAM_TOKEN' in os.environ else None
 TELEGRAM_TOPIC = {
   'default': 4294967297,
   'wooffy-be': 4294967352,
@@ -67,15 +67,16 @@ def flask_session_authentication(roles: list[UserRole] = None):
             lat = float(request.headers['X-Lat'])
             lon = float(request.headers['X-Lon'])
           except KeyError:
+            if not IS_DEV and BOT:
 
-            async def send_error(trace):
-              await bot.send_message(
-                chat_id=CHAT_ID,
-                text=f'{trace}\n\nUser: {user.nickname}',
-                message_thread_id=THREAD_ID,
-              )
+              async def send_error(trace):
+                await BOT.send_message(
+                  chat_id=CHAT_ID,
+                  text=f'{trace}\n\nUser: {user.nickname}',
+                  message_thread_id=THREAD_ID,
+                )
 
-            asyncio.run_coroutine_threadsafe(send_error(traceback.format_exc()), loop)
+              asyncio.run_coroutine_threadsafe(send_error(traceback.format_exc()), loop)
             return {'status': 'ko', 'error': 'Latitudine o Longitudine mancanti'}
 
           if lat is None or lon is None:
@@ -96,10 +97,10 @@ def flask_session_authentication(roles: list[UserRole] = None):
 
       except Exception:
         traceback.print_exc()
-        if not IS_DEV:
+        if not IS_DEV and BOT:
 
           async def send_error(trace):
-            await bot.send_message(chat_id=CHAT_ID, text=trace, message_thread_id=THREAD_ID)
+            await BOT.send_message(chat_id=CHAT_ID, text=trace, message_thread_id=THREAD_ID)
 
           asyncio.run_coroutine_threadsafe(send_error(traceback.format_exc()), loop)
         return {'status': 'ko', 'message': 'Errore generico'}
