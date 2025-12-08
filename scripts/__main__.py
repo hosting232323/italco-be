@@ -1,31 +1,26 @@
 import os
+import json
 from tqdm import tqdm
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session as session_type
 
 from src.database.schema import Photo
-from database_api.operations import get_by_id, update
-from src.end_points.orders.photo import PHOTO_HOSTNAME
+from database_api import set_database
+from database_api.operations import create
+from src import STATIC_FOLDER, DATABASE_URL
 
 
-OLD_ENGINE_DB_URL = 'XXX'
-
-
-def get_old_photos(Session: sessionmaker) -> list[Photo]:
-  with Session() as session:
-    session: session_type
-    return session.query(Photo).all()
+def get_old_photos():
+  with open('scripts/photos.json', 'r', encoding='utf-8') as file:
+    return json.load(file)
 
 
 if __name__ == '__main__':
-  old_Session = sessionmaker(bind=create_engine(OLD_ENGINE_DB_URL))
-  new_Session = sessionmaker(bind=create_engine(os.environ['DATABASE_URL']))
+  set_database(DATABASE_URL)
 
-  for old_photo in tqdm(get_old_photos(old_Session)):
-    new_photo: Photo = get_by_id(Photo, old_photo.id, session=new_Session())
-    if new_photo:
-      update(
-        new_photo,
-        {'link': f'{PHOTO_HOSTNAME}{os.path.basename(old_photo.link)}'},
-        session=new_Session(),
-      )
+  old_photos = get_old_photos()
+  for filename in tqdm(os.listdir(STATIC_FOLDER)):
+    id, _ = os.path.splitext(filename)
+    old_data = next((photo for photo in old_photos if photo['id'] == int(id)), None)
+    if not old_data:
+      raise Exception(f'Filename {filename} non corrispondente con id')
+
+    create(Photo, {'id': int(id), 'order_id': old_data['order_id'], 'link': f'https://ares-logistics.it/api/{filename}'})

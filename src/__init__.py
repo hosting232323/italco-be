@@ -20,13 +20,18 @@ IS_DEV = int(os.environ.get('IS_DEV', 1)) == 1
 PROJECT_NAME = os.environ.get('PROJECT_NAME', 'default')
 STATIC_FOLDER = os.environ.get('STATIC_FOLDER', '../static')
 
+
 app = Flask(__name__, static_folder=STATIC_FOLDER, template_folder='../templates')
+
+
+API_PREFIX = os.environ.get('API_PREFIX', None)
+if API_PREFIX:
+  app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f'/{API_PREFIX}')
 
 
 if IS_DEV:
   CORS(app)
 else:
-  app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f'/{os.environ.get("API_PREFIX", "api")}')
   CORS(app, origins=allowed_origins)
 
 

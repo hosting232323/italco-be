@@ -3,9 +3,9 @@ from flask import request
 from sqlalchemy import text
 from sqlalchemy.orm import Session as session_type
 
-from ... import IS_DEV, STATIC_FOLDER
 from database_api.operations import create
 from ...database.schema import Photo, Order
+from ... import IS_DEV, STATIC_FOLDER, API_PREFIX
 
 
 def handle_photos(data: dict, order: Order, session: session_type):
@@ -19,7 +19,10 @@ def handle_photos(data: dict, order: Order, session: session_type):
         uploaded_file.save(os.path.join(STATIC_FOLDER, filename))
         create(
           Photo,
-          {'link': f'http{"s" if not IS_DEV else ""}://{request.host}/{filename}', 'order_id': order.id},
+          {
+            'link': f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/{filename}',
+            'order_id': order.id,
+          },
           session=session,
         )
   return data
