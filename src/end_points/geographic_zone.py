@@ -13,7 +13,7 @@ from ..database.schema import GeographicZone, Constraint, GeographicCode, User, 
 
 geographic_zone_bp = Blueprint('geographic_zone_bp', __name__)
 
-with open('static/caps.json', 'r') as file:
+with open('assets/caps.json', 'r') as file:
   CAPS_DATA: dict = json.load(file)
 
 

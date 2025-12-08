@@ -18,9 +18,9 @@ PORT = int(os.environ.get('PORT', 8080))
 DATABASE_URL = os.environ['DATABASE_URL']
 IS_DEV = int(os.environ.get('IS_DEV', 1)) == 1
 PROJECT_NAME = os.environ.get('PROJECT_NAME', 'default')
+STATIC_FOLDER = os.environ.get('STATIC_FOLDER', '../static')
 
-
-app = Flask(__name__, static_folder='../static', template_folder='../templates')
+app = Flask(__name__, static_folder=STATIC_FOLDER, template_folder='../templates')
 
 
 if IS_DEV:

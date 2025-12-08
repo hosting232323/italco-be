@@ -3,12 +3,9 @@ from flask import request
 from sqlalchemy import text
 from sqlalchemy.orm import Session as session_type
 
+from ... import IS_DEV, STATIC_FOLDER
 from database_api.operations import create
 from ...database.schema import Photo, Order
-
-
-PHOTO_HOSTNAME = os.environ.get('PHOTO_HOSTNAME', None)
-PHOTO_STORAGE_PATH = os.environ.get('PHOTO_STORAGE_PATH', 'static/photos/')
 
 
 def handle_photos(data: dict, order: Order, session: session_type):
@@ -19,11 +16,10 @@ def handle_photos(data: dict, order: Order, session: session_type):
         data['signature'] = uploaded_file.read()
       else:
         filename = f'{guess_next_id(session)}{guess_extension(uploaded_file.mimetype)}'
-        uploaded_file.save(os.path.join(PHOTO_STORAGE_PATH, filename))
-        hostname = PHOTO_HOSTNAME if PHOTO_HOSTNAME else f'http://{request.host}/static/photos/'
+        uploaded_file.save(os.path.join(STATIC_FOLDER, filename))
         create(
           Photo,
-          {'link': f'{hostname}{filename}', 'order_id': order.id},
+          {'link': f'http{"s" if not IS_DEV else ""}://{request.host}/static/{filename}', 'order_id': order.id},
           session=session,
         )
   return data
