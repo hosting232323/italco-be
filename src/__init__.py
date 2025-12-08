@@ -1,7 +1,7 @@
 import os
-from flask import Flask
 from flask_cors import CORS
 from dotenv import load_dotenv
+from flask import Flask, send_from_directory
 
 from database_api.backup import db_backup
 from api import swagger_decorator, PrefixMiddleware
@@ -39,3 +39,8 @@ def index():
 @app.route('/internal-backup', methods=['POST'])
 def trigger_backup():
   return db_backup(DATABASE_URL, PROJECT_NAME)
+
+
+@app.route('/<path:filename>')
+def serve_image(filename):
+  return send_from_directory(STATIC_FOLDER, filename)

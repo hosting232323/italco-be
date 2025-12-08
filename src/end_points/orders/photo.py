@@ -19,7 +19,7 @@ def handle_photos(data: dict, order: Order, session: session_type):
         uploaded_file.save(os.path.join(STATIC_FOLDER, filename))
         create(
           Photo,
-          {'link': f'http{"s" if not IS_DEV else ""}://{request.host}/static/{filename}', 'order_id': order.id},
+          {'link': f'http{"s" if not IS_DEV else ""}://{request.host}/{filename}', 'order_id': order.id},
           session=session,
         )
   return data
