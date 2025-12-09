@@ -29,10 +29,12 @@ def send_stream(user: User):
     thread_id = client.beta.threads.create().id
     create(Chatty, {'thread_id': thread_id})
 
+  user_message = f'Oggi è: {datetime.now().date()}\n\n{body["message"]}'
+
   client.beta.threads.messages.create(
     thread_id=thread_id,
     role="user",
-    content=body["message"]
+    content=user_message
   )
 
   def generate():
@@ -58,10 +60,10 @@ def send_stream(user: User):
               end_date = tool_inputs.get("end_date")
 
               orders = get_order_for_chatty(user, start_date, end_date)
-              date_message = f"dal {start_date}{f' al {end_date}' if end_date else ''}"
+              date_message = f"Dal {start_date}{f' al {end_date}' if end_date else ''}"
 
               if not orders:
-                output_text = f"{date_message}\nNon sono stati trovati ordini."
+                output_text = f"{date_message}\n non sono stati trovati ordini."
               else:
                 output_text = f"{date_message}\nEcco la lista degli ordini:\n"
                 output_bytes = len(output_text.encode("utf-8"))
@@ -75,7 +77,9 @@ def send_stream(user: User):
                   output_text += order_str
                   output_bytes += order_bytes
 
-              print(output_text)
+              for line in output_text.split("\n"):
+                yield line + "\n"
+
               client.beta.threads.runs.submit_tool_outputs(
                 thread_id=thread_id,
                 run_id=run_id,
