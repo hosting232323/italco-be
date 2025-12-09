@@ -56,6 +56,10 @@ def upgrade() -> None:
   op.drop_column('user', 'lat')
   op.drop_column('user', 'lon')
   op.drop_column('user', 'customer_group_id')
+  op.add_column('delivery_group', sa.Column('delivery_user_id', sa.Integer(), nullable=False))
+  op.drop_constraint(op.f('fk_delivery_group_user'), 'delivery_group', type_='foreignkey')
+  op.create_foreign_key(None, 'delivery_group', 'delivery_user', ['delivery_user_id'], ['id'])
+  op.drop_column('delivery_group', 'user_id')
 
 
 def downgrade() -> None:
@@ -76,5 +80,9 @@ def downgrade() -> None:
   op.drop_constraint(None, 'collection_point', type_='foreignkey')
   op.create_foreign_key(op.f('collection_point_user_id_fkey'), 'collection_point', 'user', ['user_id'], ['id'])
   op.drop_column('collection_point', 'customer_user_id')
+  op.add_column('delivery_group', sa.Column('user_id', sa.INTEGER(), autoincrement=False, nullable=False))
+  op.drop_constraint(None, 'delivery_group', type_='foreignkey')
+  op.create_foreign_key(op.f('fk_delivery_group_user'), 'delivery_group', 'user', ['user_id'], ['id'])
+  op.drop_column('delivery_group', 'delivery_user_id')
   op.drop_table('delivery_user')
   op.drop_table('customer_user')
