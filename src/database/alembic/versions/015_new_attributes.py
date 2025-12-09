@@ -39,6 +39,54 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
   )
+  conn = op.get_bind()
+  # 1) Popola customer_user
+  conn.execute(sa.text("""
+    INSERT INTO customer_user (user_id, customer_group_id, created_at, updated_at)
+    SELECT id, customer_group_id, created_at, updated_at
+    FROM "user"
+    WHERE customer_group_id IS NOT NULL
+  """))
+  # 2) Popola delivery_user
+  conn.execute(sa.text("""
+    INSERT INTO delivery_user (lat, lon, location, user_id, created_at, updated_at)
+    SELECT lat, lon, location, id, created_at, updated_at
+    FROM "user"
+    WHERE lat IS NOT NULL AND lon IS NOT NULL
+  """))
+
+  # collection_point
+  conn.execute(sa.text("""
+    UPDATE collection_point cp
+    SET customer_user_id = cu.id
+    FROM customer_user cu
+    WHERE cu.user_id = cp.user_id
+  """))
+
+  # customer_rule
+  conn.execute(sa.text("""
+    UPDATE customer_rule cr
+    SET customer_user_id = cu.id
+    FROM customer_user cu
+    WHERE cu.user_id = cr.user_id
+  """))
+
+  # service_user
+  conn.execute(sa.text("""
+        UPDATE service_user su
+        SET customer_user_id = cu.id
+        FROM customer_user cu
+        WHERE cu.user_id = su.user_id
+  """))
+
+  # delivery_group
+  conn.execute(sa.text("""
+    UPDATE delivery_group dg
+    SET delivery_user_id = du.id
+    FROM delivery_user du
+    WHERE du.user_id = dg.user_id
+  """))
+
   op.add_column('collection_point', sa.Column('customer_user_id', sa.Integer(), nullable=False))
   op.drop_constraint(op.f('collection_point_user_id_fkey'), 'collection_point', type_='foreignkey')
   op.create_foreign_key(None, 'collection_point', 'customer_user', ['customer_user_id'], ['id'])
