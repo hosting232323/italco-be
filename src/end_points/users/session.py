@@ -36,12 +36,8 @@ def flask_session_authentication(roles: list[UserRole] = None):
             return {'status': 'session', 'error': 'Ruolo non autorizzato'}
 
         if user.role == UserRole.DELIVERY:
-          try:
-            lat = float(request.headers['X-Lat'])
-            lon = float(request.headers['X-Lon'])
-          except KeyError:
-            return {'status': 'ko', 'error': 'Latitudine o Longitudine mancanti'}
-
+          lat = float(request.headers['X-Lat'])
+          lon = float(request.headers['X-Lon'])
           if lat is None or lon is None:
             return {'status': 'ko', 'error': 'Latitudine o Longitudine mancanti'}
 
