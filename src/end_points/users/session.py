@@ -56,7 +56,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
 
       except Exception:
         traceback.print_exc()
-        send_telegram_error(traceback.format_exc())
+        send_telegram_error(traceback.format_exc(), True)
         return {'status': 'ko', 'message': 'Errore generico'}
 
     return wrapper
