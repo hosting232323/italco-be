@@ -10,14 +10,12 @@ class User(BaseEntity):
 
   email = Column(String)
   password = Column(String)
-  lat = Column(Numeric(11, 8))
-  lon = Column(Numeric(11, 8))
   role = Column(Enum(UserRole), nullable=False)
   nickname = Column(String, unique=True, nullable=False)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
 
+  delivery_user = relationship('DeliveryUser', back_populates='user')
   customer_group = relationship('CustomerGroup', back_populates='user')
-  delivery_group = relationship('DeliveryGroup', back_populates='user')
   service_user = relationship('ServiceUser', back_populates='user', cascade='all, delete-orphan')
   customer_rule = relationship('CustomerRule', back_populates='user', cascade='all, delete-orphan')
   collection_point = relationship('CollectionPoint', back_populates='user', cascade='all, delete-orphan')
@@ -27,6 +25,18 @@ class User(BaseEntity):
       return self.to_dict()
     else:
       return {'id': self.id, 'nickname': self.nickname, 'role': self.role.value}
+
+
+class DeliveryUser(BaseEntity):
+  __tablename__ = 'delivery_user'
+
+  lat = Column(Numeric(11, 8))
+  lon = Column(Numeric(11, 8))
+  location = Column(String, nullable=False)
+  user_id = Column(ForeignKey('user.id'), nullable=False)
+
+  user = relationship('User', back_populates='delivery_user')
+  delivery_group = relationship('DeliveryGroup', back_populates='delivery_user')
 
 
 class CustomerGroup(BaseEntity):
@@ -40,11 +50,11 @@ class CustomerGroup(BaseEntity):
 class DeliveryGroup(BaseEntity):
   __tablename__ = 'delivery_group'
 
-  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)
+  delivery_user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
-  user = relationship('User', back_populates='delivery_group')
   schedule = relationship('Schedule', back_populates='delivery_group')
+  delivery_user = relationship('DeliveryUser', back_populates='delivery_group')
 
 
 class Transport(BaseEntity):
