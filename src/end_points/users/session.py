@@ -1,47 +1,20 @@
 import os
 import jwt
 import pytz
-import asyncio
-import threading
 import traceback
-from telegram import Bot
 from flask import request
 from functools import wraps
 from datetime import datetime, timedelta
 
+from api import send_telegram_error
 from ...database.schema import User
-from ... import IS_DEV, PROJECT_NAME
 from ...database.enum import UserRole
 from .queries import get_user_by_nickname
 from database_api.operations import update
 
 
-CHAT_ID = -1003410500390
 DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
 SESSION_HOURS = int(os.environ.get('SESSION_HOURS', 5))
-BOT = Bot(os.environ['TELEGRAM_TOKEN']) if 'TELEGRAM_TOKEN' in os.environ else None
-TELEGRAM_TOPIC = {
-  'default': 4294967297,
-  'wooffy-be': 4294967352,
-  'italco-be': 4294967355,
-  'chatty-be': 4294967354,
-  'generic-be': 4294967350,
-  'strongbox-be': 4294967353,
-  'generic-booking': 4294967351,
-}
-THREAD_ID = TELEGRAM_TOPIC[PROJECT_NAME]
-
-
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
-
-
-def start_loop(loop):
-  asyncio.set_event_loop(loop)
-  loop.run_forever()
-
-
-threading.Thread(target=start_loop, args=(loop,), daemon=True).start()
 
 
 def flask_session_authentication(roles: list[UserRole] = None):
@@ -63,22 +36,8 @@ def flask_session_authentication(roles: list[UserRole] = None):
             return {'status': 'session', 'error': 'Ruolo non autorizzato'}
 
         if user.role == UserRole.DELIVERY:
-          try:
-            lat = float(request.headers['X-Lat'])
-            lon = float(request.headers['X-Lon'])
-          except KeyError:
-            if not IS_DEV and BOT:
-
-              async def send_error(trace):
-                await BOT.send_message(
-                  chat_id=CHAT_ID,
-                  text=f'{trace}\n\nUser: {user.nickname}',
-                  message_thread_id=THREAD_ID,
-                )
-
-              asyncio.run_coroutine_threadsafe(send_error(traceback.format_exc()), loop)
-            return {'status': 'ko', 'error': 'Latitudine o Longitudine mancanti'}
-
+          lat = float(request.headers['X-Lat'])
+          lon = float(request.headers['X-Lon'])
           if lat is None or lon is None:
             return {'status': 'ko', 'error': 'Latitudine o Longitudine mancanti'}
 
@@ -97,12 +56,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
 
       except Exception:
         traceback.print_exc()
-        if not IS_DEV and BOT:
-
-          async def send_error(trace):
-            await BOT.send_message(chat_id=CHAT_ID, text=trace, message_thread_id=THREAD_ID)
-
-          asyncio.run_coroutine_threadsafe(send_error(traceback.format_exc()), loop)
+        send_telegram_error(traceback.format_exc(), True)
         return {'status': 'ko', 'message': 'Errore generico'}
 
     return wrapper
