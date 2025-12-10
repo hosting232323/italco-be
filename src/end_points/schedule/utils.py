@@ -94,7 +94,8 @@ def handle_schedule_item(
       order_diff['status'] = OrderStatus.IN_PROGRESS
     was_unscheduled = actual_order_ids and order.id not in actual_order_ids
     order = update(order, order_diff, session=session)
-    schedule_sms_check(order, was_unscheduled)
+    if was_unscheduled:
+      schedule_sms_check(order, new_item)
 
   elif operation_type == ScheduleType.COLLECTIONPOINT:
     item_collection_point_diff = {

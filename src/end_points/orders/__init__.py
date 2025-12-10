@@ -120,13 +120,14 @@ def update_order(user: User, id):
     else:
       data = request.json
 
+    is_delay = data['delay'] if 'delay' in data else False
     if 'motivation' in data:
       motivation = create(
         Motivation,
         {
+          'delay': is_delay,
           'id_order': data['id'],
           'status': OrderStatus(data['status']),
-          'delay': data['delay'] if 'delay' in data else False,
           'anomaly': data['anomaly'] if 'delay' in data else False,
           'text': data['motivation'],
         },
@@ -142,7 +143,7 @@ def update_order(user: User, id):
     if user.role != UserRole.DELIVERY:
       update_product(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
 
-    if 'start_time_slot' in data and 'end_time_slot' in data:
+    if is_delay and 'start_time_slot' in data and 'end_time_slot' in data:
       schedule_item = get_schedule_item_by_order(order)
       if (
         parse_time(data['start_time_slot']) != schedule_item.start_time_slot
