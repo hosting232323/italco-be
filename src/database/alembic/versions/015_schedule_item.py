@@ -80,7 +80,7 @@ def upgrade() -> None:
   op.execute("""
     SELECT setval(
       pg_get_serial_sequence('schedule_item', 'id'),
-      (SELECT COALESCE(MAX(id), 0) FROM schedule_item)
+      GREATEST((SELECT MAX(id) FROM schedule_item), 1)
     );
     """)
 
@@ -93,7 +93,7 @@ def upgrade() -> None:
   op.execute("""
     SELECT setval(
       pg_get_serial_sequence('schedule_item_order', 'id'),
-      (SELECT COALESCE(MAX(id), 0) FROM schedule_item_order)
+      GREATEST((SELECT MAX(id) FROM schedule_item_order), 1)
     );
     """)
 
