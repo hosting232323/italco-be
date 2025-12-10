@@ -1,6 +1,7 @@
 import os
-from pathlib import Path
 from tqdm import tqdm
+from pathlib import Path
+from sqlalchemy import func
 
 from database_api import set_database, Session
 from database_api.operations import update
@@ -8,14 +9,15 @@ from src.database.schema import Photo
 
 
 PHOTOS_DIR = Path("/media/vanni/Volume/Italco/photos")
-BATCH_SIZE = 50
-START_ID = 0
+BATCH_SIZE = 182
 
 
-def get_photos(last_id) -> list[Photo]:
+def get_photos() -> list[Photo]:
   with Session() as session:
     return session.query(Photo).filter(
-      Photo.id > last_id
+      Photo.id > session.query(func.max(Photo.id)).filter(
+        Photo.photo.is_(None)
+      ).scalar()
     ).order_by(
       Photo.id.asc()
     ).limit(
@@ -47,14 +49,10 @@ def save_file(photo_obj: Photo):
 def migrate_photo(photo_obj: Photo):
   new_path = save_file(photo_obj)
   update(photo_obj, {"photo": None, "path": new_path})
-  print(f"[OK] Migrato ID {photo_obj.id}: {new_path}")
 
 
 if __name__ == "__main__":
   set_database(os.environ['DATABASE_URL'])
 
-  last_id = START_ID
-  photos = get_photos(last_id)
-
-  for p in tqdm(photos):
-    migrate_photo(p)
+  for photo in tqdm(get_photos()):
+    migrate_photo(photo)
