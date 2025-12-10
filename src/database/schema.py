@@ -12,7 +12,7 @@ class User(BaseEntity):
   password = Column(String)
   role = Column(Enum(UserRole), nullable=False)
   nickname = Column(String, unique=True, nullable=False)
-  
+
   delivery_user = relationship('DeliveryUser', back_populates='user')
   customer_user = relationship('CustomerUser', back_populates='user')
 
@@ -37,10 +37,10 @@ class DeliveryUser(BaseEntity):
 
 class CustomerUser(BaseEntity):
   __tablename__ = 'customer_user'
-  
+
   user_id = Column(ForeignKey('user.id'), nullable=False)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
-  
+
   user = relationship('User', back_populates='customer_user')
   customer_group = relationship('CustomerGroup', back_populates='customer_user')
   service_user = relationship('ServiceUser', back_populates='customer_user', cascade='all, delete-orphan')
@@ -180,7 +180,6 @@ class CollectionPoint(BaseEntity):
   cap = Column(String, nullable=False)
   name = Column(String, nullable=False)
   address = Column(String, nullable=False)
-  
   customer_user_id = Column(Integer, ForeignKey('customer_user.id'), nullable=False)
 
   customer_user = relationship('CustomerUser', back_populates='collection_point')
@@ -205,9 +204,8 @@ class ServiceUser(BaseEntity):
 
   code = Column(String)
   price = Column(Float, nullable=False)
-  
-  customer_user_id = Column(Integer, ForeignKey('customer_user.id'), nullable=False)
   service_id = Column(Integer, ForeignKey('service.id'), nullable=False)
+  customer_user_id = Column(Integer, ForeignKey('customer_user.id'), nullable=False)
 
   customer_user = relationship('CustomerUser', back_populates='service_user')
   service = relationship('Service', back_populates='service_user')

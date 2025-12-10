@@ -1,34 +1,43 @@
 """new attributes
 
-Revision ID: 015
-Revises: 014
+Revision ID: 017
+Revises: 016
 Create Date: 2025-12-05 12:10:39.296758
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '015'
-down_revision: Union[str, None] = '014'
+revision: str = '017'
+down_revision: Union[str, None] = '016'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-  op.create_table('customer_user',
+  op.create_table(
+    'customer_user',
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('customer_group_id', sa.Integer(), nullable=True),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['customer_group_id'], ['customer_group.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(
+      ['customer_group_id'],
+      ['customer_group.id'],
+    ),
+    sa.ForeignKeyConstraint(
+      ['user_id'],
+      ['user.id'],
+    ),
+    sa.PrimaryKeyConstraint('id'),
   )
-  op.create_table('delivery_user',
+  op.create_table(
+    'delivery_user',
     sa.Column('lat', sa.Numeric(precision=11, scale=8), nullable=True),
     sa.Column('lon', sa.Numeric(precision=11, scale=8), nullable=True),
     sa.Column('location', sa.String(), nullable=False),
@@ -36,56 +45,66 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(
+      ['user_id'],
+      ['user.id'],
+    ),
+    sa.PrimaryKeyConstraint('id'),
   )
+
   conn = op.get_bind()
-  # 1) Popola customer_user
-  conn.execute(sa.text("""
+  conn.execute(
+    sa.text("""
     INSERT INTO customer_user (user_id, customer_group_id, created_at, updated_at)
     SELECT id, customer_group_id, created_at, updated_at
     FROM "user"
     WHERE customer_group_id IS NOT NULL
-  """))
-  # 2) Popola delivery_user
-  conn.execute(sa.text("""
+  """)
+  )
+  conn.execute(
+    sa.text("""
     INSERT INTO delivery_user (lat, lon, location, user_id, created_at, updated_at)
     SELECT lat, lon, location, id, created_at, updated_at
     FROM "user"
     WHERE lat IS NOT NULL AND lon IS NOT NULL
-  """))
+  """)
+  )
 
-  # collection_point
-  conn.execute(sa.text("""
+  conn.execute(
+    sa.text("""
     UPDATE collection_point cp
     SET customer_user_id = cu.id
     FROM customer_user cu
     WHERE cu.user_id = cp.user_id
-  """))
+  """)
+  )
 
-  # customer_rule
-  conn.execute(sa.text("""
+  conn.execute(
+    sa.text("""
     UPDATE customer_rule cr
     SET customer_user_id = cu.id
     FROM customer_user cu
     WHERE cu.user_id = cr.user_id
-  """))
+  """)
+  )
 
-  # service_user
-  conn.execute(sa.text("""
-        UPDATE service_user su
-        SET customer_user_id = cu.id
-        FROM customer_user cu
-        WHERE cu.user_id = su.user_id
-  """))
+  conn.execute(
+    sa.text("""
+      UPDATE service_user su
+      SET customer_user_id = cu.id
+      FROM customer_user cu
+      WHERE cu.user_id = su.user_id
+  """)
+  )
 
-  # delivery_group
-  conn.execute(sa.text("""
+  conn.execute(
+    sa.text("""
     UPDATE delivery_group dg
     SET delivery_user_id = du.id
     FROM delivery_user du
     WHERE du.user_id = dg.user_id
-  """))
+  """)
+  )
 
   op.add_column('collection_point', sa.Column('customer_user_id', sa.Integer(), nullable=False))
   op.drop_constraint(op.f('collection_point_user_id_fkey'), 'collection_point', type_='foreignkey')
@@ -114,7 +133,9 @@ def downgrade() -> None:
   op.add_column('user', sa.Column('customer_group_id', sa.INTEGER(), autoincrement=False, nullable=True))
   op.add_column('user', sa.Column('lon', sa.NUMERIC(precision=11, scale=8), autoincrement=False, nullable=True))
   op.add_column('user', sa.Column('lat', sa.NUMERIC(precision=11, scale=8), autoincrement=False, nullable=True))
-  op.create_foreign_key(op.f('italco_user_customer_group_id_fkey'), 'user', 'customer_group', ['customer_group_id'], ['id'])
+  op.create_foreign_key(
+    op.f('italco_user_customer_group_id_fkey'), 'user', 'customer_group', ['customer_group_id'], ['id']
+  )
   op.drop_column('transport', 'location')
   op.add_column('service_user', sa.Column('user_id', sa.INTEGER(), autoincrement=False, nullable=False))
   op.drop_constraint(None, 'service_user', type_='foreignkey')
