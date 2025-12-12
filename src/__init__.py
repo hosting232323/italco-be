@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 from flask import Flask, send_from_directory
 
-from database_api.backup import db_backup, data_export
+from database_api.backup import data_export
 from api import swagger_decorator, PrefixMiddleware
 
 
@@ -55,9 +55,6 @@ def trigger_backup():
   manage_local_backups(STATIC_FOLDER)
   
   print(f'[{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}] Backup eseguito!')
-
-
-  return db_backup(DATABASE_URL, PROJECT_NAME)
 
 
 def manage_local_backups(local_folder: str):
