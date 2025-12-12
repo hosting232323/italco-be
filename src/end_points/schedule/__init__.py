@@ -5,7 +5,7 @@ from ...database.enum import UserRole, ScheduleType
 from ..users.session import flask_session_authentication
 from ...database.schema import Schedule, User, DeliveryGroup
 from database_api.operations import create, delete, get_by_id, update
-from .utils import handle_schedule_item, delete_schedule_items, format_schedule_data
+from .utils import handle_schedule_item, delete_schedule_items, clear_order, format_schedule_data
 from .queries import (
   query_schedules,
   query_schedules_count,
@@ -64,7 +64,9 @@ def update_schedule(user: User, id):
   with Session() as session:
     schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     actual_schedule_items = get_schedule_items(schedule, session=session)
-    actual_order_ids = [item[0].id for item in actual_schedule_items if item[0].operation_type == ScheduleType.ORDER]
+    actual_order_ids = [
+      item[2].order_id for item in actual_schedule_items if item[0].operation_type == ScheduleType.ORDER
+    ]
 
     delivery_groups = get_delivery_groups(schedule)
     deleted_users = []
@@ -86,6 +88,20 @@ def update_schedule(user: User, id):
     for user in users:
       if user['id'] not in actual_user_ids and query_schedules_count(user['id'], schedule.date) == 0:
         create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']}, session=session)
+
+    for order_id in list(
+      set(actual_order_ids)
+      - set(
+        map(
+          lambda schedule_item: schedule_item['order'].id,
+          filter(
+            lambda schedule_item: ScheduleType.get_enum_option(schedule_item['operation_type']) == ScheduleType.ORDER,
+            schedule_items,
+          ),
+        )
+      )
+    ):
+      clear_order(order_id, session=session)
 
     for index, item in enumerate(schedule_items):
       if index < len(actual_schedule_items):

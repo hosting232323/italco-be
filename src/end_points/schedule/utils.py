@@ -111,17 +111,21 @@ def handle_schedule_item(
       create(ScheduleItemCollectionPoint, item_collection_point_diff, session=session)
 
 
+def clear_order(order_id: int, session=None):
+  update(
+    get_by_id(Order, order_id, session=session),
+    {'assignament_date': None, 'status': OrderStatus.PENDING},
+    session=session,
+  )
+
+
 def delete_schedule_items(
   schedule_items: list[tuple[ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder]], session: None
 ):
   for schedule_item in schedule_items:
     if schedule_item[2]:
       delete(schedule_item[2], session=session)
-      update(
-        get_by_id(Order, schedule_item[2].order_id),
-        {'assignament_date': None, 'status': OrderStatus.PENDING},
-        session=session,
-      )
+      clear_order(schedule_item[2].order_id, session=session)
     if schedule_item[1]:
       delete(schedule_item[1], session=session)
     delete(schedule_item[0], session=session)
