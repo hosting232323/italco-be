@@ -23,7 +23,8 @@ def upgrade() -> None:
     'delivery_user',
     sa.Column('lat', sa.Numeric(precision=11, scale=8), nullable=True),
     sa.Column('lon', sa.Numeric(precision=11, scale=8), nullable=True),
-    sa.Column('location', sa.String(), nullable=False),
+    sa.Column('cap', sa.String(), nullable=False),
+    sa.Column('address', sa.String(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
@@ -43,10 +44,10 @@ def upgrade() -> None:
   for u in delivery_users:
     conn.execute(
       sa.text("""
-      INSERT INTO delivery_user (lat, lon, location, user_id, created_at, updated_at)
-      VALUES (:lat, :lon, :location, :user_id, NOW(), NOW())
+      INSERT INTO delivery_user (lat, lon, address, cap, user_id, created_at, updated_at)
+      VALUES (:lat, :lon, :address, :cap, :user_id, NOW(), NOW())
     """),
-      {'lat': u.lat, 'lon': u.lon, 'location': '', 'user_id': u.id},
+      {'lat': u.lat, 'lon': u.lon, 'address': '', 'cap': '', 'user_id': u.id},
     )
 
   op.add_column('delivery_group', sa.Column('delivery_user_id', sa.Integer(), nullable=True))

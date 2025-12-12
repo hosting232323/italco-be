@@ -32,7 +32,8 @@ class DeliveryUser(BaseEntity):
 
   lat = Column(Numeric(11, 8))
   lon = Column(Numeric(11, 8))
-  location = Column(String, nullable=False)
+  cap = Column(String, nullable=False)
+  address = Column(String, nullable=False)
   user_id = Column(ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='delivery_user')
