@@ -10,7 +10,6 @@ from api import send_telegram_error
 from ...database.schema import User
 from ...database.enum import UserRole
 from .queries import get_user_by_nickname
-from database_api.operations import update
 
 
 DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
