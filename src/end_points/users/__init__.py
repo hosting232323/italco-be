@@ -4,7 +4,7 @@ from ...database.enum import UserRole
 from api import error_catching_decorator
 from ...database.schema import User
 from .session import flask_session_authentication, create_jwt_token
-from database_api.operations import delete, get_by_id, create
+from database_api.operations import delete, get_by_id, create, update
 from .queries import query_users, count_user_dependencies, get_user_by_nickname
 
 
@@ -51,6 +51,16 @@ def create_user(user: User):
     },
   )
   return {'status': 'ok', 'message': 'Utente registrato'}
+
+
+@user_bp.route('update_position', methods=['POST'])
+@flask_session_authentication([UserRole.DELIVERY])
+def update_position(user: User):
+  lat = float(request.json['lat'])
+  lon = float(request.json['lon'])
+  if not user.lat or not user.lon or float(user.lat) != lat or float(user.lon) != lon:
+    update(user, {'lat': lat, 'lon': lon})
+  return {'status': 'ok', 'message': 'Posizione aggiornata'}
 
 
 @error_catching_decorator
