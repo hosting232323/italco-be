@@ -10,7 +10,6 @@ from api import send_telegram_error
 from ...database.schema import User
 from ...database.enum import UserRole
 from .queries import get_user_by_nickname
-from database_api.operations import update
 
 
 DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
@@ -34,16 +33,6 @@ def flask_session_authentication(roles: list[UserRole] = None):
         if roles:
           if user.role not in roles:
             return {'status': 'session', 'error': 'Ruolo non autorizzato'}
-
-        if user.role == UserRole.DELIVERY:
-          lat = float(request.headers['X-Lat'])
-          lon = float(request.headers['X-Lon'])
-          if lat is None or lon is None:
-            return {'status': 'ko', 'error': 'Latitudine o Longitudine mancanti'}
-
-          if not user.lat or not user.lon or float(user.lat) != lat or float(user.lon) != lon:
-            update(user, {'lat': lat, 'lon': lon})
-
         result = func(user, *args, **kwargs)
         if isinstance(result, dict):
           result['new_token'] = create_jwt_token(user)
