@@ -1,9 +1,10 @@
 import os
 from flask_cors import CORS
+from datetime import datetime
 from dotenv import load_dotenv
 from flask import Flask, send_from_directory
 
-from database_api.backup import db_backup
+from database_api.backup import data_export
 from api import swagger_decorator, PrefixMiddleware
 
 
@@ -43,9 +44,27 @@ def index():
 @swagger_decorator
 @app.route('/internal-backup', methods=['POST'])
 def trigger_backup():
-  return db_backup(DATABASE_URL, PROJECT_NAME)
+  zip_filename = data_export(DATABASE_URL)
+  backup_path = os.path.join(STATIC_FOLDER, 'backup')
+  os.makedirs(backup_path, exist_ok=True)
+  os.rename(zip_filename, os.path.join(backup_path, zip_filename))
+  manage_local_backups(STATIC_FOLDER)
+  print(f'[{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}] Backup eseguito!')
 
 
 @app.route('/<path:filename>')
 def serve_image(filename):
   return send_from_directory(STATIC_FOLDER, filename)
+
+
+def manage_local_backups(local_folder: str):
+  backups = [
+    os.path.join(local_folder, f) for f in os.listdir(local_folder) if os.path.isfile(os.path.join(local_folder, f))
+  ]
+  backups.sort()
+  backup_days = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
+
+  if len(backups) > backup_days:
+    files_to_delete = backups[: len(backups) - backup_days]
+    for path in files_to_delete:
+      os.remove(path)
