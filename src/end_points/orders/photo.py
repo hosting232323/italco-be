@@ -16,11 +16,11 @@ def handle_photos(data: dict, order: Order, session: session_type):
         data['signature'] = uploaded_file.read()
       else:
         filename = f'{guess_next_id(session)}{guess_extension(uploaded_file.mimetype)}'
-        uploaded_file.save(os.path.join(STATIC_FOLDER, filename))
+        uploaded_file.save(os.path.join(STATIC_FOLDER, 'photos', filename))
         create(
           Photo,
           {
-            'link': f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/{filename}',
+            'link': f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/photos/{filename}',
             'order_id': order.id,
           },
           session=session,

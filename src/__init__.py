@@ -44,12 +44,15 @@ def index():
 @swagger_decorator
 @app.route('/internal-backup', methods=['POST'])
 def trigger_backup():
-  zip_filename = data_export(DATABASE_URL)
   backup_path = os.path.join(STATIC_FOLDER, 'backup')
-  os.makedirs(backup_path, exist_ok=True)
+  if not os.path.exists(backup_path):
+    return {'status': 'ko', 'message': 'Cartella di backup non trovata'}
+
+  zip_filename = data_export(DATABASE_URL)
   os.rename(zip_filename, os.path.join(backup_path, zip_filename))
-  manage_local_backups(STATIC_FOLDER)
+  manage_local_backups(backup_path)
   print(f'[{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}] Backup eseguito!')
+  return {'status': 'ok', 'message': 'Backup eseguito con successo'}
 
 
 @app.route('/<path:filename>')
