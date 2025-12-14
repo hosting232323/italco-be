@@ -1,4 +1,5 @@
 import os
+import shutil
 from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
@@ -20,6 +21,7 @@ DATABASE_URL = os.environ['DATABASE_URL']
 IS_DEV = int(os.environ.get('IS_DEV', 1)) == 1
 PROJECT_NAME = os.environ.get('PROJECT_NAME', 'default')
 STATIC_FOLDER = os.environ.get('STATIC_FOLDER', '../static')
+POSTGRES_BACKUP_DAYS = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
 
 
 app = Flask(__name__, static_folder=STATIC_FOLDER, template_folder='../templates')
@@ -49,7 +51,7 @@ def trigger_backup():
     return {'status': 'ko', 'message': 'Cartella di backup non trovata'}
 
   zip_filename = data_export(DATABASE_URL)
-  os.rename(zip_filename, os.path.join(backup_path, zip_filename))
+  shutil.move(zip_filename, os.path.join(backup_path, zip_filename))
   manage_local_backups(backup_path)
   print(f'[{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}] Backup eseguito!')
   return {'status': 'ok', 'message': 'Backup eseguito con successo'}
@@ -63,11 +65,8 @@ def serve_image(filename):
 def manage_local_backups(local_folder: str):
   backups = [
     os.path.join(local_folder, f) for f in os.listdir(local_folder) if os.path.isfile(os.path.join(local_folder, f))
-  ]
-  backups.sort()
-  backup_days = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
+  ].sort()
 
-  if len(backups) > backup_days:
-    files_to_delete = backups[: len(backups) - backup_days]
-    for path in files_to_delete:
+  if len(backups) > POSTGRES_BACKUP_DAYS:
+    for path in backups[: len(backups) - POSTGRES_BACKUP_DAYS]:
       os.remove(path)
