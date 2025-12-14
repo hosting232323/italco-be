@@ -59,9 +59,7 @@ def serve_image(filename):
 
 def manage_local_backups(local_folder: str):
   backups = [
-    os.path.join(local_folder, f)
-    for f in os.listdir(local_folder)
-    if os.path.isfile(os.path.join(local_folder, f))
+    os.path.join(local_folder, f) for f in os.listdir(local_folder) if os.path.isfile(os.path.join(local_folder, f))
   ]
   backups.sort()
   backup_days = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
