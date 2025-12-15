@@ -18,6 +18,7 @@ from .queries import (
   # get_delivery_users_by_date,
   # get_transports_by_date,
 )
+from ..orders.queries import get_orders_by_ids
 
 
 schedule_bp = Blueprint('schedule_bp', __name__)
@@ -148,3 +149,59 @@ def get_schedule_suggestions(user: User):
   #   return {'status': 'ko', 'error': 'Not found transports'}
 
   return {'status': 'ok', 'groups': assign_orders_to_groups(orders)}
+
+
+@schedule_bp.route('pianification', methods=['POST'])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
+def pianification(user: User):
+  orders_id = request.json['orders_id']
+  orders = get_orders_by_ids(orders_id)
+  
+  collection_points = {}
+  schedule_items = []
+
+  for order in orders:
+    if order.status != OrderStatus.PENDING:
+      return { 'status': 'ko', 'message': 'Hai selezionato degli ordini già assegnati'}
+
+    schedule_items.append(
+      create_schedule_item(order, "Order")
+    )
+
+    for product in order.product:
+      cp = product.collection_point
+      if cp and cp.id not in collection_points:
+        collection_points[cp.id] = create_schedule_item(
+          cp, "CollectionPoint"
+        )
+
+  all_items = list(collection_points.values()) + schedule_items
+
+  for index, item in enumerate(all_items):
+    item["index"] = index
+
+  return {
+    "status": "ok",
+    "schedule_items": all_items
+  }
+
+
+def create_schedule_item(element, operation_type, index=None):
+  item = {
+    'start_time_slot': '',
+    'end_time_slot': '',
+    'operation_type': operation_type,
+  }
+
+  if index is not None:
+    item['index'] = index
+
+  if operation_type == 'Order':
+    item['order_id'] = element.id
+    item['collection_point_ids'] = list(
+      {p.collection_point.id for p in element.product}
+    )
+  else:
+    item['collection_point_id'] = element.id
+
+  return item
