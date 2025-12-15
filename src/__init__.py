@@ -48,12 +48,6 @@ def serve_image(filename):
   return send_from_directory(STATIC_FOLDER, filename)
 
 
-def safe_copy_to_remote(src, dst):
-  with open(src, 'rb') as fsrc, open(dst, 'wb') as fdst:
-    shutil.copyfileobj(fsrc, fdst)
-  os.remove(src)
-
-
 @swagger_decorator
 @app.route('/internal-backup', methods=['POST'])
 def trigger_backup():
@@ -62,23 +56,26 @@ def trigger_backup():
     return {'status': 'ko', 'message': 'Cartella di backup non trovata'}
 
   zip_filename = data_export(DATABASE_URL)
-  src_path = zip_filename
-  dest_path = os.path.join(backup_path, src_path)
-  safe_copy_to_remote(src_path, dest_path)
-
+  safe_copy_to_remote(zip_filename, os.path.join(backup_path, zip_filename))
   manage_local_backups(backup_path)
   print(f'[{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}] Backup eseguito!')
   return {'status': 'ok', 'message': 'Backup eseguito con successo'}
 
 
+def safe_copy_to_remote(src, dst):
+  with open(src, 'rb') as fsrc, open(dst, 'wb') as fdst:
+    shutil.copyfileobj(fsrc, fdst)
+  os.remove(src)
+
+
 def manage_local_backups(local_folder: str):
   backups = [
-    os.path.join(local_folder, f)
-    for f in os.listdir(local_folder)
-    if os.path.isfile(os.path.join(local_folder, f))
+    os.path.join(local_folder, file)
+    for file in os.listdir(local_folder)
+    if os.path.isfile(os.path.join(local_folder, file))
   ]
 
-  backups.sort()  
+  backups.sort()
   if len(backups) > POSTGRES_BACKUP_DAYS:
     for path in backups[: len(backups) - POSTGRES_BACKUP_DAYS]:
       os.remove(path)
