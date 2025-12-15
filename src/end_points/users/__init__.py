@@ -2,10 +2,10 @@ from flask import Blueprint, request
 
 from ...database.enum import UserRole
 from api import error_catching_decorator
-from ...database.schema import User
+from ...database.schema import User, DeliveryUserInfo
 from .session import flask_session_authentication, create_jwt_token
 from database_api.operations import delete, get_by_id, create, update
-from .queries import query_users, count_user_dependencies, get_user_by_nickname
+from .queries import query_users, count_user_dependencies, get_user_by_nickname, get_delivery_user_info
 
 
 user_bp = Blueprint('user_bp', __name__)
@@ -28,7 +28,7 @@ def cancell_user(user: User, id):
 @user_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
 def get_users(user: User):
-  return {'status': 'ok', 'users': [result.format_user(user.role) for result in query_users(user)]}
+  return {'status': 'ok', 'users': [format_user_with_delivery_info(result, user.role) for result in query_users(user)]}
 
 
 @user_bp.route('', methods=['POST'])
@@ -53,16 +53,6 @@ def create_user(user: User):
   return {'status': 'ok', 'message': 'Utente registrato'}
 
 
-@user_bp.route('update_position', methods=['POST'])
-@flask_session_authentication([UserRole.DELIVERY])
-def update_position(user: User):
-  lat = float(request.json['lat'])
-  lon = float(request.json['lon'])
-  if not user.lat or not user.lon or float(user.lat) != lat or float(user.lon) != lon:
-    update(user, {'lat': lat, 'lon': lon})
-  return {'status': 'ok', 'message': 'Posizione aggiornata'}
-
-
 @error_catching_decorator
 def login_():
   user: User = get_user_by_nickname(request.json['email'])
@@ -78,3 +68,34 @@ def login_():
     'token': create_jwt_token(user),
     'user_info': {'id': user.id, 'role': user.role.value},
   }
+
+
+@user_bp.route('position', methods=['POST'])
+@flask_session_authentication([UserRole.DELIVERY])
+def update_position(user: User):
+  save_delivery_user_info(user.id, {'lat': float(request.json['lat']), 'lon': float(request.json['lon'])})
+  return {'status': 'ok', 'message': 'Posizione aggiornata'}
+
+
+@user_bp.route('delivery-user-info', methods=['POST'])
+@flask_session_authentication([UserRole.ADMIN])
+def update_delivery_user_info(user: User):
+  save_delivery_user_info(request.json['user_id'], {'location': request.json['location']})
+  return {'status': 'ok', 'message': 'Attributo aggiornata'}
+
+
+def save_delivery_user_info(user_id: int, params: dict):
+  delivery_user_info = get_delivery_user_info(user_id)
+  if not delivery_user_info:
+    create(DeliveryUserInfo, {**params, 'user_id': user_id})
+  else:
+    update(delivery_user_info, params)
+
+
+def format_user_with_delivery_info(user: User, role: UserRole) -> dict:
+  user_dict = user.format_user(role)
+  if role == UserRole.ADMIN and user.role == UserRole.DELIVERY:
+    delivery_user_info = get_delivery_user_info(user.id)
+    if delivery_user_info:
+      user_dict['delivery_user_info'] = delivery_user_info.to_dict()
+  return user_dict

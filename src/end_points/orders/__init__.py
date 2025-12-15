@@ -8,6 +8,7 @@ from .photo import handle_photos
 from .sms_sender import delay_sms_check
 from api import error_catching_decorator
 from ..service.queries import get_service_users
+from ..users.queries import get_delivery_user_info
 from .services import create_product, update_product
 from ..users.session import flask_session_authentication
 from ...database.enum import OrderStatus, UserRole, OrderType
@@ -101,10 +102,10 @@ def get_order(id):
 
   if orders[0]['status'] == 'On Board':
     for delivery_group in get_delivery_groups_by_order_id(orders[0]['id']):
-      delivery_user: User = get_by_id(User, delivery_group.user_id)
-      if delivery_user.lat is not None and delivery_user.lon is not None:
-        orders[0]['lat'] = delivery_user.lat
-        orders[0]['lon'] = delivery_user.lon
+      delivery_user_info = get_delivery_user_info(delivery_group.user_id)
+      if delivery_user_info and delivery_user_info.lat is not None and delivery_user_info.lon is not None:
+        orders[0]['lat'] = delivery_user_info.lat
+        orders[0]['lon'] = delivery_user_info.lon
         break
 
   return {'status': 'ok', 'order': orders[0]}

@@ -1,6 +1,6 @@
 from database_api import Session
 from ...database.enum import UserRole
-from ...database.schema import User, ServiceUser, CollectionPoint, CustomerRule, Product
+from ...database.schema import User, ServiceUser, CollectionPoint, CustomerRule, Product, DeliveryUserInfo
 
 
 def query_users(user: User, role: UserRole = None) -> list[User]:
@@ -34,3 +34,8 @@ def count_user_dependencies(id: int) -> dict:
 def get_user_by_nickname(nickname: str) -> User | None:
   with Session() as session:
     return session.query(User).filter(User.nickname == nickname).first()
+
+
+def get_delivery_user_info(user_id: int) -> DeliveryUserInfo:
+  with Session() as session:
+    return session.query(DeliveryUserInfo).filter(DeliveryUserInfo.user_id == user_id).first()

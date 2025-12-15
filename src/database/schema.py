@@ -10,14 +10,13 @@ class User(BaseEntity):
 
   email = Column(String)
   password = Column(String)
-  lat = Column(Numeric(11, 8))
-  lon = Column(Numeric(11, 8))
   role = Column(Enum(UserRole), nullable=False)
   nickname = Column(String, unique=True, nullable=False)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
 
   customer_group = relationship('CustomerGroup', back_populates='user')
   delivery_group = relationship('DeliveryGroup', back_populates='user')
+  delivery_user_info = relationship('DeliveryUserInfo', back_populates='user')
   service_user = relationship('ServiceUser', back_populates='user', cascade='all, delete-orphan')
   customer_rule = relationship('CustomerRule', back_populates='user', cascade='all, delete-orphan')
   collection_point = relationship('CollectionPoint', back_populates='user', cascade='all, delete-orphan')
@@ -27,6 +26,17 @@ class User(BaseEntity):
       return self.to_dict()
     else:
       return {'id': self.id, 'nickname': self.nickname, 'role': self.role.value}
+
+
+class DeliveryUserInfo(BaseEntity):
+  __tablename__ = 'delivery_user_info'
+
+  location = Column(String)
+  lat = Column(Numeric(11, 8))
+  lon = Column(Numeric(11, 8))
+  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+
+  user = relationship('User', back_populates='delivery_user_info')
 
 
 class CustomerGroup(BaseEntity):
@@ -50,6 +60,7 @@ class DeliveryGroup(BaseEntity):
 class Transport(BaseEntity):
   __tablename__ = 'transport'
 
+  location = Column(String)
   name = Column(String, nullable=False)
   plate = Column(String, nullable=False)
 
