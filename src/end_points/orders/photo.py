@@ -3,9 +3,10 @@ from flask import request
 from sqlalchemy import text
 from sqlalchemy.orm import Session as session_type
 
+from api.settings import IS_DEV
+from ... import STATIC_FOLDER, API_PREFIX
 from database_api.operations import create
 from ...database.schema import Photo, Order
-from ... import IS_DEV, STATIC_FOLDER, API_PREFIX
 
 
 def handle_photos(data: dict, order: Order, session: session_type):

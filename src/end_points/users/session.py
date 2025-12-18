@@ -30,9 +30,9 @@ def flask_session_authentication(roles: list[UserRole] = None):
         if not user:
           return {'status': 'session', 'error': 'Utente non trovato'}
 
-        if roles:
-          if user.role not in roles:
-            return {'status': 'session', 'error': 'Ruolo non autorizzato'}
+        if roles and user.role not in roles:
+          return {'status': 'session', 'error': 'Ruolo non autorizzato'}
+
         result = func(user, *args, **kwargs)
         if isinstance(result, dict):
           result['new_token'] = create_jwt_token(user)
@@ -45,7 +45,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
 
       except Exception:
         traceback.print_exc()
-        send_telegram_error(traceback.format_exc(), True)
+        send_telegram_error(traceback.format_exc())
         return {'status': 'ko', 'message': 'Errore generico'}
 
     return wrapper

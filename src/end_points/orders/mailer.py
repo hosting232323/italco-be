@@ -1,4 +1,4 @@
-from ... import IS_DEV
+from api.settings import IS_DEV
 from api.email import send_email
 from ...database.enum import OrderStatus
 from ...database.schema import Order, Motivation

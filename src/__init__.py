@@ -5,6 +5,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from flask import Flask, send_from_directory
 
+from api.settings import IS_DEV
 from database_api.backup import data_export
 from api import swagger_decorator, PrefixMiddleware
 
@@ -18,8 +19,6 @@ allowed_origins = [
 load_dotenv()
 PORT = int(os.environ.get('PORT', 8080))
 DATABASE_URL = os.environ['DATABASE_URL']
-IS_DEV = int(os.environ.get('IS_DEV', 1)) == 1
-PROJECT_NAME = os.environ.get('PROJECT_NAME', 'default')
 STATIC_FOLDER = os.environ.get('STATIC_FOLDER', '../static')
 POSTGRES_BACKUP_DAYS = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
 

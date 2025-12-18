@@ -1,7 +1,7 @@
 import os
 
-from ... import IS_DEV
 from api.sms import send_sms
+from api.settings import IS_DEV
 from ..orders.queries import get_selling_point
 from ..orders.sms_sender import get_order_link
 from ...database.schema import Order, ScheduleItem

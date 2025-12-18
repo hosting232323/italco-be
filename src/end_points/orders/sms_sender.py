@@ -3,7 +3,7 @@ from flask import request
 from hashids import Hashids
 from api.sms import send_sms
 
-from ... import IS_DEV
+from api.settings import IS_DEV
 from .queries import get_selling_point
 from ...database.schema import Order, ScheduleItem
 

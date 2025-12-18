@@ -1,10 +1,11 @@
 import subprocess
 
+from api.settings import IS_DEV
 from .database.schema import User
 from .database.enum import UserRole
 from .database.seed import seed_data
 from database_api import set_database
-from . import app, IS_DEV, DATABASE_URL, PORT
+from . import app, DATABASE_URL, PORT
 from .end_points.users.session import flask_session_authentication
 
 from .end_points.orders import order_bp
