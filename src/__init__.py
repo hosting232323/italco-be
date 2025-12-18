@@ -2,7 +2,6 @@ import os
 import shutil
 from flask_cors import CORS
 from datetime import datetime
-from dotenv import load_dotenv
 from flask import Flask, send_from_directory
 
 from api.settings import IS_DEV
@@ -16,7 +15,6 @@ allowed_origins = [
 ]
 
 
-load_dotenv()
 PORT = int(os.environ.get('PORT', 8080))
 DATABASE_URL = os.environ['DATABASE_URL']
 STATIC_FOLDER = os.environ.get('STATIC_FOLDER', '../static')
