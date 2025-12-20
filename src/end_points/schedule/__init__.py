@@ -1,9 +1,12 @@
+from datetime import datetime
 from flask import Blueprint, request
 
 from database_api import Session
+from .schedulation import assign_orders_to_groups
 from ...database.enum import UserRole, ScheduleType
 from ..users.session import flask_session_authentication
 from ...database.schema import Schedule, User, DeliveryGroup
+from ..orders.queries import query_orders, format_query_result as format_query_orders_result
 from database_api.operations import create, delete, get_by_id, update
 from .utils import handle_schedule_item, delete_schedule_items, clear_order, format_schedule_data
 from .queries import (
@@ -12,6 +15,8 @@ from .queries import (
   format_query_result,
   get_delivery_groups,
   get_schedule_items,
+  get_delivery_users_by_date,
+  get_transports_by_date,
 )
 
 
@@ -113,3 +118,24 @@ def update_schedule(user: User, id):
 
     session.commit()
   return {'status': 'ok', 'schedule': schedule.to_dict()}
+
+
+@schedule_bp.route('schedule-suggestions', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN])
+def get_schedule_suggestions(user: User):
+  dpc = datetime.strptime(request.args['dpc'], '%Y-%m-%d')
+  orders = []
+  for tupla in query_orders(user, [{'model': 'Order', 'field': 'dpc', 'value': dpc}]):
+    orders = format_query_orders_result(tupla, orders, user)
+  if len(orders) == 0:
+    return {'status': 'ko', 'error': 'Not found orders'}
+
+  delivery_users = get_delivery_users_by_date(dpc)
+  if len(delivery_users) == 0:
+    return {'status': 'ko', 'error': 'Not found delivery users'}
+
+  transports = get_transports_by_date(dpc)
+  if len(transports) == 0:
+    return {'status': 'ko', 'error': 'Not found transports'}
+
+  return {'status': 'ok', 'groups': assign_orders_to_groups(orders)}

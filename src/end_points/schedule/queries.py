@@ -196,3 +196,24 @@ def get_delivery_groups_by_order_id(order_id: int) -> list[DeliveryGroup]:
       )
       .all()
     )
+
+
+def get_delivery_users_by_date(date: datetime) -> list[User]:
+  with Session() as session:
+    return (
+      session.query(User)
+      .join(DeliveryGroup, User.id == DeliveryGroup.user_id)
+      .join(Schedule, and_(Schedule.id == DeliveryGroup.schedule_id, Schedule.date == date))
+      .filter(Schedule.id.is_(None))
+      .all()
+    )
+
+
+def get_transports_by_date(date: datetime) -> list[Transport]:
+  with Session() as session:
+    return (
+      session.query(Transport)
+      .join(Schedule, and_(Schedule.transport_id == Transport.id, Schedule.date == date))
+      .filter(Schedule.id.is_(None))
+      .all()
+    )
