@@ -120,7 +120,7 @@ def update_schedule(user: User, id):
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
-@schedule_bp.route('schedule-suggestions', methods=['GET'])
+@schedule_bp.route('suggestions', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
 def get_schedule_suggestions(user: User):
   dpc = datetime.strptime(request.args['dpc'], '%Y-%m-%d')

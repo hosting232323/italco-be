@@ -1,5 +1,5 @@
-from sqlalchemy import and_, desc
 from datetime import datetime, date
+from sqlalchemy import and_, desc, or_
 from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
@@ -202,9 +202,9 @@ def get_delivery_users_by_date(date: datetime) -> list[User]:
   with Session() as session:
     return (
       session.query(User)
-      .join(DeliveryGroup, User.id == DeliveryGroup.user_id)
-      .join(Schedule, and_(Schedule.id == DeliveryGroup.schedule_id, Schedule.date == date))
-      .filter(Schedule.id.is_(None))
+      .outerjoin(DeliveryGroup, User.id == DeliveryGroup.user_id)
+      .outerjoin(Schedule, Schedule.id == DeliveryGroup.schedule_id)
+      .filter(or_(Schedule.date != date, Schedule.id.is_(None)))
       .all()
     )
 
@@ -213,7 +213,7 @@ def get_transports_by_date(date: datetime) -> list[Transport]:
   with Session() as session:
     return (
       session.query(Transport)
-      .join(Schedule, and_(Schedule.transport_id == Transport.id, Schedule.date == date))
-      .filter(Schedule.id.is_(None))
+      .outerjoin(Schedule, Schedule.transport_id == Transport.id)
+      .filter(or_(Schedule.date != date, Schedule.id.is_(None)))
       .all()
     )

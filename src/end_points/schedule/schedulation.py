@@ -9,7 +9,7 @@ def assign_orders_to_groups(orders):
       order_caps = {p['collection_point']['cap'] for p in order['products'].values()}
       if order_caps & group:
         group_orders.append(order)
-    result.append({'caps': group, 'orders': group_orders})
+    result.append({'caps': list(group), 'orders': group_orders})
   return result
 
 
@@ -17,19 +17,16 @@ def find_cap_groups(orders):
   groups = []
   visited = set()
   graph = build_cap_graph(orders)
-
   for cap in graph:
     if cap not in visited:
       stack = [cap]
       group = set()
-
       while stack:
         current = stack.pop()
         if current not in visited:
           visited.add(current)
           group.add(current)
           stack.extend(graph[current] - visited)
-
       groups.append(group)
   return groups
 
