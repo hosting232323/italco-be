@@ -169,9 +169,9 @@ def get_schedule_items(
   )
 
 
-def get_delivery_groups(schedule: Schedule) -> list[DeliveryGroup]:
-  with Session() as session:
-    return session.query(DeliveryGroup).filter(DeliveryGroup.schedule_id == schedule.id).all()
+@db_session_decorator(commit=False)
+def get_delivery_groups(schedule: Schedule, session: session_type = None) -> list[DeliveryGroup]:
+  return session.query(DeliveryGroup).filter(DeliveryGroup.schedule_id == schedule.id).all()
 
 
 def get_delivery_groups_by_order_id(order_id: int) -> list[DeliveryGroup]:

@@ -120,7 +120,7 @@ def clear_order(order_id: int, session=None):
 
 
 def delete_schedule_items(
-  schedule_items: list[tuple[ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder]], session: None
+  schedule_items: list[tuple[ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder]], session = None
 ):
   for schedule_item in schedule_items:
     if schedule_item[2]:

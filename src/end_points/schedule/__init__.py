@@ -42,10 +42,13 @@ def create_schedule(user: User):
 @flask_session_authentication([UserRole.ADMIN])
 def delete_schedule(user: User, id):
   schedule: Schedule = get_by_id(Schedule, int(id))
-  for delivery_group in get_delivery_groups(schedule):
-    delete(delivery_group)
-  delete_schedule_items(get_schedule_items(schedule))
-  delete(schedule)
+  with Session() as session:
+    for delivery_group in get_delivery_groups(schedule, session=session):
+      delete(delivery_group, session=session)
+    delete_schedule_items(get_schedule_items(schedule), session=session)
+    delete(schedule, session=session)
+
+    session.commit()
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
@@ -68,7 +71,7 @@ def update_schedule(user: User, id):
       item[2].order_id for item in actual_schedule_items if item[0].operation_type == ScheduleType.ORDER
     ]
 
-    delivery_groups = get_delivery_groups(schedule)
+    delivery_groups = get_delivery_groups(schedule, session=session)
     deleted_users = []
     if 'deleted_users' in request.json:
       deleted_users = request.json['deleted_users']
