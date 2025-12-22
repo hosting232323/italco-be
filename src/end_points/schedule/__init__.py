@@ -15,8 +15,8 @@ from .queries import (
   format_query_result,
   get_delivery_groups,
   get_schedule_items,
-  get_delivery_users_by_date,
-  get_transports_by_date,
+  # get_delivery_users_by_date,
+  # get_transports_by_date,
 )
 
 
@@ -136,12 +136,12 @@ def get_schedule_suggestions(user: User):
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Not found orders'}
 
-  delivery_users = get_delivery_users_by_date(dpc)
-  if len(delivery_users) == 0:
-    return {'status': 'ko', 'error': 'Not found delivery users'}
+  # delivery_users = get_delivery_users_by_date(dpc)
+  # if len(delivery_users) == 0:
+  #   return {'status': 'ko', 'error': 'Not found delivery users'}
 
-  transports = get_transports_by_date(dpc)
-  if len(transports) == 0:
-    return {'status': 'ko', 'error': 'Not found transports'}
+  # transports = get_transports_by_date(dpc)
+  # if len(transports) == 0:
+  #   return {'status': 'ko', 'error': 'Not found transports'}
 
   return {'status': 'ok', 'groups': assign_orders_to_groups(orders)}
