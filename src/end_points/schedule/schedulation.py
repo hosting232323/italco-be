@@ -50,7 +50,11 @@ def build_schedule_items(orders):
       if product['collection_point']['id'] not in collection_point_ids:
         schedule_collection_points.append(build_schedule_item(product['collection_point'], 'CollectionPoint'))
         collection_point_ids.append(product['collection_point']['id'])
-  return schedule_collection_points + schedule_orders
+
+  return [
+    set_schedule_index(schedule_item, index)
+    for (index, schedule_item) in enumerate(schedule_collection_points + schedule_orders)
+  ]
 
 
 def build_schedule_item(item, type):
@@ -60,3 +64,8 @@ def build_schedule_item(item, type):
     'address': item['address'],
     ('order_id' if type == 'Order' else 'collection_point_id'): item['id'],
   }
+
+
+def set_schedule_index(item, index):
+  item['index'] = index
+  return item
