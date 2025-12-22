@@ -3,11 +3,11 @@ from flask import Blueprint, request
 
 from database_api import Session
 from .schedulation import assign_orders_to_groups
-from ...database.enum import UserRole, ScheduleType
 from ..users.session import flask_session_authentication
 from ...database.schema import Schedule, User, DeliveryGroup
-from ..orders.queries import query_orders, format_query_result as format_query_orders_result
+from ...database.enum import UserRole, ScheduleType, OrderStatus
 from database_api.operations import create, delete, get_by_id, update
+from ..orders.queries import query_orders, format_query_result as format_query_orders_result
 from .utils import handle_schedule_item, delete_schedule_items, clear_order, format_schedule_data
 from .queries import (
   query_schedules,
@@ -125,7 +125,13 @@ def update_schedule(user: User, id):
 def get_schedule_suggestions(user: User):
   dpc = datetime.strptime(request.args['dpc'], '%Y-%m-%d')
   orders = []
-  for tupla in query_orders(user, [{'model': 'Order', 'field': 'dpc', 'value': dpc}]):
+  for tupla in query_orders(
+    user,
+    [
+      {'model': 'Order', 'field': 'dpc', 'value': dpc},
+      {'model': 'Order', 'field': 'status', 'value': OrderStatus.PENDING},
+    ],
+  ):
     orders = format_query_orders_result(tupla, orders, user)
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Not found orders'}
