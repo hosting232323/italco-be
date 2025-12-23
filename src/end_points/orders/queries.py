@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from sqlalchemy import and_, not_, desc
-from sqlalchemy.orm import joinedload
+
 from database_api import Session
 from ...database.enum import UserRole, OrderType, OrderStatus
 from ...database.schema import (
@@ -183,17 +183,4 @@ def get_selling_point(order: Order) -> User:
       .join(ServiceUser, User.id == ServiceUser.user_id)
       .join(Product, and_(ServiceUser.id == Product.service_user_id, Product.order_id == order.id))
       .first()
-    )
-
-
-def get_orders_by_ids(orders_id: list) -> list[Order]:
-  with Session() as session:
-    return (
-      session.query(Order)
-      .options(
-        joinedload(Order.product)
-        .joinedload(Product.collection_point)
-      )
-      .filter(Order.id.in_(orders_id))
-      .all()
     )

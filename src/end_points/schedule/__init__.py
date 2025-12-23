@@ -2,11 +2,11 @@ from datetime import datetime
 from flask import Blueprint, request
 
 from database_api import Session
-from .schedulation import assign_orders_to_groups
 from ..users.session import flask_session_authentication
 from ...database.schema import Schedule, User, DeliveryGroup
 from ...database.enum import UserRole, ScheduleType, OrderStatus
 from database_api.operations import create, delete, get_by_id, update
+from .schedulation import assign_orders_to_groups, build_schedule_items
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
 from .utils import handle_schedule_item, delete_schedule_items, clear_order, format_schedule_data
 from .queries import (
@@ -18,7 +18,6 @@ from .queries import (
   # get_delivery_users_by_date,
   # get_transports_by_date,
 )
-from ..orders.queries import get_orders_by_ids
 
 
 schedule_bp = Blueprint('schedule_bp', __name__)
@@ -154,54 +153,17 @@ def get_schedule_suggestions(user: User):
 @schedule_bp.route('pianification', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def pianification(user: User):
-  orders_id = request.json['orders_id']
-  orders = get_orders_by_ids(orders_id)
-  
-  collection_points = {}
-  schedule_items = []
+  orders = []
+  for tupla in query_orders(
+    user,
+    [{'model': 'Order', 'field': 'id', 'value': request.json['orders_id']}],
+  ):
+    orders = format_query_orders_result(tupla, orders, user)
+  if len(orders) == 0:
+    return {'status': 'ko', 'error': 'Not found orders'}
 
   for order in orders:
-    if order.status != OrderStatus.PENDING:
-      return { 'status': 'ko', 'message': 'Hai selezionato degli ordini già assegnati'}
+    if order['status'] != 'Pending':
+      return {'status': 'ko', 'error': 'Hai selezionato degli ordini già assegnati'}
 
-    schedule_items.append(
-      create_schedule_item(order, "Order")
-    )
-
-    for product in order.product:
-      cp = product.collection_point
-      if cp and cp.id not in collection_points:
-        collection_points[cp.id] = create_schedule_item(
-          cp, "CollectionPoint"
-        )
-
-  all_items = list(collection_points.values()) + schedule_items
-
-  for index, item in enumerate(all_items):
-    item["index"] = index
-
-  return {
-    "status": "ok",
-    "schedule_items": all_items
-  }
-
-
-def create_schedule_item(element, operation_type, index=None):
-  item = {
-    'start_time_slot': '',
-    'end_time_slot': '',
-    'operation_type': operation_type,
-  }
-
-  if index is not None:
-    item['index'] = index
-
-  if operation_type == 'Order':
-    item['order_id'] = element.id
-    item['collection_point_ids'] = list(
-      {p.collection_point.id for p in element.product}
-    )
-  else:
-    item['collection_point_id'] = element.id
-
-  return item
+  return {'status': 'ok', 'schedule_items': build_schedule_items(orders)}
