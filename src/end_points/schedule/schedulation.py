@@ -58,12 +58,15 @@ def build_schedule_items(orders):
 
 
 def build_schedule_item(item, type):
-  return {
+  schedule_item = {
     'cap': item['cap'],
     'operation_type': type,
     'address': item['address'],
     ('order_id' if type == 'Order' else 'collection_point_id'): item['id'],
   }
+  if type == 'Order':
+    schedule_item['products'] = item['products']
+  return schedule_item
 
 
 def set_schedule_index(item, index):
