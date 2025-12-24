@@ -137,7 +137,7 @@ def get_schedule_suggestions(user: User):
   ):
     orders = format_query_orders_result(tupla, orders, user)
   if len(orders) == 0:
-    return {'status': 'ko', 'error': 'Not found orders'}
+    return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
 
   # delivery_users = get_delivery_users_by_date(dpc)
   # if len(delivery_users) == 0:
@@ -160,7 +160,7 @@ def pianification(user: User):
   ):
     orders = format_query_orders_result(tupla, orders, user)
   if len(orders) == 0:
-    return {'status': 'ko', 'error': 'Not found orders'}
+    return {'status': 'ko', 'error': 'Ordini non identificati'}
 
   for order in orders:
     if order['status'] != 'Pending':
