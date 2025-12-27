@@ -53,8 +53,9 @@ def create_user(user: User):
   return {'status': 'ok', 'message': 'Utente registrato'}
 
 
+@user_bp.route('login', methods=['POST'])
 @error_catching_decorator
-def login_():
+def login():
   user: User = get_user_by_nickname(request.json['email'])
   if not user:
     return {'status': 'ko', 'error': 'Utente non trovato'}
@@ -65,8 +66,8 @@ def login_():
   return {
     'status': 'ok',
     'user_id': user.id,
+    'role': user.role.value,
     'token': create_jwt_token(user),
-    'user_info': {'id': user.id, 'role': user.role.value},
   }
 
 
