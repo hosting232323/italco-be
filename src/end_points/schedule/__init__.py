@@ -162,8 +162,10 @@ def pianification(user: User):
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Ordini non identificati'}
 
-  for order in orders:
-    if order['status'] != 'Pending':
-      return {'status': 'ko', 'error': 'Hai selezionato degli ordini già assegnati'}
+  if not 'updating' in request.json.keys() or not request.json['updating']:
+    for order in orders:
+      if order['status'] != 'Pending':
+        return {'status': 'ko', 'error': 'Hai selezionato degli ordini già assegnati'}
 
+  # Ordinare solo se non è un updating
   return {'status': 'ok', 'schedule_items': build_schedule_items(orders)}
