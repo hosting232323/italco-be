@@ -162,7 +162,7 @@ def pianification(user: User):
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Ordini non identificati'}
 
-  if not 'updating' in request.json.keys() or not request.json['updating']:
+  if 'updating' not in request.json.keys() or not request.json['updating']:
     for order in orders:
       if order['status'] != 'Pending':
         return {'status': 'ko', 'error': 'Hai selezionato degli ordini già assegnati'}
