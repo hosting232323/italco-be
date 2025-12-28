@@ -2,11 +2,11 @@ from datetime import datetime
 from flask import Blueprint, request
 
 from database_api import Session
-from .schedulation import assign_orders_to_groups
 from ..users.session import flask_session_authentication
 from ...database.schema import Schedule, User, DeliveryGroup
 from ...database.enum import UserRole, ScheduleType, OrderStatus
 from database_api.operations import create, delete, get_by_id, update
+from .schedulation import assign_orders_to_groups, build_schedule_items
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
 from .utils import handle_schedule_item, delete_schedule_items, clear_order, format_schedule_data
 from .queries import (
@@ -137,7 +137,7 @@ def get_schedule_suggestions(user: User):
   ):
     orders = format_query_orders_result(tupla, orders, user)
   if len(orders) == 0:
-    return {'status': 'ko', 'error': 'Not found orders'}
+    return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
 
   # delivery_users = get_delivery_users_by_date(dpc)
   # if len(delivery_users) == 0:
@@ -148,3 +148,24 @@ def get_schedule_suggestions(user: User):
   #   return {'status': 'ko', 'error': 'Not found transports'}
 
   return {'status': 'ok', 'groups': assign_orders_to_groups(orders)}
+
+
+@schedule_bp.route('pianification', methods=['POST'])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
+def pianification(user: User):
+  orders = []
+  for tupla in query_orders(
+    user,
+    [{'model': 'Order', 'field': 'id', 'value': request.json['orders_id']}],
+  ):
+    orders = format_query_orders_result(tupla, orders, user)
+  if len(orders) == 0:
+    return {'status': 'ko', 'error': 'Ordini non identificati'}
+
+  if 'updating' not in request.json.keys() or not request.json['updating']:
+    for order in orders:
+      if order['status'] != 'Pending':
+        return {'status': 'ko', 'error': 'Hai selezionato degli ordini già assegnati'}
+
+  # Ordinare solo se non è un updating
+  return {'status': 'ok', 'schedule_items': build_schedule_items(orders)}
