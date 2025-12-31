@@ -1,7 +1,19 @@
+from geopy.distance import geodesic
 from collections import defaultdict
 
+from ..geographic_zone import CAPS_DATA
 
-def assign_orders_to_groups(orders):
+
+# QUESTO NON VA TROPPO BENE PERCHé L'ORDINE DEI GRUPPI DI ORDINI IMPATTA SUL RISULTATO
+
+
+def assign_orders_to_groups(orders, delivery_users):
+  available_delivery_users = [
+    delivery_user
+    for delivery_user in delivery_users
+    if 'delivery_user_info' in delivery_user and 'cap' in delivery_user['delivery_user_info']
+  ]
+
   result = []
   for group in find_cap_groups(orders):
     group_orders = []
@@ -9,8 +21,38 @@ def assign_orders_to_groups(orders):
       order_caps = {product['collection_point']['cap'] for product in order['products'].values()}
       if order_caps & group:
         group_orders.append(order)
-    result.append(build_schedule_items(group_orders))
+
+    schedule_items = build_schedule_items(group_orders)
+    if len(available_delivery_users) > 1:
+      delivery_users = [assign_delivery_user(schedule_items, available_delivery_users)]
+      available_delivery_users.remove(delivery_users[0])
+    elif len(available_delivery_users) == 1:
+      delivery_users = available_delivery_users.copy()
+      available_delivery_users.remove(delivery_users[0])
+    else:
+      delivery_users = []
+
+    result.append({'schedule_items': schedule_items, 'delivery_users': delivery_users})
   return result
+
+
+def assign_delivery_user(schedule_items, delivery_users):
+  return min(
+    delivery_users,
+    key=lambda delivery_user: sum(
+      geodesic(
+        get_lat_lon_by_cap(schedule_item['cap']), get_lat_lon_by_cap(delivery_user['delivery_user_info']['cap'])
+      ).meters
+      for schedule_item in schedule_items
+    ),
+  )
+
+
+def get_lat_lon_by_cap(cap):
+  for province in CAPS_DATA.keys():
+    if cap in CAPS_DATA[province]:
+      cap_data = CAPS_DATA[province][cap]
+      return cap_data['lat'], cap_data['lon']
 
 
 def find_cap_groups(orders):

@@ -3,6 +3,7 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ..users.session import flask_session_authentication
+from ..users.queries import format_user_with_delivery_info
 from ...database.schema import Schedule, User, DeliveryGroup
 from ...database.enum import UserRole, ScheduleType, OrderStatus
 from database_api.operations import create, delete, get_by_id, update
@@ -15,7 +16,7 @@ from .queries import (
   format_query_result,
   get_delivery_groups,
   get_schedule_items,
-  # get_delivery_users_by_date,
+  get_delivery_users_by_date,
   # get_transports_by_date,
 )
 
@@ -139,15 +140,14 @@ def get_schedule_suggestions(user: User):
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
 
-  # delivery_users = get_delivery_users_by_date(dpc)
-  # if len(delivery_users) == 0:
-  #   return {'status': 'ko', 'error': 'Not found delivery users'}
-
   # transports = get_transports_by_date(dpc)
   # if len(transports) == 0:
   #   return {'status': 'ko', 'error': 'Not found transports'}
 
-  return {'status': 'ok', 'groups': assign_orders_to_groups(orders)}
+  delivery_users = [
+    format_user_with_delivery_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(dpc)
+  ]
+  return {'status': 'ok', 'delivery_users': delivery_users, 'groups': assign_orders_to_groups(orders, delivery_users)}
 
 
 @schedule_bp.route('pianification', methods=['POST'])
