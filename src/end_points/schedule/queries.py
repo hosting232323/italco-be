@@ -15,15 +15,16 @@ from ...database.schema import (
   ScheduleItemCollectionPoint,
   ScheduleItemOrder,
   CollectionPoint,
+  Product,
 )
 
 
 def query_schedules(
   filters: list, limit: int = None
-) -> list[tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, User]]:
+) -> list[tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User]]:
   with Session() as session:
     query = (
-      session.query(Schedule, Transport, ScheduleItem, CollectionPoint, Order, User)
+      session.query(Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User)
       .join(Transport, Schedule.transport_id == Transport.id)
       .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
       .outerjoin(
@@ -39,6 +40,7 @@ def query_schedules(
         and_(ScheduleItem.operation_type == ScheduleType.ORDER, ScheduleItemOrder.schedule_item_id == ScheduleItem.id),
       )
       .outerjoin(Order, ScheduleItemOrder.order_id == Order.id)
+      .outerjoin(Product, Order.id == Product.order_id)
       .join(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
       .join(User, DeliveryGroup.user_id == User.id)
       .order_by(desc(Schedule.updated_at))
@@ -93,36 +95,44 @@ def get_schedule_item_by_order(order: Order) -> ScheduleItem:
 
 
 def format_query_result(
-  tupla: tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, User], list: list[dict], user: User
+  tupla: tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User], list: list[dict], user: User
 ) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      format_schedule_item(element['schedule_items'], tupla[2], tupla[3], tupla[4])
-      if tupla[5] and tupla[5].id not in [user['id'] for user in element['users']]:
-        element['users'].append(tupla[5].format_user(user.role))
+      format_schedule_item(element['schedule_items'], tupla[2], tupla[3], tupla[4], tupla[5])
+      if tupla[6] and tupla[6].id not in [user['id'] for user in element['users']]:
+        element['users'].append(tupla[6].format_user(user.role))
       return list
 
   schedule = {
     **tupla[0].to_dict(),
     'transport': tupla[1].to_dict(),
-    'users': [tupla[5].format_user(user.role)] if tupla[5] else [],
+    'users': [tupla[6].format_user(user.role)] if tupla[6] else [],
     'schedule_items': [],
   }
-  format_schedule_item(schedule['schedule_items'], tupla[2], tupla[3], tupla[4])
+  format_schedule_item(schedule['schedule_items'], tupla[2], tupla[3], tupla[4], tupla[5])
   list.append(schedule)
   return list
 
 
 def format_schedule_item(
-  schedule_items: list, schedule_item: ScheduleItem, collection_point: CollectionPoint, order: Order
+  schedule_items: list, schedule_item: ScheduleItem, collection_point: CollectionPoint, order: Order, product: Product
 ):
-  if (
-    schedule_item.operation_type == ScheduleType.ORDER
-    and order
-    and order.id not in [item['order_id'] for item in schedule_items if 'order_id' in item]
-  ):
-    item = order.to_dict()
-    item['order_id'] = order.id
+  if schedule_item.operation_type == ScheduleType.ORDER and order and product:
+    schedule_item_order = next(
+      (item for item in schedule_items if 'order_id' in item and item['order_id'] == order.id), None
+    )
+    order_collection_point = {'collection_point': {'id': product.collection_point_id}}
+    if not schedule_item_order:
+      item = order.to_dict()
+      item['order_id'] = order.id
+      item['products'] = {product.name: order_collection_point}
+    elif product.name not in schedule_item_order['products']:
+      schedule_item_order['products'][product.name] = order_collection_point
+      return
+    else:
+      return
+
   elif (
     schedule_item.operation_type == ScheduleType.COLLECTIONPOINT
     and collection_point
