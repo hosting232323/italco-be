@@ -1,10 +1,8 @@
-from geopy.distance import geodesic
 from collections import defaultdict
+from geopy.distance import geodesic
+from scipy.optimize import linear_sum_assignment
 
 from ..geographic_zone import CAPS_DATA
-
-
-# QUESTO NON VA TROPPO BENE PERCHé L'ORDINE DEI GRUPPI DI ORDINI IMPATTA SUL RISULTATO
 
 
 def assign_orders_to_groups(orders, delivery_users):
@@ -14,38 +12,39 @@ def assign_orders_to_groups(orders, delivery_users):
     if 'delivery_user_info' in delivery_user and 'cap' in delivery_user['delivery_user_info']
   ]
 
-  result = []
+  schedule_item_groups = []
   for group in find_cap_groups(orders):
     group_orders = []
     for order in orders:
       order_caps = {product['collection_point']['cap'] for product in order['products'].values()}
       if order_caps & group:
         group_orders.append(order)
+    schedule_item_groups.append(build_schedule_items(group_orders))
 
-    schedule_items = build_schedule_items(group_orders)
-    if len(available_delivery_users) > 1:
-      delivery_users = [assign_delivery_user(schedule_items, available_delivery_users)]
-      available_delivery_users.remove(delivery_users[0])
-    elif len(available_delivery_users) == 1:
-      delivery_users = available_delivery_users.copy()
-      available_delivery_users.remove(delivery_users[0])
-    else:
-      delivery_users = []
+  cost_matrix = []
+  for user in available_delivery_users:
+    user_costs = []
+    for schedule_items in schedule_item_groups:
+      user_costs.append(calculate_group_cost(user, schedule_items))
+    cost_matrix.append(user_costs)
 
-    result.append({'schedule_items': schedule_items, 'delivery_users': delivery_users})
-  return result
+  delivery_user_indices, group_indices = linear_sum_assignment(cost_matrix)
+  return [
+    {
+      'schedule_items': schedule_item_group,
+      'delivery_users': [
+        available_delivery_users[delivery_user_indices[user_index]]
+        for user_index, group_index in enumerate(group_indices)
+        if group_index == index
+      ],
+    }
+    for index, schedule_item_group in enumerate(schedule_item_groups)
+  ]
 
 
-def assign_delivery_user(schedule_items, delivery_users):
-  return min(
-    delivery_users,
-    key=lambda delivery_user: sum(
-      geodesic(
-        get_lat_lon_by_cap(schedule_item['cap']), get_lat_lon_by_cap(delivery_user['delivery_user_info']['cap'])
-      ).meters
-      for schedule_item in schedule_items
-    ),
-  )
+def calculate_group_cost(user, schedule_items):
+  user_coord = get_lat_lon_by_cap(user['delivery_user_info']['cap'])
+  return sum(geodesic(get_lat_lon_by_cap(item['cap']), user_coord).meters for item in schedule_items)
 
 
 def get_lat_lon_by_cap(cap):
@@ -53,6 +52,8 @@ def get_lat_lon_by_cap(cap):
     if cap in CAPS_DATA[province]:
       cap_data = CAPS_DATA[province][cap]
       return cap_data['lat'], cap_data['lon']
+
+  raise ValueError('Cap not found')
 
 
 def find_cap_groups(orders):
