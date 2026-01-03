@@ -5,7 +5,13 @@ from api import error_catching_decorator
 from ...database.schema import User, DeliveryUserInfo
 from .session import flask_session_authentication, create_jwt_token
 from database_api.operations import delete, get_by_id, create, update
-from .queries import query_users, count_user_dependencies, get_user_by_nickname, get_delivery_user_info
+from .queries import (
+  query_users,
+  format_user_with_delivery_info,
+  count_user_dependencies,
+  get_user_by_nickname,
+  get_delivery_user_info,
+)
 
 
 user_bp = Blueprint('user_bp', __name__)
@@ -81,7 +87,7 @@ def update_position(user: User):
 @user_bp.route('delivery-user-info', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_delivery_user_info(user: User):
-  save_delivery_user_info(request.json['user_id'], {'location': request.json['location']})
+  save_delivery_user_info(request.json['user_id'], {'cap': request.json['cap']})
   return {'status': 'ok', 'message': 'Attributo aggiornata'}
 
 
@@ -91,12 +97,3 @@ def save_delivery_user_info(user_id: int, params: dict):
     create(DeliveryUserInfo, {**params, 'user_id': user_id})
   else:
     update(delivery_user_info, params)
-
-
-def format_user_with_delivery_info(user: User, role: UserRole) -> dict:
-  user_dict = user.format_user(role)
-  if role == UserRole.ADMIN and user.role == UserRole.DELIVERY:
-    delivery_user_info = get_delivery_user_info(user.id)
-    if delivery_user_info:
-      user_dict['delivery_user_info'] = delivery_user_info.to_dict()
-  return user_dict

@@ -3,7 +3,7 @@ from sqlalchemy import and_, desc, or_
 from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
-from ...database.enum import ScheduleType
+from ...database.enum import ScheduleType, UserRole
 from database_api.operations import db_session_decorator
 from ...database.schema import (
   Schedule,
@@ -214,7 +214,7 @@ def get_delivery_users_by_date(date: datetime) -> list[User]:
       session.query(User)
       .outerjoin(DeliveryGroup, User.id == DeliveryGroup.user_id)
       .outerjoin(Schedule, Schedule.id == DeliveryGroup.schedule_id)
-      .filter(or_(Schedule.date != date, Schedule.id.is_(None)))
+      .filter(or_(Schedule.date != date, Schedule.id.is_(None)), User.role == UserRole.DELIVERY)
       .all()
     )
 

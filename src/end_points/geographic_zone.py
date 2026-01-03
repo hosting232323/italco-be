@@ -56,7 +56,7 @@ def delete_constraint(user: User, entity, id):
 
 def check_geographic_zone() -> list[datetime]:
   province = get_province_by_cap(request.json['cap'])
-  caps = CAPS_DATA[province].copy() if province in CAPS_DATA else []
+  caps = CAPS_DATA[province].copy().keys() if province in CAPS_DATA else []
   for cap in query_special_caps_by_geographic_zone(province):
     if cap.type:
       caps.append(cap.code)
