@@ -6,3 +6,5 @@ hashids
 openai
 python-telegram-bot
 gunicorn
+geopy
+scipy

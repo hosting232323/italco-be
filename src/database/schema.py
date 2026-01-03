@@ -31,7 +31,7 @@ class User(BaseEntity):
 class DeliveryUserInfo(BaseEntity):
   __tablename__ = 'delivery_user_info'
 
-  location = Column(String)
+  cap = Column(String)
   lat = Column(Numeric(11, 8))
   lon = Column(Numeric(11, 8))
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
@@ -60,7 +60,7 @@ class DeliveryGroup(BaseEntity):
 class Transport(BaseEntity):
   __tablename__ = 'transport'
 
-  location = Column(String)
+  cap = Column(String)
   name = Column(String, nullable=False)
   plate = Column(String, nullable=False)
 
