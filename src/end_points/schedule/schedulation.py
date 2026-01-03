@@ -6,12 +6,6 @@ from ..geographic_zone import CAPS_DATA
 
 
 def assign_orders_to_groups(orders, delivery_users):
-  available_delivery_users = [
-    delivery_user
-    for delivery_user in delivery_users
-    if 'delivery_user_info' in delivery_user and 'cap' in delivery_user['delivery_user_info']
-  ]
-
   schedule_item_groups = []
   for group in find_cap_groups(orders):
     group_orders = []
@@ -20,6 +14,16 @@ def assign_orders_to_groups(orders, delivery_users):
       if order_caps & group:
         group_orders.append(order)
     schedule_item_groups.append(build_schedule_items(group_orders))
+
+  available_delivery_users = [
+    delivery_user
+    for delivery_user in delivery_users
+    if 'delivery_user_info' in delivery_user and 'cap' in delivery_user['delivery_user_info']
+  ]
+  if not available_delivery_users:
+    return [
+      {'schedule_items': schedule_item_group, 'delivery_users': []} for schedule_item_group in schedule_item_groups
+    ]
 
   cost_matrix = []
   for user in available_delivery_users:
