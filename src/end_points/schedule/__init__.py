@@ -147,7 +147,7 @@ def get_schedule_suggestions(user: User):
     'status': 'ok',
     'delivery_users': delivery_users,
     'groups': assign_orders_to_groups(orders, delivery_users),
-    'transports': [transport.to_dict() for transport in get_transports_by_date(dpc)]
+    'transports': [transport.to_dict() for transport in get_transports_by_date(dpc)],
   }
 
 
