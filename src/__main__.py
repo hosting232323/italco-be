@@ -10,6 +10,7 @@ from .end_points.users.session import flask_session_authentication
 
 from .end_points.users import user_bp
 from .end_points.orders import order_bp
+from .end_points.checks import checks_bp
 from .end_points.chatty import chatty_bp
 from .end_points.service import service_bp
 from .end_points.schedule import schedule_bp
@@ -34,6 +35,7 @@ def check_constraints(user: User):
 
 app.register_blueprint(user_bp, url_prefix='/user')
 app.register_blueprint(order_bp, url_prefix='/order')
+app.register_blueprint(checks_bp, url_prefix='/checks')
 app.register_blueprint(chatty_bp, url_prefix='/chatty')
 app.register_blueprint(import_bp, url_prefix='/import')
 app.register_blueprint(export_bp, url_prefix='/export')
