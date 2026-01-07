@@ -8,21 +8,14 @@ from api.settings import IS_DEV
 from database_api.backup import data_export
 from api import swagger_decorator, PrefixMiddleware
 
+from api.telegram import send_telegram_message
+
 from database_api import Session
 from .database.schema import (
   Order,
   Product,
   ServiceUser,
-  Service,
-  User,
-  CollectionPoint,
-  Photo,
   Schedule,
-  DeliveryGroup,
-  CustomerGroup,
-  Motivation,
-  ScheduleItem,
-  ScheduleItemOrder,
 )
 
 
@@ -107,18 +100,13 @@ def check_mismatch():
       for o in orders_no_product
     ]
 
-  # --- Report finale ---
-  return {
-    "schedules_with_issues": schedule_issues,
-    "orders_without_user": orders_no_user_result,
-    "orders_without_products": orders_no_product_result,
-    "count": {
-      "schedules_with_issues": len(schedule_issues),
-      "orders_without_user": len(orders_no_user_result),
-      "orders_without_products": len(orders_no_product_result)
-    }
-  }
-
+  send_telegram_message(
+    "*📊 Report Check Mismatch*\n\n"
+    f"*Schedules con problemi:* {schedule_issues}\n"
+    f"*Ordini senza utente:* {orders_no_user_result}\n"
+    f"*Ordini senza prodotti:* {orders_no_product_result}\n\n"
+  )
+  return { 'status': 'ok' }
 
 @swagger_decorator
 @app.route('/internal-backup', methods=['POST'])
