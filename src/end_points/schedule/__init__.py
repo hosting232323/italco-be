@@ -140,14 +140,15 @@ def get_schedule_suggestions(user: User):
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
 
-  transports = get_transports_by_date(dpc)
-  if len(transports) == 0:
-    return {'status': 'ko', 'error': 'Not found transports'}
-
   delivery_users = [
     format_user_with_delivery_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(dpc)
   ]
-  return {'status': 'ok', 'delivery_users': delivery_users, 'groups': assign_orders_to_groups(orders, delivery_users), 'transports': [t.to_dict() for t in transports]}
+  return {
+    'status': 'ok',
+    'delivery_users': delivery_users,
+    'groups': assign_orders_to_groups(orders, delivery_users),
+    'transports': [transport.to_dict() for transport in get_transports_by_date(dpc)]
+  }
 
 
 @schedule_bp.route('pianification', methods=['POST'])
