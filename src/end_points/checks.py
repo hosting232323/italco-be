@@ -10,7 +10,7 @@ checks_bp = Blueprint('checks_bp', __name__)
 
 
 @checks_bp.route('', methods=['GET'])
-@error_catching_decorator
+# @error_catching_decorator
 def check_mismatch():
   with Session() as session:
     # --- Schedule senza ScheduleItem o DeliveryGroup ---
