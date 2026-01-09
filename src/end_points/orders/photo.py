@@ -2,7 +2,7 @@ import os
 from flask import request
 from sqlalchemy import text
 from sqlalchemy.orm import Session as session_type
-
+from api.storage import upload_file
 from api.settings import IS_DEV
 from ... import STATIC_FOLDER, API_PREFIX
 from database_api.operations import create
@@ -17,11 +17,11 @@ def handle_photos(data: dict, order: Order, session: session_type):
         data['signature'] = uploaded_file.read()
       else:
         filename = f'{guess_next_id(session)}{guess_extension(uploaded_file.mimetype)}'
-        uploaded_file.save(os.path.join(STATIC_FOLDER, 'photos', filename))
+        link = upload_file(uploaded_file.read(), filename, './static/photos', 'local')
         create(
           Photo,
           {
-            'link': f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/photos/{filename}',
+            'link': link[0],
             'order_id': order.id,
           },
           session=session,
