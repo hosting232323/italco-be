@@ -22,7 +22,8 @@ def assign_orders_to_groups(orders, delivery_users):
   ]
   if not available_delivery_users:
     return [
-      {'schedule_items': schedule_item_group, 'delivery_users': []} for schedule_item_group in schedule_item_groups
+      {'schedule_items': schedule_item_group, 'delivery_users': [], 'transports': []}
+      for schedule_item_group in schedule_item_groups
     ]
 
   cost_matrix = []
@@ -35,6 +36,7 @@ def assign_orders_to_groups(orders, delivery_users):
   delivery_user_indices, group_indices = linear_sum_assignment(cost_matrix)
   return [
     {
+      'transports': [],
       'schedule_items': schedule_item_group,
       'delivery_users': [
         available_delivery_users[delivery_user_indices[user_index]]
