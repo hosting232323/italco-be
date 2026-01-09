@@ -46,10 +46,33 @@ def check_mismatch():
       {'order_id': o.id, 'addressee': o.addressee, 'status': o.status.value} for o in orders_no_product
     ]
 
-  send_telegram_message(
-    '*📊 Report Check Mismatch*\n\n'
-    f'*Schedules con problemi:* {schedule_issues}\n'
-    f'*Ordini senza utente:* {orders_no_user_result}\n'
-    f'*Ordini senza prodotti:* {orders_no_product_result}\n\n'
-  )
+  message_lines = ['*📊 Report Check Mismatch*\n']
+  message_lines.append('*⚠️ Schedules con problemi:*')
+  if schedule_issues:
+    for s in schedule_issues:
+      missing_str = ', '.join(s['missing'])
+      message_lines.append(
+        f'- Schedule ID {s["schedule_id"]} | Data: {s["date"]} | '
+        f'Trasporto: {s["transport_id"]} | Mancano: {missing_str}'
+      )
+  else:
+    message_lines.append('✔️ Nessun problema trovato.')
+
+  message_lines.append('\n*❌ Ordini senza utente:*')
+  if orders_no_user_result:
+    for o in orders_no_user_result:
+      message_lines.append(f'- Order ID {o["order_id"]} | Destinatario: {o["addressee"]} | Stato: {o["status"]}')
+  else:
+    message_lines.append('✔️ Nessun ordine senza utente.')
+
+  message_lines.append('\n*❌ Ordini senza prodotti:*')
+  if orders_no_product_result:
+    for o in orders_no_product_result:
+      message_lines.append(f'- Order ID {o["order_id"]} | Destinatario: {o["addressee"]} | Stato: {o["status"]}')
+  else:
+    message_lines.append('✔️ Nessun ordine senza prodotti.')
+
+  message = '\n'.join(message_lines)
+  send_telegram_message(message)
+
   return {'status': 'ok', 'message': 'Check eseguiti con successo'}
