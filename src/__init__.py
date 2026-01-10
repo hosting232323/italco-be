@@ -50,13 +50,13 @@ def serve_image(filename):
 def trigger_backup():
   backup_path = os.path.join(STATIC_FOLDER, 'backup')
   if not os.path.exists(backup_path):
-    return {'status': 'ko', 'message': 'Cartella di backup non trovata'}
+    return {'status': 'ko', 'error': 'Cartella di backup non trovata'}
 
   zip_filename = data_export(DATABASE_URL)
   safe_copy_to_remote(zip_filename, os.path.join(backup_path, zip_filename))
   manage_local_backups(backup_path)
   print(f'[{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}] Backup eseguito!')
-  return {'status': 'ok', 'message': 'Backup eseguito con successo'}
+  return {'status': 'ok', 'error': 'Backup eseguito con successo'}
 
 
 def safe_copy_to_remote(src, dst):

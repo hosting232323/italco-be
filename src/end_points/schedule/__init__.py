@@ -32,11 +32,12 @@ def create_schedule(user: User):
     if response:
       return response
 
+    if any(query_schedules_count(user['id'], schedule_data['date']) > 0 for user in users):
+      return {'status': 'ko', 'error': 'Uno di questi utenti delivery è già assegnato'}
+
     schedule: Schedule = create(Schedule, schedule_data, session=session)
     for user in users:
-      if query_schedules_count(user['id'], schedule.date) == 0:
-        create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']}, session=session)
-
+      create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']}, session=session)
     for item in schedule_items:
       handle_schedule_item(item, schedule, session)
 

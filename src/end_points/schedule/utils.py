@@ -47,7 +47,7 @@ def format_schedule_data(schedule_data: dict, session=None):
           break
 
   users = schedule_data['users']
-  if not orders or not collection_points and not users or len(users) == 0:
+  if not orders or not collection_points or not users or len(users) == 0:
     return None, None, None, {'status': 'ko', 'error': 'Errore nella creazione del borderò'}
 
   del schedule_data['users']
