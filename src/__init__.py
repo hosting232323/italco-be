@@ -17,8 +17,11 @@ allowed_origins = [
 
 PORT = int(os.environ.get('PORT', 8080))
 DATABASE_URL = os.environ['DATABASE_URL']
-STATIC_FOLDER = os.environ.get('STATIC_FOLDER', '../static')
 POSTGRES_BACKUP_DAYS = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
+STATIC_FOLDER = os.environ.get(
+  'STATIC_FOLDER',
+  os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
+)
 
 
 app = Flask(__name__, static_folder=STATIC_FOLDER, template_folder='../templates')
