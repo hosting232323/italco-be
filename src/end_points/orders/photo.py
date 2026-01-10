@@ -2,9 +2,9 @@ import os
 from flask import request
 from sqlalchemy import text
 from sqlalchemy.orm import Session as session_type
+
+from ... import STATIC_FOLDER
 from api.storage import upload_file
-from api.settings import IS_DEV
-from ... import STATIC_FOLDER, API_PREFIX
 from database_api.operations import create
 from ...database.schema import Photo, Order
 
@@ -16,13 +16,16 @@ def handle_photos(data: dict, order: Order, session: session_type):
       if file_key == 'signature':
         data['signature'] = uploaded_file.read()
       else:
-        filename = f'{guess_next_id(session)}{guess_extension(uploaded_file.mimetype)}'
-        link = upload_file(uploaded_file.read(), filename, './static/photos', 'local')
         create(
           Photo,
           {
-            'link': link[0],
             'order_id': order.id,
+            'link': upload_file(
+              uploaded_file.read(),
+              f'{guess_next_id(session)}{guess_extension(uploaded_file.mimetype)}',
+              os.path.join(STATIC_FOLDER, 'photos'),
+              'local',
+            ),
           },
           session=session,
         )
