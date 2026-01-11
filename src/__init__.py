@@ -19,8 +19,7 @@ PORT = int(os.environ.get('PORT', 8080))
 DATABASE_URL = os.environ['DATABASE_URL']
 POSTGRES_BACKUP_DAYS = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
 STATIC_FOLDER = os.environ.get(
-  'STATIC_FOLDER',
-  os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
+  'STATIC_FOLDER', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
 )
 
 
