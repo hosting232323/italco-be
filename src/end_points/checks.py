@@ -1,8 +1,8 @@
 from flask import Blueprint
 
 from database_api import Session
-from api import error_catching_decorator
 from api.telegram import send_telegram_message
+from api import error_catching_decorator, swagger_decorator
 from ..database.schema import Order, Product, ServiceUser, Schedule
 
 
@@ -10,7 +10,8 @@ checks_bp = Blueprint('checks_bp', __name__)
 
 
 @checks_bp.route('', methods=['GET'])
-# @error_catching_decorator
+@error_catching_decorator
+@swagger_decorator
 def check_mismatch():
   with Session() as session:
     # --- Schedule senza ScheduleItem o DeliveryGroup ---
