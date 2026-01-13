@@ -127,7 +127,7 @@ def update_order(user: User, id):
         Motivation,
         {
           'delay': is_delay,
-          'id_order': data['id'],
+          'order_id': data['id'],
           'status': OrderStatus(data['status']),
           'anomaly': data['anomaly'] if 'delay' in data else False,
           'text': data['motivation'],
@@ -214,8 +214,6 @@ def delete_order(user: User, id):
       'error': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",
     }
 
-  for product in query_products(order):
-    delete(product)
   delete(order)
   return {'status': 'ok', 'message': 'Operazione completata'}
 

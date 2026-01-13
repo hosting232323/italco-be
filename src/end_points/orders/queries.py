@@ -163,7 +163,7 @@ def get_order_photos(order_id: int) -> list[Photo]:
 
 def get_motivations_by_order_id(order_id: int) -> list[Motivation]:
   with Session() as session:
-    return session.query(Motivation).filter(Motivation.id_order == order_id).all()
+    return session.query(Motivation).filter(Motivation.order_id == order_id).all()
 
 
 def get_customer_user_by_order(order: Order) -> User:

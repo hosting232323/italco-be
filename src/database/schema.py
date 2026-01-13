@@ -91,8 +91,8 @@ class Order(BaseEntity):
   mark = Column(Float)
   external_id = Column(String)
 
-  photo = relationship('Photo', back_populates='order')
   schedule_item_order = relationship('ScheduleItemOrder', back_populates='order')
+  photo = relationship('Photo', back_populates='order', cascade='all, delete-orphan')
   product = relationship('Product', back_populates='order', cascade='all, delete-orphan')
   motivations = relationship('Motivation', back_populates='order', cascade='all, delete-orphan')
 
@@ -100,11 +100,11 @@ class Order(BaseEntity):
 class Motivation(BaseEntity):
   __tablename__ = 'motivation'
 
-  id_order = Column(Integer, ForeignKey('order.id'), nullable=False)
-  status = Column(Enum(OrderStatus), nullable=False)
+  text = Column(String)
   delay = Column(Boolean, default=False)
   anomaly = Column(Boolean, default=False)
-  text = Column(String)
+  status = Column(Enum(OrderStatus), nullable=False)
+  order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
 
   order = relationship('Order', back_populates='motivations')
 
