@@ -64,45 +64,51 @@ def estrai_testo_pdf(percorso_pdf):
 
 
 def parse_bolla(testo):
-    dati = {}
+  dati = {}
+  
+  destinatario = re.search(r"Destinatario:\s*(.+)", testo)
+  dati["destinatario"] = destinatario.group(1).strip() if destinatario else None
 
-    dati["numero_bolla"] = re.search(r"BOLLA DI SERVIZIO E CONSEGNA Numero:\s*(\d+)", testo)
-    dati["numero_bolla"] = dati["numero_bolla"].group(1) if dati["numero_bolla"] else None
+  indirizzo_destinatario = re.search(r"Destinatario:.*\n(.+)", testo)
+  if indirizzo_destinatario:
+      indirizzo_completo = indirizzo_destinatario.group(1).strip()
+      citta_match = re.search(r"Città\s*:\s*(.+)", indirizzo_completo)
 
-    dati["data_emissione"] = re.search(r"Data emissione.*?\n(\d{2}/\d{2}/\d{4})", testo)
-    dati["data_emissione"] = dati["data_emissione"].group(1) if dati["data_emissione"] else None
+      dati["citta"] = citta_match.group(1).strip() if citta_match else None
+      dati["indirizzo_destinatario"] = re.sub(r"Città\s*:\s*.+", "", indirizzo_completo).strip()
+  else:
+      dati["indirizzo_destinatario"] = None
+      dati["citta"] = None
 
-    dati["luogo_emissione"] = re.search(r"Data emissione Luogo di emissione\n.*?\s+(\w+)", testo)
-    dati["luogo_emissione"] = dati["luogo_emissione"].group(1) if dati["luogo_emissione"] else None
+  telefono = re.search(r"Tel - Cell:\s*([\d]+)", testo)
+  dati["telefono"] = telefono.group(1) if telefono else None
+  
+  
+  righe = [riga.strip() for riga in testo.strip().split("\n") if riga.strip()]
+  dati_articoli = []
 
-    dati["destinatario"] = re.search(r"Destinatario:\s*(.+)", testo)
-    dati["destinatario"] = dati["destinatario"].group(1).strip() if dati["destinatario"] else None
+  inizio_tabella = None
+  for i, riga in enumerate(righe):
+    if "Articolo" in riga and "Modello" in riga:
+      inizio_tabella = i + 1
+      break
 
-    dati["indirizzo_destinatario"] = re.search(r"Destinatario:.*\n(.+)", testo)
-    dati["indirizzo_destinatario"] = dati["indirizzo_destinatario"].group(1).strip() if dati["indirizzo_destinatario"] else None
+  if inizio_tabella is not None:
+    for riga in righe[inizio_tabella:]:
+      match = re.match(r"(\d+)\s+(\S+)\s+(.+?)\s+(\d+)\s+(.+)", riga)
+      if match:
+        codice, modello, descrizione, quantita, servizio = match.groups()
+        dati_articoli.append({
+          "articolo": codice,
+          "modello": modello,
+          "descrizione": descrizione.strip(),
+          "quantita": quantita,
+          "servizio": servizio.strip()
+        })
 
-    dati["telefono"] = re.search(r"Tel - Cell:\s*([\d]+)", testo)
-    dati["telefono"] = dati["telefono"].group(1) if dati["telefono"] else None
+  dati["articoli"] = dati_articoli
 
-    articolo = re.search(
-        r"ARTICOLI E SERVIZI RICHIESTI.*?\n(\d+)\s+(.+?)\s+(\d+)\s+CONSEGNA",
-        testo,
-        re.S
-    )
-
-    if articolo:
-        dati["codice_articolo"] = articolo.group(1)
-        dati["descrizione_articolo"] = articolo.group(2).strip()
-        dati["quantita"] = articolo.group(3)
-    else:
-        dati["codice_articolo"] = None
-        dati["descrizione_articolo"] = None
-        dati["quantita"] = None
-
-    dati["data_consegna"] = re.search(r"Data consegna:\s*(\d{2}/\d{2}/\d{4})", testo)
-    dati["data_consegna"] = dati["data_consegna"].group(1) if dati["data_consegna"] else None
-
-    return dati
+  return dati
 
 
 @swagger_decorator
