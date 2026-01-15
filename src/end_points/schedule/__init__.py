@@ -2,14 +2,14 @@ from datetime import datetime
 from flask import Blueprint, request
 
 from database_api import Session
+from ...database.enum import UserRole, OrderStatus
 from ..users.session import flask_session_authentication
 from ..users.queries import format_user_with_delivery_info
 from ...database.schema import Schedule, User, DeliveryGroup
-from ...database.enum import UserRole, ScheduleType, OrderStatus
 from database_api.operations import create, delete, get_by_id, update
 from .schedulation import assign_orders_to_groups, build_schedule_items
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
-from .utils import handle_schedule_item, delete_schedule_items, clear_order, format_schedule_data
+from .utils import handle_schedule_item, delete_schedule_items, schedule_items_updating, format_schedule_data
 from .queries import (
   query_schedules,
   query_schedules_count,
@@ -74,9 +74,6 @@ def update_schedule(user: User, id):
   with Session() as session:
     schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     actual_schedule_items = get_schedule_items(schedule, session=session)
-    actual_order_ids = [
-      item[2].order_id for item in actual_schedule_items if item[0].operation_type == ScheduleType.ORDER
-    ]
 
     delivery_groups = get_delivery_groups(schedule, session=session)
     deleted_users = []
@@ -99,28 +96,7 @@ def update_schedule(user: User, id):
       if user['id'] not in actual_user_ids and query_schedules_count(user['id'], schedule.date) == 0:
         create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']}, session=session)
 
-    for order_id in list(
-      set(actual_order_ids)
-      - set(
-        map(
-          lambda schedule_item: schedule_item['order'].id,
-          filter(
-            lambda schedule_item: ScheduleType.get_enum_option(schedule_item['operation_type']) == ScheduleType.ORDER,
-            schedule_items,
-          ),
-        )
-      )
-    ):
-      clear_order(order_id, session=session)
-
-    for index, item in enumerate(schedule_items):
-      if index < len(actual_schedule_items):
-        handle_schedule_item(item, schedule, session, actual_order_ids, actual_schedule_items[index])
-      else:
-        handle_schedule_item(item, schedule, session, actual_order_ids)
-    if index < len(actual_schedule_items) - 1:
-      delete_schedule_items(actual_schedule_items[index + 1 :], session=session)
-
+    schedule_items_updating(schedule_items, actual_schedule_items, schedule, session=session)
     session.commit()
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
