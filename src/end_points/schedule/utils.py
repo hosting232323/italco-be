@@ -79,6 +79,8 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
       },
       session=session,
     )
+    update(order, {'assignament_date': datetime.now(), 'status': OrderStatus.IN_PROGRESS}, session=session)
+    schedule_sms_check(order, new_item)
 
   elif operation_type == ScheduleType.COLLECTIONPOINT:
     create(
@@ -89,8 +91,6 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
       },
       session=session,
     )
-
-  return new_item
 
 
 def clear_order(order_id: int, session=None):
@@ -131,12 +131,7 @@ def schedule_items_updating(
         session=session,
       )
     else:
-      new_item = handle_schedule_item(schedule_item, schedule, session=session)
-
-      if schedule_item['operation_type'] == 'Order':
-        order: Order = get_by_id(Order, schedule_item['order_id'], session=session)
-        update(order, {'assignament_date': datetime.now(), 'status': OrderStatus.IN_PROGRESS}, session=session)
-        schedule_sms_check(order, new_item)
+      handle_schedule_item(schedule_item, schedule, session=session)
 
   items_to_delete = []
   for actual_item in actual_schedule_items:
