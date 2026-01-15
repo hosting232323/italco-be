@@ -115,6 +115,31 @@ def format_query_result(
   return list
 
 
+def get_schedule_item_for_order_id_filter(
+  schedule_id: int,
+) -> list[tuple[Schedule, ScheduleItem, CollectionPoint, Order, Product]]:
+  with Session() as session:
+    return (
+      session.query(Schedule, ScheduleItem, CollectionPoint, Order, Product)
+      .join(ScheduleItem, and_(ScheduleItem.schedule_id == Schedule.id, Schedule.id == schedule_id))
+      .outerjoin(
+        ScheduleItemCollectionPoint,
+        and_(
+          ScheduleItem.operation_type == ScheduleType.COLLECTIONPOINT,
+          ScheduleItemCollectionPoint.schedule_item_id == ScheduleItem.id,
+        ),
+      )
+      .outerjoin(CollectionPoint, CollectionPoint.id == ScheduleItemCollectionPoint.collection_point_id)
+      .outerjoin(
+        ScheduleItemOrder,
+        and_(ScheduleItem.operation_type == ScheduleType.ORDER, ScheduleItemOrder.schedule_item_id == ScheduleItem.id),
+      )
+      .outerjoin(Order, ScheduleItemOrder.order_id == Order.id)
+      .outerjoin(Product, Order.id == Product.order_id)
+      .all()
+    )
+
+
 def format_schedule_item(
   schedule_items: list, schedule_item: ScheduleItem, collection_point: CollectionPoint, order: Order, product: Product
 ):

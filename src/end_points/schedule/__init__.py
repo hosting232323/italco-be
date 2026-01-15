@@ -18,6 +18,8 @@ from .queries import (
   get_schedule_items,
   get_delivery_users_by_date,
   get_transports_by_date,
+  get_schedule_item_for_order_id_filter,
+  format_schedule_item,
 )
 
 
@@ -65,6 +67,12 @@ def get_schedules(user: User):
   schedules = []
   for tupla in query_schedules(request.json['filters'], 100):
     schedules = format_query_result(tupla, schedules, user)
+
+  if any(filter['model'] == 'Order' and filter['field'] == 'id' for filter in request.json['filters']):
+    for schedule in schedules:
+      for tupla in get_schedule_item_for_order_id_filter(schedule['id']):
+        format_schedule_item(schedule['schedule_items'], tupla[1], tupla[2], tupla[3], tupla[4])
+
   return {'status': 'ok', 'schedules': schedules}
 
 
