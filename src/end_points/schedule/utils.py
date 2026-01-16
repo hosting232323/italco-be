@@ -24,6 +24,8 @@ def format_schedule_data(schedule_data: dict, session=None):
       'operation_type': item['operation_type'],
       'start_time_slot': item['start_time_slot'],
     }
+    if 'id' in item:
+      schedule_item['id'] = item['id']
     if item['operation_type'] == 'Order':
       order_ids.append(item['order_id'])
       schedule_item['order_id'] = item['order_id']
@@ -122,7 +124,7 @@ def schedule_items_updating(
   for schedule_item in schedule_items:
     if 'id' in schedule_item:
       update(
-        next(actual_item for actual_item in actual_schedule_items if actual_item[0].id == schedule_item['id']),
+        next(actual_item[0] for actual_item in actual_schedule_items if actual_item[0].id == schedule_item['id']),
         {
           'index': schedule_item['index'],
           'end_time_slot': schedule_item['end_time_slot'],
