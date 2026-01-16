@@ -206,10 +206,10 @@ class ServiceUser(BaseEntity):
 class Product(BaseEntity):
   __tablename__ = 'product'
 
-  name = Column(String, nullable=False)
+  name = Column(String, nullable=False) # Articolo Modello Tipologia - Descrizione
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
-  service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
-  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
+  service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False) # id random
+  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False) # id random
 
   order = relationship('Order', back_populates='product')
   service_user = relationship('ServiceUser', back_populates='product')

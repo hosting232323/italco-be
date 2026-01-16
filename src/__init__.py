@@ -52,7 +52,8 @@ import re
 @app.route('/file-read', methods=['POST'])
 def file_read():
   testo = estrai_testo_pdf('tommaso tedesco.pdf')
-  return parse_bolla(testo)
+  parse_bolla(testo)
+  return {'status': 'ok'}
 
 
 def estrai_testo_pdf(percorso_pdf):
@@ -62,53 +63,61 @@ def estrai_testo_pdf(percorso_pdf):
       testo += pagina.extract_text() + "\n"
   return testo
 
+from database_api.operations import create
+from .database.schema import Order
+from .database.enum import OrderStatus, OrderType
 
 def parse_bolla(testo):
-  dati = {}
+  m_addressee = re.search(r"Destinatario:\s*(.+)", testo)
+  addressee = m_addressee.group(1).strip() if m_addressee else None
   
-  destinatario = re.search(r"Destinatario:\s*(.+)", testo)
-  dati["destinatario"] = destinatario.group(1).strip() if destinatario else None
-
-  indirizzo_destinatario = re.search(r"Destinatario:.*\n(.+)", testo)
-  if indirizzo_destinatario:
-      indirizzo_completo = indirizzo_destinatario.group(1).strip()
-      citta_match = re.search(r"Città\s*:\s*(.+)", indirizzo_completo)
-
-      dati["citta"] = citta_match.group(1).strip() if citta_match else None
-      dati["indirizzo_destinatario"] = re.sub(r"Città\s*:\s*.+", "", indirizzo_completo).strip()
-  else:
-      dati["indirizzo_destinatario"] = None
-      dati["citta"] = None
-
-  telefono = re.search(r"Tel - Cell:\s*([\d]+)", testo)
-  dati["telefono"] = telefono.group(1) if telefono else None
+  m_addressee_contact = re.search(r"Tel - Cell:\s*(\d+)", testo)
+  addressee_contact = m_addressee_contact.group(1).strip() if m_addressee_contact else None
   
-  
-  righe = [riga.strip() for riga in testo.strip().split("\n") if riga.strip()]
-  dati_articoli = []
+  address = None
+  if addressee:
+    m_address = re.search(r"Destinatario:.*\n(.+)", testo)
+    if m_address:
+      address = re.sub(r"Città\s*:\s*.+", "", m_address.group(1).strip()).strip()
 
-  inizio_tabella = None
-  for i, riga in enumerate(righe):
-    if "Articolo" in riga and "Modello" in riga:
-      inizio_tabella = i + 1
-      break
+  m_dpc = re.search(r"Data consegna:\s*(\d{2}/\d{2}/\d{4})", testo)
+  dpc = datetime.strptime(m_dpc.group(1).strip(), "%d/%m/%Y").date() if m_dpc else None
 
-  if inizio_tabella is not None:
-    for riga in righe[inizio_tabella:]:
-      match = re.match(r"(\d+)\s+(\S+)\s+(.+?)\s+(\d+)\s+(.+)", riga)
-      if match:
-        codice, modello, descrizione, quantita, servizio = match.groups()
-        dati_articoli.append({
-          "articolo": codice,
-          "modello": modello,
-          "descrizione": descrizione.strip(),
-          "quantita": quantita,
-          "servizio": servizio.strip()
-        })
+  # righe = [riga.strip() for riga in testo.strip().split("\n") if riga.strip()]
+  # dati_articoli = []
 
-  dati["articoli"] = dati_articoli
+  # inizio_tabella = None
+  # for i, riga in enumerate(righe):
+  #   if "Articolo" in riga and "Modello" in riga:
+  #     inizio_tabella = i + 1
+  #     break
 
-  return dati
+  # if inizio_tabella is not None:
+  #   for riga in righe[inizio_tabella:]:
+  #     match = re.match(r"(\d+)\s+(\S+)\s+(.+?)\s+(\d+)\s+(.+)", riga)
+  #     if match:
+  #       codice, modello, descrizione, quantita, servizio = match.groups()
+  #       dati_articoli.append({
+  #         "articolo": codice,
+  #         "modello": modello,
+  #         "descrizione": descrizione.strip(),
+  #         "quantita": quantita,
+  #         "servizio": servizio.strip()
+  #       })
+        
+  # data_consegna = re.search(r"Data consegna", testo)
+  # dati["data_consegna"] = data_consegna.group(1) if data_consegna else None
+        
+  create(Order, {
+    "status": OrderStatus.PENDING,
+    "type": OrderType.DELIVERY,
+    "addressee": addressee,
+    "address": address,
+    "addressee_contact": addressee_contact,
+    "cap": 76011,
+    "dpc": dpc,
+    "drc": datetime.now()
+  })
 
 
 @swagger_decorator
