@@ -21,7 +21,7 @@ def handle_photos(data: dict, order: Order, session: session_type):
           {
             'order_id': order.id,
             'link': upload_file(
-              uploaded_file.read(),
+              uploaded_file,
               f'{guess_next_id(session)}{guess_extension(uploaded_file.mimetype)}',
               os.path.join(STATIC_FOLDER, 'photos'),
               'local',
