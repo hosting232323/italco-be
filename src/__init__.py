@@ -8,6 +8,8 @@ from api.settings import IS_DEV
 from database_api.backup import data_export
 from api import swagger_decorator, PrefixMiddleware
 
+from .end_points.geographic_zone import get_cap_by_name
+
 
 allowed_origins = [
   'https://ares-logistics.it',
@@ -51,7 +53,7 @@ import re
 
 @app.route('/file-read', methods=['POST'])
 def file_read():
-  testo = estrai_testo_pdf('tommaso tedesco.pdf')
+  testo = estrai_testo_pdf('doc (28)_merged-1.pdf')
   parse_bolla(testo)
   return {'status': 'ok'}
 
@@ -79,9 +81,24 @@ def parse_bolla(testo):
     m_address = re.search(r"Destinatario:.*\n(.+)", testo)
     if m_address:
       address = re.sub(r"Città\s*:\s*.+", "", m_address.group(1).strip()).strip()
-
+      
+      cities = re.findall(r"Città\s*:\s*(.+)", testo)
+      city = cities[1].strip() if len(cities) > 1 else (cities[0].strip() if cities else None)
+      city = re.sub(r"\bnd\b", "", city, flags=re.IGNORECASE).strip()
+      
   m_dpc = re.search(r"Data consegna:\s*(\d{2}/\d{2}/\d{4})", testo)
   dpc = datetime.strptime(m_dpc.group(1).strip(), "%d/%m/%Y").date() if m_dpc else None
+  
+  create(Order, {
+    "status": OrderStatus.PENDING,
+    "type": OrderType.DELIVERY,
+    "addressee": addressee,
+    "address": address,
+    "addressee_contact": addressee_contact,
+    "cap": get_cap_by_name(city),
+    "dpc": dpc,
+    "drc": datetime.now()
+  })
 
   # righe = [riga.strip() for riga in testo.strip().split("\n") if riga.strip()]
   # dati_articoli = []
@@ -107,17 +124,6 @@ def parse_bolla(testo):
         
   # data_consegna = re.search(r"Data consegna", testo)
   # dati["data_consegna"] = data_consegna.group(1) if data_consegna else None
-        
-  create(Order, {
-    "status": OrderStatus.PENDING,
-    "type": OrderType.DELIVERY,
-    "addressee": addressee,
-    "address": address,
-    "addressee_contact": addressee_contact,
-    "cap": 76011,
-    "dpc": dpc,
-    "drc": datetime.now()
-  })
 
 
 @swagger_decorator
