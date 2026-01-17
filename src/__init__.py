@@ -10,6 +10,12 @@ from api import swagger_decorator, PrefixMiddleware
 
 from .end_points.geographic_zone import get_cap_by_name
 
+import re
+import pdfplumber
+from database_api.operations import create
+from .database.schema import Order
+from .database.enum import OrderStatus, OrderType
+
 
 allowed_origins = [
   'https://ares-logistics.it',
@@ -48,8 +54,6 @@ def index():
 def serve_image(filename):
   return send_from_directory(STATIC_FOLDER, filename)
 
-import pdfplumber
-import re
 
 @app.route('/file-read', methods=['POST'])
 def file_read():
@@ -59,46 +63,46 @@ def file_read():
 
 
 def estrai_testo_pdf(percorso_pdf):
-  testo = ""
+  testo = ''
   with pdfplumber.open(percorso_pdf) as pdf:
     for pagina in pdf.pages:
-      testo += pagina.extract_text() + "\n"
+      testo += pagina.extract_text() + '\n'
   return testo
 
-from database_api.operations import create
-from .database.schema import Order
-from .database.enum import OrderStatus, OrderType
 
 def parse_bolla(testo):
-  m_addressee = re.search(r"Destinatario:\s*(.+)", testo)
+  m_addressee = re.search(r'Destinatario:\s*(.+)', testo)
   addressee = m_addressee.group(1).strip() if m_addressee else None
-  
-  m_addressee_contact = re.search(r"Tel - Cell:\s*(\d+)", testo)
+
+  m_addressee_contact = re.search(r'Tel - Cell:\s*(\d+)', testo)
   addressee_contact = m_addressee_contact.group(1).strip() if m_addressee_contact else None
-  
+
   address = None
   if addressee:
-    m_address = re.search(r"Destinatario:.*\n(.+)", testo)
+    m_address = re.search(r'Destinatario:.*\n(.+)', testo)
     if m_address:
-      address = re.sub(r"Città\s*:\s*.+", "", m_address.group(1).strip()).strip()
-      
-      cities = re.findall(r"Città\s*:\s*(.+)", testo)
+      address = re.sub(r'Città\s*:\s*.+', '', m_address.group(1).strip()).strip()
+
+      cities = re.findall(r'Città\s*:\s*(.+)', testo)
       city = cities[1].strip() if len(cities) > 1 else (cities[0].strip() if cities else None)
-      city = re.sub(r"\bnd\b", "", city, flags=re.IGNORECASE).strip()
-      
-  m_dpc = re.search(r"Data consegna:\s*(\d{2}/\d{2}/\d{4})", testo)
-  dpc = datetime.strptime(m_dpc.group(1).strip(), "%d/%m/%Y").date() if m_dpc else None
-  
-  create(Order, {
-    "status": OrderStatus.PENDING,
-    "type": OrderType.DELIVERY,
-    "addressee": addressee,
-    "address": address,
-    "addressee_contact": addressee_contact,
-    "cap": get_cap_by_name(city),
-    "dpc": dpc,
-    "drc": datetime.now()
-  })
+      city = re.sub(r'\bnd\b', '', city, flags=re.IGNORECASE).strip()
+
+  m_dpc = re.search(r'Data consegna:\s*(\d{2}/\d{2}/\d{4})', testo)
+  dpc = datetime.strptime(m_dpc.group(1).strip(), '%d/%m/%Y').date() if m_dpc else None
+
+  create(
+    Order,
+    {
+      'status': OrderStatus.PENDING,
+      'type': OrderType.DELIVERY,
+      'addressee': addressee,
+      'address': address,
+      'addressee_contact': addressee_contact,
+      'cap': get_cap_by_name(city),
+      'dpc': dpc,
+      'drc': datetime.now(),
+    },
+  )
 
   # righe = [riga.strip() for riga in testo.strip().split("\n") if riga.strip()]
   # dati_articoli = []
@@ -121,7 +125,7 @@ def parse_bolla(testo):
   #         "quantita": quantita,
   #         "servizio": servizio.strip()
   #       })
-        
+
   # data_consegna = re.search(r"Data consegna", testo)
   # dati["data_consegna"] = data_consegna.group(1) if data_consegna else None
 

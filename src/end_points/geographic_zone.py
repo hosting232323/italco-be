@@ -142,7 +142,7 @@ def get_cap_by_name(city_name: str) -> str | None:
   city_name_lower = city_name.lower()
   for province, caps in CAPS_DATA.items():
     for cap, info in caps.items():
-      if info["name"].lower() == city_name_lower:
+      if info['name'].lower() == city_name_lower:
         return cap
   return None
 
