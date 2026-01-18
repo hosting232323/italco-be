@@ -5,9 +5,13 @@ from scipy.optimize import linear_sum_assignment
 from ..geographic_zone import CAPS_DATA
 
 
+MIN_SIZE_GROUP = 12
+MAX_DISTANCE_KM = 50
+
+
 def assign_orders_to_groups(orders, delivery_users):
   schedule_item_groups = []
-  for group in find_cap_groups(orders):
+  for group in merge_small_groups(orders):
     group_orders = []
     for order in orders:
       order_caps = {product['collection_point']['cap'] for product in order['products'].values()}
@@ -46,6 +50,52 @@ def assign_orders_to_groups(orders, delivery_users):
     }
     for index, schedule_item_group in enumerate(schedule_item_groups)
   ]
+
+
+def merge_small_groups(orders):
+  small_groups = []
+  large_groups = []
+  for group in find_cap_groups(orders):
+    if len(group) < MIN_SIZE_GROUP:
+      lat, lon = get_group_centroid(group)
+      if lat is not None and lon is not None:
+        small_groups.append({'group': group, 'centroid': (lat, lon), 'merged': False})
+    else:
+      large_groups.append(group)
+
+  merged_groups = []
+  for first_index, first_group in enumerate(small_groups):
+    if first_group['merged']:
+      continue
+
+    merged_group = set(first_group['group'])
+    first_group['merged'] = True
+
+    for second_index, second_group in enumerate(small_groups):
+      if (
+        first_index != second_index
+        and not second_group['merged']
+        and len(merged_group) + len(second_group['group']) <= MIN_SIZE_GROUP
+        and geodesic(first_group['centroid'], second_group['centroid']).kilometers <= MAX_DISTANCE_KM
+      ):
+        merged_group.update(second_group['group'])
+        second_group['merged'] = True
+
+    merged_groups.append(merged_group)
+  return large_groups + merged_groups
+
+
+def get_group_centroid(cap_group):
+  coords = []
+  for cap in cap_group:
+    lat, lon = get_lat_lon_by_cap(cap)
+    if lat is not None and lon is not None:
+      coords.append((lat, lon))
+
+  if not coords:
+    return None, None
+
+  return sum(lat for lat, lon in coords) / len(coords), sum(lon for lat, lon in coords) / len(coords)
 
 
 def calculate_group_cost(user, schedule_items):
