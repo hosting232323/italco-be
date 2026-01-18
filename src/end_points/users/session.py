@@ -6,6 +6,7 @@ from flask import request
 from functools import wraps
 from datetime import datetime, timedelta
 
+from ..log import save_log_endpoint
 from api import send_telegram_error
 from ...database.schema import User
 from ...database.enum import UserRole
@@ -33,6 +34,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
         if roles and user.role not in roles:
           return {'status': 'session', 'error': 'Ruolo non autorizzato'}
 
+        save_log_endpoint(user)
         result = func(user, *args, **kwargs)
         if isinstance(result, dict):
           result['new_token'] = create_jwt_token(user)
