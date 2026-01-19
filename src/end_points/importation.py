@@ -19,7 +19,16 @@ import_bp = Blueprint('import_bp', __name__)
 def order_import(user: User):
   if 'file' not in request.files:
     return {'status': 'ko', 'error': 'Nessun file caricato'}
+  
+  if(request.form['type'] == 'excel'):
+    imported_orders_count, conflicted_orders = excel_import()
+  elif(request.form['type'] == 'pdf'):
+    imported_orders_count, conflicted_orders = pdf_import()
 
+  return {'status': 'ok', 'imported_orders_count': imported_orders_count, 'conflicted_orders': conflicted_orders}
+
+
+def excel_import():
   conflicted_orders = []
   imported_orders_count = 0
   orders = parse_orders(request.files['file'], request.form['customer_id'])
@@ -56,8 +65,12 @@ def order_import(user: User):
         },
       )
     imported_orders_count += 1
-  return {'status': 'ok', 'imported_orders_count': imported_orders_count, 'conflicted_orders': conflicted_orders}
+    
+  return imported_orders_count, conflicted_orders
 
+
+def pdf_import():
+  return 0,1
 
 @import_bp.route('conflict', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
