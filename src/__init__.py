@@ -13,7 +13,7 @@ from .end_points.geographic_zone import get_cap_by_name
 import re
 import pdfplumber
 from database_api.operations import create
-from .database.schema import Order
+from .database.schema import Order, Product
 from .database.enum import OrderStatus, OrderType
 
 
@@ -57,20 +57,55 @@ def serve_image(filename):
 
 @app.route('/file-read', methods=['POST'])
 def file_read():
-  testo = estrai_testo_pdf('doc (28)_merged-1.pdf')
-  parse_bolla(testo)
+  testo = ''
+  
+  with pdfplumber.open('doc (28)_merged-1.pdf') as pdf:
+    for pagina in pdf.pages:
+      testo += pagina.extract_text() + '\n'
+    order: Order = pdf_create_order(testo)
+    pdf_create_product(pagina.extract_tables(), order.id)
+  # parse_bolla(testo)
+
   return {'status': 'ok'}
 
 
-def estrai_testo_pdf(percorso_pdf):
-  testo = ''
-  with pdfplumber.open(percorso_pdf) as pdf:
-    for pagina in pdf.pages:
-      testo += pagina.extract_text() + '\n'
-  return testo
+def pdf_create_product(tables, order_id: int):
+  for table in tables:
+    header = table[0]
+    if header == [
+        'Articolo',
+        'Modello',
+        'Tipologia - Descrizione',
+        'Quantità - Peso Jg',
+        'Servizio'
+    ]:
+      for row in table[1:]:
+        quantita = None
+        peso = None
+
+        if row[3]:
+          parti = row[3].split()
+          quantita = parti[0]
+          if len(parti) > 1:
+            peso = parti[1]
+
+        create(Product, {
+          'name': f'{row[0]} {row[1]} {row[2]}',
+          'order_id': order_id,
+          'service_user_id': 3,
+          'collection_point_id': 3
+        })
+        # articolo = {
+        #   'articolo': row[0],
+        #   'modello': row[1],
+        #   'descrizione': row[2],
+        #   'quantita': int(quantita) if quantita else None,
+        #   'peso_jg': float(peso) if peso else None,
+        #   'servizio': row[4],
+        # }
 
 
-def parse_bolla(testo):
+def pdf_create_order(testo):
   m_addressee = re.search(r'Destinatario:\s*(.+)', testo)
   addressee = m_addressee.group(1).strip() if m_addressee else None
 
@@ -90,7 +125,7 @@ def parse_bolla(testo):
   m_dpc = re.search(r'Data consegna:\s*(\d{2}/\d{2}/\d{4})', testo)
   dpc = datetime.strptime(m_dpc.group(1).strip(), '%d/%m/%Y').date() if m_dpc else None
 
-  create(
+  return create(
     Order,
     {
       'status': OrderStatus.PENDING,
@@ -103,31 +138,6 @@ def parse_bolla(testo):
       'drc': datetime.now(),
     },
   )
-
-  # righe = [riga.strip() for riga in testo.strip().split("\n") if riga.strip()]
-  # dati_articoli = []
-
-  # inizio_tabella = None
-  # for i, riga in enumerate(righe):
-  #   if "Articolo" in riga and "Modello" in riga:
-  #     inizio_tabella = i + 1
-  #     break
-
-  # if inizio_tabella is not None:
-  #   for riga in righe[inizio_tabella:]:
-  #     match = re.match(r"(\d+)\s+(\S+)\s+(.+?)\s+(\d+)\s+(.+)", riga)
-  #     if match:
-  #       codice, modello, descrizione, quantita, servizio = match.groups()
-  #       dati_articoli.append({
-  #         "articolo": codice,
-  #         "modello": modello,
-  #         "descrizione": descrizione.strip(),
-  #         "quantita": quantita,
-  #         "servizio": servizio.strip()
-  #       })
-
-  # data_consegna = re.search(r"Data consegna", testo)
-  # dati["data_consegna"] = data_consegna.group(1) if data_consegna else None
 
 
 @swagger_decorator
