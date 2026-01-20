@@ -3,33 +3,34 @@ import pdfplumber
 from datetime import datetime
 from flask import Blueprint,request
 
-from database_api.operations import create, get_by_id
+from database_api import Session
+from database_api.operations import create
 from .geographic_zone import get_cap_by_name
-from ..database.schema import Order, Product, 
-from ..database.enum import OrderType, OrderStatus, UserRole
 from .users.session import flask_session_authentication
+from ..database.enum import OrderType, OrderStatus, UserRole
+from ..database.schema import Order, Product, User, CollectionPoint
 
 
 pdf_import_bp = Blueprint('pdf_import_bp', __name__)
 
 
-@pdf_import_bp.route('/', methods=['POST'])
+@pdf_import_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def order_import():
+def order_import(user: User):
   testo = ''
-  
-  print(request.form['customer_id'])
-  
-  with pdfplumber.open('doc (28)_merged-1.pdf') as pdf:
-    for pagina in pdf.pages:
-      testo += pagina.extract_text() + '\n'
-    order: Order = pdf_create_order(testo)
-    pdf_create_product(pagina.extract_tables(), order.id)
+  collection_point = get_collection_point(request.form['customer_id'])
+
+  for _, file in request.files.items():
+    with pdfplumber.open(file) as pdf:
+      for pagina in pdf.pages:
+        testo += pagina.extract_text() + '\n'
+      order: Order = pdf_create_order(testo)
+      pdf_create_product(pagina.extract_tables(), order.id, collection_point.id)
 
   return {'status': 'ok'}
 
 
-def pdf_create_product(tables, order_id: int):
+def pdf_create_product(tables, order_id: int, collection_point_id: int):
   for table in tables:
     header = table[0]
     if header == [
@@ -44,7 +45,7 @@ def pdf_create_product(tables, order_id: int):
           'name': f'{row[0]} {row[1]} {row[2]}',
           'order_id': order_id,
           'service_user_id': 3,
-          'collection_point_id': 3
+          'collection_point_id': collection_point_id
         })
         # articolo = {
         #   'articolo': row[0],
@@ -89,3 +90,12 @@ def pdf_create_order(testo):
       'drc': datetime.now(),
     },
   )
+
+
+def get_collection_point(customer_id: int) -> CollectionPoint:
+  with Session() as session:
+    return (
+      session.query(CollectionPoint)
+      .filter(CollectionPoint.user_id == customer_id)
+      .first()
+    )
