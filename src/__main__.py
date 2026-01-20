@@ -14,10 +14,11 @@ from .end_points.checks import checks_bp
 from .end_points.chatty import chatty_bp
 from .end_points.service import service_bp
 from .end_points.schedule import schedule_bp
-from .end_points.importation import import_bp
 from .end_points.exportation import export_bp
 from .end_points.transport import transport_bp
+from .end_points.pdf_importation import pdf_import_bp
 from .end_points.customer_group import customer_group_bp
+from .end_points.excel_importation import excel_import_bp
 from .end_points.collection_point import collection_point_bp
 from .end_points.service.constraint import check_services_date
 from .end_points.customer_rules import customer_rules_bp, check_customer_rules
@@ -37,11 +38,12 @@ app.register_blueprint(user_bp, url_prefix='/user')
 app.register_blueprint(order_bp, url_prefix='/order')
 app.register_blueprint(checks_bp, url_prefix='/checks')
 app.register_blueprint(chatty_bp, url_prefix='/chatty')
-app.register_blueprint(import_bp, url_prefix='/import')
 app.register_blueprint(export_bp, url_prefix='/export')
 app.register_blueprint(service_bp, url_prefix='/service')
 app.register_blueprint(schedule_bp, url_prefix='/schedule')
 app.register_blueprint(transport_bp, url_prefix='/transport')
+app.register_blueprint(pdf_import_bp, url_prefix='/pdf-import')
+app.register_blueprint(excel_import_bp, url_prefix='/excel-import')
 app.register_blueprint(customer_rules_bp, url_prefix='/customer-rule')
 app.register_blueprint(customer_group_bp, url_prefix='/customer-group')
 app.register_blueprint(geographic_zone_bp, url_prefix='/geographic-zone')

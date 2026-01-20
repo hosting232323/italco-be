@@ -11,10 +11,10 @@ from ..database.enum import UserRole, OrderType, OrderStatus
 from ..database.schema import User, Order, Product, CollectionPoint
 
 
-import_bp = Blueprint('import_bp', __name__)
+excel_import_bp = Blueprint('excel_import_bp', __name__)
 
 
-@import_bp.route('', methods=['POST'])
+@excel_import_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def order_import(user: User):
   if 'file' not in request.files:
@@ -59,7 +59,7 @@ def order_import(user: User):
   return {'status': 'ok', 'imported_orders_count': imported_orders_count, 'conflicted_orders': conflicted_orders}
 
 
-@import_bp.route('conflict', methods=['POST'])
+@excel_import_bp.route('conflict', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def handle_conflict(user: User):
   imported_orders_count = 0
