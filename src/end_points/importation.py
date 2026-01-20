@@ -96,8 +96,6 @@ def parse_orders(file, customer_id):
     if service_user:
       orders[row['Rif. Com']]['services'].append({'id': service_user.id, 'name': row['Descr. Serv']})
     else:
-      print(row['LDP'])
-      print(get_collection_point(row['LDP'], customer_id))
       orders[row['Rif. Com']]['products'].append(
         {
           'name': row['Descr. Serv'],
@@ -116,7 +114,7 @@ def build_order(order: dict):
     'cap': order['CAP'],
     'dpc': order['DPC'],
     'drc': order['DRC'],
-    'floor': order['Piano'],
+    'floor': order['Piano'] if order['Piano'] != '' else None,
     'operator_note': 'Ordine importato da file',
     'customer_note': order['Note MW + Note'],
     'external_id': order['Rif. Com'],
