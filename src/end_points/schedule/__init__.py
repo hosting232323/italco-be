@@ -113,8 +113,6 @@ def update_schedule(user: User, id):
 @flask_session_authentication([UserRole.ADMIN])
 def get_schedule_suggestions(user: User):
   dpc = datetime.strptime(request.args['dpc'], '%Y-%m-%d')
-  min_size_group = request.args['min_size_group']
-  max_distance_km = request.args['max_distance_km']
   orders = []
   for tupla in query_orders(
     user,
@@ -133,8 +131,13 @@ def get_schedule_suggestions(user: User):
   return {
     'status': 'ok',
     'delivery_users': delivery_users,
-    'groups': assign_orders_to_groups(orders, delivery_users, min_size_group, max_distance_km),
     'transports': [transport.to_dict() for transport in get_transports_by_date(dpc)],
+    'groups': assign_orders_to_groups(
+      orders,
+      delivery_users,
+      int(request.args['min_size_group']),
+      int(request.args['max_distance_km']),
+    ),
   }
 
 
