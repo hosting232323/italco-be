@@ -5,13 +5,9 @@ from scipy.optimize import linear_sum_assignment
 from ..geographic_zone import CAPS_DATA
 
 
-MIN_SIZE_GROUP = 12
-MAX_DISTANCE_KM = 50
-
-
-def assign_orders_to_groups(orders, delivery_users):
+def assign_orders_to_groups(orders, delivery_users, min_size_group, max_distance_km):
   schedule_item_groups = []
-  for group in merge_small_groups(orders):
+  for group in merge_small_groups(orders, min_size_group, max_distance_km):
     group_orders = []
     for order in orders:
       order_caps = {product['collection_point']['cap'] for product in order['products'].values()}
@@ -52,11 +48,11 @@ def assign_orders_to_groups(orders, delivery_users):
   ]
 
 
-def merge_small_groups(orders):
+def merge_small_groups(orders, min_size_group, max_distance_km):
   small_groups = []
   large_groups = []
   for group in find_cap_groups(orders):
-    if len(group) < MIN_SIZE_GROUP:
+    if len(group) < min_size_group:
       lat, lon = get_group_centroid(group)
       if lat is not None and lon is not None:
         small_groups.append({'group': group, 'centroid': (lat, lon), 'merged': False})
@@ -75,8 +71,8 @@ def merge_small_groups(orders):
       if (
         first_index != second_index
         and not second_group['merged']
-        and len(merged_group) + len(second_group['group']) <= MIN_SIZE_GROUP
-        and geodesic(first_group['centroid'], second_group['centroid']).kilometers <= MAX_DISTANCE_KM
+        and len(merged_group) + len(second_group['group']) <= min_size_group
+        and geodesic(first_group['centroid'], second_group['centroid']).kilometers <= max_distance_km
       ):
         merged_group.update(second_group['group'])
         second_group['merged'] = True
