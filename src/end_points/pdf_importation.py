@@ -41,11 +41,11 @@ def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id:
       'Servizio'
     ]:
       for row in table[1:]:
-        service_user_id = get_service_user(user_id, row[4])
+        service_user = get_service_user(user_id, row[4])
         create(Product, {
           'name': f'{row[0]} {row[1]} {row[2]}',
           'order_id': order_id,
-          'service_user_id': service_user_id,
+          'service_user_id': service_user.id,
           'collection_point_id': collection_point_id
         })
 
