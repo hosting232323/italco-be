@@ -7,13 +7,13 @@ from ..geographic_zone import CAPS_DATA
 
 def assign_orders_to_groups(orders, delivery_users, min_size_group, max_distance_km):
   schedule_item_groups = []
-  for group in merge_small_groups(orders, min_size_group, max_distance_km):
+  for group in find_cap_groups(orders):
     group_orders = []
     for order in orders:
-      order_caps = {product['collection_point']['cap'] for product in order['products'].values()}
-      if order_caps & group:
+      if {product['collection_point']['cap'] for product in order['products'].values()} & group:
         group_orders.append(order)
     schedule_item_groups.append(build_schedule_items(group_orders))
+  schedule_item_groups = merge_small_groups(schedule_item_groups, min_size_group, max_distance_km)
 
   available_delivery_users = [
     delivery_user
@@ -48,14 +48,15 @@ def assign_orders_to_groups(orders, delivery_users, min_size_group, max_distance
   ]
 
 
-def merge_small_groups(orders, min_size_group, max_distance_km):
+def merge_small_groups(schedule_item_groups, min_size_group, max_distance_km):
   small_groups = []
   large_groups = []
-  for group in find_cap_groups(orders):
-    if len(group) < min_size_group:
+  for group in schedule_item_groups:
+    length = len([item for item in group if item['operation_type'] == 'Order'])
+    if length < min_size_group:
       lat, lon = get_group_centroid(group)
       if lat is not None and lon is not None:
-        small_groups.append({'group': group, 'centroid': (lat, lon), 'merged': False})
+        small_groups.append({'group': group, 'centroid': (lat, lon), 'merged': False, 'length': length})
     else:
       large_groups.append(group)
 
@@ -64,27 +65,26 @@ def merge_small_groups(orders, min_size_group, max_distance_km):
     if first_group['merged']:
       continue
 
-    merged_group = set(first_group['group'])
     first_group['merged'] = True
-
     for second_index, second_group in enumerate(small_groups):
       if (
         first_index != second_index
         and not second_group['merged']
-        and len(merged_group) + len(second_group['group']) <= min_size_group
+        and first_group['length'] + second_group['length'] <= min_size_group
         and geodesic(first_group['centroid'], second_group['centroid']).kilometers <= max_distance_km
       ):
-        merged_group.update(second_group['group'])
         second_group['merged'] = True
+        first_group['group'] += second_group['group']
+        first_group['length'] += second_group['length']
 
-    merged_groups.append(merged_group)
+    merged_groups.append(first_group['group'])
   return large_groups + merged_groups
 
 
-def get_group_centroid(cap_group):
+def get_group_centroid(schedule_items):
   coords = []
-  for cap in cap_group:
-    lat, lon = get_lat_lon_by_cap(cap)
+  for item in schedule_items:
+    lat, lon = get_lat_lon_by_cap(item['cap'])
     if lat is not None and lon is not None:
       coords.append((lat, lon))
 
