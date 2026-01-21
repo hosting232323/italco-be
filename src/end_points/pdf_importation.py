@@ -8,7 +8,7 @@ from database_api.operations import create
 from .geographic_zone import get_cap_by_name
 from .users.session import flask_session_authentication
 from ..database.enum import OrderType, OrderStatus, UserRole
-from ..database.schema import Order, Product, User, CollectionPoint
+from ..database.schema import Order, Product, User, CollectionPoint, ServiceUser
 
 
 pdf_import_bp = Blueprint('pdf_import_bp', __name__)
@@ -25,12 +25,12 @@ def order_import(user: User):
       for pagina in pdf.pages:
         testo += pagina.extract_text() + '\n'
       order: Order = pdf_create_order(testo)
-      pdf_create_product(pagina.extract_tables(), order.id, collection_point.id)
+      pdf_create_product(pagina.extract_tables(), order.id, collection_point.id, request.form['customer_id'])
 
   return {'status': 'ok'}
 
 
-def pdf_create_product(tables, order_id: int, collection_point_id: int):
+def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id: int):
   for table in tables:
     header = table[0]
     if header == [
@@ -41,20 +41,13 @@ def pdf_create_product(tables, order_id: int, collection_point_id: int):
       'Servizio'
     ]:
       for row in table[1:]:
+        service_user_id = get_service_user(user_id, row[4])
         create(Product, {
           'name': f'{row[0]} {row[1]} {row[2]}',
           'order_id': order_id,
-          'service_user_id': 3,
+          'service_user_id': service_user_id,
           'collection_point_id': collection_point_id
         })
-        # articolo = {
-        #   'articolo': row[0],
-        #   'modello': row[1],
-        #   'descrizione': row[2],
-        #   'quantita': int(quantita) if quantita else None,
-        #   'peso_jg': float(peso) if peso else None,
-        #   'servizio': row[4],
-        # }
 
 
 def pdf_create_order(testo):
@@ -97,5 +90,15 @@ def get_collection_point(customer_id: int) -> CollectionPoint:
     return (
       session.query(CollectionPoint)
       .filter(CollectionPoint.user_id == customer_id)
+      .first()
+    )
+
+
+def get_service_user(user_id: int, code: str) -> ServiceUser:
+  with Session() as session:
+    return (
+      session.query(ServiceUser)
+      .filter(ServiceUser.user_id == user_id)
+      .filter(ServiceUser.code == code)
       .first()
     )
