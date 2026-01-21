@@ -112,7 +112,7 @@ def build_order(order: dict):
     'addressee': order['Destinatario'],
     'address': f'{order["Indirizzo Dest."]}, {order["Localita"]}, {order["Provincia"]}',
     'cap': order['CAP'],
-    'dpc': order['DPC'],
+    'dpc': order['Booking'],
     'drc': order['DRC'],
     'floor': order['Piano'] if order['Piano'] != '' else None,
     'operator_note': 'Ordine importato da file',
