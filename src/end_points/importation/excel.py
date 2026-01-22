@@ -1,28 +1,18 @@
 import pandas as pd
 from sqlalchemy import func
 from collections import defaultdict
-from flask import Blueprint, request
 
 from database_api import Session
 from database_api.operations import create
-from .service.queries import get_service_users
-from .users.session import flask_session_authentication
-from ..database.enum import UserRole, OrderType, OrderStatus
-from ..database.schema import User, Order, Product, CollectionPoint
+from ..service.queries import get_service_users
+from ...database.enum import OrderType, OrderStatus
+from ...database.schema import Order, Product, CollectionPoint
 
 
-excel_import_bp = Blueprint('excel_import_bp', __name__)
-
-
-@excel_import_bp.route('', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN])
-def order_import(user: User):
-  if 'file' not in request.files:
-    return {'status': 'ko', 'error': 'Nessun file caricato'}
-
+def order_import_by_excel(file, customer_id):
   conflicted_orders = []
   imported_orders_count = 0
-  orders = parse_orders(request.files['file'], request.form['customer_id'])
+  orders = parse_orders(file, customer_id)
   for _, order_data in orders.items():
     if (
       len(order_data['products']) != 1
@@ -59,11 +49,9 @@ def order_import(user: User):
   return {'status': 'ok', 'imported_orders_count': imported_orders_count, 'conflicted_orders': conflicted_orders}
 
 
-@excel_import_bp.route('conflict', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN])
-def handle_conflict(user: User):
+def handle_excel_conflict(orders):
   imported_orders_count = 0
-  for order_data in request.json['orders']:
+  for order_data in orders:
     order = create(Order, build_order(order_data))
     for product_name, product in order_data['products'].items():
       for service_user_id in product['services']:

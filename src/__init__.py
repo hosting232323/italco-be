@@ -9,7 +9,6 @@ from database_api.backup import data_export
 from api import swagger_decorator, PrefixMiddleware
 
 
-
 allowed_origins = [
   'https://ares-logistics.it',
   'https://www.ares-logistics.it',
