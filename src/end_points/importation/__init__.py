@@ -19,7 +19,7 @@ def excel_order_import(user: User):
   return order_import_by_excel(request.files['file'], request.form['customer_id'])
 
 
-@import_bp.route('conflict', methods=['POST'])
+@import_bp.route('excel/conflict', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def handle_conflict(user: User):
   handle_excel_conflict(request.json['orders'])
