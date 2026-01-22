@@ -22,13 +22,13 @@ def excel_order_import(user: User):
 @import_bp.route('excel/conflict', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def handle_conflict(user: User):
-  handle_excel_conflict(request.json['orders'])
+  return handle_excel_conflict(request.json['orders'])
 
 
 @import_bp.route('pdf', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def pdf_order_import(user: User):
-  if len(request.files) < 1:
+  if not request.files:
     return {'status': 'ko', 'error': 'Nessun file caricato'}
 
   return order_import_by_pdf(request.files, request.form['customer_id'])

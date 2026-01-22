@@ -1,6 +1,7 @@
 import re
 import pdfplumber
 from datetime import datetime
+from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
 from database_api.operations import create
@@ -10,43 +11,45 @@ from ...database.schema import Order, Product, CollectionPoint, ServiceUser
 
 
 def order_import_by_pdf(files, customer_id):
+  collection_point = get_collection_point(customer_id)
+  if not collection_point:
+    return {'status': 'ko', 'error': 'Punto di ritiro non identificato'}
+
   text = ''
   orders_count = 0
-  for file in files.values():
-    with pdfplumber.open(file) as pdf:
-      for pagina in pdf.pages:
-        text += pagina.extract_text() + '\n'
+  with Session() as session:
+    for file in files.values():
+      with pdfplumber.open(file) as pdf:
+        for pagina in pdf.pages:
+          text += pagina.extract_text() + '\n'
 
-      orders_count += 1
-      order: Order = pdf_create_order(text)
-      pdf_create_product(
-        pagina.extract_tables(),
-        order.id,
-        get_collection_point(customer_id).id,
-        customer_id,
-      )
+        orders_count += 1
+        order: Order = pdf_create_order(text, session=session)
+        pdf_create_product(pagina.extract_tables(), order.id, collection_point.id, customer_id, session=session)
 
+    session.commit()
   return {'status': 'ok', 'imported_orders_count': orders_count}
 
 
-def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id: int):
+def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id: int, session):
   for table in tables:
     header = table[0]
     if header == ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']:
       for row in table[1:]:
-        service_user = get_service_user(user_id, row[4])
+        service_user = get_service_user(user_id, row[4], session=session)
         create(
           Product,
           {
-            'name': f'{row[0]} {row[1]} {row[2]}',
             'order_id': order_id,
             'service_user_id': service_user.id,
+            'name': f'{row[0]} {row[1]} {row[2]}',
             'collection_point_id': collection_point_id,
           },
+          session=session,
         )
 
 
-def pdf_create_order(text):
+def pdf_create_order(text, session):
   m_addressee = re.search(r'Destinatario:\s*(.+)', text)
   addressee = m_addressee.group(1).strip() if m_addressee else None
 
@@ -69,15 +72,16 @@ def pdf_create_order(text):
   return create(
     Order,
     {
-      'status': OrderStatus.PENDING,
-      'type': OrderType.DELIVERY,
-      'addressee': addressee,
-      'address': address,
-      'addressee_contact': addressee_contact,
-      'cap': get_cap_by_name(city),
       'dpc': dpc,
+      'address': address,
       'drc': datetime.now(),
+      'addressee': addressee,
+      'type': OrderType.DELIVERY,
+      'cap': get_cap_by_name(city),
+      'status': OrderStatus.PENDING,
+      'addressee_contact': addressee_contact,
     },
+    session=session,
   )
 
 
@@ -86,6 +90,5 @@ def get_collection_point(customer_id: int) -> CollectionPoint:
     return session.query(CollectionPoint).filter(CollectionPoint.user_id == customer_id).first()
 
 
-def get_service_user(user_id: int, code: str) -> ServiceUser:
-  with Session() as session:
-    return session.query(ServiceUser).filter(ServiceUser.user_id == user_id).filter(ServiceUser.code == code).first()
+def get_service_user(user_id: int, code: str, session: session_type) -> ServiceUser:
+  return session.query(ServiceUser).filter(ServiceUser.user_id == user_id, ServiceUser.code == code).first()
