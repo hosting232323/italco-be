@@ -8,6 +8,7 @@ from database_api import set_database
 from . import app, DATABASE_URL, PORT
 from .end_points.users.session import flask_session_authentication
 
+
 from .end_points.users import user_bp
 from .end_points.orders import order_bp
 from .end_points.checks import checks_bp
