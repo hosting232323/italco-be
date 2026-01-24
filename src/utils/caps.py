@@ -23,10 +23,14 @@ def get_cap_by_name(city_name: str) -> str | None:
   return None
 
 
-def get_lat_lon_by_cap(cap):
+def get_lat_lon_by_cap(cap: str) -> tuple[float, float]:
   for province in CAPS_DATA.keys():
     if cap in CAPS_DATA[province]:
       cap_data = CAPS_DATA[province][cap]
       return cap_data['lat'], cap_data['lon']
 
   raise ValueError('Cap not found')
+
+
+def get_caps_by_province(province: str) -> dict:
+  return CAPS_DATA[province].copy().keys() if province in CAPS_DATA else []
