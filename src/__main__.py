@@ -12,6 +12,7 @@ from .end_points.users import user_bp
 from .end_points.orders import order_bp
 from .end_points.checks import checks_bp
 from .end_points.chatty import chatty_bp
+from .end_points.service import service_bp
 from .end_points.schedule import schedule_bp
 from .end_points.importation import import_bp
 from .end_points.exportation import export_bp
@@ -19,7 +20,7 @@ from .end_points.transport import transport_bp
 from .end_points.rae_product import rae_product_bp
 from .end_points.customer_group import customer_group_bp
 from .end_points.collection_point import collection_point_bp
-from .end_points.service import service_bp, check_services_date
+from .end_points.service.constraint import check_services_date
 from .end_points.customer_rule import customer_rules_bp, check_customer_rules
 from .end_points.geographic_zone import geographic_zone_bp, check_geographic_zone
 
