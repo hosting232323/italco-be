@@ -7,7 +7,7 @@ from database_api import Session
 from ..database.enum import UserRole
 from .users.session import flask_session_authentication
 from database_api.operations import create, delete, get_by_id
-from ..utils.caps import get_caps_by_province, get_province_by_cap
+from ..utils.caps import get_cap_data_by_province, get_province_by_cap
 from ..database.schema import GeographicZone, Constraint, GeographicCode, User, Order
 
 
@@ -53,7 +53,7 @@ def delete_constraint(user: User, entity, id):
 
 def check_geographic_zone() -> list[datetime]:
   province = get_province_by_cap(request.json['cap'])
-  caps = get_caps_by_province(province)
+  caps = get_cap_data_by_province(province)
   for cap in query_special_caps_by_geographic_zone(province):
     if cap.type:
       caps.append(cap.code)
