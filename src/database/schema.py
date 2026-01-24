@@ -208,12 +208,23 @@ class Product(BaseEntity):
 
   name = Column(String, nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
+  rae_product_id = Column(Integer, ForeignKey('rae_product.id'), nullable=True)
   service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
 
   order = relationship('Order', back_populates='product')
+  rae_product = relationship('RaeProduct', back_populates='product')
   service_user = relationship('ServiceUser', back_populates='product')
   collection_point = relationship('CollectionPoint', back_populates='product')
+
+
+class RaeProduct(BaseEntity):
+  __tablename__ = 'rae_product'
+
+  name = Column(String, nullable=False)
+  code = Column(Integer, nullable=False)
+
+  product = relationship('Product', back_populates='rae_product')
 
 
 class GeographicZone(BaseEntity):
