@@ -8,6 +8,7 @@ from database_api import set_database
 from . import app, DATABASE_URL, PORT
 from .end_points.users.session import flask_session_authentication
 
+from .end_points.log import log_bp
 from .end_points.users import user_bp
 from .end_points.orders import order_bp
 from .end_points.checks import checks_bp
@@ -34,6 +35,7 @@ def check_constraints(user: User):
   }
 
 
+app.register_blueprint(log_bp, url_prefix='/log')
 app.register_blueprint(user_bp, url_prefix='/user')
 app.register_blueprint(order_bp, url_prefix='/order')
 app.register_blueprint(checks_bp, url_prefix='/checks')
