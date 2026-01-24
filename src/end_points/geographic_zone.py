@@ -1,11 +1,14 @@
 from sqlalchemy import and_
 from flask import Blueprint, request
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 
 from database_api import Session
 from ..database.enum import UserRole
+from ..utils.caps import CAPS_DATA, get_province_by_cap
 from .users.session import flask_session_authentication
 from database_api.operations import create, delete, get_by_id
-from ..database.schema import GeographicZone, Constraint, GeographicCode, User
+from ..database.schema import GeographicZone, Constraint, GeographicCode, User, Order
 
 
 geographic_zone_bp = Blueprint('geographic_zone_bp', __name__)
@@ -46,6 +49,36 @@ def create_entity(user: User, entity: str):
 def delete_constraint(user: User, entity, id):
   delete(get_by_id(get_class(entity), int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
+
+
+def check_geographic_zone() -> list[datetime]:
+  province = get_province_by_cap(request.json['cap'])
+  caps = CAPS_DATA[province].copy().keys() if province in CAPS_DATA else []
+  for cap in query_special_caps_by_geographic_zone(province):
+    if cap.type:
+      caps.append(cap.code)
+    else:
+      caps.remove(cap.code)
+
+  zones = execute_query_and_format_result(province)
+  constraints = zones[0]['constraints'] if zones else []
+  orders = get_orders_by_cap(caps)
+  constraint_days = [constraint['day_of_week'] for constraint in constraints]
+  start = datetime.today().date()
+  allowed_dates = []
+  end = start + relativedelta(months=2)
+  while start <= end:
+    if start.weekday() in constraint_days:
+      order_count = 0
+      for order in orders:
+        if order.dpc == start:
+          order_count += 1
+      for rule in constraints:
+        if rule['day_of_week'] == start.weekday() and order_count < rule['max_orders']:
+          allowed_dates.append(start.strftime('%Y-%m-%d'))
+          break
+    start += timedelta(days=1)
+  return allowed_dates
 
 
 def execute_query_and_format_result(province=None) -> list[dict]:
@@ -100,5 +133,14 @@ def query_special_caps_by_geographic_zone(province: str) -> list[GeographicCode]
     return (
       session.query(GeographicCode)
       .join(GeographicZone, and_(GeographicZone.id == GeographicCode.zone_id, GeographicZone.name == province))
+      .all()
+    )
+
+
+def get_orders_by_cap(caps: list[str]) -> list[Order]:
+  with Session() as session:
+    return (
+      session.query(Order)
+      .filter(Order.cap.in_(caps), Order.dpc > datetime.today(), Order.dpc < datetime.today() + relativedelta(months=2))
       .all()
     )
