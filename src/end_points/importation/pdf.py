@@ -4,8 +4,8 @@ from datetime import datetime
 from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
+from ...utils.caps import get_cap_by_name
 from database_api.operations import create
-from ..geographic_zone import get_cap_by_name
 from ...database.enum import OrderType, OrderStatus
 from ...database.schema import Order, Product, CollectionPoint, ServiceUser
 

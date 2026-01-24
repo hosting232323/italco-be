@@ -2,7 +2,7 @@ from collections import defaultdict
 from geopy.distance import geodesic
 from scipy.optimize import linear_sum_assignment
 
-from ..geographic_zone import CAPS_DATA
+from ...utils.caps import get_lat_lon_by_cap
 
 
 def assign_orders_to_groups(orders, delivery_users, min_size_group, max_distance_km):
@@ -97,15 +97,6 @@ def get_group_centroid(schedule_items):
 def calculate_group_cost(user, schedule_items):
   user_coord = get_lat_lon_by_cap(user['delivery_user_info']['cap'])
   return sum(geodesic(get_lat_lon_by_cap(item['cap']), user_coord).meters for item in schedule_items)
-
-
-def get_lat_lon_by_cap(cap):
-  for province in CAPS_DATA.keys():
-    if cap in CAPS_DATA[province]:
-      cap_data = CAPS_DATA[province][cap]
-      return cap_data['lat'], cap_data['lon']
-
-  raise ValueError('Cap not found')
 
 
 def find_cap_groups(orders):

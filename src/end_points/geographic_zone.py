@@ -1,4 +1,3 @@
-import json
 from sqlalchemy import and_
 from flask import Blueprint, request
 from datetime import datetime, timedelta
@@ -8,13 +7,11 @@ from database_api import Session
 from ..database.enum import UserRole
 from .users.session import flask_session_authentication
 from database_api.operations import create, delete, get_by_id
+from ..utils.caps import get_cap_data_by_province, get_province_by_cap
 from ..database.schema import GeographicZone, Constraint, GeographicCode, User, Order
 
 
 geographic_zone_bp = Blueprint('geographic_zone_bp', __name__)
-
-with open('assets/caps.json', 'r') as file:
-  CAPS_DATA: dict = json.load(file)
 
 
 @geographic_zone_bp.route('', methods=['POST'])
@@ -56,7 +53,7 @@ def delete_constraint(user: User, entity, id):
 
 def check_geographic_zone() -> list[datetime]:
   province = get_province_by_cap(request.json['cap'])
-  caps = CAPS_DATA[province].copy().keys() if province in CAPS_DATA else []
+  caps = get_cap_data_by_province(province)
   for cap in query_special_caps_by_geographic_zone(province):
     if cap.type:
       caps.append(cap.code)
@@ -129,22 +126,6 @@ def format_query_result(tupla: tuple[GeographicZone, Constraint, GeographicCode]
     }
   )
   return list
-
-
-def get_province_by_cap(cap: str) -> str:
-  for province, caps in CAPS_DATA.items():
-    if cap in caps:
-      return province
-  raise ValueError(f'CAP {cap} not found in any province')
-
-
-def get_cap_by_name(city_name: str) -> str | None:
-  city_name_lower = city_name.lower()
-  for province, caps in CAPS_DATA.items():
-    for cap, info in caps.items():
-      if info['name'].lower() == city_name_lower:
-        return cap
-  return None
 
 
 def query_special_caps_by_geographic_zone(province: str) -> list[GeographicCode]:
