@@ -1,7 +1,8 @@
 from collections import defaultdict
 from geopy.distance import geodesic
-from ...utils.caps import get_lat_lon_by_cap
 from scipy.optimize import linear_sum_assignment
+
+from ...utils.caps import get_lat_lon_by_cap
 
 
 def assign_orders_to_groups(orders, delivery_users, min_size_group, max_distance_km):
