@@ -1,4 +1,4 @@
-"""add professional to service
+"""Professional service
 
 Revision ID: 022
 Revises: 021
