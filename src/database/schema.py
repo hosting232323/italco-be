@@ -8,7 +8,6 @@ from .enum import UserRole, OrderStatus, OrderType, ScheduleType
 class User(BaseEntity):
   __tablename__ = 'user'
 
-  email = Column(String)
   password = Column(String)
   role = Column(Enum(UserRole), nullable=False)
   nickname = Column(String, unique=True, nullable=False)
@@ -43,10 +42,11 @@ class DeliveryUserInfo(BaseEntity):
 class CustomerUserInfo(BaseEntity):
   __tablename__ = 'customer_user_info'
 
-  city = Column(String, nullable=False)
-  address = Column(String, nullable=False)
-  tax_code = Column(String, nullable=False)
-  company_name = Column(String, nullable=False)
+  email = Column(String)
+  city = Column(String)
+  address = Column(String)
+  tax_code = Column(String)
+  company_name = Column(String)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='customer_user_info')
