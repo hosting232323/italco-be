@@ -2,15 +2,15 @@ from flask import Blueprint, request
 
 from ...database.enum import UserRole
 from api import error_catching_decorator
-from ...database.schema import User, DeliveryUserInfo
 from .session import flask_session_authentication, create_jwt_token
 from database_api.operations import delete, get_by_id, create, update
+from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo
 from .queries import (
   query_users,
-  format_user_with_delivery_info,
+  format_user_with_info,
   count_user_dependencies,
   get_user_by_nickname,
-  get_delivery_user_info,
+  get_user_info,
 )
 
 
@@ -34,7 +34,7 @@ def cancell_user(user: User, id):
 @user_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
 def get_users(user: User):
-  return {'status': 'ok', 'users': [format_user_with_delivery_info(result, user.role) for result in query_users(user)]}
+  return {'status': 'ok', 'users': [format_user_with_info(result, user.role) for result in query_users(user)]}
 
 
 @user_bp.route('', methods=['POST'])
@@ -80,20 +80,24 @@ def login():
 @user_bp.route('position', methods=['POST'])
 @flask_session_authentication([UserRole.DELIVERY])
 def update_position(user: User):
-  save_delivery_user_info(user.id, {'lat': float(request.json['lat']), 'lon': float(request.json['lon'])})
+  save_user_info(user.id, {'lat': float(request.json['lat']), 'lon': float(request.json['lon'])}, DeliveryUserInfo)
   return {'status': 'ok', 'message': 'Posizione aggiornata'}
 
 
-@user_bp.route('delivery-user-info', methods=['POST'])
+@user_bp.route('info', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def update_delivery_user_info(user: User):
-  save_delivery_user_info(request.json['user_id'], {'cap': request.json['cap']})
-  return {'status': 'ok', 'message': 'Attributo aggiornata'}
+def save_user_info_endpoint(user: User):
+  save_user_info(
+    request.json['user_id'],
+    request.json['data'],
+    DeliveryUserInfo if request.json['class'] == 'Delivery' else CustomerUserInfo,
+  )
+  return {'status': 'ok', 'message': 'Informazioni utente aggiornate'}
 
 
-def save_delivery_user_info(user_id: int, params: dict):
-  delivery_user_info = get_delivery_user_info(user_id)
-  if not delivery_user_info:
-    create(DeliveryUserInfo, {**params, 'user_id': user_id})
+def save_user_info(user_id: int, params: dict, klass):
+  user_info = get_user_info(user_id, klass)
+  if not user_info:
+    create(klass, {**params, 'user_id': user_id})
   else:
-    update(delivery_user_info, params)
+    update(user_info, params)

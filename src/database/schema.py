@@ -17,6 +17,7 @@ class User(BaseEntity):
   customer_group = relationship('CustomerGroup', back_populates='user')
   delivery_group = relationship('DeliveryGroup', back_populates='user')
   delivery_user_info = relationship('DeliveryUserInfo', back_populates='user')
+  customer_user_info = relationship('CustomerUserInfo', back_populates='user')
   service_user = relationship('ServiceUser', back_populates='user', cascade='all, delete-orphan')
   customer_rule = relationship('CustomerRule', back_populates='user', cascade='all, delete-orphan')
   collection_point = relationship('CollectionPoint', back_populates='user', cascade='all, delete-orphan')
@@ -37,6 +38,18 @@ class DeliveryUserInfo(BaseEntity):
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='delivery_user_info')
+
+
+class CustomerUserInfo(BaseEntity):
+  __tablename__ = 'customer_user_info'
+
+  city = Column(String, nullable=False)
+  address = Column(String, nullable=False)
+  tax_code = Column(String, nullable=False)
+  company_name = Column(String, nullable=False)
+  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+
+  user = relationship('User', back_populates='customer_user_info')
 
 
 class CustomerGroup(BaseEntity):
@@ -222,7 +235,8 @@ class RaeProduct(BaseEntity):
   __tablename__ = 'rae_product'
 
   name = Column(String, nullable=False)
-  code = Column(Integer, nullable=False)
+  cer_code = Column(Integer, nullable=False)
+  group_code = Column(String, nullable=False)
 
   product = relationship('Product', back_populates='rae_product')
 

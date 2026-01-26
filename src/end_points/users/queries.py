@@ -1,6 +1,14 @@
 from database_api import Session
 from ...database.enum import UserRole
-from ...database.schema import User, ServiceUser, CollectionPoint, CustomerRule, Product, DeliveryUserInfo
+from ...database.schema import (
+  User,
+  ServiceUser,
+  CollectionPoint,
+  CustomerRule,
+  Product,
+  DeliveryUserInfo,
+  CustomerUserInfo,
+)
 
 
 def query_users(user: User, role: UserRole = None) -> list[User]:
@@ -31,12 +39,16 @@ def count_user_dependencies(id: int) -> dict:
     }
 
 
-def format_user_with_delivery_info(user: User, role: UserRole) -> dict:
+def format_user_with_info(user: User, role: UserRole) -> dict:
   user_dict = user.format_user(role)
   if role == UserRole.ADMIN and user.role == UserRole.DELIVERY:
-    delivery_user_info = get_delivery_user_info(user.id)
+    delivery_user_info = get_user_info(user.id, DeliveryUserInfo)
     if delivery_user_info:
       user_dict['delivery_user_info'] = delivery_user_info.to_dict()
+  elif role in [UserRole.ADMIN, UserRole.OPERATOR] and user.role == UserRole.CUSTOMER:
+    customer_user_info = get_user_info(user.id, CustomerUserInfo)
+    if customer_user_info:
+      user_dict['customer_user_info'] = customer_user_info.to_dict()
   return user_dict
 
 
@@ -45,6 +57,9 @@ def get_user_by_nickname(nickname: str) -> User | None:
     return session.query(User).filter(User.nickname == nickname).first()
 
 
-def get_delivery_user_info(user_id: int) -> DeliveryUserInfo:
+def get_user_info(user_id: int, klass) -> DeliveryUserInfo | CustomerUserInfo:
+  if not hasattr(klass, 'user_id'):
+    raise AttributeError(f"{klass.__name__} non ha l'attributo user_id")
+
   with Session() as session:
-    return session.query(DeliveryUserInfo).filter(DeliveryUserInfo.user_id == user_id).first()
+    return session.query(klass).filter(getattr(klass, 'user_id') == user_id).first()

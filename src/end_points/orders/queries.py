@@ -154,6 +154,7 @@ def add_service(
   object['price'] += price
   object['products'][product.name]['services'].append(service.to_dict())
   object['products'][product.name]['services'][-1]['product_id'] = product.id
+  object['products'][product.name]['rae_product_id'] = product.rae_product_id
 
 
 def get_order_photos(order_id: int) -> list[Photo]:

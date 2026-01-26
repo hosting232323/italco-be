@@ -16,6 +16,7 @@ def create_product(order: Order, products: dict, user_id: int, session=None):
               'order_id': order.id,
               'service_user_id': service_user.id,
               'collection_point_id': products[product]['collection_point']['id'],
+              'rae_product_id': products[product]['rae_product'] if 'rae_product' in products[product] else None,
             },
             session=session,
           )
@@ -40,6 +41,7 @@ def update_product(order: Order, products: dict, user_id: int, session=None):
               'order_id': order.id,
               'service_user_id': service_user.id,
               'collection_point_id': products[product]['collection_point']['id'],
+              'rae_product_id': products[product]['rae_product'] if 'rae_product' in products[product] else None,
             },
             session=session,
           )

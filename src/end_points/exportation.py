@@ -3,9 +3,10 @@ from io import BytesIO
 from xhtml2pdf import pisa
 from flask import Blueprint, render_template, make_response, request
 
-from ..database.schema import User, Order
 from database_api.operations import get_by_id
+from .users.queries import format_user_with_info
 from ..database.enum import UserRole, OrderStatus
+from ..database.schema import User, Order, RaeProduct
 from .users.session import flask_session_authentication
 from .orders.queries import query_orders, format_query_result as format_order_query_result
 from .schedule.queries import query_schedules, format_query_result as format_schedule_query_result
@@ -114,6 +115,39 @@ def export_orders_schedule(user: User, id):
       users=', '.join([user['nickname'] for user in schedules[0]['users']]),
       transport=schedules[0]['transport']['name'],
       orders=[{**order, 'signature': get_signature(get_by_id(Order, order['id']))} for order in orders],
+    ),
+    dest=result,
+  )
+  if pisa_status.err:
+    raise Exception('Errore nella creazione del PDF')
+
+  return export_pdf(result.getvalue())
+
+
+@export_bp.route('rae/<order_id>', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+def export_rae(user: User, order_id):
+  orders = []
+  for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(order_id)}]):
+    orders = format_order_query_result(tupla, orders, user)
+  if len(orders) != 1:
+    raise Exception('Numero di ordini trovati non valido')
+
+  rae_product = None
+  for product_data in orders[0]['products'].values():
+    if product_data['rae_product_id']:
+      rae_product = get_by_id(RaeProduct, product_data['rae_product_id'])
+  if not rae_product:
+    raise Exception('Prodotto rae non identificato')
+
+  result = BytesIO()
+  pisa_status = pisa.CreatePDF(
+    src=render_template(
+      'rae_product.html',
+      rae_product=rae_product,
+      address=orders[0]['address'],
+      addressee=orders[0]['addressee'],
+      customer=format_user_with_info(get_by_id(User, orders[0]['user']['id']), user.role),
     ),
     dest=result,
   )

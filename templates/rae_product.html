@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: Helvetica, sans-serif;
+      font-size: 13px;
+      margin: 0;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      font-size: 16px;
+      margin-top: 30px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+    }
+
+    .section {
+      margin-bottom: 20px;
+    }
+
+    .info-table, .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .info-table td,
+    .data-table td,
+    .data-table th {
+      border: 1px solid #ccc;
+      padding: 8px;
+      vertical-align: top;
+    }
+
+    .info-table td.label {
+      font-weight: bold;
+      background: #f2f2f2;
+      width: 30%;
+    }
+
+    .data-table th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+      text-align: left;
+    }
+
+    .flex-row {
+      display: flex;
+      gap: 20px;
+      justify-content: space-between;
+    }
+
+    .half-section {
+      flex: 1;
+    }
+
+    .half-section h2 {
+      font-size: 15px;
+      margin-top: 0;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h1>Documento di trasporto raee</h1>
+
+  <div class="section">
+    <h2>Distributore</h2>
+    <table class="info-table">
+      <tr>
+        <td class="label">Ragione Sociale</td><td>{{ customer.customer_user_info.company_name }}</td>
+        <td class="label">Codice Fiscale</td><td>{{ customer.customer_user_info.tax_code }}</td>
+      </tr>
+      <tr>
+        <td class="label">Città</td><td>{{ customer.customer_user_info.city }}</td>
+        <td class="label">Indirizzo</td><td>{{ customer.customer_user_info.address }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Utente che conferisce il  rifiuto</h2>
+    <table class="info-table">
+      <tr><td class="label">Nominativo</td><td>{{ addressee }}</td></tr>
+      <tr><td class="label">Indirizzo</td><td>{{ address }}</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Caratteristiche del rifiuto</h2>
+    <table class="info-table">
+      <tr>
+        <td class="label">Descrizione</td><td>{{ rae_product.name }}</td>
+        <td class="label">Codice CER</td><td>{{ rae_product.cer_code }}</td>
+      </tr>
+      <tr>
+        <td class="label">Codice Raggruppamento</td><td>{{ rae_product.group_code }}</td>
+        <td class="label">Quantità</td><td>0</td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>
