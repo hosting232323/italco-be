@@ -87,10 +87,68 @@
   </div>
 
   <div class="section">
+    <h2>Trasportatore del rifiuto (RAEE)</h2>
+    <table class="info-table">
+      <tr>
+        <td class="label">Ragione Sociale</td><td>ITALCO.MI LOGISTRIBUZIONI SRL</td>
+        <td class="label">Codice Fiscale</td><td>02735550747</td>
+      </tr>
+      <tr>
+        <td class="label">Estremi albo</td><td>H1 - DLS. 166/2024 del 14/11/2024</td>
+        <td class="label">Targa</td><td>nd</td>
+      </tr>
+      <tr>
+        <td class="label">Città</td><td>Mesagne Brin</td>
+        <td class="label">Indirizzo</td><td>VIA EMANUELE FILIBERTO DUCA</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
     <h2>Utente che conferisce il  rifiuto</h2>
     <table class="info-table">
       <tr><td class="label">Nominativo</td><td>{{ addressee }}</td></tr>
       <tr><td class="label">Indirizzo</td><td>{{ address }}</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Primo destinatario</h2>
+    <table class="info-table">
+      <tr><td class="label">Eventuale diverso Luogo di Raggruppamento dei RAEE</td><td>nd</td></tr>
+    </table>
+  </div>
+
+  <div style="page-break-before: always;"></div>
+
+  <div class="section">
+    <h2>Destinatario finale</h2>
+    <table class="info-table">
+      <tr>
+        <td class="label">Ragione Sociale</td><td>LDR-BARI JAPIGIA</td>
+        <td class="label">Codice Fiscale</td><td>01360421216</td>
+      </tr>
+      <tr>
+        <td class="label">Luogo di destino</td><td>Via Arturo Toscanini n 20,70126 Bari Japigia Bari Bari</td>
+        <td class="label">Aut. centro di raccolta</td><td>NA09699 del</td>
+      </tr>
+      <tr>
+        <td class="label">Responsabile del C.D.R. (per i RAEE domestici)</td><td>&nbsp;</td>
+        <td class="label">Responsabile del C.D.R. (per iRAEE professionali)</td><td>&nbsp;</td>
+      </tr>
+        <tr>
+        <td class="label">Ritiro R.A.E.E. non effettuato per</td>
+        <td>
+          <label>
+            <input type="checkbox"> R.A.E.E. non disponibile
+          </label>
+          &nbsp;&nbsp;
+          <label>
+            <input type="checkbox"> R.A.E.E. non conforme
+          </label>
+        </td>
+        <td class="label">Firma</td><td>&nbsp;</td>
+      </tr>
     </table>
   </div>
 
@@ -104,6 +162,19 @@
       <tr>
         <td class="label">Codice Raggruppamento</td><td>{{ rae_product.group_code }}</td>
         <td class="label">Quantità</td><td>0</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <table class="info-table">
+      <tr>
+        <td class="label">FIRMA DELL'UTENTE presso cui si è effettuato il ritiro</td><td>&nbsp;</td>
+        <td class="label">FIRMA DEL DISTRIBUTORE / INSTALLATORE / GESTORE CENTRO ASSISTENZA TECNICA:</td><td>&nbsp;</td>
+      </tr>
+      <tr>
+        <td class="label">FIRMA TRASPORTATORE</td><td>&nbsp;</td>
+        <td class="label">FIRMA DESTINATARIO FINALE</td><td>&nbsp;</td>
       </tr>
     </table>
   </div>
