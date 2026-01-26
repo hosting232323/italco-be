@@ -7,12 +7,12 @@ from .mailer import mailer_check
 from .photo import handle_photos
 from .sms_sender import delay_sms_check
 from api import error_catching_decorator
+from ..users.queries import get_user_info
 from ..service.queries import get_service_users
-from ..users.queries import get_delivery_user_info
 from .services import create_product, update_product
 from ..users.session import flask_session_authentication
 from ...database.enum import OrderStatus, UserRole, OrderType
-from ...database.schema import User, Order, Motivation, ServiceUser
+from ...database.schema import User, Order, Motivation, ServiceUser, DeliveryUserInfo
 from database_api.operations import create, update, get_by_id, delete
 from ..schedule.queries import get_schedule_item_by_order, get_delivery_groups_by_order_id
 from .queries import (
@@ -102,7 +102,7 @@ def get_order(id):
 
   if orders[0]['status'] == 'On Board':
     for delivery_group in get_delivery_groups_by_order_id(orders[0]['id']):
-      delivery_user_info = get_delivery_user_info(delivery_group.user_id)
+      delivery_user_info = get_user_info(delivery_group.user_id, DeliveryUserInfo)
       if delivery_user_info and delivery_user_info.lat is not None and delivery_user_info.lon is not None:
         orders[0]['lat'] = delivery_user_info.lat
         orders[0]['lon'] = delivery_user_info.lon

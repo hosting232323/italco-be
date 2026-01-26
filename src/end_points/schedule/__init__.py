@@ -4,7 +4,7 @@ from flask import Blueprint, request
 from database_api import Session
 from ...database.enum import UserRole, OrderStatus
 from ..users.session import flask_session_authentication
-from ..users.queries import format_user_with_delivery_info
+from ..users.queries import format_user_with_info
 from ...database.schema import Schedule, User, DeliveryGroup
 from database_api.operations import create, delete, get_by_id, update
 from .schedulation import assign_orders_to_groups, build_schedule_items
@@ -126,7 +126,7 @@ def get_schedule_suggestions(user: User):
     return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
 
   delivery_users = [
-    format_user_with_delivery_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(dpc)
+    format_user_with_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(dpc)
   ]
   return {
     'status': 'ok',
