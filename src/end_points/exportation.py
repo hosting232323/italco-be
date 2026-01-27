@@ -133,18 +133,18 @@ def export_rae(user: User, order_id):
   if len(orders) != 1:
     raise Exception('Numero di ordini trovati non valido')
 
-  rae_product = None
+  rae_products = []
   for product_data in orders[0]['products'].values():
-    if product_data['rae_product_id']:
-      rae_product = get_by_id(RaeProduct, product_data['rae_product_id'])
-  if not rae_product:
-    raise Exception('Prodotto rae non identificato')
+    if product_data.get('rae_product_id'):
+      rae_products.append(get_by_id(RaeProduct, product_data['rae_product_id']))
+  if not rae_products:
+    raise Exception('Nessun prodotto rae identificato')
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
     src=render_template(
       'rae_product.html',
-      rae_product=rae_product,
+      rae_products=rae_products,
       address=orders[0]['address'],
       addressee=orders[0]['addressee'],
       customer=format_user_with_info(get_by_id(User, orders[0]['user']['id']), user.role),
