@@ -136,11 +136,9 @@ def export_rae(user: User, order_id):
   rae_products = []
   for product_data in orders[0]['products'].values():
     if product_data.get('rae_product_id'):
-      rae_products.append(
-        get_by_id(RaeProduct, product_data['rae_product_id'])
-      )
+      rae_products.append(get_by_id(RaeProduct, product_data['rae_product_id']))
   if not rae_products:
-    raise Exception('Prodotto rae non identificato')
+    raise Exception('Nessun prodotto rae identificato')
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
