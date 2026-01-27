@@ -19,7 +19,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-  op.add_column('service', sa.Column('professional', sa.Boolean(), nullable=True))
+  op.add_column('service', sa.Column('professional', sa.Boolean(), default=False))
+  op.execute("""
+    UPDATE service
+    SET professional = FALSE
+    WHERE professional IS NULL
+  """)
 
 
 def downgrade() -> None:

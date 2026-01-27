@@ -199,7 +199,7 @@ class Service(BaseEntity):
   description = Column(String)
   max_services = Column(Integer)
   duration = Column(Integer)
-  professional = Column(Boolean)
+  professional = Column(Boolean, default=False)
 
   service_user = relationship('ServiceUser', back_populates='service')
 
