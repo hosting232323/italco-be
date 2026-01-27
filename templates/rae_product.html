@@ -70,7 +70,15 @@
   </style>
 </head>
 <body>
+  {% for rae_product in rae_products %}
   <h1>Documento di trasporto raee</h1>
+
+  <table width="100%">
+    <tr>
+      <td>Tipologia: Domestici</td>
+      <td align="right">Progressivo: 1</td>
+    </tr>
+  </table>
 
   <div class="section">
     <h2>Distributore</h2>
@@ -87,10 +95,74 @@
   </div>
 
   <div class="section">
+    <h2>Trasportatore del rifiuto (RAEE)</h2>
+    <table class="info-table">
+      <tr>
+        <td class="label">Ragione Sociale</td><td>ITALCO.MI LOGISTRIBUZIONI SRL</td>
+        <td class="label">Codice Fiscale</td><td>02735550747</td>
+      </tr>
+      <tr>
+        <td class="label">Estremi albo</td><td>H1 - DLS. 166/2024 del 14/11/2024</td>
+        <td class="label">Targa</td><td>nd</td>
+      </tr>
+      <tr>
+        <td class="label">Città</td><td>Mesagne Brin</td>
+        <td class="label">Indirizzo</td><td>VIA EMANUELE FILIBERTO DUCA</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
     <h2>Utente che conferisce il  rifiuto</h2>
     <table class="info-table">
       <tr><td class="label">Nominativo</td><td>{{ addressee }}</td></tr>
       <tr><td class="label">Indirizzo</td><td>{{ address }}</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Primo destinatario</h2>
+    <table class="info-table">
+      <tr><td class="label">Eventuale diverso Luogo di Raggruppamento dei RAEE</td><td>nd</td></tr>
+    </table>
+  </div>
+
+  <div style="page-break-before: always;"></div>
+
+  <div class="section">
+    <h2>Destinatario finale</h2>
+    <table class="info-table">
+      <tr>
+        <td class="label">Ragione Sociale</td><td>LDR-BARI JAPIGIA</td>
+        <td class="label">Codice Fiscale</td><td>01360421216</td>
+      </tr>
+      <tr>
+        <td class="label">Luogo di destino</td><td colspan="3">Via Arturo Toscanini n 20,70126 Bari Japigia Bari Bari</td>
+      </tr>
+      <tr>
+        <td class="label">Aut. centro di raccolta</td><td>NA09699 del</td>
+        <td class="label">Aut. impianto di destinazione</td><td>&nbsp;</td>
+      </tr>
+      <tr>
+        <td class="label">Responsabile del C.D.R. (per i RAEE domestici)</td><td colspan="3">&nbsp;</td>
+      </tr>
+      <tr>
+        <td class="label">Responsabile del C.D.R. (per i RAEE professionali)</td><td colspan="3">&nbsp;</td>
+      </tr>
+      <tr>
+        <td class="label">Ritiro R.A.E.E. non effettuato per</td>
+        <td colspan="3">
+          [&nbsp;&nbsp;] R.A.E.E. non disponibile
+          <br>
+          [&nbsp;&nbsp;] R.A.E.E. non conforme
+        </td>
+      </tr>
+      <tr>
+        <td class="label">Firma Cliente</td><td colspan="3">&nbsp;</td>
+      </tr>
+      <tr>
+        <td class="label">Annotazioni</td><td colspan="3">&nbsp;</td>
+      </tr>
     </table>
   </div>
 
@@ -107,5 +179,25 @@
       </tr>
     </table>
   </div>
+
+  <div class="section">
+    <table class="info-table">
+      <tr>
+        <td class="label">FIRMA DELL'UTENTE presso cui si è effettuato il ritiro</td><td colspan="3">&nbsp;</td>
+      </tr>
+      <tr>
+        <td class="label">FIRMA DEL DISTRIBUTORE / INSTALLATORE / GESTORE CENTRO ASSISTENZA TECNICA</td><td colspan="3">&nbsp;</td>
+      </tr>
+      <tr>
+        <td class="label">FIRMA TRASPORTATORE</td><td>&nbsp;</td>
+        <td class="label">FIRMA DESTINATARIO FINALE</td><td>&nbsp;</td>
+      </tr>
+    </table>
+  </div>
+  {% if not loop.last %}
+  <div style="page-break-before: always;"></div>
+  {% endif %}
+
+  {% endfor %}
 </body>
 </html>
