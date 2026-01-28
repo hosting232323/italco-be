@@ -1,7 +1,7 @@
 """update user info
 
-Revision ID: 022
-Revises: 021
+Revision ID: 023
+Revises: 022
 Create Date: 2026-01-26 15:36:15.866135
 
 """
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '022'
-down_revision: Union[str, None] = '021'
+revision: str = '023'
+down_revision: Union[str, None] = '022'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
