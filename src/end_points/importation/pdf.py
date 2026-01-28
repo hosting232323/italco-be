@@ -10,6 +10,9 @@ from ...database.enum import OrderType, OrderStatus
 from ...database.schema import Order, Product, CollectionPoint, ServiceUser
 
 
+CITY_FIXES = {'Noic?ttaro': 'Noicattaro'}
+
+
 def order_import_by_pdf(files, customer_id):
   collection_point = get_collection_point(customer_id)
   if not collection_point:
@@ -65,6 +68,7 @@ def pdf_create_order(text, session):
       cities = re.findall(r'Città\s*:\s*(.+)', text)
       city = cities[1].strip() if len(cities) > 1 else (cities[0].strip() if cities else None)
       city = re.sub(r'\bnd\b', '', city, flags=re.IGNORECASE).strip()
+      city = normalize_city(city)
 
   m_dpc = re.search(r'Data consegna:\s*(\d{2}/\d{2}/\d{4})', text)
   dpc = datetime.strptime(m_dpc.group(1).strip(), '%d/%m/%Y').date() if m_dpc else None
@@ -92,3 +96,8 @@ def get_collection_point(customer_id: int) -> CollectionPoint:
 
 def get_service_user(user_id: int, code: str, session: session_type) -> ServiceUser:
   return session.query(ServiceUser).filter(ServiceUser.user_id == user_id, ServiceUser.code == code).first()
+
+
+def normalize_city(city: str) -> str:
+  city_clean = city.strip()
+  return CITY_FIXES.get(city_clean, city_clean)
