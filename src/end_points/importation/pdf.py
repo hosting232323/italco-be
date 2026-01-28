@@ -10,9 +10,8 @@ from ...database.enum import OrderType, OrderStatus
 from ...database.schema import Order, Product, CollectionPoint, ServiceUser
 
 
-CITY_FIXES = {
-  "noic?ttaro": "noicattaro"
-}
+CITY_FIXES = {'Noic?ttaro': 'Noicattaro'}
+
 
 def order_import_by_pdf(files, customer_id):
   collection_point = get_collection_point(customer_id)
@@ -100,5 +99,5 @@ def get_service_user(user_id: int, code: str, session: session_type) -> ServiceU
 
 
 def normalize_city(city: str) -> str:
-  city_clean = city.lower().strip()
+  city_clean = city.strip()
   return CITY_FIXES.get(city_clean, city_clean)
