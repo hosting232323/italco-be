@@ -11,6 +11,7 @@ from .users.session import flask_session_authentication
 from .orders.queries import query_orders, format_query_result as format_order_query_result
 from .schedule.queries import query_schedules, format_query_result as format_schedule_query_result
 
+from .rae_product import query_count_rae_products
 
 export_bp = Blueprint('export_bp', __name__)
 
@@ -136,7 +137,11 @@ def export_rae(user: User, order_id):
   rae_products = []
   for product_data in orders[0]['products'].values():
     if product_data.get('rae_product_id'):
-      rae_products.append(get_by_id(RaeProduct, product_data['rae_product_id']))
+      rae_products.append({
+        'rae': get_by_id(RaeProduct, product_data['rae_product_id']),
+        'progressivo': query_count_rae_products(product_data['rae_product_id'])
+      })
+
   if not rae_products:
     raise Exception('Nessun prodotto rae identificato')
 

@@ -16,10 +16,10 @@
     }
 
     h2 {
-      font-size: 16px;
-      margin-top: 30px;
+      font-size: 15px;
+      margin-top: 20px;
       border-bottom: 1px solid #ccc;
-      padding-bottom: 5px;
+      padding-bottom: 3px;
     }
 
     .section {
@@ -35,14 +35,26 @@
     .data-table td,
     .data-table th {
       border: 1px solid #ccc;
-      padding: 8px;
-      vertical-align: top;
+      padding: 2px;
+      vertical-align: auto;
+    }
+
+    .info-table td.long-label {
+      font-weight: bold;
+      background: #f2f2f2;
+      width: 55%;
     }
 
     .info-table td.label {
       font-weight: bold;
       background: #f2f2f2;
       width: 30%;
+    }
+
+    .info-table td.short-label {
+      font-weight: bold;
+      background: #f2f2f2;
+      width: 20%;
     }
 
     .data-table th {
@@ -76,7 +88,7 @@
   <table width="100%">
     <tr>
       <td>Tipologia: Domestici</td>
-      <td align="right">Progressivo: 1</td>
+      <td align="right">Progressivo: {{ rae_product.progressivo }}</td>
     </tr>
   </table>
 
@@ -84,12 +96,12 @@
     <h2>Distributore</h2>
     <table class="info-table">
       <tr>
-        <td class="label">Ragione Sociale</td><td>{{ customer.customer_user_info.company_name }}</td>
-        <td class="label">Codice Fiscale</td><td>{{ customer.customer_user_info.tax_code }}</td>
+        <td class="short-label">Ragione Sociale</td><td>{{ customer.customer_user_info.company_name }}</td>
+        <td class="short-label">Codice Fiscale</td><td>{{ customer.customer_user_info.tax_code }}</td>
       </tr>
       <tr>
-        <td class="label">Città</td><td>{{ customer.customer_user_info.city }}</td>
-        <td class="label">Indirizzo</td><td>{{ customer.customer_user_info.address }}</td>
+        <td class="short-label">Città</td><td>{{ customer.customer_user_info.city }}</td>
+        <td class="short-label">Indirizzo</td><td>{{ customer.customer_user_info.address }}</td>
       </tr>
     </table>
   </div>
@@ -98,16 +110,16 @@
     <h2>Trasportatore del rifiuto (RAEE)</h2>
     <table class="info-table">
       <tr>
-        <td class="label">Ragione Sociale</td><td>ITALCO.MI LOGISTRIBUZIONI SRL</td>
-        <td class="label">Codice Fiscale</td><td>02735550747</td>
+        <td class="short-label">Ragione Sociale</td><td colspan="2">ITALCO.MI LOGISTRIBUZIONI SRL</td>
+        <td class="short-label">Codice Fiscale</td><td>02735550747</td>
       </tr>
       <tr>
-        <td class="label">Estremi albo</td><td>H1 - DLS. 166/2024 del 14/11/2024</td>
-        <td class="label">Targa</td><td>nd</td>
+        <td class="short-label">Estremi albo</td><td colspan="2">H1 - DLS. 166/2024 del 14/11/2024</td>
+        <td class="short-label">Targa</td><td>nd</td>
       </tr>
       <tr>
-        <td class="label">Città</td><td>Mesagne Brin</td>
-        <td class="label">Indirizzo</td><td>VIA EMANUELE FILIBERTO DUCA</td>
+        <td class="short-label">Indirizzo</td><td colspan="2">VIA EMANUELE FILIBERTO DUCA</td>
+        <td class="short-label">Città</td><td>Mesagne Brin</td>
       </tr>
     </table>
   </div>
@@ -123,11 +135,9 @@
   <div class="section">
     <h2>Primo destinatario</h2>
     <table class="info-table">
-      <tr><td class="label">Eventuale diverso Luogo di Raggruppamento dei RAEE</td><td>nd</td></tr>
+      <tr><td class="long-label">Eventuale diverso Luogo di Raggruppamento dei RAEE</td><td>nd</td></tr>
     </table>
   </div>
-
-  <div style="page-break-before: always;"></div>
 
   <div class="section">
     <h2>Destinatario finale</h2>
@@ -166,15 +176,17 @@
     </table>
   </div>
 
+  <div style="page-break-before: always;"></div>
+
   <div class="section">
     <h2>Caratteristiche del rifiuto</h2>
     <table class="info-table">
       <tr>
-        <td class="label">Descrizione</td><td>{{ rae_product.name }}</td>
-        <td class="label">Codice CER</td><td>{{ rae_product.cer_code }}</td>
+        <td class="label">Descrizione</td><td>{{ rae_product.rae.name }}</td>
+        <td class="label">Codice CER</td><td>{{ rae_product.rae.cer_code }}</td>
       </tr>
       <tr>
-        <td class="label">Codice Raggruppamento</td><td>{{ rae_product.group_code }}</td>
+        <td class="label">Codice Raggruppamento</td><td>{{ rae_product.rae.group_code }}</td>
         <td class="label">Quantità</td><td>0</td>
       </tr>
     </table>
