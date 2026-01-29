@@ -47,12 +47,10 @@ def query_rae_products() -> list[RaeProduct]:
 
 
 def query_count_rae_products(rae_product_id: int) -> int:
-  current_year = date.today().year
-
   with Session() as session:
     return (
       session.query(func.count(RaeProduct.id))
       .filter(RaeProduct.id == rae_product_id)
-      .filter(extract('year', RaeProduct.created_at) == current_year)
+      .filter(extract('year', RaeProduct.created_at) == date.today().year)
       .scalar()
     )
