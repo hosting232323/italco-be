@@ -137,10 +137,12 @@ def export_rae(user: User, order_id):
   rae_products = []
   for product_data in orders[0]['products'].values():
     if product_data.get('rae_product_id'):
-      rae_products.append({
-        'rae': get_by_id(RaeProduct, product_data['rae_product_id']),
-        'progressivo': query_count_rae_products(product_data['rae_product_id'])
-      })
+      rae_products.append(
+        {
+          'rae': get_by_id(RaeProduct, product_data['rae_product_id']),
+          'index': query_count_rae_products(product_data['rae_product_id']),
+        }
+      )
 
   if not rae_products:
     raise Exception('Nessun prodotto rae identificato')

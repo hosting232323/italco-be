@@ -88,7 +88,7 @@
   <table width="100%">
     <tr>
       <td>Tipologia: Domestici</td>
-      <td align="right">Progressivo: {{ rae_product.progressivo }}</td>
+      <td align="right">Progressivo: {{ rae_product.index }}</td>
     </tr>
   </table>
 
@@ -182,11 +182,11 @@
     <h2>Caratteristiche del rifiuto</h2>
     <table class="info-table">
       <tr>
-        <td class="label">Descrizione</td><td>{{ rae_product.rae.name }}</td>
-        <td class="label">Codice CER</td><td>{{ rae_product.rae.cer_code }}</td>
+        <td class="label">Descrizione</td><td>{{ rae_product.data.name }}</td>
+        <td class="label">Codice CER</td><td>{{ rae_product.data.cer_code }}</td>
       </tr>
       <tr>
-        <td class="label">Codice Raggruppamento</td><td>{{ rae_product.rae.group_code }}</td>
+        <td class="label">Codice Raggruppamento</td><td>{{ rae_product.data.group_code }}</td>
         <td class="label">Quantità</td><td>0</td>
       </tr>
     </table>
