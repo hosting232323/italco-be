@@ -6,6 +6,7 @@ from .database.enum import UserRole
 from .database.seed import seed_data
 from database_api import set_database
 from . import app, DATABASE_URL, PORT
+from .scheduler import start_scheduler
 from .end_points.users.session import flask_session_authentication
 
 from .end_points.log import log_bp
@@ -53,6 +54,7 @@ app.register_blueprint(collection_point_bp, url_prefix='/collection-point')
 
 
 set_database(DATABASE_URL)
+start_scheduler()
 
 
 if __name__ == '__main__':

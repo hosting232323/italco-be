@@ -1,5 +1,8 @@
+from sqlalchemy.orm import Session as session_type
+
 from database_api import Session
 from ...database.enum import UserRole
+from database_api.operations import db_session_decorator
 from ...database.schema import Service, ServiceUser, User, Order, Product
 
 
@@ -67,3 +70,8 @@ def query_orders_in_range(services_id, start_date, end_date):
 def get_service_users(user_id: int) -> list[ServiceUser]:
   with Session() as session:
     return session.query(ServiceUser).filter(ServiceUser.user_id == user_id).all()
+
+
+@db_session_decorator(commit=False)
+def get_service_user_by_user_and_code(user_id: int, code: str, session: session_type) -> ServiceUser:
+  return session.query(ServiceUser).filter(ServiceUser.user_id == user_id, ServiceUser.code == code).first()
