@@ -18,7 +18,6 @@ from ...database.schema import User, Order, Motivation, ServiceUser, DeliveryUse
 from ..schedule.queries import get_schedule_item_by_order, get_delivery_groups_by_order_id
 from .queries import (
   query_orders,
-  query_delivery_orders,
   format_query_result,
   get_order_photos,
   get_motivations_by_order_id,
@@ -73,20 +72,6 @@ def create_order(user: User):
     session.commit()
     save_order_status_to_euronics(order)
   return {'status': 'ok', 'order': order.to_dict()}
-
-
-@order_bp.route('delivery', methods=['GET'])
-@flask_session_authentication([UserRole.DELIVERY])
-def get_orders_for_delivery(user: User):
-  orders = []
-  for tupla in query_delivery_orders(user):
-    orders = format_query_result(tupla, orders, user)
-  response = {}
-  for order in orders:
-    if order['status'] not in response:
-      response[order['status']] = []
-    response[order['status']].append(order)
-  return {'status': 'ok', 'orders': response}
 
 
 @order_bp.route('filter', methods=['POST'])
