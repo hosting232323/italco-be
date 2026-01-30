@@ -3,9 +3,9 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ..users.queries import format_user_with_info
-from ...database.enum import UserRole, OrderStatus
+from ...database.enum import UserRole, OrderStatus, ScheduleType
 from ..users.session import flask_session_authentication
-from ...database.schema import Schedule, User, DeliveryGroup
+from ...database.schema import Schedule, User, DeliveryGroup, ScheduleItem, Order
 from database_api.operations import create, delete, get_by_id, update
 from .schedulation import assign_orders_to_groups, build_schedule_items
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
@@ -69,7 +69,7 @@ def delete_schedule(user: User, id):
 
 
 @schedule_bp.route('filter', methods=['POST'])
-@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY])
 def get_schedules(user: User):
   schedules = []
   for tupla in query_schedules(request.json['filters'], 100):
@@ -89,7 +89,6 @@ def update_schedule(user: User, id):
   with Session() as session:
     schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     actual_schedule_items = get_schedule_items(schedule, session=session)
-
     delivery_groups = get_delivery_groups(schedule, session=session)
     deleted_users = []
     if 'deleted_users' in request.json:
@@ -115,6 +114,43 @@ def update_schedule(user: User, id):
     session.commit()
     save_info_to_euronics(schedule_items)
   return {'status': 'ok', 'schedule': schedule.to_dict()}
+
+
+@schedule_bp.route('item/<id>', methods=['PUT'])
+@flask_session_authentication([UserRole.DELIVERY])
+def update_schedule_item(user: User, id):
+  schedule_item: ScheduleItem = get_by_id(ScheduleItem, int(id))
+  update(schedule_item, {'completed': request.json['completed']})
+
+  schedules = []
+  for tupla in query_schedules([{'model': 'DeliveryGroup', 'field': 'user_id', 'value': int(user.id)}]):
+    schedules = format_query_result(tupla, schedules, user)
+  if len(schedules) != 1:
+    return {'status': 'ko', 'message': 'Numero di bordero trovati non valido'}
+  
+  schedule_items = schedules[0]['schedule_items']
+  for item in schedule_items:
+    if item['operation_type'] == 'CollectionPoint':
+      continue
+
+    required_cp_ids = {
+      p['collection_point']['id']
+      for p in item.get('products', {}).values()
+    }
+    
+    cp_items = [
+      i for i in schedule_items
+      if i['operation_type'] == 'CollectionPoint'
+      and i['collection_point_id'] in required_cp_ids
+    ]
+    
+    all_completed = all(cp['completed'] for cp in cp_items)
+
+    if all_completed:
+      order: Order = get_by_id(Order, item['id'])
+      update(order, {'status': 'Delivery'})
+      
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @schedule_bp.route('suggestions', methods=['GET'])
@@ -166,3 +202,15 @@ def pianification(user: User):
       return {'status': 'ko', 'error': 'Hai selezionato degli ordini già assegnati'}
 
   return {'status': 'ok', 'schedule_items': build_schedule_items(orders)}
+
+
+@schedule_bp.route('delivery', methods=['GET'])
+@flask_session_authentication([UserRole.DELIVERY])
+def get_orders_for_delivery(user: User):
+  schedules = []
+  for tupla in query_schedules([{'model': 'DeliveryGroup', 'field': 'user_id', 'value': int(user.id)}]):
+    schedules = format_query_result(tupla, schedules, user)
+  if len(schedules) != 1:
+    return {'status': 'ko', 'message': 'Numero di bordero trovati non valido'}
+
+  return {'status': 'ok', 'schedule_items': schedules[0]['schedule_items']}
