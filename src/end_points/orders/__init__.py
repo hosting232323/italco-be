@@ -16,6 +16,7 @@ from ...database.enum import OrderStatus, UserRole, OrderType
 from ...database.schema import User, Order, Motivation, ServiceUser, DeliveryUserInfo
 from database_api.operations import create, update, get_by_id, delete
 from ..schedule.queries import get_schedule_item_by_order, get_delivery_groups_by_order_id
+from ..schedule.queries import query_schedules, format_query_result as format_schedule_query_result
 from .queries import (
   query_orders,
   query_delivery_orders,
@@ -73,14 +74,9 @@ def create_order(user: User):
 @flask_session_authentication([UserRole.DELIVERY])
 def get_orders_for_delivery(user: User):
   orders = []
-  for tupla in query_delivery_orders(user):
-    orders = format_query_result(tupla, orders, user)
-  response = {}
-  for order in orders:
-    if order['status'] not in response:
-      response[order['status']] = []
-    response[order['status']].append(order)
-  return {'status': 'ok', 'orders': response}
+  for tupla in query_schedules([{'model': 'DeliveryGroup', 'field': 'user_id', 'value': int(user.id)}]):
+    orders = format_schedule_query_result(tupla, orders, user)
+  return {'status': 'ok', 'orders': orders}
 
 
 @order_bp.route('filter', methods=['POST'])
