@@ -55,6 +55,8 @@ def query_schedules(
           field >= (value[0] if isinstance(value[0], date) else datetime.strptime(value[0], '%Y-%m-%d')),
           field <= (value[1] if isinstance(value[1], date) else datetime.strptime(value[1], '%Y-%m-%d')),
         )
+      elif model == DeliveryGroup:
+        query = query.filter(and_(field == value, Schedule.date == date.today()))
       else:
         query = query.filter(field == value)
 
@@ -171,6 +173,7 @@ def format_schedule_item(
 
   item['id'] = schedule_item.id
   item['index'] = schedule_item.index
+  item['completed'] = schedule_item.completed
   item['operation_type'] = schedule_item.operation_type.value
   item['end_time_slot'] = schedule_item.end_time_slot.strftime('%H:%M:%S')
   item['start_time_slot'] = schedule_item.start_time_slot.strftime('%H:%M:%S')
