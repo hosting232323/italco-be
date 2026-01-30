@@ -1,3 +1,5 @@
+from datetime import date
+from sqlalchemy import extract, func
 from flask import Blueprint, request
 
 from database_api import Session
@@ -42,3 +44,13 @@ def update_rae_product(user: User, id):
 def query_rae_products() -> list[RaeProduct]:
   with Session() as session:
     return session.query(RaeProduct).all()
+
+
+def query_count_rae_products(rae_product_id: int) -> int:
+  with Session() as session:
+    return (
+      session.query(func.count(RaeProduct.id))
+      .filter(RaeProduct.id == rae_product_id)
+      .filter(extract('year', RaeProduct.created_at) == date.today().year)
+      .scalar()
+    )

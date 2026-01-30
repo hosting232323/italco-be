@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, make_response, request
 
 from database_api.operations import get_by_id
 from .users.queries import format_user_with_info
+from .rae_product import query_count_rae_products
 from ..database.enum import UserRole, OrderStatus
 from ..database.schema import User, Order, RaeProduct
 from .users.session import flask_session_authentication
@@ -136,8 +137,13 @@ def export_rae(user: User, order_id):
   rae_products = []
   for product_data in orders[0]['products'].values():
     if product_data.get('rae_product_id'):
-      rae_products.append(get_by_id(RaeProduct, product_data['rae_product_id']))
-  if not rae_products:
+      rae_products.append(
+        {
+          'data': get_by_id(RaeProduct, product_data['rae_product_id']),
+          'index': query_count_rae_products(product_data['rae_product_id']),
+        }
+      )
+  if len(rae_products) == 0:
     raise Exception('Nessun prodotto rae identificato')
 
   result = BytesIO()
