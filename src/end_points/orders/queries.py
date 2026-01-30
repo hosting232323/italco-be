@@ -167,16 +167,6 @@ def get_motivations_by_order_id(order_id: int) -> list[Motivation]:
     return session.query(Motivation).filter(Motivation.order_id == order_id).all()
 
 
-def get_customer_user_by_order(order: Order) -> User:
-  with Session() as session:
-    return (
-      session.query(User)
-      .join(ServiceUser, ServiceUser.user_id == User.id)
-      .join(Product, and_(Product.service_user_id == ServiceUser.id, Product.order_id == order.id))
-      .first()
-    )
-
-
 def get_selling_point(order: Order) -> User:
   with Session() as session:
     return (

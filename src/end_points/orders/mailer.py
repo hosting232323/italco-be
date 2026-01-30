@@ -1,8 +1,11 @@
+from sqlalchemy import and_
+
 from api.settings import IS_DEV
 from api.email import send_email
+from database_api import Session
+from .queries import get_order_photos
 from ...database.enum import OrderStatus
-from ...database.schema import Order, Motivation
-from .queries import get_order_photos, get_customer_user_by_order
+from ...database.schema import Order, Motivation, User, CustomerUserInfo, ServiceUser, Product
 
 
 MAILS = (
@@ -16,8 +19,8 @@ def get_mails(order: Order):
   if IS_DEV:
     return MAILS
   else:
-    user = get_customer_user_by_order(order)
-    return list(set(MAILS + ([user.email] if user and user.email else [])))
+    user_info = get_user_mail(order)
+    return list(set(MAILS + ([user_info.email] if user_info and user_info.email else [])))
 
 
 def mailer_check(order: Order, data: dict, motivation: Motivation):
@@ -53,3 +56,14 @@ def mailer_check(order: Order, data: dict, motivation: Motivation):
 
     for mail in get_mails(order):
       send_email(mail, {'text': text, 'html': html}, subject)
+
+
+def get_user_mail(order: Order) -> CustomerUserInfo:
+  with Session() as session:
+    return (
+      session.query(CustomerUserInfo)
+      .join(User, User.id == CustomerUserInfo.user_id)
+      .join(ServiceUser, ServiceUser.user_id == User.id)
+      .join(Product, and_(Product.service_user_id == ServiceUser.id, Product.order_id == order.id))
+      .first()
+    )
