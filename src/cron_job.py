@@ -1,3 +1,4 @@
+import os
 import random
 import requests
 import traceback
@@ -11,10 +12,14 @@ from .database.enum import OrderType, OrderStatus
 from .database.schema import Order, Product, User, CollectionPoint
 from .end_points.service.queries import get_service_user_by_user_and_code
 from .end_points.users.queries import get_user_and_collection_point_by_code
+from .end_points.orders.queries import get_order_by_external_id_and_customer
+
+
+EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 
 
 def start_scheduler():
-  if not IS_DEV:
+  if not IS_DEV and EURONICS_API_PASSWORD:
     scheduler = BackgroundScheduler()
     scheduler.add_job(
       save_orders_by_euronics,
@@ -32,9 +37,13 @@ def save_orders_by_euronics():
       if not user:
         raise ValueError('Punto vendita non riconosciuto')
 
+      if get_order_by_external_id_and_customer(imported_order['id_vendita'], user.id):
+        continue
+
       product_service_user_handler(
         imported_order,
         user,
+        collection_point,
         create(
           Order,
           {
@@ -95,5 +104,5 @@ def product_service_user_handler(
 
 def call_euronics_api():
   return requests.get(
-    'https://delivery.siemdistribuzione.it/Api/DeliveryVettoriAPI/ListaConsegne/?user=logisco&pwd=logisco2022'
+    f'https://delivery.siemdistribuzione.it/Api/DeliveryVettoriAPI/ListaConsegne/?user=logisco&pwd={EURONICS_API_PASSWORD}'
   ).json()
