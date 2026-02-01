@@ -44,6 +44,7 @@ class CustomerUserInfo(BaseEntity):
   __tablename__ = 'customer_user_info'
 
   city = Column(String)
+  code = Column(String)
   email = Column(String)
   address = Column(String)
   tax_code = Column(String)
