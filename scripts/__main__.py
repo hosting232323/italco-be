@@ -46,7 +46,6 @@ if __name__ == '__main__':
   for user in user_ids:
     for data in datas:
       service_user = get_service_user(user, data['service_id'])
-      print(service_user)
       if not service_user:
         created.append(create(ServiceUser, {
           'code': data['code'],
