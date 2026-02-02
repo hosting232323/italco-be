@@ -1,8 +1,9 @@
 from flask import Blueprint, request
-from ..database.enum import UserRole
-from .users.session import flask_session_authentication
-from ..database.schema import User, Log
+
 from database_api import Session
+from ..database.enum import UserRole
+from ..database.schema import User, Log
+from .users.session import flask_session_authentication
 
 
 log_bp = Blueprint('log_bp', __name__)
