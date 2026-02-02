@@ -1,7 +1,7 @@
 """Log
 
-Revision ID: 023
-Revises: 022
+Revision ID: 024
+Revises: 023
 Create Date: 2026-01-17 17:26:16.900939
 
 """
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '023'
-down_revision: Union[str, None] = '022'
+revision: str = '024'
+down_revision: Union[str, None] = '023'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
