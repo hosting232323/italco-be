@@ -1,15 +1,18 @@
 import os
 import jwt
 import pytz
+import json
 import traceback
 from flask import request
 from functools import wraps
 from datetime import datetime, timedelta
 
 from api import send_telegram_error
-from ...database.schema import User
 from ...database.enum import UserRole
+from ...database.schema import User, Log
 from .queries import get_user_by_nickname
+from database_api.operations import create
+from api.telegram import extract_request_data
 
 
 DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
@@ -33,6 +36,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
         if roles and user.role not in roles:
           return {'status': 'session', 'error': 'Ruolo non autorizzato'}
 
+        save_log(user)
         result = func(user, *args, **kwargs)
         if isinstance(result, dict):
           result['new_token'] = create_jwt_token(user)
@@ -64,3 +68,9 @@ def create_jwt_token(user: User):
     DECODE_JWT_TOKEN,
     algorithm='HS256',
   )
+
+
+def save_log(user: User):
+  request_info = extract_request_data(False)
+  del request_info['headers']
+  create(Log, {'user_id': user.id, 'content': json.dumps(request_info, indent=2, ensure_ascii=False)})
