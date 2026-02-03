@@ -13,6 +13,7 @@ class User(BaseEntity):
   nickname = Column(String, unique=True, nullable=False)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
 
+  log = relationship('Log', back_populates='user')
   customer_group = relationship('CustomerGroup', back_populates='user')
   delivery_group = relationship('DeliveryGroup', back_populates='user')
   delivery_user_info = relationship('DeliveryUserInfo', back_populates='user')
@@ -285,3 +286,12 @@ class Chatty(BaseEntity):
   __tablename__ = 'chatty'
 
   thread_id = Column(String, nullable=False)
+
+
+class Log(BaseEntity):
+  __tablename__ = 'log'
+
+  content = Column(String, nullable=False)
+  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+
+  user = relationship('User', back_populates='log')
