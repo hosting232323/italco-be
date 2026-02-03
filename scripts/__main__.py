@@ -6,11 +6,11 @@ from database_api import set_database, Session
 from database_api.operations import update, create
 
 
-user_ids = [1,2,3,4]
+user_ids = [42, 43, 44, 45]
 
 
 def get_excel_data():
-  df = pd.read_excel('Listino Coppola est.xls')
+  df = pd.read_excel('/home/gralogic/Scrivania/TestWorkSpace/italco-be/listino euronics con id.xlsx')
 
   col_codice = df.columns[1]
   col_id_servizi = df.columns[6]
