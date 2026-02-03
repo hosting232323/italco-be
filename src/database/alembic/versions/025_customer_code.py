@@ -1,7 +1,7 @@
 """Customer code
 
-Revision ID: 024
-Revises: 023
+Revision ID: 025
+Revises: 024
 Create Date: 2026-02-01 07:02:58.940995
 
 """
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '024'
-down_revision: Union[str, None] = '023'
+revision: str = '025'
+down_revision: Union[str, None] = '024'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
