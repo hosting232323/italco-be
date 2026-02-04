@@ -9,4 +9,3 @@ gunicorn
 geopy
 scipy
 pdfplumber
-apscheduler

@@ -6,7 +6,7 @@ from flask import Flask, send_from_directory
 
 from api.settings import IS_DEV
 from database_api.backup import data_export
-from api import swagger_decorator, PrefixMiddleware
+from api import swagger_decorator, PrefixMiddleware, error_catching_decorator
 
 
 allowed_origins = [
@@ -47,6 +47,7 @@ def serve_image(filename):
   return send_from_directory(STATIC_FOLDER, filename)
 
 
+@error_catching_decorator
 @swagger_decorator
 @app.route('/internal-backup', methods=['POST'])
 def trigger_backup():
