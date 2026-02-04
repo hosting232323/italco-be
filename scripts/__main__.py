@@ -13,7 +13,7 @@ def get_excel_data():
   df = pd.read_excel('/home/gralogic/Scrivania/TestWorkSpace/italco-be/listino euronics con id.xlsx')
 
   col_codice = df.columns[1]
-  col_prezzo = df.columns[3]
+  col_prezzo = df.columns[4]
   col_id_servizi = df.columns[6]
 
   df[col_codice] = pd.to_numeric(df[col_codice], errors='coerce')

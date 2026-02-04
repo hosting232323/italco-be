@@ -73,5 +73,5 @@ def get_user_and_collection_point_by_code(code: str) -> tuple[User, CollectionPo
       session.query(User, CollectionPoint)
       .join(CustomerUserInfo, and_(User.id == CustomerUserInfo.user_id, CustomerUserInfo.code == code))
       .join(CollectionPoint, User.id == CollectionPoint.user_id)
-      .all()
+      .first()
     )

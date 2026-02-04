@@ -15,25 +15,27 @@ EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 
 def save_orders_by_euronics():
   for imported_order in call_euronics_api():
-    user, collection_point = get_user_and_collection_point_by_code(imported_order['cod_pv'])
-    if not user:
-      raise ValueError('Punto vendita non riconosciuto')
+    result = get_user_and_collection_point_by_code(imported_order['cod_pv'])
+    if not result or not result[0]:
+      print(f'Non trovato punto vendita {imported_order["cod_pv"]}')
+      continue
 
-    if get_order_by_external_id_and_customer(imported_order['id_vendita'], user.id):
+    if get_order_by_external_id_and_customer(imported_order['id_vendita'], result[0].id):
+      print(f'Ordine già presente {imported_order["id_vendita"]}')
       continue
 
     product_service_user_handler(
       imported_order,
-      user,
-      collection_point,
+      result[0],
+      result[1],
       create(
         Order,
         {
           'type': OrderType.DELIVERY,
-          'cap': imported_order['cap'],
+          'cap': imported_order['CAP'],
           'status': OrderStatus.PENDING,
           'drc': imported_order['data_vendita'],
-          'addresse': imported_order['cliente'],
+          'addressee': imported_order['cliente'],
           'dpc': imported_order['data_consegna'],
           'external_id': imported_order['id_vendita'],
           'addressee_contact': f'{imported_order["telefono"]} {imported_order["telefono1"]}',
@@ -41,6 +43,8 @@ def save_orders_by_euronics():
         },
       ),
     )
+
+  return {'status': 'ok', 'message': 'Operazione commpletata'}
 
 
 def product_service_user_handler(
@@ -53,7 +57,7 @@ def product_service_user_handler(
     if service_user:
       service_users.append(service_user)
     else:
-      products.append({'name': imported_order['descrizione'], 'services': []})
+      products.append({'name': item['descrizione'], 'services': []})
 
   if len(products) > len(service_users):
     raise ValueError('Servizi e prodotti non utilizzabili')

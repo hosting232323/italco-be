@@ -37,7 +37,7 @@ def pdf_order_import(user: User):
   return order_import_by_pdf(request.files, request.form['customer_id'])
 
 
-@import_bp.route('pdf', methods=['POST'])
+@import_bp.route('api', methods=['POST'])
 @error_catching_decorator
 @swagger_decorator
 def api_order_import():
