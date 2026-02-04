@@ -53,7 +53,6 @@ def create_user(user: User):
       'role': role,
       'nickname': request.json['nickname'],
       'password': request.json['password'],
-      'email': request.json['email'] if 'email' in request.json else None,
     },
   )
   return {'status': 'ok', 'message': 'Utente registrato'}
