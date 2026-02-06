@@ -62,17 +62,15 @@ def product_service_user_handler(
     else:
       products.append({'name': item['descrizione'], 'services': []})
 
-  if len(products) > len(service_users):
-    raise ValueError('Servizi e prodotti non utilizzabili')
+  if len(products) == 0:
+    print('Nessun prodotto individuato')
+    return
 
-  if len(products) == 1:
-    products[0]['services'] = service_users
-  else:
-    for product, service in zip(products, service_users):
-      product['services'].append(service)
-    remaining_services = service_users[len(products) :]
-    for service in remaining_services:
-      random.choice(products)['services'].append(service)
+  for product, service in zip(products, service_users):
+    product['services'].append(service)
+  remaining_services = service_users[len(products) :]
+  for service in remaining_services:
+    random.choice(products)['services'].append(service)
 
   for product in products:
     for service_user in product['services']:

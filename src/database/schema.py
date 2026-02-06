@@ -225,7 +225,7 @@ class Product(BaseEntity):
   name = Column(String, nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
   rae_product_id = Column(Integer, ForeignKey('rae_product.id'), nullable=True)
-  service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
+  service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=True)
   collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
 
   order = relationship('Order', back_populates='product')
