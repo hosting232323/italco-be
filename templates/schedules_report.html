@@ -117,8 +117,16 @@
             {% for product_name, product in order.products.items() %}
               <strong>{{ product_name }}</strong>
               [{{ product.collection_point.name }}]<br>
+
+              {% set counter = {} %}
               {% for service in product.services %}
-                {{ service.name }}<br>
+                {% set _ = counter.update({
+                  service.name: (counter.get(service.name, 0) + 1)
+                }) %}
+              {% endfor %}
+
+              {% for name, count in counter.items() %}
+                {{ name }}{% if count > 1 %} x{{ count }}{% endif %}<br>
               {% endfor %}
               <br>
             {% endfor %}
@@ -211,8 +219,17 @@
             </td>
             <td>
               <ul style="margin: 0; padding-left: 16px;">
+                {% set counter = {} %}
                 {% for service in product.services %}
-                <li>{{ service.name }}</li>
+                  {% set _ = counter.update({
+                    service.name: (counter.get(service.name, 0) + 1)
+                  }) %}
+                {% endfor %}
+
+                {% for name, count in counter.items() %}
+                  <li>
+                    {{ name }}{% if count > 1 %} x{{ count }}{% endif %}
+                  </li>
                 {% endfor %}
               </ul>
             </td>
