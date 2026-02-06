@@ -14,6 +14,9 @@ EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 
 
 def save_orders_by_euronics():
+  if not EURONICS_API_PASSWORD:
+    return {'status': 'ko', 'message': 'Api Key Error'}
+
   for imported_order in call_euronics_api():
     result = get_user_and_collection_point_by_code(imported_order['cod_pv'])
     if not result or not result[0]:
@@ -78,7 +81,7 @@ def product_service_user_handler(
         {
           'name': product['name'],
           'order_id': created_order.id,
-          'service_user_id': service_users.id,
+          'service_user_id': service_user.id,
           'collection_point_id': collection_point.id,
         },
       )
@@ -86,5 +89,5 @@ def product_service_user_handler(
 
 def call_euronics_api():
   return requests.get(
-    f'https://delivery.siemdistribuzione.it/Api/DeliveryVettoriAPI/ListaConsegne/?user=logisco&pwd={EURONICS_API_PASSWORD}'
+    f'https://delivery.siemdistribuzione.it/Api/DeliveryVettoriAPI/ListaConsegne/?user=cptrasporti&pwd={EURONICS_API_PASSWORD}'
   ).json()
