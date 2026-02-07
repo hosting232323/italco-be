@@ -1,9 +1,12 @@
 from flask import Blueprint, request
 
 from ...database.schema import User
-from .pdf import order_import_by_pdf
 from ...database.enum import UserRole
 from ..users.session import flask_session_authentication
+from api import swagger_decorator, error_catching_decorator
+
+from .pdf import order_import_by_pdf
+from .api import save_orders_by_euronics
 from .excel import order_import_by_excel, handle_excel_conflict
 
 
@@ -32,3 +35,10 @@ def pdf_order_import(user: User):
     return {'status': 'ko', 'error': 'Nessun file caricato'}
 
   return order_import_by_pdf(request.files, request.form['customer_id'])
+
+
+@import_bp.route('api', methods=['POST'])
+@error_catching_decorator
+@swagger_decorator
+def api_order_import():
+  return save_orders_by_euronics()
