@@ -2,6 +2,7 @@ import os
 import random
 import requests
 
+from database_api import Session
 from database_api.operations import create
 from ...database.enum import OrderType, OrderStatus
 from ..service.queries import get_service_user_by_user_and_code
@@ -27,31 +28,35 @@ def save_orders_by_euronics():
       print(f'Ordine già presente {imported_order["id_vendita"]}')
       continue
 
-    product_service_user_handler(
-      imported_order,
-      result[0],
-      result[1],
-      create(
-        Order,
-        {
-          'type': OrderType.DELIVERY,
-          'cap': imported_order['CAP'],
-          'status': OrderStatus.PENDING,
-          'drc': imported_order['data_vendita'],
-          'addressee': imported_order['cliente'],
-          'dpc': imported_order['data_consegna'],
-          'external_id': imported_order['id_vendita'],
-          'addressee_contact': f'{imported_order["telefono"]} {imported_order["telefono1"]}',
-          'address': f'{imported_order["indirizzo"]} {imported_order["localita"]} {imported_order["provincia"]}',
-        },
-      ),
-    )
+    with Session() as session:
+      product_service_user_handler(
+        imported_order,
+        result[0],
+        result[1],
+        create(
+          Order,
+          {
+            'type': OrderType.DELIVERY,
+            'cap': imported_order['CAP'],
+            'status': OrderStatus.PENDING,
+            'drc': imported_order['data_vendita'],
+            'addressee': imported_order['cliente'],
+            'dpc': imported_order['data_consegna'],
+            'external_id': imported_order['id_vendita'],
+            'addressee_contact': f'{imported_order["telefono"]} {imported_order["telefono1"]}',
+            'address': f'{imported_order["indirizzo"]} {imported_order["localita"]} {imported_order["provincia"]}',
+          },
+          session=session,
+        ),
+        session,
+      )
 
+    session.commit()
   return {'status': 'ok', 'message': 'Operazione commpletata'}
 
 
 def product_service_user_handler(
-  imported_order: dict, user: User, collection_point: CollectionPoint, created_order: Order
+  imported_order: dict, user: User, collection_point: CollectionPoint, created_order: Order, session
 ):
   products = []
   service_users = []
@@ -82,6 +87,7 @@ def product_service_user_handler(
           'service_user_id': service_user.id,
           'collection_point_id': collection_point.id,
         },
+        session=session,
       )
 
 

@@ -20,7 +20,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
   op.add_column('customer_user_info', sa.Column('code', sa.String(), nullable=True))
+  op.alter_column('product', 'service_user_id', existing_type=sa.INTEGER(), nullable=True)
 
 
 def downgrade() -> None:
+  op.alter_column('product', 'service_user_id', existing_type=sa.INTEGER(), nullable=False)
   op.drop_column('customer_user_info', 'code')
