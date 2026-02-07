@@ -1,3 +1,5 @@
+from sqlalchemy import and_
+
 from database_api import Session
 from ...database.enum import UserRole
 from ...database.schema import (
@@ -63,3 +65,13 @@ def get_user_info(user_id: int, klass) -> DeliveryUserInfo | CustomerUserInfo:
 
   with Session() as session:
     return session.query(klass).filter(getattr(klass, 'user_id') == user_id).first()
+
+
+def get_user_and_collection_point_by_code(code: str) -> tuple[User, CollectionPoint]:
+  with Session() as session:
+    return (
+      session.query(User, CollectionPoint)
+      .join(CustomerUserInfo, and_(User.id == CustomerUserInfo.user_id, CustomerUserInfo.code == code))
+      .join(CollectionPoint, User.id == CollectionPoint.user_id)
+      .first()
+    )

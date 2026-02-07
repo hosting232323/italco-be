@@ -1,13 +1,13 @@
 import re
 import pdfplumber
 from datetime import datetime
-from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
 from ...utils.caps import get_cap_by_name
 from database_api.operations import create
 from ...database.enum import OrderType, OrderStatus
-from ...database.schema import Order, Product, CollectionPoint, ServiceUser
+from ...database.schema import Order, Product, CollectionPoint
+from ..service.queries import get_service_user_by_user_and_code
 
 
 CITY_FIXES = {'Noic?ttaro': 'Noicattaro'}
@@ -39,14 +39,13 @@ def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id:
     header = table[0]
     if header == ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']:
       for row in table[1:]:
-        service_user = get_service_user(user_id, row[4], session=session)
         create(
           Product,
           {
             'order_id': order_id,
-            'service_user_id': service_user.id,
             'name': f'{row[0]} {row[1]} {row[2]}',
             'collection_point_id': collection_point_id,
+            'service_user_id': get_service_user_by_user_and_code(user_id, row[4], session=session).id,
           },
           session=session,
         )
@@ -92,10 +91,6 @@ def pdf_create_order(text, session):
 def get_collection_point(customer_id: int) -> CollectionPoint:
   with Session() as session:
     return session.query(CollectionPoint).filter(CollectionPoint.user_id == customer_id).first()
-
-
-def get_service_user(user_id: int, code: str, session: session_type) -> ServiceUser:
-  return session.query(ServiceUser).filter(ServiceUser.user_id == user_id, ServiceUser.code == code).first()
 
 
 def normalize_city(city: str) -> str:

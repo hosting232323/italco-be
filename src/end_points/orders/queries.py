@@ -175,3 +175,13 @@ def get_selling_point(order: Order) -> User:
       .join(Product, and_(ServiceUser.id == Product.service_user_id, Product.order_id == order.id))
       .first()
     )
+
+
+def get_order_by_external_id_and_customer(external_id: str, customer_id: str) -> Order:
+  with Session() as session:
+    return (
+      session.query(Order)
+      .join(Product, and_(Order.id == Product.order_id, Order.external_id == external_id))
+      .join(ServiceUser, and_(Product.service_user_id == ServiceUser.id, ServiceUser.user_id == customer_id))
+      .first()
+    )
