@@ -1,8 +1,10 @@
 from flask import Blueprint, request
 
+from sqlalchemy.orm import defer
 from database_api import Session
 from ..database.enum import UserRole
 from ..database.schema import User, Log
+from database_api.operations import get_by_id
 from .users.session import flask_session_authentication
 
 
@@ -16,11 +18,24 @@ def get_logs(user: User):
     'status': 'ok',
     'logs': [{'logs': log.to_dict(), 'user': user.to_dict()} for log, user in query_logs(request.json['filters'])],
   }
+  
+
+@log_bp.route('', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN])
+def get_log(user: User):
+  return {
+    'status': 'ok',
+    'log': get_by_id(Log, request.args.get('log_id')).to_dict(),
+  }
 
 
 def query_logs(filters: list) -> list[tuple[Log, User]]:
   with Session() as session:
-    query = session.query(Log, User).join(User, Log.user_id == User.id)
+    query = (
+      session.query(Log, User)
+      .join(User, Log.user_id == User.id)
+      .options(defer(Log.content))
+    )
 
     for filter in filters:
       model = globals()[filter['model']]
