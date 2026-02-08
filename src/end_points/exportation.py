@@ -62,7 +62,7 @@ def export_orders_invoice(user: User):
     raise Exception('Numero di ordini trovati non valido')
 
   for filter in request.json['filters']:
-    if filter['field'] == 'booking_date' and filter['model'] == 'Order':
+    if filter['field'] == 'dpc' and filter['model'] == 'Order':
       start_date = filter['value'][0]
       end_date = filter['value'][1]
       break
