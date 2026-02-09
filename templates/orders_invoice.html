@@ -122,7 +122,13 @@
               {% endfor %}
 
               {% for name, count in counter.items() %}
-                {{ name }}{% if count > 3 %} x{{ count }}{% endif %}<br>
+                {% if count > 3 %}
+                  {{ name }} x{{ count }}<br>
+                {% else %}
+                  {% for i in range(count) %}
+                    {{ name }}<br>
+                  {% endfor %}
+                {% endif %}
               {% endfor %}
             {% endfor %}
           </td>
