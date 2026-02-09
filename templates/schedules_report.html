@@ -126,7 +126,7 @@
               {% endfor %}
 
               {% for name, count in counter.items() %}
-                {{ name }}{% if count > 1 %} x{{ count }}{% endif %}<br>
+                {{ name }}{% if count > 3 %} x{{ count }}{% endif %}<br>
               {% endfor %}
               <br>
             {% endfor %}
@@ -228,7 +228,7 @@
 
                 {% for name, count in counter.items() %}
                   <li>
-                    {{ name }}{% if count > 1 %} x{{ count }}{% endif %}
+                    {{ name }}{% if count > 3 %} x{{ count }}{% endif %}
                   </li>
                 {% endfor %}
               </ul>
