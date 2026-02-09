@@ -51,7 +51,7 @@ def save_orders_by_euronics():
         session,
       )
 
-    session.commit()
+      session.commit()
   return {'status': 'ok', 'message': 'Operazione commpletata'}
 
 
@@ -78,17 +78,18 @@ def product_service_user_handler(
     random.choice(products)['services'].append(service)
 
   for product in products:
-    for service_user in product['services']:
-      create(
-        Product,
-        {
-          'name': product['name'],
-          'order_id': created_order.id,
-          'service_user_id': service_user.id,
-          'collection_point_id': collection_point.id,
-        },
-        session=session,
-      )
+    product_dict = {
+      'name': product['name'],
+      'order_id': created_order.id,
+      'collection_point_id': collection_point.id,
+    }
+    if len(product['services']) == 0:
+      product_dict['service_user_id'] = get_service_user_by_user_and_code(user.id, '777').id
+      create(Product, product_dict, session=session)
+    else:
+      for service_user in product['services']:
+        product_dict['service_user_id'] = (service_user.id,)
+        create(Product, product_dict, session=session)
 
 
 def call_euronics_api():
