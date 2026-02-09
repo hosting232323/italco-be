@@ -10,7 +10,10 @@ from ..users.queries import get_user_and_collection_point_by_code
 from ..orders.queries import get_order_by_external_id_and_customer
 from ...database.schema import Order, Product, User, CollectionPoint
 
+import json
 import logging
+from datetime import datetime
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -95,9 +98,19 @@ def product_service_user_handler(
 
 
 def call_euronics_api():
-  x = requests.get(
-    f'https://delivery.siemdistribuzione.it/Api/DeliveryVettoriAPI/ListaConsegne/?user=cptrasporti&pwd={EURONICS_API_PASSWORD}'
-  ).json()
-  logging.info('API CALLING')
-  logging.info(x)
-  return x
+    response = requests.get(
+        f'https://delivery.siemdistribuzione.it/Api/DeliveryVettoriAPI/ListaConsegne/?user=cptrasporti&pwd={EURONICS_API_PASSWORD}'
+    )
+
+    response.raise_for_status()
+    data = response.json()
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'euronics_response_{timestamp}.json'
+
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    logging.info(f'API CALL salvata su file: {filename}')
+
+    return data
