@@ -10,6 +10,9 @@ from ..users.queries import get_user_and_collection_point_by_code
 from ..orders.queries import get_order_by_external_id_and_customer
 from ...database.schema import Order, Product, User, CollectionPoint
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 
@@ -92,6 +95,9 @@ def product_service_user_handler(
 
 
 def call_euronics_api():
-  return requests.get(
+  x = requests.get(
     f'https://delivery.siemdistribuzione.it/Api/DeliveryVettoriAPI/ListaConsegne/?user=cptrasporti&pwd={EURONICS_API_PASSWORD}'
   ).json()
+  logging.info('API CALLING')
+  logging.info(x)
+  return x
