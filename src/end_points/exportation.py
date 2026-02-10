@@ -59,8 +59,8 @@ def export_orders_invoice(user: User):
   ):
     orders = format_order_query_result(tupla, orders, user)
   if not orders:
-    return { 'status': 'ko', 'message': 'Numero di ordini trovati non valido' }
-  
+    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
+
   for filter in request.json['filters']:
     if filter['field'] == 'dpc' and filter['model'] == 'Order':
       start_date = filter['value'][0]
@@ -80,7 +80,7 @@ def export_orders_invoice(user: User):
     dest=result,
   )
   if pisa_status.err:
-    return { 'status': 'ko', 'message': 'Errore nella creazione del PDF' }
+    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
 
   return export_pdf(result.getvalue())
 
