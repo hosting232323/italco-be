@@ -93,7 +93,7 @@
   </div>
 
   <div class="section">
-    <h2>Ordini</h2>
+    <h2>Ordini ({{ orders|length }})</h2>
     <table class="data-table">
       <thead>
         <tr>
@@ -111,10 +111,10 @@
           <td>{{ order['type'] }}</td>
           <td>{{ order['addressee'] }}</td>
           <td>
-            {% for product_name, service_list in order['products'].items() %}
+            {% for product_name, product_data in order['products'].items() %}
               <strong>{{ product_name }}</strong><br>
-              {% for service in service_list %}
-                {{ service['name'] }}
+              {% for service in product_data['services'] %}
+                {{ service['name'] }}<br>
               {% endfor %}
             {% endfor %}
           </td>
