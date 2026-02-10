@@ -23,7 +23,7 @@ def export_order_report(user: User, id):
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(id)}]):
     orders = format_order_query_result(tupla, orders, user)
   if len(orders) != 1:
-    raise Exception('Numero di ordini trovati non valido')
+    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
@@ -44,7 +44,7 @@ def export_order_report(user: User, id):
     dest=result,
   )
   if pisa_status.err:
-    raise Exception('Errore nella creazione del PDF')
+    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
 
   return export_pdf(result.getvalue())
 
@@ -92,7 +92,7 @@ def export_orders_schedule(user: User, id):
   for tupla in query_schedules([{'model': 'Schedule', 'field': 'id', 'value': int(id)}]):
     schedules = format_schedule_query_result(tupla, schedules, user)
   if len(schedules) != 1:
-    raise Exception('Numero di schedule trovati non valido')
+    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
 
   orders = []
   for tupla in query_orders(
@@ -120,7 +120,7 @@ def export_orders_schedule(user: User, id):
     dest=result,
   )
   if pisa_status.err:
-    raise Exception('Errore nella creazione del PDF')
+    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
 
   return export_pdf(result.getvalue())
 
@@ -132,7 +132,7 @@ def export_rae(user: User, order_id):
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(order_id)}]):
     orders = format_order_query_result(tupla, orders, user)
   if len(orders) != 1:
-    raise Exception('Numero di ordini trovati non valido')
+    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
 
   rae_products = []
   for product_data in orders[0]['products'].values():
@@ -144,7 +144,7 @@ def export_rae(user: User, order_id):
         }
       )
   if len(rae_products) == 0:
-    raise Exception('Nessun prodotto rae identificato')
+    return {'status': 'ko', 'message': 'Nessun prodotto rae identificato'}
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
@@ -158,7 +158,7 @@ def export_rae(user: User, order_id):
     dest=result,
   )
   if pisa_status.err:
-    raise Exception('Errore nella creazione del PDF')
+    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
 
   return export_pdf(result.getvalue())
 
