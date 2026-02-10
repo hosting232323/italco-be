@@ -110,8 +110,19 @@
           </td>
           <td>
             <ul style="margin: 0; padding-left: 16px;">
+              {% set counter = {} %}
               {% for service in product.services %}
-              <li>{{ service.name }}</li>
+                {% set _ = counter.update({ service.name: (counter.get(service.name, 0) + 1) }) %}
+              {% endfor %}
+
+              {% for name, count in counter.items() %}
+                {% if count > 3 %}
+                  <li>{{ name }} x{{ count }}</li>
+                {% else %}
+                  {% for i in range(count) %}
+                    <li>{{ name }}</li>
+                  {% endfor %}
+                {% endif %}
               {% endfor %}
             </ul>
           </td>

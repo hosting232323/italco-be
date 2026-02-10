@@ -113,8 +113,22 @@
           <td>
             {% for product_name, product_data in order['products'].items() %}
               <strong>{{ product_name }}</strong><br>
+
+              {% set counter = {} %}
               {% for service in product_data['services'] %}
-                {{ service['name'] }}<br>
+                {% set _ = counter.update({
+                  service['name']: (counter.get(service['name'], 0) + 1)
+                }) %}
+              {% endfor %}
+
+              {% for name, count in counter.items() %}
+                {% if count > 3 %}
+                  {{ name }} x{{ count }}<br>
+                {% else %}
+                  {% for i in range(count) %}
+                    {{ name }}<br>
+                  {% endfor %}
+                {% endif %}
               {% endfor %}
             {% endfor %}
           </td>
