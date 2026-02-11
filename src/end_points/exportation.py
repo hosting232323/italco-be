@@ -55,7 +55,7 @@ def export_orders_invoice(user: User):
   orders = []
   for tupla in query_orders(
     user,
-    request.json['filters'] + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.COMPLETED}],
+    request.json['filters'] + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.DELIVERED}],
   ):
     orders = format_order_query_result(tupla, orders, user)
   if not orders:

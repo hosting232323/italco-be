@@ -12,6 +12,6 @@ if __name__ == '__main__':
   orders: list[Order] = get_all(Order)
 
   for order in tqdm(orders, desc='Aggiornamento delivery_date'):
-    if order.status in [OrderStatus.COMPLETED, OrderStatus.CANCELLED]:
+    if order.status in [OrderStatus.DELIVERED, OrderStatus.NOT_DELIVERED]:
       if not order.booking_date:
         update(order, {'booking_date': order.dpc})
