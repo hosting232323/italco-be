@@ -42,7 +42,7 @@ def send_message(user: User):
           date_message = f'dal {start_date}{f" al {end_date}" if end_date else ""}'
           submit_orders_to_thread_dynamic(thread_id, run.id, tool_call.id, orders, date_message)
 
-    elif run_status.status == 'DELIVERED':
+    elif run_status.status == 'completed':
       break
 
   return {
