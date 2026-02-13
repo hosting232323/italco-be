@@ -165,13 +165,13 @@ lint_backend:
 deploy_test:
   <<: *deploy_template
   tags:
-    - deploy-zubat
+    - deploy-local
   when: manual
 
 deploy_prod:
   <<: *deploy_template
   tags:
-    - deploy-zubat
+    - deploy-local
   when: manual
   only:
     - main
