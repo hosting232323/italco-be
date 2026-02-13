@@ -50,7 +50,7 @@ def create_order(user: User):
       update(
         cloned_order,
         {
-          'booking_date': datetime.now(),
+          'completion_date': datetime.now(),
           'status': OrderStatus.REDELIVERY,
           'operator_note': f'{new_note}, {cloned_order.operator_note}' if cloned_order.operator_note else new_note,
         },
@@ -140,7 +140,7 @@ def update_order(user: User, id):
     data['type'] = OrderType.get_enum_option(data['type'])
     data['status'] = OrderStatus.get_enum_option(data['status'])
     if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED]:
-      data['booking_date'] = datetime.now()
+      data['completion_date'] = datetime.now()
     if user.role != UserRole.DELIVERY:
       update_product(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
 
