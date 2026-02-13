@@ -25,7 +25,7 @@ def get_mails(order: Order):
 
 def mailer_check(order: Order, data: dict, motivation: Motivation):
   if (
-    ('status' in data and data['status'] in [OrderStatus.CANCELLED, OrderStatus.TO_RESCHEDULE])
+    ('status' in data and data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.TO_RESCHEDULE])
     or ('anomaly' in data and data['anomaly'] is True)
     or ('delay' in data and data['delay'] is True)
   ):
@@ -34,7 +34,7 @@ def mailer_check(order: Order, data: dict, motivation: Motivation):
     if order.status == OrderStatus.TO_RESCHEDULE:
       icons.append('🚧')
       states.append('da rischedulare')
-    elif order.status == OrderStatus.CANCELLED:
+    elif order.status == OrderStatus.NOT_DELIVERED:
       icons.append('❌')
       states.append('non completato')
     if data.get('delay', False):

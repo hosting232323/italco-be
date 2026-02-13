@@ -9,14 +9,21 @@ class UserRole(BaseEnum):
 
 
 class OrderStatus(BaseEnum):
-  PENDING = 'Pending'
-  IN_PROGRESS = 'In Progress'
-  ON_BOARD = 'On Board'
-  COMPLETED = 'Completed'
+  NEW = 'New'
+  CONFIRMED = 'Confirmed'
+  BOOKING = 'Booking'
+  DELIVERED = 'Delivered'
+  NOT_DELIVERED = 'Not Delivered'
+  REDELIVERY = 'Redelivery'
+  REPLACEMENT = 'Replacement'
   CANCELLED = 'Cancelled'
+  URGENT = 'Urgent'
+  VERIFICATION = 'Verification'
+  CANCELLED_TO_BE_REFUNDED = 'Cancelled to be Refunded'
+  DELETED = 'Deleted'
+  # No Api
   AT_WAREHOUSE = 'At Warehouse'
   TO_RESCHEDULE = 'To Reschedule'
-  RESCHEDULED = 'Rescheduled'
 
 
 class OrderType(BaseEnum):

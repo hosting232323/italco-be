@@ -38,7 +38,7 @@ def save_orders_by_euronics():
           {
             'type': OrderType.DELIVERY,
             'cap': imported_order['CAP'],
-            'status': OrderStatus.PENDING,
+            'status': OrderStatus.NEW,
             'drc': imported_order['data_vendita'],
             'addressee': imported_order['cliente'],
             'dpc': imported_order['data_consegna'],
