@@ -99,6 +99,8 @@ class Order(BaseEntity):
   elevator = Column(Boolean)
   addressee_contact = Column(String)
   booking_date = Column(Date)
+  confirmation_date = Column(Date)
+  completion_date = Column(Date)
   assignament_date = Column(Date)
   customer_note = Column(String)
   operator_note = Column(String)
