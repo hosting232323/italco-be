@@ -1,6 +1,8 @@
 stages:
   - prepare
   - test
+  - deploy
+
 image: hosting23232323/python-node:3.11
 variables:
   POSTGRES_DB: mydb
