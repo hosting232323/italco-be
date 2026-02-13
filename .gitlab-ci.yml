@@ -23,6 +23,8 @@ fe_dependencies:
     expire_in: 1h
   tags:
     - linux
+  rules:
+    - if: '$CI_COMMIT_BRANCH != "main"'
 
 be_dependencies:
   stage: prepare
@@ -40,6 +42,8 @@ be_dependencies:
     expire_in: 1h
   tags:
     - linux
+  rules:
+    - if: '$CI_COMMIT_BRANCH != "main"'
 
 test_end_to_end:
   stage: test
@@ -75,6 +79,8 @@ test_end_to_end:
     expire_in: 1 week
   tags:
     - linux
+  rules:
+    - if: '$CI_COMMIT_BRANCH != "main"'
 
 lint_backend:
   stage: test
@@ -85,3 +91,87 @@ lint_backend:
     - ruff format ./src --exit-non-zero-on-fix
   tags:
     - linux
+  rules:
+    - if: '$CI_COMMIT_BRANCH != "main"'
+
+.deploy_template: &deploy_template
+  stage: deploy
+  script:
+    - |
+      if [ "$CI_JOB_NAME" = "deploy_test" ]; then
+        PJ_NAME="${PROJECT_NAME}-test"
+        CONTAINER_ACTIVE="${PROJECT_NAME}-test"
+        CONTAINER_NEXT="${PROJECT_NAME}-test-next"
+        FIRST_PORT="${PORT_TEST%%-*}"
+        SECOND_PORT="${PORT_TEST#*-}"
+        VITE_HOSTNAME="${DATABASE_URL_ITALCO_BE}_test"
+        IS_DEV=1
+      else
+        PJ_NAME="${PROJECT_NAME}"
+        CONTAINER_ACTIVE="${PROJECT_NAME}"
+        CONTAINER_NEXT="${PROJECT_NAME}-next"
+        FIRST_PORT="${PORT_PROD%%-*}"
+        SECOND_PORT="${PORT_PROD#*-}"
+        VITE_HOSTNAME="${DATABASE_URL_ITALCO_BE}"
+        IS_DEV=0
+      fi
+
+      cat <<-EOF > env_file
+        DATABASE_URL=$VITE_HOSTNAME
+        DECODE_JWT_TOKEN=$DECODE_JWT_TOKEN_ITALCO_BE
+        EURONICS_API_PASSWORD=$EURONICS_API_PASSWORD_ITALCO_BE
+        TELEGRAM_TOKEN=$TELEGRAM_TOKEN
+        API_PREFIX=$API_PREFIX_ITALCO_BE
+        SWAGGER_KEY=$SWAGGER_KEY_ITALCO_BE
+        STATIC_FOLDER=$STATIC_FOLDER_ITALCO_BE
+        VONAGE_API_KEY=$VONAGE_API_KEY_ITALCO_BE
+        VONAGE_API_SECRET=$VONAGE_API_SECRET_ITALCO_BE
+        EMAIL_SENDER_NAME=$EMAIL_SENDER_NAME_ITALCO_BE
+        EMAIL_SENDER_ADDRESS=$EMAIL_SENDER_ADDRESS_ITALCO_BE
+        EMAIL_SENDER_PASSWORD=$EMAIL_SENDER_PASSWORD_ITALCO_BE
+        EMAIL_SENDER_SMTP_SERVER=$EMAIL_SENDER_SMTP_SERVER_ITALCO_BE
+        OPENAI_API_KEY=$OPENAI_API_KEY_ITALCO_BE
+        ASSISTANT_ID=$ASSISTANT_ID_ITALCO_BE
+        IS_DEV=$IS_DEV
+      EOF
+
+      docker build -t $PJ_NAME:latest .
+      docker rm -f "${CONTAINER_NEXT}" 2>/dev/null || true
+
+      docker run --rm \
+        --env-file env_file \
+        $PJ_NAME:latest python -m alembic upgrade heads
+
+      docker run -d --name ${CONTAINER_NEXT} \
+        --env-file env_file \
+        -p ${SECOND_PORT}:8080 \
+        $PJ_NAME:latest
+
+      sleep 10
+
+      if curl -v http://localhost:$SECOND_PORT/api/; then
+        docker rm -f ${CONTAINER_ACTIVE} 2>/dev/null || true
+        docker run -d --restart unless-stopped \
+          --name ${CONTAINER_ACTIVE} \
+          --env-file env_file \
+          -p ${FIRST_PORT}:8080 \
+          $PJ_NAME:latest
+        docker rm -f ${CONTAINER_NEXT} 2>/dev/null || true
+      else
+        docker logs ${CONTAINER_NEXT} || true
+        exit 1
+      fi
+
+deploy_test:
+  <<: *deploy_template
+  tags:
+    - deploy-zubat
+  when: manual
+
+deploy_prod:
+  <<: *deploy_template
+  tags:
+    - deploy-zubat
+  when: manual
+  only:
+    - main
