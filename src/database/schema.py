@@ -85,7 +85,7 @@ class Transport(BaseEntity):
 class Order(BaseEntity):
   __tablename__ = 'order'
 
-  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.PENDING)
+  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.NEW)
   type = Column(Enum(OrderType), nullable=False)
   addressee = Column(String, nullable=False)
   address = Column(String, nullable=False)

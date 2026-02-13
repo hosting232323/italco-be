@@ -51,7 +51,7 @@ def create_order(user: User):
         cloned_order,
         {
           'booking_date': datetime.now(),
-          'status': OrderStatus.RESCHEDULED,
+          'status': OrderStatus.REDELIVERY,
           'operator_note': f'{new_note}, {cloned_order.operator_note}' if cloned_order.operator_note else new_note,
         },
         session=session,
@@ -100,7 +100,7 @@ def get_order(id):
   if len(orders) != 1:
     raise Exception('Numero di ordini trovati non valido')
 
-  if orders[0]['status'] == 'On Board':
+  if orders[0]['status'] == 'Booking':
     for delivery_group in get_delivery_groups_by_order_id(orders[0]['id']):
       delivery_user_info = get_user_info(delivery_group.user_id, DeliveryUserInfo)
       if delivery_user_info and delivery_user_info.lat is not None and delivery_user_info.lon is not None:
@@ -139,7 +139,7 @@ def update_order(user: User, id):
 
     data['type'] = OrderType.get_enum_option(data['type'])
     data['status'] = OrderStatus.get_enum_option(data['status'])
-    if data['status'] in [OrderStatus.CANCELLED, OrderStatus.COMPLETED]:
+    if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED]:
       data['booking_date'] = datetime.now()
     if user.role != UserRole.DELIVERY:
       update_product(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
@@ -208,7 +208,7 @@ def get_delivery_details(user: User, order_id: int):
 def delete_order(user: User, id):
   order: Order = get_by_id(Order, int(id))
   item = get_schedule_item_by_order(order)
-  if not order or item or order.status != OrderStatus.PENDING:
+  if not order or item or order.status != OrderStatus.NEW:
     return {
       'status': 'ko',
       'error': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",

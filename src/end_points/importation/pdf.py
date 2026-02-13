@@ -81,7 +81,7 @@ def pdf_create_order(text, session):
       'addressee': addressee,
       'type': OrderType.DELIVERY,
       'cap': get_cap_by_name(city),
-      'status': OrderStatus.PENDING,
+      'status': OrderStatus.NEW,
       'addressee_contact': addressee_contact,
     },
     session=session,

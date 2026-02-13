@@ -96,7 +96,7 @@ def parse_orders(file, customer_id):
 def build_order(order: dict):
   return {
     'type': OrderType.DELIVERY,
-    'status': OrderStatus.PENDING,
+    'status': OrderStatus.NEW,
     'addressee': order['Destinatario'],
     'address': f'{order["Indirizzo Dest."]}, {order["Localita"]}, {order["Provincia"]}',
     'cap': order['CAP'],
