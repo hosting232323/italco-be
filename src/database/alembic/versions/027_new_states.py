@@ -1,4 +1,4 @@
-"""new states
+"""New states
 
 Revision ID: 027
 Revises: 026
