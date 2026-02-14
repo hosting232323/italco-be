@@ -1,17 +1,14 @@
-import os
 import random
 import requests
 
 from database_api import Session
+from ... import EURONICS_API_PASSWORD
 from database_api.operations import create
 from ...database.enum import OrderType, OrderStatus
 from ..service.queries import get_service_user_by_user_and_code
 from ..users.queries import get_user_and_collection_point_by_code
 from ..orders.queries import get_order_by_external_id_and_customer
 from ...database.schema import Order, Product, User, CollectionPoint
-
-
-EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 
 
 def save_orders_by_euronics():
@@ -24,8 +21,8 @@ def save_orders_by_euronics():
       print(f'Non trovato punto vendita {imported_order["cod_pv"]}')
       continue
 
-    if get_order_by_external_id_and_customer(imported_order['id_vendita'], result[0].id):
-      print(f'Ordine già presente {imported_order["id_vendita"]}')
+    if get_order_by_external_id_and_customer(imported_order['id_consegna'], result[0].id):
+      print(f'Ordine già presente {imported_order["id_consegna"]}')
       continue
 
     with Session() as session:
@@ -42,7 +39,7 @@ def save_orders_by_euronics():
             'drc': imported_order['data_vendita'],
             'addressee': imported_order['cliente'],
             'dpc': imported_order['data_consegna'],
-            'external_id': imported_order['id_vendita'],
+            'external_id': imported_order['id_consegna'],
             'addressee_contact': f'{imported_order["telefono"]} {imported_order["telefono1"]}',
             'address': f'{imported_order["indirizzo"]} {imported_order["localita"]} {imported_order["provincia"]}',
           },

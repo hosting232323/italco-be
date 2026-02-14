@@ -2,9 +2,10 @@ from datetime import datetime
 from flask import Blueprint, request
 
 from database_api import Session
+from .api import save_info_to_euronics
+from ..users.queries import format_user_with_info
 from ...database.enum import UserRole, OrderStatus
 from ..users.session import flask_session_authentication
-from ..users.queries import format_user_with_info
 from ...database.schema import Schedule, User, DeliveryGroup
 from database_api.operations import create, delete, get_by_id, update
 from .schedulation import assign_orders_to_groups, build_schedule_items
@@ -44,6 +45,7 @@ def create_schedule(user: User):
       handle_schedule_item(item, schedule, session)
 
     session.commit()
+    save_info_to_euronics(schedule, schedule_items)
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
@@ -106,6 +108,7 @@ def update_schedule(user: User, id):
 
     schedule_items_updating(schedule_items, actual_schedule_items, schedule, session=session)
     session.commit()
+    save_info_to_euronics(schedule, schedule_items)
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
