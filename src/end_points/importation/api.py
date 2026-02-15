@@ -40,6 +40,7 @@ def save_orders_by_euronics():
             'addressee': imported_order['cliente'],
             'dpc': imported_order['data_consegna'],
             'external_id': imported_order['id_consegna'],
+            'confirmation_date': imported_order['dataconferma'],
             'addressee_contact': f'{imported_order["telefono"]} {imported_order["telefono1"]}',
             'address': f'{imported_order["indirizzo"]} {imported_order["localita"]} {imported_order["provincia"]}',
           },
