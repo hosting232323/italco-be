@@ -142,7 +142,7 @@ lint_backend:
         IS_DEV=$IS_DEV
       EOF
 
-      docker build -t $PJ_NAME:latest .
+      docker build --no-cache -t $PJ_NAME:latest .
       docker rm -f "${CONTAINER_NEXT}" 2>/dev/null || true
 
       docker run --rm \
