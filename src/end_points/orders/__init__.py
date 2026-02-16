@@ -8,6 +8,7 @@ from .photo import handle_photos
 from .sms_sender import delay_sms_check
 from api import error_catching_decorator
 from ..users.queries import get_user_info
+from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_product, update_product
 from ..users.session import flask_session_authentication
@@ -64,6 +65,7 @@ def create_order(user: User):
       )
 
     session.commit()
+    save_order_status_to_euronics(order)
   return {'status': 'ok', 'order': order.to_dict()}
 
 
@@ -163,8 +165,9 @@ def update_order(user: User, id):
       if key not in ['products', 'user_id', 'motivation', 'start_time_slot', 'end_time_slot']
     }
     order = update(order, data, session=session)
-    session.commit()
 
+    session.commit()
+    save_order_status_to_euronics(order)
     mailer_check(order, data, motivation)
   return {'status': 'ok', 'order': order.to_dict()}
 
