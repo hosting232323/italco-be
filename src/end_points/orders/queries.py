@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from sqlalchemy import and_, not_, desc
+from sqlalchemy import and_, not_, desc, or_
 
 from database_api import Session
 from ...database.enum import UserRole, OrderType, OrderStatus
@@ -37,9 +37,15 @@ def query_orders(
       query = query.filter(User.id == user.id)
 
     for filter in filters:
+      value = filter['value']
+
+      if filter['field'] == 'work_date':
+        work_date = value if isinstance(value, date) else datetime.strptime(value, '%Y-%m-%d').date()
+        query = query.filter(or_(Order.booking_date == work_date, Order.dpc == work_date))
+        continue
+
       model = globals()[filter['model']] if filter['model'] not in ['CustomerUser', 'DeliveryUser'] else User
       field = getattr(model, filter['field'])
-      value = filter['value']
 
       if filter['model'] == 'DeliveryUser' and field == User.id:
         query = (
