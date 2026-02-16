@@ -1,11 +1,12 @@
 import os
+import datetime
 from flask_cors import CORS
 from flask import Flask, send_from_directory
 
 from api.settings import IS_DEV
 from database_api.backup import db_backup
 from api import swagger_decorator, PrefixMiddleware
-
+from api.storage.local import zip_folder_local, upload_large_file_to_pc
 
 allowed_origins = [
   'https://ares-logistics.it',
@@ -50,3 +51,18 @@ def serve_image(filename):
 @swagger_decorator
 def trigger_backup():
   return db_backup(DATABASE_URL, STATIC_FOLDER, 'local', 'backup')
+
+
+@app.route('/trigger-zip', methods=['POST'])
+def trigger_zip():
+  folder_path = zip_folder_local(r'/home/gralogic/Scrivania/photos')
+  
+  remote_file = upload_large_file_to_pc(
+    file_path=folder_path,
+    remote_host="192.168.1.39",
+    remote_user="uploader",
+    remote_path=f"/srv/uploads/{datetime.now().strftime("%y%m%d%H%M%S")}.zip",
+    password="Upload123!"
+  )
+ 
+  return {'status': 'ok', 'error': f'Trigger eseguito con successo su {remote_file}'} 
