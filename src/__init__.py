@@ -7,7 +7,9 @@ from flask import Flask, send_from_directory
 from api.settings import IS_DEV
 from database_api.backup import data_export
 from api import swagger_decorator, PrefixMiddleware, error_catching_decorator
-
+from api.storage import delete_file
+from api.storage.local import zip_folder_local
+from api.storage.aws import upload_large_file_to_s3
 
 allowed_origins = [
   'https://ares-logistics.it',
@@ -62,6 +64,14 @@ def trigger_backup():
   print(f'[{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}] Backup eseguito!')
   return {'status': 'ok', 'error': 'Backup eseguito con successo'}
 
+
+@app.route('/trigger-zip', methods=['POST'])
+def trigger_zip():
+  
+  folder_path = zip_folder_local(r'C:\Users\giuse\Desktop\WorkSpace\italco-be\templates')
+  upload_large_file_to_s3(folder_path, 'save.zip', 'fastsite-postgres-backup','italco-be')
+ 
+  return {'status': 'ok', 'error': 'Trigger eseguito con successo'} 
 
 def safe_copy_to_remote(src, dst):
   with open(src, 'rb') as fsrc, open(dst, 'wb') as fdst:
