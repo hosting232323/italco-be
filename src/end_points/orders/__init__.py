@@ -116,9 +116,7 @@ def get_order(id):
 def update_order(user: User, id):
   with Session() as session:
     order: Order = get_by_id(Order, int(id), session=session)
-    if user.role in [UserRole.DELIVERY, UserRole.ADMIN, UserRole.OPERATOR] and isinstance(
-      request.form.get('data'), str
-    ):
+    if isinstance(request.form.get('data'), str):
       data = handle_photos(json.loads(request.form.get('data')), order, session=session)
     else:
       data = request.json
