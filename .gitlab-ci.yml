@@ -108,6 +108,7 @@ lint_backend:
         SECOND_PORT="${PORT_TEST#*-}"
         VITE_HOSTNAME="${DATABASE_URL_ITALCO_BE}_test"
         EURONICS_API_PASSWORD=None
+        STATIC_FOLDER=$STATIC_FOLDER_ITALCO_BE_TEST
         IS_DEV=1
       else
         PJ_NAME="${PROJECT_NAME}"
@@ -117,6 +118,7 @@ lint_backend:
         SECOND_PORT="${PORT_PROD#*-}"
         VITE_HOSTNAME="${DATABASE_URL_ITALCO_BE}"
         EURONICS_API_PASSWORD=$EURONICS_API_PASSWORD_ITALCO_BE
+        STATIC_FOLDER=$STATIC_FOLDER_ITALCO_BE
         IS_DEV=0
       fi
 
@@ -127,7 +129,7 @@ lint_backend:
         TELEGRAM_TOKEN=$TELEGRAM_TOKEN
         API_PREFIX=$API_PREFIX_ITALCO_BE
         SWAGGER_KEY=$SWAGGER_KEY_ITALCO_BE
-        STATIC_FOLDER=$STATIC_FOLDER_ITALCO_BE
+        STATIC_FOLDER=$STATIC_FOLDER
         VONAGE_API_KEY=$VONAGE_API_KEY_ITALCO_BE
         VONAGE_API_SECRET=$VONAGE_API_SECRET_ITALCO_BE
         EMAIL_SENDER_NAME=$EMAIL_SENDER_NAME_ITALCO_BE
@@ -144,10 +146,12 @@ lint_backend:
 
       docker run --rm \
         --env-file env_file \
+        -v $STATIC_FOLDER:$STATIC_FOLDER \
         $PJ_NAME:latest python -m alembic upgrade heads
 
       docker run -d --name ${CONTAINER_NEXT} \
         --env-file env_file \
+        -v $STATIC_FOLDER:$STATIC_FOLDER \
         -p ${SECOND_PORT}:8080 \
         $PJ_NAME:latest
 
@@ -159,6 +163,7 @@ lint_backend:
           --name ${CONTAINER_ACTIVE} \
           --env-file env_file \
           -p ${FIRST_PORT}:8080 \
+          -v $STATIC_FOLDER:$STATIC_FOLDER \
           $PJ_NAME:latest
         docker rm -f ${CONTAINER_NEXT} 2>/dev/null || true
       else
