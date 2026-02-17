@@ -62,7 +62,8 @@ def query_orders(
         )
       elif model == CustomerGroup:
         query = query.join(CustomerGroup, CustomerGroup.id == User.customer_group_id)
-      elif model == Order and field in [Order.created_at, Order.dpc] and type(value) is list:
+
+      if model == Order and field in [Order.created_at, Order.dpc] and type(value) is list:
         query = query.filter(
           field >= (value[0] if isinstance(value[0], date) else datetime.strptime(value[0], '%Y-%m-%d')),
           field <= (value[1] if isinstance(value[1], date) else datetime.strptime(value[1], '%Y-%m-%d')),
