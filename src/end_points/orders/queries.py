@@ -38,7 +38,6 @@ def query_orders(
 
     for filter in filters:
       value = filter['value']
-
       if filter['field'] == 'work_date':
         work_date = value if isinstance(value, date) else datetime.strptime(value, '%Y-%m-%d').date()
         query = query.filter(or_(Order.booking_date == work_date, Order.dpc == work_date))
@@ -46,7 +45,6 @@ def query_orders(
 
       model = globals()[filter['model']] if filter['model'] not in ['CustomerUser', 'DeliveryUser'] else User
       field = getattr(model, filter['field'])
-
       if filter['model'] == 'DeliveryUser' and field == User.id:
         query = (
           query.join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
@@ -56,7 +54,7 @@ def query_orders(
         )
         continue
 
-      if model in [Schedule]:
+      if model == Schedule:
         query = (
           query.join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
           .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
@@ -64,8 +62,7 @@ def query_orders(
         )
       elif model == CustomerGroup:
         query = query.join(CustomerGroup, CustomerGroup.id == User.customer_group_id)
-
-      if model == Order and field in [Order.created_at, Order.dpc] and type(value) is list:
+      elif model == Order and field in [Order.created_at, Order.dpc] and type(value) is list:
         query = query.filter(
           field >= (value[0] if isinstance(value[0], date) else datetime.strptime(value[0], '%Y-%m-%d')),
           field <= (value[1] if isinstance(value[1], date) else datetime.strptime(value[1], '%Y-%m-%d')),
