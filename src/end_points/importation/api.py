@@ -3,12 +3,28 @@ import requests
 
 from database_api import Session
 from ... import EURONICS_API_PASSWORD
-from database_api.operations import create
+from database_api.operations import create, update
 from ...database.enum import OrderType, OrderStatus
 from ..service.queries import get_service_user_by_user_and_code
 from ..users.queries import get_user_and_collection_point_by_code
 from ..orders.queries import get_order_by_external_id_and_customer
 from ...database.schema import Order, Product, User, CollectionPoint
+
+
+ORDER_STATUS_MAP = {
+  0: OrderStatus.NEW,
+  1: OrderStatus.CONFIRMED,
+  2: OrderStatus.NOT_DELIVERED,
+  3: OrderStatus.BOOKING,
+  4: OrderStatus.CONFIRMED,
+  8: OrderStatus.REPLACEMENT,
+  9: OrderStatus.REDELIVERY,
+  10: OrderStatus.CANCELLED,
+  11: OrderStatus.URGENT,
+  12: OrderStatus.VERIFICATION,
+  13: OrderStatus.CANCELLED_TO_BE_REFUNDED,
+  100: OrderStatus.DELETED
+}
 
 
 def save_orders_by_euronics():
@@ -21,8 +37,11 @@ def save_orders_by_euronics():
       print(f'Non trovato punto vendita {imported_order["cod_pv"]}')
       continue
 
-    if get_order_by_external_id_and_customer(imported_order['id_consegna'], result[0].id):
-      print(f'Ordine già presente {imported_order["id_consegna"]}')
+    status = ORDER_STATUS_MAP[imported_order['stato']]
+    order = get_order_by_external_id_and_customer(imported_order['id_consegna'], result[0].id)
+    if order:
+      if order.status != status:
+        update(order, {'status': status})
       continue
 
     with Session() as session:
@@ -33,9 +52,9 @@ def save_orders_by_euronics():
         create(
           Order,
           {
+            'status': status,
             'type': OrderType.DELIVERY,
             'cap': imported_order['CAP'],
-            'status': OrderStatus.NEW,
             'drc': imported_order['data_vendita'],
             'addressee': imported_order['cliente'],
             'dpc': imported_order['data_consegna'],

@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from .sms_sender import schedule_sms_check
+from ..orders.api import save_order_status_to_euronics
 from ...database.enum import OrderStatus, ScheduleType
 from database_api.operations import create, delete, get_by_id, update, get_by_ids
 from ...database.schema import (
@@ -83,6 +84,7 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
     )
     update(order, {'assignament_date': datetime.now(), 'status': OrderStatus.CONFIRMED}, session=session)
     schedule_sms_check(order, new_item)
+    save_order_status_to_euronics(order)
 
   elif operation_type == ScheduleType.COLLECTIONPOINT:
     create(
@@ -132,6 +134,8 @@ def schedule_items_updating(
         },
         session=session,
       )
+      if schedule_item['operation_type'] == 'Order':
+        save_order_status_to_euronics(schedule_item['order'])
     else:
       handle_schedule_item(schedule_item, schedule, session=session)
 
