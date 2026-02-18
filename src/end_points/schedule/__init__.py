@@ -161,8 +161,8 @@ def pianification(user: User):
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Ordini non identificati'}
 
-  for order in orders:
-    if order['status'] != 'New':
-      return {'status': 'ko', 'error': 'Hai selezionato degli ordini già assegnati'}
+  # for order in orders:
+  #   if order['status'] != 'New':
+  #     return {'status': 'ko', 'error': 'Hai selezionato degli ordini già assegnati'}
 
   return {'status': 'ok', 'schedule_items': build_schedule_items(orders)}
