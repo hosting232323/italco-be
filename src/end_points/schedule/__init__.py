@@ -9,7 +9,13 @@ from ...database.schema import Schedule, User, DeliveryGroup
 from database_api.operations import create, delete, get_by_id, update
 from .schedulation import assign_orders_to_groups, build_schedule_items
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
-from .utils import handle_schedule_item, delete_schedule_items, schedule_items_updating, format_schedule_data
+from .utils import (
+  handle_schedule_item,
+  delete_schedule_items,
+  schedule_items_updating,
+  format_schedule_data,
+  save_info_to_euronics,
+)
 from .queries import (
   query_schedules,
   query_schedules_count,
@@ -44,6 +50,7 @@ def create_schedule(user: User):
       handle_schedule_item(item, schedule, session)
 
     session.commit()
+    save_info_to_euronics(schedule_items)
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
@@ -106,6 +113,7 @@ def update_schedule(user: User, id):
 
     schedule_items_updating(schedule_items, actual_schedule_items, schedule, session=session)
     session.commit()
+    save_info_to_euronics(schedule_items)
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
