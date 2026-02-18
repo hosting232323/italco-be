@@ -45,7 +45,7 @@ def save_orders_by_euronics():
       continue
 
     with Session() as session:
-      product_service_user_handler(
+      if product_service_user_handler(
         imported_order,
         result[0],
         result[1],
@@ -66,9 +66,8 @@ def save_orders_by_euronics():
           session=session,
         ),
         session,
-      )
-
-      session.commit()
+      ):
+        session.commit()
   return {'status': 'ok', 'message': 'Operazione commpletata'}
 
 
@@ -86,7 +85,7 @@ def product_service_user_handler(
 
   if len(products) == 0:
     print('Nessun prodotto individuato')
-    return
+    return False
 
   for product, service in zip(products, service_users):
     product['services'].append(service)
@@ -107,6 +106,7 @@ def product_service_user_handler(
       for service_user in product['services']:
         product_dict['service_user_id'] = (service_user.id,)
         create(Product, product_dict, session=session)
+  return True
 
 
 def call_euronics_api():
