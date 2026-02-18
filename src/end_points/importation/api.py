@@ -23,7 +23,7 @@ ORDER_STATUS_MAP = {
   11: OrderStatus.URGENT,
   12: OrderStatus.VERIFICATION,
   13: OrderStatus.CANCELLED_TO_BE_REFUNDED,
-  100: OrderStatus.DELETED
+  100: OrderStatus.DELETED,
 }
 
 

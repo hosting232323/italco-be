@@ -14,6 +14,12 @@ from ...database.schema import (
 )
 
 
+def save_info_to_euronics(schedule_items: list[dict]):
+  for item in schedule_items:
+    if item['operation_type'] == 'Order':
+      save_order_status_to_euronics(item['order'])
+
+
 def format_schedule_data(schedule_data: dict, session=None):
   order_ids = []
   schedule_items = []
@@ -84,7 +90,6 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
     )
     update(order, {'assignament_date': datetime.now(), 'status': OrderStatus.CONFIRMED}, session=session)
     schedule_sms_check(order, new_item)
-    save_order_status_to_euronics(order)
 
   elif operation_type == ScheduleType.COLLECTIONPOINT:
     create(
@@ -134,8 +139,6 @@ def schedule_items_updating(
         },
         session=session,
       )
-      if schedule_item['operation_type'] == 'Order':
-        save_order_status_to_euronics(schedule_item['order'])
     else:
       handle_schedule_item(schedule_item, schedule, session=session)
 
