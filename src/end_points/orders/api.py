@@ -42,9 +42,7 @@ def save_order_status_to_euronics(order: Order):
           'data_confermata': order.booking_date.strftime('%d/%m/%Y'),
           'ritiro_rae': 1 if len(get_rae_products_by_order(order)) > 0 else 0,
           'rif_vettore': f'{tupla[0].id} - {get_transport_by_schedule(tupla[0]).plate}' if tupla else '',
-          'fascia_oraria': f'{tupla[1].start_time_slot.split(":")[0]} - {tupla[1].end_time_slot.split(":")[0]}'
-          if tupla
-          else '',
+          'fascia_oraria': f'{tupla[1].start_time_slot.hour} - {tupla[1].end_time_slot.hour}' if tupla else '',
         }
       ]
     },
