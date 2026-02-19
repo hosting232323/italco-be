@@ -142,6 +142,7 @@ class ScheduleItem(BaseEntity):
   __tablename__ = 'schedule_item'
 
   index = Column(Integer)
+  completed = Column(Boolean, default=False)
   end_time_slot = Column(Time)
   start_time_slot = Column(Time)
   operation_type = Column(Enum(ScheduleType))

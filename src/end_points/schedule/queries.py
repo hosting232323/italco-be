@@ -173,6 +173,7 @@ def format_schedule_item(
 
   item['id'] = schedule_item.id
   item['index'] = schedule_item.index
+  item['completed'] = schedule_item.completed
   item['operation_type'] = schedule_item.operation_type.value
   item['end_time_slot'] = schedule_item.end_time_slot.strftime('%H:%M:%S')
   item['start_time_slot'] = schedule_item.start_time_slot.strftime('%H:%M:%S')
