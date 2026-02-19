@@ -107,6 +107,7 @@ class Order(BaseEntity):
   signature = Column(LargeBinary)
   mark = Column(Float)
   external_id = Column(String)
+  external_status = Column(Enum(OrderStatus))
 
   schedule_item_order = relationship('ScheduleItemOrder', back_populates='order')
   photo = relationship('Photo', back_populates='order', cascade='all, delete-orphan')
