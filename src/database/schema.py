@@ -166,7 +166,6 @@ class ScheduleItemOrder(BaseEntity):
 class ScheduleItemCollectionPoint(BaseEntity):
   __tablename__ = 'schedule_item_collection_point'
 
-  completed = Column(Boolean, default=None)
   schedule_item_id = Column(ForeignKey('schedule_item.id'), nullable=False)
   collection_point_id = Column(ForeignKey('collection_point.id'), nullable=False)
 

@@ -5,7 +5,7 @@ from database_api import Session
 from ..users.queries import format_user_with_info
 from ...database.enum import UserRole, OrderStatus
 from ..users.session import flask_session_authentication
-from ...database.schema import Schedule, User, DeliveryGroup
+from ...database.schema import Schedule, User, DeliveryGroup, ScheduleItem
 from database_api.operations import create, delete, get_by_id, update
 from .schedulation import assign_orders_to_groups, build_schedule_items
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
@@ -89,7 +89,6 @@ def update_schedule(user: User, id):
   with Session() as session:
     schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     actual_schedule_items = get_schedule_items(schedule, session=session)
-
     delivery_groups = get_delivery_groups(schedule, session=session)
     deleted_users = []
     if 'deleted_users' in request.json:
@@ -117,6 +116,16 @@ def update_schedule(user: User, id):
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
+@schedule_bp.route('item/<id>', methods=['PUT'])
+@flask_session_authentication([UserRole.DELIVERY])
+def update_schedule_item(user: User, id):
+  schedule_item: ScheduleItem = get_by_id(ScheduleItem, int(id))
+  update(schedule_item, {
+    'completed': request.json['completed']
+  })
+  return {'status': 'ok', 'message': 'Operazione completata' }
+  
+  
 @schedule_bp.route('suggestions', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
 def get_schedule_suggestions(user: User):
