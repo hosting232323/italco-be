@@ -141,6 +141,7 @@ def update_order(user: User, id):
 
     data['type'] = OrderType.get_enum_option(data['type'])
     data['status'] = OrderStatus.get_enum_option(data['status'])
+    del data['external_status']
     if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED]:
       data['completion_date'] = datetime.now()
     if user.role != UserRole.DELIVERY:
