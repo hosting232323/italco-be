@@ -85,7 +85,7 @@ def update_order_status_by_euronics(status: int):
     return {'status': 'ko', 'message': 'Api Key Error'}
 
   for imported_order in call_status_euronics_api(status):
-    external_status = ORDER_STATUS_MAP[imported_order['stato']]
+    external_status = ORDER_STATUS_MAP[imported_order['stato_consegnato']]
     order = get_order_by_external_id(imported_order['id_consegna'])
     if order and order.external_status != external_status:
       update(order, {'external_status': external_status})
