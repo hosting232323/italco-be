@@ -120,12 +120,10 @@ def update_schedule(user: User, id):
 @flask_session_authentication([UserRole.DELIVERY])
 def update_schedule_item(user: User, id):
   schedule_item: ScheduleItem = get_by_id(ScheduleItem, int(id))
-  update(schedule_item, {
-    'completed': request.json['completed']
-  })
-  return {'status': 'ok', 'message': 'Operazione completata' }
-  
-  
+  update(schedule_item, {'completed': request.json['completed']})
+  return {'status': 'ok', 'message': 'Operazione completata'}
+
+
 @schedule_bp.route('suggestions', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
 def get_schedule_suggestions(user: User):
@@ -175,3 +173,15 @@ def pianification(user: User):
   #     return {'status': 'ko', 'error': 'Hai selezionato degli ordini già assegnati'}
 
   return {'status': 'ok', 'schedule_items': build_schedule_items(orders)}
+
+
+@schedule_bp.route('delivery', methods=['GET'])
+@flask_session_authentication([UserRole.DELIVERY])
+def get_orders_for_delivery(user: User):
+  schedules = []
+  for tupla in query_schedules([{'model': 'DeliveryGroup', 'field': 'user_id', 'value': int(user.id)}]):
+    schedules = format_query_result(tupla, schedules, user)
+  if len(schedules) != 1:
+    return {'status': 'ko', 'message': 'Numero di bordero trovati non valido'}
+
+  return {'status': 'ok', 'schedule_items': schedules[0]['schedule_items']}
