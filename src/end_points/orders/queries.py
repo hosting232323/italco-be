@@ -1,8 +1,8 @@
 from datetime import datetime, date
-from sqlalchemy import and_, not_, desc, or_
+from sqlalchemy import and_, desc, or_
 
 from database_api import Session
-from ...database.enum import UserRole, OrderType, OrderStatus
+from ...database.enum import UserRole, OrderType
 from ...database.schema import (
   Order,
   Product,
@@ -79,32 +79,6 @@ def query_orders(
     if limit:
       query = query.limit(limit)
     return query.all()
-
-
-def query_delivery_orders(
-  user: User,
-) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint]]:
-  with Session() as session:
-    return (
-      session.query(Order, Product, ServiceUser, Service, User, CollectionPoint)
-      .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
-      .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
-      .join(
-        Schedule,
-        and_(
-          Schedule.date == datetime.now().date(),
-          Schedule.id == ScheduleItem.schedule_id,
-          not_(Order.status.in_([OrderStatus.NEW])),
-        ),
-      )
-      .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user.id))
-      .outerjoin(Product, Product.order_id == Order.id)
-      .outerjoin(CollectionPoint, Product.collection_point_id == CollectionPoint.id)
-      .outerjoin(ServiceUser, Product.service_user_id == ServiceUser.id)
-      .outerjoin(Service, ServiceUser.service_id == Service.id)
-      .outerjoin(User, ServiceUser.user_id == User.id)
-      .all()
-    )
 
 
 def query_products(order: Order) -> list[Product]:
