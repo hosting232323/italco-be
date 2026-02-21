@@ -16,7 +16,6 @@ from ...database.enum import OrderStatus, UserRole, OrderType
 from ...database.schema import User, Order, Motivation, ServiceUser, DeliveryUserInfo
 from database_api.operations import create, update, get_by_id, delete
 from ..schedule.queries import get_schedule_item_by_order, get_delivery_groups_by_order_id
-from ..schedule.queries import query_schedules, format_query_result as format_schedule_query_result
 from .queries import (
   query_orders,
   format_query_result,
@@ -67,18 +66,6 @@ def create_order(user: User):
     session.commit()
     save_order_status_to_euronics(order)
   return {'status': 'ok', 'order': order.to_dict()}
-
-
-@order_bp.route('delivery', methods=['GET'])
-@flask_session_authentication([UserRole.DELIVERY])
-def get_orders_for_delivery(user: User):
-  schedules = []
-  for tupla in query_schedules([{'model': 'DeliveryGroup', 'field': 'user_id', 'value': int(user.id)}]):
-    schedules = format_schedule_query_result(tupla, schedules, user)
-  if len(schedules) != 1:
-    return {'status': 'ko', 'message': 'Numero di bordero trovati non valido'}
-
-  return {'status': 'ok', 'schedule_items': schedules[0]['schedule_items']}
 
 
 @order_bp.route('filter', methods=['POST'])
