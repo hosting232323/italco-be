@@ -1,6 +1,6 @@
 import random
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from database_api import Session
 from ... import EURONICS_API_PASSWORD
@@ -8,8 +8,8 @@ from database_api.operations import create, update
 from ...database.enum import OrderType, OrderStatus
 from ..service.queries import get_service_user_by_user_and_code
 from ..users.queries import get_user_and_collection_point_by_code
-from ..orders.queries import get_order_by_external_id_and_customer
 from ...database.schema import Order, Product, User, CollectionPoint
+from ..orders.queries import get_order_by_external_id_and_customer, get_order_by_external_id
 
 
 ORDER_STATUS_MAP = {
@@ -32,7 +32,7 @@ def save_orders_by_euronics():
   if not EURONICS_API_PASSWORD:
     return {'status': 'ko', 'message': 'Api Key Error'}
 
-  for imported_order in call_euronics_api():
+  for imported_order in call_list_euronics_api():
     result = get_user_and_collection_point_by_code(imported_order['cod_pv'])
     if not result or not result[0]:
       print(f'Non trovato punto vendita {imported_order["cod_pv"]}')
@@ -41,8 +41,12 @@ def save_orders_by_euronics():
     external_status = ORDER_STATUS_MAP[imported_order['stato']]
     order = get_order_by_external_id_and_customer(imported_order['id_consegna'], result[0].id)
     if order:
-      if order.external_status != external_status:
-        update(order, {'external_status': external_status})
+      if order.external_status != external_status or (
+        imported_order['dataconferma'] != '' and imported_order['dataconferma'] != order.confirmation_date
+      ):
+        update(
+          order, {'external_status': external_status, 'confirmation_date': format_date(imported_order['dataconferma'])}
+        )
       continue
 
     with Session() as session:
@@ -59,12 +63,12 @@ def save_orders_by_euronics():
             'external_status': external_status,
             'addressee': imported_order['cliente'],
             'external_id': imported_order['id_consegna'],
-            'drc': datetime.strptime(imported_order['data_vendita'], '%d/%m/%Y %H:%M:%S'),
-            'dpc': datetime.strptime(imported_order['data_consegna'], '%d/%m/%Y %H:%M:%S'),
+            'drc': format_date(imported_order['data_vendita']),
+            'dpc': format_date(imported_order['data_consegna']),
             'addressee_contact': f'{imported_order["telefono"]} {imported_order["telefono1"]}',
             'customer_note': imported_order['note_conferma'] if imported_order['note_conferma'] != '' else None,
             'address': f'{imported_order["indirizzo"]} {imported_order["localita"]} {imported_order["provincia"]}',
-            'confirmation_date': datetime.strptime(imported_order['dataconferma'], '%d/%m/%Y %H:%M:%S')
+            'confirmation_date': format_date(imported_order['dataconferma'])
             if imported_order['dataconferma'] != ''
             else None,
           },
@@ -73,6 +77,18 @@ def save_orders_by_euronics():
         session,
       ):
         session.commit()
+  return {'status': 'ok', 'message': 'Operazione commpletata'}
+
+
+def update_order_status_by_euronics(status: int):
+  if not EURONICS_API_PASSWORD:
+    return {'status': 'ko', 'message': 'Api Key Error'}
+
+  for imported_order in call_status_euronics_api(status):
+    external_status = ORDER_STATUS_MAP[imported_order['stato_consegnato']]
+    order = get_order_by_external_id(imported_order['id_consegna'])
+    if order and order.external_status != external_status:
+      update(order, {'external_status': external_status})
   return {'status': 'ok', 'message': 'Operazione commpletata'}
 
 
@@ -114,7 +130,25 @@ def product_service_user_handler(
   return True
 
 
-def call_euronics_api():
+def format_date(date):
+  return datetime.strptime(date, '%d/%m/%Y %H:%M:%S')
+
+
+def call_list_euronics_api():
   return requests.get(
-    f'https://delivery.siemdistribuzione.it/Api/DeliveryVettoriAPI/ListaConsegne/?user=cptrasporti&pwd={EURONICS_API_PASSWORD}'
+    'https://delivery.siemdistribuzione.it/Api/DeliveryVettoriAPI/ListaConsegne/',
+    params={'user': 'cptrasporti', 'pwd': EURONICS_API_PASSWORD},
+  ).json()
+
+
+def call_status_euronics_api(status: int):
+  return requests.get(
+    'https://delivery.siemdistribuzione.it/Api/DeliveryVettoriAPI/StatoConsegne/',
+    params={
+      'user': 'cptrasporti',
+      'pwd': EURONICS_API_PASSWORD,
+      'datain': (datetime.today() - timedelta(days=7)).strftime('%d/%m/%Y'),
+      'dataout': (datetime.today() + timedelta(days=7)).strftime('%d/%m/%Y'),
+      'stato': status,
+    },
   ).json()

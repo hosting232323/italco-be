@@ -6,8 +6,8 @@ from ..users.session import flask_session_authentication
 from api import swagger_decorator, error_catching_decorator
 
 from .pdf import order_import_by_pdf
-from .api import save_orders_by_euronics
 from .excel import order_import_by_excel, handle_excel_conflict
+from .api import save_orders_by_euronics, update_order_status_by_euronics
 
 
 import_bp = Blueprint('import_bp', __name__)
@@ -37,8 +37,15 @@ def pdf_order_import(user: User):
   return order_import_by_pdf(request.files, request.form['customer_id'])
 
 
-@import_bp.route('api', methods=['POST'])
+@import_bp.route('euronics/list-api', methods=['POST'])
 @error_catching_decorator
 @swagger_decorator
 def api_order_import():
   return save_orders_by_euronics()
+
+
+@import_bp.route('euronics/status-api', methods=['POST'])
+@error_catching_decorator
+@swagger_decorator
+def api_order_status_update():
+  return update_order_status_by_euronics(request.json['status'])

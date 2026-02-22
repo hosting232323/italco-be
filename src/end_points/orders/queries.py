@@ -189,3 +189,8 @@ def get_order_by_external_id_and_customer(external_id: str, customer_id: str) ->
       .join(ServiceUser, and_(Product.service_user_id == ServiceUser.id, ServiceUser.user_id == customer_id))
       .first()
     )
+
+
+def get_order_by_external_id(external_id: str) -> Order:
+  with Session() as session:
+    return session.query(Order).filter(Order.external_id == external_id).first()
