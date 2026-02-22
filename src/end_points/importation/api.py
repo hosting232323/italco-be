@@ -137,10 +137,7 @@ def format_date(date):
 def call_list_euronics_api():
   return requests.get(
     'https://delivery.siemdistribuzione.it/Api/DeliveryVettoriAPI/ListaConsegne/',
-    params={
-      'user': 'cptrasporti',
-      'pwd': EURONICS_API_PASSWORD
-    }
+    params={'user': 'cptrasporti', 'pwd': EURONICS_API_PASSWORD},
   ).json()
 
 
@@ -152,6 +149,6 @@ def call_status_euronics_api(status: int):
       'pwd': EURONICS_API_PASSWORD,
       'datain': (datetime.today() - timedelta(days=7)).strftime('%d/%m/%Y'),
       'dataout': (datetime.today() + timedelta(days=7)).strftime('%d/%m/%Y'),
-      'stato': status
-    }
+      'stato': status,
+    },
   ).json()
