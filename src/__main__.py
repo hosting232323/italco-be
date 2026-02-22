@@ -1,6 +1,3 @@
-import subprocess
-
-from api.settings import IS_DEV
 from .database.schema import User
 from .database.enum import UserRole
 from .database.seed import seed_data
@@ -56,23 +53,6 @@ set_database(DATABASE_URL)
 
 
 if __name__ == '__main__':
-  if not IS_DEV:
-    print('Avvio in corso in modalità produzione...')
-    subprocess.run(
-      [
-        'gunicorn',
-        '-w',
-        '4',
-        '-b',
-        f'127.0.0.1:{PORT}',
-        '--access-logfile',
-        '-',
-        '--error-logfile',
-        '-',
-        'src.__main__:app',
-      ]
-    )
-  else:
-    print('Avvio in corso in modalità sviluppo...')
-    seed_data()
-    app.run(host='0.0.0.0', port=PORT)
+  print('Avvio in corso in modalità sviluppo...')
+  seed_data()
+  app.run(host='0.0.0.0', port=PORT, debug=True)
