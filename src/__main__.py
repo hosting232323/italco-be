@@ -54,5 +54,6 @@ set_database(DATABASE_URL)
 
 
 if __name__ == '__main__':
-  seed_data()
-  app.run(host='0.0.0.0', port=PORT, debug=IS_DEV)
+  if IS_DEV:
+    seed_data()
+  app.run(host='0.0.0.0', port=PORT, debug=True)
