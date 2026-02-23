@@ -1,3 +1,4 @@
+from api.settings import IS_DEV
 from .database.schema import User
 from .database.enum import UserRole
 from .database.seed import seed_data
@@ -53,6 +54,5 @@ set_database(DATABASE_URL)
 
 
 if __name__ == '__main__':
-  print('Avvio in corso in modalità sviluppo...')
   seed_data()
-  app.run(host='0.0.0.0', port=PORT, debug=True)
+  app.run(host='0.0.0.0', port=PORT, debug=IS_DEV)
