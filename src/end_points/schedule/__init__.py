@@ -3,9 +3,9 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ..users.queries import format_user_with_info
-from ...database.enum import UserRole, OrderStatus
+from ...database.enum import UserRole, OrderStatus, ScheduleType
 from ..users.session import flask_session_authentication
-from ...database.schema import Schedule, User, DeliveryGroup, ScheduleItem
+from ...database.schema import Schedule, User, DeliveryGroup, ScheduleItem, CollectionPoint
 from database_api.operations import create, delete, get_by_id, update
 from .schedulation import assign_orders_to_groups, build_schedule_items
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
@@ -69,7 +69,7 @@ def delete_schedule(user: User, id):
 
 
 @schedule_bp.route('filter', methods=['POST'])
-@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY])
 def get_schedules(user: User):
   schedules = []
   for tupla in query_schedules(request.json['filters'], 100):
@@ -119,8 +119,22 @@ def update_schedule(user: User, id):
 @schedule_bp.route('item/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.DELIVERY])
 def update_schedule_item(user: User, id):
+
+  # data = []
+  schedules = []
+  for tupla in query_schedules([{'model': 'DeliveryGroup', 'field': 'user_id', 'value': int(user.id)}]):
+    schedules = format_query_result(tupla, schedules, user)
+  if len(schedules) != 1:
+    return {'status': 'ko', 'message': 'Numero di bordero trovati non valido'}
+  
+  
   schedule_item: ScheduleItem = get_by_id(ScheduleItem, int(id))
-  update(schedule_item, {'completed': request.json['completed']})
+  # update(schedule_item, {'completed': request.json['completed']})
+  
+  schedule_items = schedules[0]['schedule_items']
+  # vedi gli ordini associati al colelction point e per ognunoi vedi tutti i collection e se sono tutti completati va in delivery
+
+      
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
