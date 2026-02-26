@@ -8,8 +8,7 @@ from api.settings import IS_DEV
 from database_api.backup import data_export
 from api import swagger_decorator, PrefixMiddleware, error_catching_decorator
 from api.storage import delete_file
-from api.storage.local import zip_folder_local
-from api.storage.aws import upload_large_file_to_s3
+from api.storage.local import zip_folder_local, upload_large_file_to_pc
 
 allowed_origins = [
   'https://ares-logistics.it',
@@ -65,14 +64,6 @@ def trigger_backup():
   return {'status': 'ok', 'error': 'Backup eseguito con successo'}
 
 
-@app.route('/trigger-zip', methods=['POST'])
-def trigger_zip():
-  
-  folder_path = zip_folder_local(r'C:\Users\giuse\Desktop\WorkSpace\italco-be\templates')
-  upload_large_file_to_s3(folder_path, 'save.zip', 'fastsite-postgres-backup','italco-be')
- 
-  return {'status': 'ok', 'error': 'Trigger eseguito con successo'} 
-
 def safe_copy_to_remote(src, dst):
   with open(src, 'rb') as fsrc, open(dst, 'wb') as fdst:
     shutil.copyfileobj(fsrc, fdst)
@@ -90,3 +81,19 @@ def manage_local_backups(local_folder: str):
   if len(backups) > POSTGRES_BACKUP_DAYS:
     for path in backups[: len(backups) - POSTGRES_BACKUP_DAYS]:
       os.remove(path)
+
+
+@app.route('/trigger-zip', methods=['POST'])
+def trigger_zip():
+  
+  folder_path = zip_folder_local(r'C:\Users\giuse\Desktop\WorkSpace\italco-be\templates')
+  
+  remote_file = upload_large_file_to_s3(
+    file_path=folder_path,
+    remote_host="192.168.1.10",
+    remote_user="mario",
+    remote_path="/home/mario/uploads/",
+    password="laTuaPasswordSSH"
+  )
+ 
+  return {'status': 'ok', 'error': f'Trigger eseguito con successo su {remote_file}'} 
