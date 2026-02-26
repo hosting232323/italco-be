@@ -34,7 +34,7 @@ def get_collection_points(user: User):
 
 
 @collection_point_bp.route('<id>', methods=['PUT'])
-@flask_session_authentication([UserRole.CUSTOMER])
+@flask_session_authentication([UserRole.CUSTOMER, UserRole.ADMIN])
 def update_collection_point(user: User, id):
   collection_point: CollectionPoint = get_by_id(CollectionPoint, int(id))
   return {'status': 'ok', 'order': update(collection_point, request.json).to_dict()}
