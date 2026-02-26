@@ -5,7 +5,7 @@ from database_api import Session
 from ..users.queries import format_user_with_info
 from ...database.enum import UserRole, OrderStatus, ScheduleType
 from ..users.session import flask_session_authentication
-from ...database.schema import Schedule, User, DeliveryGroup, ScheduleItem, CollectionPoint
+from ...database.schema import Schedule, User, DeliveryGroup, ScheduleItem, Order
 from database_api.operations import create, delete, get_by_id, update
 from .schedulation import assign_orders_to_groups, build_schedule_items
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
@@ -119,21 +119,36 @@ def update_schedule(user: User, id):
 @schedule_bp.route('item/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.DELIVERY])
 def update_schedule_item(user: User, id):
+  schedule_item: ScheduleItem = get_by_id(ScheduleItem, int(id))
+  update(schedule_item, {'completed': request.json['completed']})
 
-  # data = []
   schedules = []
   for tupla in query_schedules([{'model': 'DeliveryGroup', 'field': 'user_id', 'value': int(user.id)}]):
     schedules = format_query_result(tupla, schedules, user)
   if len(schedules) != 1:
     return {'status': 'ko', 'message': 'Numero di bordero trovati non valido'}
   
-  
-  schedule_item: ScheduleItem = get_by_id(ScheduleItem, int(id))
-  # update(schedule_item, {'completed': request.json['completed']})
-  
   schedule_items = schedules[0]['schedule_items']
-  # vedi gli ordini associati al colelction point e per ognunoi vedi tutti i collection e se sono tutti completati va in delivery
+  for item in schedule_items:
+    if item['operation_type'] == 'CollectionPoint':
+      continue
 
+    required_cp_ids = {
+      p['collection_point']['id']
+      for p in item.get('products', {}).values()
+    }
+    
+    cp_items = [
+      i for i in schedule_items
+      if i['operation_type'] == 'CollectionPoint'
+      and i['collection_point_id'] in required_cp_ids
+    ]
+    
+    all_completed = all(cp['completed'] for cp in cp_items)
+
+    if all_completed:
+      order: Order = get_by_id(Order, item['id'])
+      update(order, {'status': 'Delivery'})
       
   return {'status': 'ok', 'message': 'Operazione completata'}
 
