@@ -5,6 +5,7 @@ from database_api import Session
 from ...database.enum import UserRole, OrderType, OrderStatus
 from ...database.schema import (
   Order,
+  Status,
   Product,
   ServiceUser,
   Service,
@@ -22,15 +23,16 @@ from ...database.schema import (
 
 def query_orders(
   user: User, filters: list, limit: int = None
-) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint]]:
+) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Status]]:
   with Session() as session:
     query = (
-      session.query(Order, Product, ServiceUser, Service, User, CollectionPoint)
+      session.query(Order, Product, ServiceUser, Service, User, CollectionPoint, Status)
       .outerjoin(Product, Product.order_id == Order.id)
       .outerjoin(CollectionPoint, Product.collection_point_id == CollectionPoint.id)
       .outerjoin(ServiceUser, Product.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
       .outerjoin(User, ServiceUser.user_id == User.id)
+      .outerjoin(Status, Status.order_id == Order.id)
     )
 
     if user.role == UserRole.CUSTOMER:
@@ -123,7 +125,7 @@ def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -
 
 
 def format_query_result(
-  tupla: tuple[Order, Product, ServiceUser, Service, User, CollectionPoint],
+  tupla: tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Status],
   list: list[dict],
   user: User,
 ) -> list[dict]:
@@ -137,6 +139,7 @@ def format_query_result(
     'price': 0,
     'products': {},
     'user': tupla[4].format_user(user.role),
+    'statuses': [t.to_dict() for t in tupla[6]]
   }
   add_service(output, tupla[3], tupla[1], tupla[5], tupla[2].price)
   list.append(output)

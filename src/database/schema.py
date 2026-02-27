@@ -85,7 +85,6 @@ class Transport(BaseEntity):
 class Order(BaseEntity):
   __tablename__ = 'order'
 
-  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.NEW)
   type = Column(Enum(OrderType), nullable=False)
   addressee = Column(String, nullable=False)
   address = Column(String, nullable=False)
@@ -111,8 +110,18 @@ class Order(BaseEntity):
 
   schedule_item_order = relationship('ScheduleItemOrder', back_populates='order')
   photo = relationship('Photo', back_populates='order', cascade='all, delete-orphan')
+  statuses = relationship('Status', back_populates='order', cascade='all, delete-orphan')
   product = relationship('Product', back_populates='order', cascade='all, delete-orphan')
   motivations = relationship('Motivation', back_populates='order', cascade='all, delete-orphan')
+
+
+class Status(BaseEntity):
+  __tablename__ = 'status'
+
+  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.NEW)
+  order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
+
+  order = relationship('Order', back_populates='statuses')
 
 
 class Motivation(BaseEntity):
