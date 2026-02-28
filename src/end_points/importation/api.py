@@ -65,12 +65,10 @@ def save_orders_by_euronics():
             'external_id': imported_order['id_consegna'],
             'drc': format_date(imported_order['data_vendita']),
             'dpc': format_date(imported_order['data_consegna']),
+            'confirmation_date': format_date(imported_order['dataconferma']),
             'addressee_contact': f'{imported_order["telefono"]} {imported_order["telefono1"]}',
             'customer_note': imported_order['note_conferma'] if imported_order['note_conferma'] != '' else None,
             'address': f'{imported_order["indirizzo"]} {imported_order["localita"]} {imported_order["provincia"]}',
-            'confirmation_date': format_date(imported_order['dataconferma'])
-            if imported_order['dataconferma'] != ''
-            else None,
           },
           session=session,
         ),
@@ -131,7 +129,7 @@ def product_service_user_handler(
 
 
 def format_date(date):
-  return datetime.strptime(date, '%d/%m/%Y %H:%M:%S')
+  return datetime.strptime(date, '%d/%m/%Y %H:%M:%S') if date not in [None, ''] else None
 
 
 def call_list_euronics_api():
