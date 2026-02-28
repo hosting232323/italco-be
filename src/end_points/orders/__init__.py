@@ -13,7 +13,7 @@ from ..service.queries import get_service_users
 from .services import create_product, update_product
 from ..users.session import flask_session_authentication
 from ...database.enum import OrderStatus, UserRole, OrderType
-from ...database.schema import User, Order, Motivation, ServiceUser, DeliveryUserInfo
+from ...database.schema import User, Order, Motivation, ServiceUser, DeliveryUserInfo, Status
 from database_api.operations import create, update, get_by_id, delete
 from ..schedule.queries import get_schedule_item_by_order, get_delivery_groups_by_order_id
 from .queries import (
@@ -23,6 +23,8 @@ from .queries import (
   get_order_photos,
   get_motivations_by_order_id,
   query_products,
+  get_all_statuses_by_order_id,
+  get_latest_status_by_order_id,
 )
 
 
@@ -140,7 +142,14 @@ def update_order(user: User, id):
       motivation = None
 
     data['type'] = OrderType.get_enum_option(data['type'])
-    data['status'] = OrderStatus.get_enum_option(data['status'])
+    
+    latest_status = get_latest_status_by_order_id(order.id)
+    if (latest_status.status.value != data['status']):
+      create(Status, {
+        'order_id': order.id,
+        'status': OrderStatus.get_enum_option(data['status'])
+      })
+
     if 'external_status' in data:
       del data['external_status']
     if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED]:
@@ -166,6 +175,7 @@ def update_order(user: User, id):
       for key, value in data.items()
       if key not in ['products', 'user_id', 'motivation', 'start_time_slot', 'end_time_slot']
     }
+    data.pop('status', None)
     order = update(order, data, session=session)
 
     session.commit()
@@ -226,11 +236,8 @@ def delete_order(user: User, id):
 @order_bp.route('get-statuses/<id>', methods=['GET'])
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
-def get_statuses(id):
-
-
-  return {'status': 'ok'}
-
+def get_statuses(user: User, id):
+  return {'status': 'ok', 'statuses': [s.to_dict() for s in get_all_statuses_by_order_id(id)]}
 
 
 def parse_time(value: str) -> datetime.time:

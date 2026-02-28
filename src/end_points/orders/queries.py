@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from sqlalchemy import and_, not_, desc, or_
+from sqlalchemy import and_, not_, desc, or_, func
 
 from database_api import Session
 from ...database.enum import UserRole, OrderType, OrderStatus
@@ -25,6 +25,14 @@ def query_orders(
   user: User, filters: list, limit: int = None
 ) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Status]]:
   with Session() as session:
+    latest_status_subq = (
+      session.query(
+        Status.order_id,
+        func.max(Status.created_at).label("max_created_at")
+      )
+      .group_by(Status.order_id)
+      .subquery()
+    )
     query = (
       session.query(Order, Product, ServiceUser, Service, User, CollectionPoint, Status)
       .outerjoin(Product, Product.order_id == Order.id)
@@ -32,7 +40,16 @@ def query_orders(
       .outerjoin(ServiceUser, Product.service_user_id == ServiceUser.id)
       .outerjoin(Service, ServiceUser.service_id == Service.id)
       .outerjoin(User, ServiceUser.user_id == User.id)
-      .outerjoin(Status, Status.order_id == Order.id)
+      .outerjoin(
+        latest_status_subq,
+        latest_status_subq.c.order_id == Order.id
+      ).outerjoin(
+        Status,
+        and_(
+          Status.order_id == latest_status_subq.c.order_id,
+          Status.created_at == latest_status_subq.c.max_created_at,
+        )
+      )
     )
 
     if user.role == UserRole.CUSTOMER:
@@ -197,3 +214,23 @@ def get_order_by_external_id_and_customer(external_id: str, customer_id: str) ->
 def get_order_by_external_id(external_id: str) -> Order:
   with Session() as session:
     return session.query(Order).filter(Order.external_id == external_id).first()
+
+
+def get_latest_status_by_order_id(order_id: int) -> Status:
+  with Session() as session:
+    return (
+      session.query(Status)
+      .filter(Status.order_id == order_id)
+      .order_by(desc(Status.id))
+      .first()
+    )
+
+
+def get_all_statuses_by_order_id(order_id: int) -> list[Status]:
+  with Session() as session:
+    return (
+      session.query(Status)
+      .filter(Status.order_id == order_id)
+      .order_by(desc(Status.id))
+      .all()
+    )
