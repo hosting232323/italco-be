@@ -139,7 +139,7 @@ def format_query_result(
     'price': 0,
     'products': {},
     'user': tupla[4].format_user(user.role),
-    'statuses': [t.to_dict() for t in tupla[6]]
+    'status': tupla[6].status.value
   }
   add_service(output, tupla[3], tupla[1], tupla[5], tupla[2].price)
   list.append(output)

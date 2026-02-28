@@ -223,6 +223,16 @@ def delete_order(user: User, id):
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
+@order_bp.route('get-statuses/<id>', methods=['GET'])
+@error_catching_decorator
+@flask_session_authentication([UserRole.ADMIN])
+def get_statuses(id):
+
+
+  return {'status': 'ok'}
+
+
+
 def parse_time(value: str) -> datetime.time:
   for fmt in ['%H:%M', '%H:%M:%S']:
     try:
