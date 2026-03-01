@@ -5,6 +5,7 @@ from database_api import Session
 from ...database.enum import UserRole, OrderType, OrderStatus
 from ...database.schema import (
   Order,
+  Status,
   Product,
   ServiceUser,
   Service,
@@ -194,3 +195,8 @@ def get_order_by_external_id_and_customer(external_id: str, customer_id: str) ->
 def get_order_by_external_id(external_id: str) -> Order:
   with Session() as session:
     return session.query(Order).filter(Order.external_id == external_id).first()
+
+
+def get_all_statuses_by_order_id(order_id: int) -> list[Status]:
+  with Session() as session:
+    return session.query(Status).filter(Status.order_id == order_id).order_by(desc(Status.id)).all()

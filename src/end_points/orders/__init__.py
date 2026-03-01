@@ -13,8 +13,8 @@ from ..service.queries import get_service_users
 from .services import create_product, update_product
 from ..users.session import flask_session_authentication
 from ...database.enum import OrderStatus, UserRole, OrderType
-from ...database.schema import User, Order, Motivation, ServiceUser, DeliveryUserInfo
 from database_api.operations import create, update, get_by_id, delete
+from ...database.schema import User, Order, Motivation, ServiceUser, DeliveryUserInfo
 from ..schedule.queries import get_schedule_item_by_order, get_delivery_groups_by_order_id
 from .queries import (
   query_orders,
@@ -23,6 +23,7 @@ from .queries import (
   get_order_photos,
   get_motivations_by_order_id,
   query_products,
+  get_all_statuses_by_order_id,
 )
 
 
@@ -221,6 +222,13 @@ def delete_order(user: User, id):
 
   delete(order)
   return {'status': 'ok', 'message': 'Operazione completata'}
+
+
+@order_bp.route('get-statuses/<id>', methods=['GET'])
+@error_catching_decorator
+@flask_session_authentication([UserRole.ADMIN])
+def get_statuses(user: User, id):
+  return {'status': 'ok', 'statuses': [status.to_dict() for status in get_all_statuses_by_order_id(id)]}
 
 
 def parse_time(value: str) -> datetime.time:
