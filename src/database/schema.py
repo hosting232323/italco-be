@@ -1,5 +1,19 @@
-from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Enum, Date, String, Float, Integer, LargeBinary, ForeignKey, Boolean, Numeric, Time
+from sqlalchemy.orm import relationship, Session
+from sqlalchemy import (
+  Column,
+  Enum,
+  Date,
+  String,
+  Float,
+  Integer,
+  LargeBinary,
+  ForeignKey,
+  Boolean,
+  Numeric,
+  Time,
+  event,
+  inspect,
+)
 
 from database_api import BaseEntity
 from .enum import UserRole, OrderStatus, OrderType, ScheduleType
@@ -85,6 +99,7 @@ class Transport(BaseEntity):
 class Order(BaseEntity):
   __tablename__ = 'order'
 
+  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.NEW)
   type = Column(Enum(OrderType), nullable=False)
   addressee = Column(String, nullable=False)
   address = Column(String, nullable=False)
@@ -308,3 +323,15 @@ class Log(BaseEntity):
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='log')
+
+
+@event.listens_for(Session, 'before_flush')
+def track_order_status_change(session, flush_context, instances):
+  for obj in session.dirty:
+    if isinstance(obj, Order):
+      if inspect(obj).attrs.status.history.has_changes():
+        session.add(Status(order=obj, status=obj.status))
+
+  for obj in session.new:
+    if isinstance(obj, Order):
+      session.add(Status(order=obj, status=obj.status))
