@@ -6,8 +6,7 @@ from database_api.operations import get_all
 from src.database.schema import Photo
 
 
-FOLDER_1 = r"C:\Users\giuse\Desktop\backup\backup_nagasaki\photos\prod"
-FOLDER_2 = r"C:\Users\giuse\Desktop\backup\photos-backup-atene\photos"
+FOLDER = r"C:\Users\giuse\Desktop\backup\backup_nagasaki\photos\prod"
 
 
 def extract_photo_id(url: str) -> str | None:
@@ -18,12 +17,13 @@ def extract_photo_id(url: str) -> str | None:
 
 
 def exists_in_folders(photo_id: str) -> bool:
-  for folder in (FOLDER_1, FOLDER_2):
-    if not os.path.isdir(folder):
-      continue
-    for file in os.listdir(folder):
-      if photo_id in file:
-        return True
+  if not os.path.isdir(FOLDER):
+    return False
+  
+  for file in os.listdir(FOLDER):
+    if photo_id in file:
+      return True
+    
   return False
 
 
