@@ -140,8 +140,10 @@ def update_order(user: User, id):
     else:
       motivation = None
 
-    data['type'] = OrderType.get_enum_option(data['type'])
-    data['status'] = OrderStatus.get_enum_option(data['status'])
+    if 'type' in data:
+      data['type'] = OrderType.get_enum_option(data['type'])
+    if 'status' in data:
+      data['status'] = OrderStatus.get_enum_option(data['status'])
     if 'external_status' in data:
       del data['external_status']
     if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED]:
