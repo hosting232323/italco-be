@@ -3,7 +3,7 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ..users.queries import format_user_with_info
-from ...database.enum import UserRole, OrderStatus, ScheduleType
+from ...database.enum import UserRole, OrderStatus
 from ..users.session import flask_session_authentication
 from ...database.schema import Schedule, User, DeliveryGroup, ScheduleItem, Order
 from database_api.operations import create, delete, get_by_id, update
@@ -127,29 +127,26 @@ def update_schedule_item(user: User, id):
     schedules = format_query_result(tupla, schedules, user)
   if len(schedules) != 1:
     return {'status': 'ko', 'message': 'Numero di bordero trovati non valido'}
-  
+
   schedule_items = schedules[0]['schedule_items']
   for item in schedule_items:
     if item['operation_type'] == 'CollectionPoint':
       continue
 
-    required_cp_ids = {
-      p['collection_point']['id']
-      for p in item.get('products', {}).values()
-    }
-    
+    required_cp_ids = {p['collection_point']['id'] for p in item.get('products', {}).values()}
+
     cp_items = [
-      i for i in schedule_items
-      if i['operation_type'] == 'CollectionPoint'
-      and i['collection_point_id'] in required_cp_ids
+      i
+      for i in schedule_items
+      if i['operation_type'] == 'CollectionPoint' and i['collection_point_id'] in required_cp_ids
     ]
-    
+
     all_completed = all(cp['completed'] for cp in cp_items)
 
     if all_completed:
-      order: Order = get_by_id(Order, item['id'])
-      update(order, {'status': 'Delivery'})
-      
+      order: Order = get_by_id(Order, item['order_id'])
+      update(order, {'status': OrderStatus.DELIVERED})
+
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
