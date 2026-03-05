@@ -1,7 +1,7 @@
 """completed schedule item
 
-Revision ID: 030
-Revises: 029
+Revision ID: 031
+Revises: 030
 Create Date: 2026-02-19 17:13:00.339947
 
 """
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '030'
-down_revision: Union[str, None] = '029'
+revision: str = '031'
+down_revision: Union[str, None] = '030'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
