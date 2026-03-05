@@ -145,7 +145,7 @@ def update_schedule_item(user: User, id):
 
     if all_completed:
       order: Order = get_by_id(Order, item['order_id'])
-      update(order, {'status': OrderStatus.DELIVERED})
+      update(order, {'status': OrderStatus.BOOKING})
 
   return {'status': 'ok', 'message': 'Operazione completata'}
 
