@@ -108,7 +108,7 @@ lint_backend:
         FIRST_PORT="${PORT_TEST%%-*}"
         SECOND_PORT="${PORT_TEST#*-}"
         VITE_HOSTNAME="${DATABASE_URL_ITALCO_BE}_test"
-        EURONICS_API_PASSWORD=None
+        EURONICS_API_PASSWORD=0
         STATIC_FOLDER=$STATIC_FOLDER_ITALCO_BE_TEST
         IS_DEV=1
       else
