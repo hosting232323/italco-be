@@ -56,13 +56,13 @@ def trigger_backup():
 @app.route('/trigger-zip', methods=['POST'])
 def trigger_zip():
   folder_path = zip_folder_local(r'/home/gralogic/Scrivania/photos')
-  
+
   remote_file = upload_large_file_to_pc(
     file_path=folder_path,
-    remote_host="192.168.1.39",
-    remote_user="uploader",
-    remote_path=f"/srv/uploads/{datetime.now().strftime("%y%m%d%H%M%S")}.zip",
-    password="Upload123!"
+    remote_host='192.168.1.39',
+    remote_user='uploader',
+    remote_path=f'/srv/uploads/{datetime.now().strftime("%y%m%d%H%M%S")}.zip',
+    password='Upload123!',
   )
- 
-  return {'status': 'ok', 'error': f'Trigger eseguito con successo su {remote_file}'} 
+
+  return {'status': 'ok', 'error': f'Trigger eseguito con successo su {remote_file}'}
