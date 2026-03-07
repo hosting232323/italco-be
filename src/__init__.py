@@ -1,6 +1,7 @@
 import os
 import datetime
 from flask_cors import CORS
+from threading import Thread
 from flask import Flask, send_from_directory
 
 from api.settings import IS_DEV
@@ -53,10 +54,8 @@ def trigger_backup():
   return db_backup(DATABASE_URL, STATIC_FOLDER, 'local', 'backup')
 
 
-@app.route('/trigger-zip', methods=['POST'])
-def trigger_zip():
+def background_zip_upload():
   folder_path = zip_folder_local(r'/home/gralogic/Scrivania/photos')
-
   remote_file = upload_large_file_to_pc(
     file_path=folder_path,
     remote_host='192.168.1.39',
@@ -64,5 +63,11 @@ def trigger_zip():
     remote_path=f'/srv/uploads/{datetime.now().strftime("%y%m%d%H%M%S")}.zip',
     password='Upload123!',
   )
+  print(f'Upload completato: {remote_file}')
 
-  return {'status': 'ok', 'error': f'Trigger eseguito con successo su {remote_file}'}
+
+@app.route('/trigger-zip', methods=['POST'])
+@swagger_decorator
+def trigger_zip():
+  Thread(target=background_zip_upload).start()
+  return {'status': 'ok', 'message': 'Trigger eseguito, lo zip e l’upload sono in corso'}
