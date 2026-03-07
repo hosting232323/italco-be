@@ -144,6 +144,7 @@ def get_schedule_suggestions(user: User):
       orders,
       delivery_users,
       int(request.args['min_size_group']),
+      int(request.args['max_size_group']),
       int(request.args['max_distance_km']),
     ),
   }
