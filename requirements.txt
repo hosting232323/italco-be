@@ -1,0 +1,11 @@
+generic_lib[other] @ git+https://github.com/hosting232323/generic-lib.git
+xhtml2pdf
+pandas
+openpyxl
+hashids
+openai
+python-telegram-bot
+gunicorn
+geopy
+scipy
+pdfplumber
