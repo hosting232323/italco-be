@@ -18,7 +18,7 @@ def split_large_groups(schedule_item_groups, min_size_group, max_size_group, max
     sub_groups = merge_small_sub_groups(sub_groups, min_size_group, max_size_group)
     result.extend(sub_groups)
 
-  return result
+  return enforce_max_size(result, max_size_group)
 
 
 def merge_small_sub_groups(sub_groups, min_size_group, max_size_group):
@@ -63,38 +63,29 @@ def merge_small_sub_groups(sub_groups, min_size_group, max_size_group):
         best_dist = dist
         best_index = i
 
-    # Second pass: if no candidate respects max_size_group, merge with the nearest anyway
-    # to avoid leaving orphan groups below min_size_group
     if best_index is None:
-      best_dist = float('inf')
-      for i, candidate in enumerate(sub_groups):
-        if i == small_index:
-          continue
-        candidate_centroid = group_centroid(candidate)
-        if small_centroid and candidate_centroid:
-          dist = geodesic(small_centroid, candidate_centroid).kilometers
-        else:
-          dist = float('inf')
-        if dist < best_dist:
-          best_dist = dist
-          best_index = i
+      break
 
-    if best_index is not None:
-      existing_cp_ids = {
-        item.get('collection_point_id')
-        for item in sub_groups[best_index]
-        if item['operation_type'] == 'CollectionPoint'
-      }
-      items_to_add = [
-        item
-        for item in small_group
-        if item['operation_type'] == 'Order' or item.get('collection_point_id') not in existing_cp_ids
-      ]
-      merged = sub_groups[best_index] + items_to_add
-      merged = [set_schedule_index(item, idx) for idx, item in enumerate(merged)]
-      sub_groups[best_index] = merged
-      sub_groups.pop(small_index)
-      changed = True
+    existing_cp_ids = {
+      item.get('collection_point_id')
+      for item in sub_groups[best_index]
+      if item['operation_type'] == 'CollectionPoint'
+    }
+
+    items_to_add = [
+      item
+      for item in small_group
+      if item['operation_type'] == 'Order'
+      or item.get('collection_point_id') not in existing_cp_ids
+    ]
+
+    merged = sub_groups[best_index] + items_to_add
+    merged = [set_schedule_index(item, idx) for idx, item in enumerate(merged)]
+
+    sub_groups[best_index] = merged
+    sub_groups.pop(small_index)
+
+    changed = True
 
   return sub_groups
 
@@ -163,10 +154,15 @@ def cluster_orders_by_cap(order_items, collection_point_items, max_size_group, m
 
   # Ordini senza coordinate: aggiunti all'ultimo sotto-gruppo o nuovo gruppo
   if invalid_orders:
-    if sub_groups_orders:
-      sub_groups_orders[-1].extend(invalid_orders)
-    else:
-      sub_groups_orders.append(invalid_orders)
+    for order in invalid_orders:
+      placed = False
+      for group in sub_groups_orders:
+        if len(group) < max_size_group:
+          group.append(order)
+          placed = True
+          break
+      if not placed:
+        sub_groups_orders.append([order])
 
   # Se dopo il clustering un sotto-gruppo supera ancora max_size_group
   # (può succedere se invalid_orders lo ha ingrossato), lo risplittiamo sequenzialmente
@@ -204,5 +200,44 @@ def build_sub_groups(sub_groups_orders, collection_point_items):
 
 
 def set_schedule_index(item, index):
-  item['index'] = index
-  return item
+  new_item = item.copy()
+  new_item['index'] = index
+  return new_item
+
+
+def enforce_max_size(groups, max_size_group):
+  result = []
+
+  for group in groups:
+    orders = [i for i in group if i['operation_type'] == 'Order']
+
+    if len(orders) <= max_size_group:
+      result.append(group)
+      continue
+
+    collection_points = [
+      i for i in group if i['operation_type'] == 'CollectionPoint'
+    ]
+
+    for i in range(0, len(orders), max_size_group):
+      chunk = orders[i:i + max_size_group]
+
+      needed_cp_ids = set()
+
+      for order in chunk:
+        for product in order['products'].values():
+          needed_cp_ids.add(product['collection_point']['id'])
+
+      cps = [
+        cp for cp in collection_points
+        if cp.get('collection_point_id') in needed_cp_ids
+      ]
+
+      new_group = [
+        set_schedule_index(item, idx)
+        for idx, item in enumerate(cps + chunk)
+      ]
+
+      result.append(new_group)
+
+  return result
