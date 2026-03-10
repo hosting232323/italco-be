@@ -144,10 +144,10 @@ def update_order(user: User, id):
       data['type'] = OrderType.get_enum_option(data['type'])
     if 'status' in data:
       data['status'] = OrderStatus.get_enum_option(data['status'])
+      if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED]:
+        data['completion_date'] = datetime.now()
     if 'external_status' in data:
       del data['external_status']
-    if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED]:
-      data['completion_date'] = datetime.now()
     if user.role != UserRole.DELIVERY:
       update_product(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
 
