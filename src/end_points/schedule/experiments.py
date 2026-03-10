@@ -67,16 +67,13 @@ def merge_small_sub_groups(sub_groups, min_size_group, max_size_group):
       break
 
     existing_cp_ids = {
-      item.get('collection_point_id')
-      for item in sub_groups[best_index]
-      if item['operation_type'] == 'CollectionPoint'
+      item.get('collection_point_id') for item in sub_groups[best_index] if item['operation_type'] == 'CollectionPoint'
     }
 
     items_to_add = [
       item
       for item in small_group
-      if item['operation_type'] == 'Order'
-      or item.get('collection_point_id') not in existing_cp_ids
+      if item['operation_type'] == 'Order' or item.get('collection_point_id') not in existing_cp_ids
     ]
 
     merged = sub_groups[best_index] + items_to_add
@@ -215,12 +212,10 @@ def enforce_max_size(groups, max_size_group):
       result.append(group)
       continue
 
-    collection_points = [
-      i for i in group if i['operation_type'] == 'CollectionPoint'
-    ]
+    collection_points = [i for i in group if i['operation_type'] == 'CollectionPoint']
 
     for i in range(0, len(orders), max_size_group):
-      chunk = orders[i:i + max_size_group]
+      chunk = orders[i : i + max_size_group]
 
       needed_cp_ids = set()
 
@@ -228,15 +223,9 @@ def enforce_max_size(groups, max_size_group):
         for product in order['products'].values():
           needed_cp_ids.add(product['collection_point']['id'])
 
-      cps = [
-        cp for cp in collection_points
-        if cp.get('collection_point_id') in needed_cp_ids
-      ]
+      cps = [cp for cp in collection_points if cp.get('collection_point_id') in needed_cp_ids]
 
-      new_group = [
-        set_schedule_index(item, idx)
-        for idx, item in enumerate(cps + chunk)
-      ]
+      new_group = [set_schedule_index(item, idx) for idx, item in enumerate(cps + chunk)]
 
       result.append(new_group)
 
