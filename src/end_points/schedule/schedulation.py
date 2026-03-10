@@ -3,9 +3,10 @@ from geopy.distance import geodesic
 from scipy.optimize import linear_sum_assignment
 
 from ...utils.caps import get_lat_lon_by_cap
+from .experiments import set_schedule_index, split_large_groups
 
 
-def assign_orders_to_groups(orders, delivery_users, min_size_group, max_distance_km):
+def assign_orders_to_groups(orders, delivery_users, min_size_group, max_size_group, max_distance_km):
   schedule_item_groups = []
   for group in find_cap_groups(orders):
     group_orders = []
@@ -13,7 +14,9 @@ def assign_orders_to_groups(orders, delivery_users, min_size_group, max_distance
       if {product['collection_point']['cap'] for product in order['products'].values()} & group:
         group_orders.append(order)
     schedule_item_groups.append(build_schedule_items(group_orders))
-  schedule_item_groups = merge_small_groups(schedule_item_groups, min_size_group, max_distance_km)
+
+  schedule_item_groups = merge_small_groups(schedule_item_groups, min_size_group, max_size_group, max_distance_km)
+  schedule_item_groups = split_large_groups(schedule_item_groups, min_size_group, max_size_group, max_distance_km)
 
   available_delivery_users = [
     delivery_user
@@ -48,7 +51,7 @@ def assign_orders_to_groups(orders, delivery_users, min_size_group, max_distance
   ]
 
 
-def merge_small_groups(schedule_item_groups, min_size_group, max_distance_km):
+def merge_small_groups(schedule_item_groups, min_size_group, max_size_group, max_distance_km):
   small_groups = []
   large_groups = []
   for group in schedule_item_groups:
@@ -70,12 +73,15 @@ def merge_small_groups(schedule_item_groups, min_size_group, max_distance_km):
       if (
         first_index != second_index
         and not second_group['merged']
-        and first_group['length'] + second_group['length'] <= min_size_group
+        and first_group['length'] + second_group['length'] <= max_size_group
         and geodesic(first_group['centroid'], second_group['centroid']).kilometers <= max_distance_km
       ):
         second_group['merged'] = True
         first_group['group'] += second_group['group']
         first_group['length'] += second_group['length']
+        lat, lon = get_group_centroid(first_group['group'])
+        if lat is not None and lon is not None:
+          first_group['centroid'] = (lat, lon)
 
     merged_groups.append(first_group['group'])
   return large_groups + merged_groups
@@ -153,8 +159,3 @@ def build_schedule_item(item, type):
   if type == 'Order':
     schedule_item['products'] = item['products']
   return schedule_item
-
-
-def set_schedule_index(item, index):
-  item['index'] = index
-  return item
