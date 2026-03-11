@@ -1,3 +1,21 @@
+[project]
+name = "italco-be"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "generic_lib[other] @ git+https://github.com/hosting232323/generic-lib.git",
+    "xhtml2pdf",
+    "pandas",
+    "openpyxl",
+    "hashids",
+    "openai",
+    "python-telegram-bot",
+    "gunicorn",
+    "geopy",
+    "scipy",
+    "pdfplumber",
+]
+
 [tool.ruff]
 line-length = 120
 indent-width = 2
@@ -7,3 +25,9 @@ quote-style = "single"
 
 [tool.ruff.lint]
 ignore = ["COM812"]
+
+[dependency-groups]
+dev = [
+    "psycopg2-binary>=2.9.11", # Per compatibilità tra sistemi operativi e versioni di Python
+    "pytest>=9.0.2",
+]
