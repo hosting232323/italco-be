@@ -40,7 +40,7 @@ def get_users(user: User):
 @user_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def create_user(user: User):
-  role = UserRole.get_enum_option(request.json['role'])
+  role = UserRole(request.json['role'])
   if not role or role == UserRole.ADMIN:
     return {'status': 'error', 'message': 'Role not valid'}
 

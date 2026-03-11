@@ -65,7 +65,7 @@ def format_schedule_data(schedule_data: dict, session=None):
 
 
 def handle_schedule_item(item: dict, schedule: Schedule, session):
-  operation_type = ScheduleType.get_enum_option(item['operation_type'])
+  operation_type = ScheduleType(item['operation_type'])
   new_item: ScheduleItem = create(
     ScheduleItem,
     {

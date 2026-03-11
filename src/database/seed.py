@@ -13,7 +13,7 @@ def seed_data():
       {
         'nickname': 'admin',
         'password': 'MTIzNDU2Nzg5MDEyMzQ1Nk74aeshlmbNA9Dmmq+dowI=',
-        'role': UserRole.get_enum_option('Admin'),
+        'role': UserRole('Admin'),
       },
     )
     create(
@@ -21,7 +21,7 @@ def seed_data():
       {
         'nickname': 'operator',
         'password': 'MTIzNDU2Nzg5MDEyMzQ1NhB1m3hNtcmV3SS6RJWD/lM=',
-        'role': UserRole.get_enum_option('Operator'),
+        'role': UserRole('Operator'),
       },
     )
     create(
@@ -29,7 +29,7 @@ def seed_data():
       {
         'nickname': 'delivery',
         'password': 'MTIzNDU2Nzg5MDEyMzQ1NveX8dFMr4LXoKyncdgq94g=',
-        'role': UserRole.get_enum_option('Delivery'),
+        'role': UserRole('Delivery'),
       },
     )
     create(
@@ -37,7 +37,7 @@ def seed_data():
       {
         'nickname': 'customer',
         'password': 'MTIzNDU2Nzg5MDEyMzQ1NlDCtaLDuTiPZS2I6jtlNI4=',
-        'role': UserRole.get_enum_option('Customer'),
+        'role': UserRole('Customer'),
       },
     )
 

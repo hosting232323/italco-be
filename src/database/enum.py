@@ -1,14 +1,14 @@
-from database_api import BaseEnum
+import enum
 
 
-class UserRole(BaseEnum):
+class UserRole(enum.Enum):
   ADMIN = 'Admin'
   CUSTOMER = 'Customer'
   OPERATOR = 'Operator'
   DELIVERY = 'Delivery'
 
 
-class OrderStatus(BaseEnum):
+class OrderStatus(enum.Enum):
   NEW = 'New'
   CONFIRMED = 'Confirmed'
   BOOKING = 'Booking'
@@ -26,13 +26,13 @@ class OrderStatus(BaseEnum):
   TO_RESCHEDULE = 'To Reschedule'
 
 
-class OrderType(BaseEnum):
+class OrderType(enum.Enum):
   DELIVERY = 'Delivery'
   WITHDRAW = 'Withdraw'
   REPLACEMENT = 'Replacement'
   CHECK = 'Check'
 
 
-class ScheduleType(BaseEnum):
+class ScheduleType(enum.Enum):
   ORDER = 'Order'
   COLLECTIONPOINT = 'CollectionPoint'

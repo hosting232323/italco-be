@@ -35,7 +35,7 @@ order_bp = Blueprint('order_bp', __name__)
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def create_order(user: User):
   data = {key: value for key, value in request.json.items() if key not in ['products', 'user_id', 'cloned_order_id']}
-  data['type'] = OrderType.get_enum_option(data['type'])
+  data['type'] = OrderType(data['type'])
 
   with Session() as session:
     order: Order = create(Order, data, session=session)
@@ -141,9 +141,9 @@ def update_order(user: User, id):
       motivation = None
 
     if 'type' in data:
-      data['type'] = OrderType.get_enum_option(data['type'])
+      data['type'] = OrderType(data['type'])
     if 'status' in data:
-      data['status'] = OrderStatus.get_enum_option(data['status'])
+      data['status'] = OrderStatus(data['status'])
       if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED] and not order.completion_date:
         data['completion_date'] = datetime.now()
     if 'external_status' in data:
