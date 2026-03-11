@@ -63,7 +63,6 @@ def seeded_db(database_engine):
   database_api.Base.metadata.create_all(bind=database_engine)
   seed_data()
   yield
-  database_api.Base.metadata.drop_all(bind=database_engine)
 
 
 @pytest.fixture
