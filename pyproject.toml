@@ -6,4 +6,5 @@ indent-width = 2
 quote-style = "single"
 
 [tool.ruff.lint]
+select = ["E", "F", "T"]
 ignore = ["COM812"]

@@ -46,9 +46,13 @@ def mailer_check(order: Order, data: dict, motivation: Motivation):
 
     motivation_text = motivation.text if motivation else 'Nessuna motivazione fornita'
     subject = f'{" ".join(icons)} Ordine {order.id} {order.addressee} {" ".join(states)}'
-    text = f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\nMotivazione: {motivation_text}\nNote Punto Vendita: {order.customer_note}'
+    text = (
+      f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\n'
+      f'Motivazione: {motivation_text}\nNote Punto Vendita: {order.customer_note}'
+    )
     html = (
-      f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {motivation_text}<br>Note Punto Vendita: {order.customer_note}<br>Foto:<br>'
+      f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {motivation_text}'
+      f'<br>Note Punto Vendita: {order.customer_note}<br>Foto:<br>'
       + ''.join(
         [f'<img src="{photo.link}" alt="Photo" style="max-width:300px;"><br>' for photo in get_order_photos(order.id)]
       )

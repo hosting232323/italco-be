@@ -103,10 +103,6 @@ def cluster_orders_by_cap(order_items, collection_point_items, max_size_group, m
 
   # Se nessun ordine ha coordinate, fallback: split sequenziale per count
   if not valid_orders:
-    print(
-      '[_cluster_orders_by_cap] No coordinates available for any order CAP, falling back to sequential split. CAPs: %s',
-      [o['cap'] for o in invalid_orders],
-    )
     return split_sequentially(order_items, collection_point_items, max_size_group)
 
   valid_orders.sort(key=lambda x: x[1])

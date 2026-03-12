@@ -24,7 +24,9 @@ def upgrade() -> None:
 def downgrade() -> None:
   op.execute('ALTER TYPE orderstatus RENAME TO orderstatus_old;')
   op.execute("""
-    CREATE TYPE orderstatus AS ENUM ('PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'AT_WAREHOUSE', 'TO_RESCHEDULE');
+    CREATE TYPE orderstatus AS ENUM (
+      'PENDING', 'IN_PROGRESS', 'ON_BOARD', 'COMPLETED', 'CANCELLED', 'AT_WAREHOUSE', 'TO_RESCHEDULE'
+    );
   """)
   op.execute("""
     ALTER TABLE "order"

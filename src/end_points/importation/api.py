@@ -35,7 +35,7 @@ def save_orders_by_euronics():
   for imported_order in call_list_euronics_api():
     result = get_user_and_collection_point_by_code(imported_order['cod_pv'])
     if not result or not result[0]:
-      print(f'Non trovato punto vendita {imported_order["cod_pv"]}')
+      print(f'Non trovato punto vendita {imported_order["cod_pv"]}')  # noqa: T201
       continue
 
     external_status = ORDER_STATUS_MAP[imported_order['stato']]
@@ -103,7 +103,7 @@ def product_service_user_handler(
       products.append({'name': item['descrizione'], 'services': []})
 
   if len(products) == 0:
-    print('Nessun prodotto individuato')
+    print('Nessun prodotto individuato')  # noqa: T201
     return False
 
   for product, service in zip(products, service_users):
