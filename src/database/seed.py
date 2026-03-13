@@ -2,8 +2,9 @@ from datetime import date
 
 from database_api import Session
 from database_api.operations import create
-from .enum import UserRole, OrderType, OrderStatus
-from .schema import User, Transport, CollectionPoint, Service, ServiceUser, Order, Product
+
+from .enum import OrderStatus, OrderType, UserRole
+from .schema import CollectionPoint, Order, Product, Service, ServiceUser, Transport, User
 
 
 def seed_data():
@@ -12,7 +13,7 @@ def seed_data():
       User,
       {
         'nickname': 'admin',
-        'password': 'MTIzNDU2Nzg5MDEyMzQ1Nk74aeshlmbNA9Dmmq+dowI=',
+        'password': 'MTIzNDU2Nzg5MDEyMzQ1Nk74aeshlmbNA9Dmmq+dowI=',  # password: 1234admin
         'role': UserRole('Admin'),
       },
     )

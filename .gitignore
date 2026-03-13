@@ -1,5 +1,10 @@
 /venv
 __pycache__/
+.venv/
 .env
 .local/
 .DS_Store
+uv.lock
+.editorconfig
+build
+*.egg-info
