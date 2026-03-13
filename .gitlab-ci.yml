@@ -89,8 +89,8 @@ lint_backend:
   image: python:3.11
   script:
     - pip install ruff
-    - ruff check ./src --exit-non-zero-on-fix
-    - ruff format ./src --exit-non-zero-on-fix
+    - ruff check ./src ./tests --exit-non-zero-on-fix
+    - ruff format ./src ./tests --exit-non-zero-on-fix
   allow_failure: true
   tags:
     - linux
