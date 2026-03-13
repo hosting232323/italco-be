@@ -24,7 +24,7 @@ EURONICS_USER_IDS = [42, 43, 44, 45]
 
 def save_order_status_to_euronics(order: Order):
   if not EURONICS_API_PASSWORD:
-    print('Api Key Error')
+    print('Api Key Error')  # noqa: T201
     return
 
   if not is_available_order(order):

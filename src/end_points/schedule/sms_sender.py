@@ -14,8 +14,9 @@ def schedule_sms_check(order: Order, schedule_item: ScheduleItem):
       os.environ['VONAGE_API_SECRET'],
       'Ares',
       order.addressee_contact,
-      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order).nickname}, è programmata per il '
-      f'{order.assignament_date}, fascia {schedule_item.start_time_slot.strftime("%H:%M")} - {schedule_item.end_time_slot.strftime("%H:%M")}'
-      f". Riceverà un preavviso di 30 minuti prima dell'arrivo. Per monitorare ogni fase della sua consegna clicchi il link in questione "
-      f'{get_order_link(order)}. La preghiamo di garantire la presenza e la reperibilità al numero indicato. Buona Giornata!',
+      f'ARES ITALCO.MI - Gentile Cliente, la consegna relativa al Punto Vendita: {get_selling_point(order).nickname}'
+      f', è programmata per il {order.assignament_date}, fascia {schedule_item.start_time_slot.strftime("%H:%M")} - '
+      f"{schedule_item.end_time_slot.strftime('%H:%M')}. Riceverà un preavviso di 30 minuti prima dell'arrivo. Per "
+      f'monitorare ogni fase della sua consegna clicchi il link in questione {get_order_link(order)}. La preghiamo di'
+      ' garantire la presenza e la reperibilità al numero indicato. Buona Giornata!',
     )
