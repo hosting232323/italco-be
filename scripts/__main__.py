@@ -5,6 +5,8 @@ from tqdm import tqdm
 
 FOLDER1 = r"/home/gralogic/Scrivania/solo_id/photos"
 FOLDER2 = r"/home/gralogic/Scrivania/STATIC_FOLDER/photos/prod"
+FOLDER3 = r"/home/gralogic/Scrivania/photos"
+
 OUTPUT_FOLDER = r"/home/gralogic/Scrivania/unique_photos"
 
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -15,7 +17,6 @@ def file_hash(path):
         for chunk in iter(lambda: f.read(8192), b""):
             hasher.update(chunk)
     return hasher.hexdigest()
-
 
 def collect_files(folder):
     files = []
@@ -29,23 +30,29 @@ print("Raccolta file...")
 
 files1 = collect_files(FOLDER1)
 files2 = collect_files(FOLDER2)
+files3 = collect_files(FOLDER3)
 
 print(f"File in FOLDER1: {len(files1)}")
 print(f"File in FOLDER2: {len(files2)}")
+print(f"File in FOLDER3: {len(files3)}")
 
-hashes = {}
+hashes = set()
 
 print("Calcolo hash FOLDER1...")
 
 for f in tqdm(files1):
-    h = file_hash(f)
-    hashes[h] = f
+    hashes.add(file_hash(f))
 
-print("Confronto con FOLDER2...")
+print("Calcolo hash FOLDER2...")
+
+for f in tqdm(files2):
+    hashes.add(file_hash(f))
+
+print("Confronto con FOLDER3...")
 
 unique_files = []
 
-for f in tqdm(files2):
+for f in tqdm(files3):
     h = file_hash(f)
 
     if h not in hashes:
