@@ -19,9 +19,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=9.0.2",
-    "selenium>=4.0.0",
-    "ruff>=0.0.241",
+    "pytest",
+    "selenium",
+    "ruff",
 ]
 
 [tool.ruff]
@@ -34,4 +34,3 @@ quote-style = "single"
 [tool.ruff.lint]
 select = ["E", "F", "T"]
 ignore = ["COM812"]
-
