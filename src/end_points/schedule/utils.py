@@ -88,7 +88,7 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
       },
       session=session,
     )
-    update(order, {'assignament_date': datetime.now(), 'status': OrderStatus.CONFIRMED}, session=session)
+    update(order, {'assignament_date': datetime.now(), 'status': OrderStatus.SCHEDULED}, session=session)
     schedule_sms_check(order, new_item)
 
   elif operation_type == ScheduleType.COLLECTIONPOINT:

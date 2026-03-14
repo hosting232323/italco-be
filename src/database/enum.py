@@ -17,6 +17,7 @@ class OrderStatus(enum.Enum):
   REPLACEMENT = 'Replacement'
   CANCELLED = 'Cancelled'
   URGENT = 'Urgent'
+  SCHEDULED = 'Schedued'
   VERIFICATION = 'Verification'
   CANCELLED_TO_BE_REFUNDED = 'Cancelled to be Refunded'
   DELETED = 'Deleted'
