@@ -151,6 +151,9 @@ def update_order(user: User, id):
     if user.role != UserRole.DELIVERY:
       update_product(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
 
+    if order.status == OrderStatus.ACQUIRED and order.booking_date != data['booking_date']:
+      data['status'] = OrderStatus.BOOKED
+
     if is_delay and 'start_time_slot' in data and 'end_time_slot' in data:
       schedule_item = get_schedule_item_by_order(order)
       if (

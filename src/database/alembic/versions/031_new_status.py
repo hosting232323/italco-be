@@ -30,6 +30,7 @@ old_values = (
   'AT_WAREHOUSE',
   'TO_RESCHEDULE',
 )
+
 new_values = (
   'ACQUIRED',
   'BOOKED',
