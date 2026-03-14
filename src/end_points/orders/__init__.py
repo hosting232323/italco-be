@@ -216,7 +216,7 @@ def get_delivery_details(user: User, order_id: int):
 def delete_order(user: User, id):
   order: Order = get_by_id(Order, int(id))
   item = get_schedule_item_by_order(order)
-  if not order or item or order.status != OrderStatus.NEW:
+  if not order or item or order.status != OrderStatus.ACQUIRED:
     return {
       'status': 'ko',
       'error': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",

@@ -126,7 +126,7 @@ def get_schedule_suggestions(user: User):
     user,
     [
       {'model': 'Order', 'field': 'dpc', 'value': dpc},
-      {'model': 'Order', 'field': 'status', 'value': OrderStatus.NEW},
+      {'model': 'Order', 'field': 'status', 'value': OrderStatus.ACQUIRED},
     ],
   ):
     orders = format_query_orders_result(tupla, orders, user)

@@ -105,7 +105,7 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
 def clear_order(order_id: int, session=None):
   update(
     get_by_id(Order, order_id, session=session),
-    {'assignament_date': None, 'status': OrderStatus.NEW},
+    {'assignament_date': None, 'status': OrderStatus.ACQUIRED},
     session=session,
   )
 
