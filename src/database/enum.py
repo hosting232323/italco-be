@@ -10,15 +10,16 @@ class UserRole(enum.Enum):
 
 class OrderStatus(enum.Enum):
   ACQUIRED = 'Acquired'
-  BOOKING = 'Booking'
   BOOKED = 'Booked'
+  SCHEDULED = 'Scheduled'
+  # old statuses
+  BOOKING = 'Booking'
   DELIVERED = 'Delivered'
   NOT_DELIVERED = 'Not Delivered'
   REDELIVERY = 'Redelivery'
   REPLACEMENT = 'Replacement'
   CANCELLED = 'Cancelled'
   URGENT = 'Urgent'
-  SCHEDULED = 'Scheduled'
   VERIFICATION = 'Verification'
   CANCELLED_TO_BE_REFUNDED = 'Cancelled to be Refunded'
   DELETED = 'Deleted'

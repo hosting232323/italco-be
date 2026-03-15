@@ -13,6 +13,7 @@ import src.database.schema  # noqa: F401
 from src.database.seed import seed_data
 from src.end_points.users import user_bp
 
+
 # Ensure the project root is in sys.path for imports
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:

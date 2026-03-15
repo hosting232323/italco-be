@@ -126,7 +126,7 @@ def get_schedule_suggestions(user: User):
     user,
     [
       {'model': 'Order', 'field': 'booking_date', 'value': booking_date},
-      {'model': 'Order', 'field': 'status', 'value': OrderStatus.ACQUIRED},
+      {'model': 'Order', 'field': 'status', 'value': OrderStatus.BOOKED},
     ],
   ):
     orders = format_query_orders_result(tupla, orders, user)
@@ -163,7 +163,7 @@ def pianification(user: User):
     return {'status': 'ko', 'error': 'Ordini non identificati'}
 
   for order in orders:
-    if order['status'] != 'New':
-      return {'status': 'ko', 'error': 'Hai selezionato degli ordini già assegnati'}
+    if order['status'] != 'Booked':
+      return {'status': 'ko', 'error': 'Hai selezionato degli ordini che non sono in stato Booked'}
 
   return {'status': 'ok', 'schedule_items': build_schedule_items(orders)}
