@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from database_api import Session
 from ... import EURONICS_API_PASSWORD
 from database_api.operations import create, update
-from ...database.enum import OrderType, OrderStatus
+from ...database.enum import OrderType, EuronicsStatus
 from ..service.queries import get_service_user_by_user_and_code
 from ..users.queries import get_user_and_collection_point_by_code
 from ...database.schema import Order, Product, User, CollectionPoint
@@ -13,18 +13,18 @@ from ..orders.queries import get_order_by_external_id_and_customer, get_order_by
 
 
 ORDER_STATUS_MAP = {
-  0: OrderStatus.NEW,
-  1: OrderStatus.CONFIRMED,
-  2: OrderStatus.NOT_DELIVERED,
-  3: OrderStatus.BOOKING,
-  4: OrderStatus.CONFIRMED,
-  8: OrderStatus.REPLACEMENT,
-  9: OrderStatus.REDELIVERY,
-  10: OrderStatus.CANCELLED,
-  11: OrderStatus.URGENT,
-  12: OrderStatus.VERIFICATION,
-  13: OrderStatus.CANCELLED_TO_BE_REFUNDED,
-  100: OrderStatus.DELETED,
+  0: EuronicsStatus.NEW,
+  1: EuronicsStatus.CONFIRMED,
+  2: EuronicsStatus.NOT_DELIVERED,
+  3: EuronicsStatus.BOOKING,
+  4: EuronicsStatus.CONFIRMED,
+  8: EuronicsStatus.REPLACEMENT,
+  9: EuronicsStatus.REDELIVERY,
+  10: EuronicsStatus.CANCELLED,
+  11: EuronicsStatus.URGENT,
+  12: EuronicsStatus.VERIFICATION,
+  13: EuronicsStatus.CANCELLED_TO_BE_REFUNDED,
+  100: EuronicsStatus.DELETED,
 }
 
 
@@ -57,7 +57,7 @@ def save_orders_by_euronics():
         create(
           Order,
           {
-            'status': OrderStatus.NEW,
+            'status': EuronicsStatus.NEW,
             'type': OrderType.DELIVERY,
             'cap': imported_order['CAP'],
             'external_status': external_status,

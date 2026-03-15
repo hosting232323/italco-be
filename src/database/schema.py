@@ -16,7 +16,7 @@ from sqlalchemy import (
 )
 
 from database_api import BaseEntity
-from .enum import UserRole, OrderStatus, OrderType, ScheduleType
+from .enum import UserRole, OrderStatus, OrderType, ScheduleType, EuronicsStatus
 
 
 class User(BaseEntity):
@@ -99,7 +99,7 @@ class Transport(BaseEntity):
 class Order(BaseEntity):
   __tablename__ = 'order'
 
-  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.NEW)
+  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.ACQUIRED)
   type = Column(Enum(OrderType), nullable=False)
   addressee = Column(String, nullable=False)
   address = Column(String, nullable=False)
@@ -108,6 +108,7 @@ class Order(BaseEntity):
   drc = Column(Date, nullable=False)
   anomaly = Column(Boolean, default=False)
   delay = Column(Boolean, default=False)
+  confirmed = Column(Boolean, default=False)
 
   floor = Column(Integer)
   elevator = Column(Boolean)
@@ -121,7 +122,7 @@ class Order(BaseEntity):
   signature = Column(LargeBinary)
   mark = Column(Float)
   external_id = Column(String)
-  external_status = Column(Enum(OrderStatus))
+  external_status = Column(Enum(EuronicsStatus))
 
   schedule_item_order = relationship('ScheduleItemOrder', back_populates='order')
   photo = relationship('Photo', back_populates='order', cascade='all, delete-orphan')
@@ -133,7 +134,7 @@ class Order(BaseEntity):
 class Status(BaseEntity):
   __tablename__ = 'status'
 
-  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.NEW)
+  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.ACQUIRED)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
 
   order = relationship('Order', back_populates='statuses')
