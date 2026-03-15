@@ -56,7 +56,7 @@ def seed_data():
     create(
       Order,
       {
-        'status': OrderStatus.NEW,
+        'status': OrderStatus.ACQUIRED,
         'type': OrderType.DELIVERY,
         'addressee': 'Destinatario di prova',
         'address': "27, Via Simone D'Orsenigo, Milano, MI",

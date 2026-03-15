@@ -88,7 +88,7 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
       },
       session=session,
     )
-    update(order, {'assignament_date': datetime.now(), 'status': OrderStatus.CONFIRMED}, session=session)
+    update(order, {'assignament_date': datetime.now(), 'status': OrderStatus.SCHEDULED}, session=session)
     schedule_sms_check(order, new_item)
 
   elif operation_type == ScheduleType.COLLECTIONPOINT:
@@ -102,21 +102,17 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
     )
 
 
-def clear_order(order_id: int, session=None):
-  update(
-    get_by_id(Order, order_id, session=session),
-    {'assignament_date': None, 'status': OrderStatus.NEW},
-    session=session,
-  )
-
-
 def delete_schedule_items(
   schedule_items: list[tuple[ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder]], session=None
 ):
   for schedule_item in schedule_items:
     if schedule_item[2]:
       delete(schedule_item[2], session=session)
-      clear_order(schedule_item[2].order_id, session=session)
+      update(
+        get_by_id(Order, schedule_item[2].order_id, session=session),
+        {'assignament_date': None, 'status': OrderStatus.BOOKED},
+        session=session,
+      )
     if schedule_item[1]:
       delete(schedule_item[1], session=session)
     delete(schedule_item[0], session=session)

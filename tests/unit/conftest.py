@@ -8,16 +8,16 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 
+import database_api
+import src.database.schema  # noqa: F401
+from src.database.seed import seed_data
+from src.end_points.users import user_bp
+
+
 # Ensure the project root is in sys.path for imports
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
   sys.path.insert(0, str(PROJECT_ROOT))
-
-import database_api
-
-import src.database.schema  # noqa: F401
-from src.database.seed import seed_data
-from src.end_points.users import user_bp
 
 
 def _assert_test_database_url(url: str) -> str:

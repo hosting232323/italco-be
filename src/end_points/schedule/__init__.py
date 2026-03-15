@@ -120,13 +120,13 @@ def update_schedule(user: User, id):
 @schedule_bp.route('suggestions', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
 def get_schedule_suggestions(user: User):
-  dpc = datetime.strptime(request.args['dpc'], '%Y-%m-%d')
+  booking_date = datetime.strptime(request.args['booking_date'], '%Y-%m-%d')
   orders = []
   for tupla in query_orders(
     user,
     [
-      {'model': 'Order', 'field': 'dpc', 'value': dpc},
-      {'model': 'Order', 'field': 'status', 'value': OrderStatus.NEW},
+      {'model': 'Order', 'field': 'booking_date', 'value': booking_date},
+      {'model': 'Order', 'field': 'status', 'value': OrderStatus.BOOKED},
     ],
   ):
     orders = format_query_orders_result(tupla, orders, user)
@@ -134,12 +134,12 @@ def get_schedule_suggestions(user: User):
     return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
 
   delivery_users = [
-    format_user_with_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(dpc)
+    format_user_with_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(booking_date)
   ]
   return {
     'status': 'ok',
     'delivery_users': delivery_users,
-    'transports': [transport.to_dict() for transport in get_transports_by_date(dpc)],
+    'transports': [transport.to_dict() for transport in get_transports_by_date(booking_date)],
     'groups': assign_orders_to_groups(
       orders,
       delivery_users,
@@ -163,7 +163,7 @@ def pianification(user: User):
     return {'status': 'ko', 'error': 'Ordini non identificati'}
 
   for order in orders:
-    if order['status'] != 'New':
-      return {'status': 'ko', 'error': 'Hai selezionato degli ordini già assegnati'}
+    if order['status'] != 'Booked':
+      return {'status': 'ko', 'error': 'Hai selezionato degli ordini che non sono in stato Booked'}
 
   return {'status': 'ok', 'schedule_items': build_schedule_items(orders)}

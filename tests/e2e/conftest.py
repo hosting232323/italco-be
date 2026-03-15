@@ -20,16 +20,16 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 
+import database_api
+import src.database.schema  # noqa: F401
+from src.database.enum import UserRole
+from tests.utils import create_user_for_login
+
+
 # Ensure the project root is in sys.path for imports
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
   sys.path.insert(0, str(PROJECT_ROOT))
-
-import database_api
-
-import src.database.schema  # noqa: F401
-from src.database.enum import UserRole
-from tests.utils import create_user_for_login
 
 
 def _assert_test_database_url(url: str) -> str:
@@ -199,10 +199,21 @@ def backend_server(backend_url: str, database_engine):
   command = [
     sys.executable,
     '-c',
-    'from src.__main__ import app; app.run(host="127.0.0.1", port=int(__import__("os").environ["PORT"]), debug=False, use_reloader=False)',
+    (
+      'from src.__main__ import app; '
+      'app.run(host="127.0.0.1", '
+      'port=int(__import__("os").environ["PORT"]), '
+      'debug=False, use_reloader=False)'
+    ),
   ]
+
   process = subprocess.Popen(
-    command, cwd=project_root, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    command,
+    cwd=project_root,
+    env=env,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
   )
 
   startup_timeout = int(os.environ.get('E2E_BACKEND_STARTUP_TIMEOUT', '20'))
