@@ -76,6 +76,15 @@ def save_log(user: User, response=None):
   if 'headers' in request_info:
     del request_info['headers']
 
-  log_content = {'request': request_info, 'response': response}
-
-  create(Log, {'user_id': user.id, 'content': json.dumps(log_content, indent=2, ensure_ascii=False, default=lambda o: float(o) if isinstance(o, decimal.Decimal) else str(o))})
+  create(
+    Log,
+    {
+      'user_id': user.id,
+      'content': json.dumps(
+        {'request': request_info, 'response': response},
+        indent=2,
+        ensure_ascii=False,
+        default=lambda o: float(o) if isinstance(o, decimal.Decimal) else str(o),
+      ),
+    },
+  )

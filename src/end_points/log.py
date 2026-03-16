@@ -18,7 +18,7 @@ def get_logs(user: User):
     'status': 'ok',
     'logs': [{'logs': log.to_dict(), 'user': user.to_dict()} for log, user in query_logs(request.json['filters'])],
   }
-  
+
 
 @log_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
@@ -31,11 +31,7 @@ def get_log(user: User):
 
 def query_logs(filters: list) -> list[tuple[Log, User]]:
   with Session() as session:
-    query = (
-      session.query(Log, User)
-      .join(User, Log.user_id == User.id)
-      .options(defer(Log.content))
-    )
+    query = session.query(Log, User).join(User, Log.user_id == User.id).options(defer(Log.content))
 
     for filter in filters:
       model = globals()[filter['model']]
