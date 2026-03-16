@@ -140,7 +140,7 @@ def export_rae(user: User, order_id):
       rae_products.append(
         {
           'data': get_by_id(RaeProduct, product_data['rae_product_id']),
-          'index': query_count_rae_products(product_data['rae_product_id']),
+          'index': query_count_rae_products(product_data['rae_product_id'], orders[0]['user']),
         }
       )
   if len(rae_products) == 0:
