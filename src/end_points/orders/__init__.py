@@ -148,7 +148,7 @@ def update_order(user: User, id):
         data['completion_date'] = datetime.now()
     if 'external_status' in data:
       del data['external_status']
-    if user.role != UserRole.DELIVERY:
+    if user.role != UserRole.DELIVERY and 'products' in data:
       update_product(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
 
     if order.status == OrderStatus.ACQUIRED and order.booking_date != data['booking_date']:
