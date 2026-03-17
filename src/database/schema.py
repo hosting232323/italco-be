@@ -116,7 +116,6 @@ class Order(BaseEntity):
   booking_date = Column(Date)
   confirmation_date = Column(Date)
   completion_date = Column(Date)
-  assignament_date = Column(Date)
   customer_note = Column(String)
   operator_note = Column(String)
   signature = Column(LargeBinary)

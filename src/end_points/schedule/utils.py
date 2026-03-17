@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from .sms_sender import schedule_sms_check
 from ..orders.api import save_order_status_to_euronics
 from ...database.enum import OrderStatus, ScheduleType
@@ -88,7 +86,7 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
       },
       session=session,
     )
-    update(order, {'assignament_date': datetime.now(), 'status': OrderStatus.SCHEDULED}, session=session)
+    update(order, {'status': OrderStatus.SCHEDULED}, session=session)
     schedule_sms_check(order, new_item)
 
   elif operation_type == ScheduleType.COLLECTIONPOINT:
@@ -110,7 +108,7 @@ def delete_schedule_items(
       delete(schedule_item[2], session=session)
       update(
         get_by_id(Order, schedule_item[2].order_id, session=session),
-        {'assignament_date': None, 'status': OrderStatus.BOOKED},
+        {'status': OrderStatus.BOOKED},
         session=session,
       )
     if schedule_item[1]:
