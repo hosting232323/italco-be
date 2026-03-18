@@ -1,0 +1,46 @@
+from io import BytesIO
+from xhtml2pdf import pisa
+from flask import render_template
+
+from .utils import export_pdf
+from database_api.operations import get_by_id
+from ...database.schema import User, RaeProduct
+from ..users.queries import format_user_with_info
+from ..rae_product import query_count_rae_products
+from ..orders.queries import query_orders, format_query_result as format_order_query_result
+
+
+def export_rae(user: User, order_id):
+  orders = []
+  for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(order_id)}]):
+    orders = format_order_query_result(tupla, orders, user)
+  if len(orders) != 1:
+    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
+
+  rae_products = []
+  for product_data in orders[0]['products'].values():
+    if 'rae_product_id' in product_data:
+      rae_products.append(
+        {
+          'data': get_by_id(RaeProduct, product_data['rae_product_id']),
+          'index': query_count_rae_products(product_data['rae_product_id'], orders[0]['user']['id']),
+        }
+      )
+  if len(rae_products) == 0:
+    return {'status': 'ko', 'message': 'Nessun prodotto rae identificato'}
+
+  result = BytesIO()
+  pisa_status = pisa.CreatePDF(
+    src=render_template(
+      'rae_product.html',
+      rae_products=rae_products,
+      address=orders[0]['address'],
+      addressee=orders[0]['addressee'],
+      customer=format_user_with_info(get_by_id(User, orders[0]['user']['id']), user.role),
+    ),
+    dest=result,
+  )
+  if pisa_status.err:
+    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
+
+  return export_pdf(result.getvalue())
