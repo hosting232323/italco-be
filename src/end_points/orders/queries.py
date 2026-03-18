@@ -95,7 +95,7 @@ def query_delivery_orders(
         and_(
           Schedule.date == datetime.now().date(),
           Schedule.id == ScheduleItem.schedule_id,
-          not_(Order.status.in_([OrderStatus.NEW])),
+          not_(Order.status.in_([OrderStatus.ACQUIRED])),
         ),
       )
       .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user.id))
