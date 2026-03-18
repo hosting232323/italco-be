@@ -1,11 +1,11 @@
 from datetime import date
-from sqlalchemy import extract, func
 from flask import Blueprint, request
+from sqlalchemy import and_, extract, func
 
 from database_api import Session
 from ..database.enum import UserRole
-from ..database.schema import RaeProduct, User
 from .users.session import flask_session_authentication
+from ..database.schema import RaeProduct, User, Product, ServiceUser
 from database_api.operations import create, delete, get_by_id, update
 
 
@@ -46,11 +46,21 @@ def query_rae_products() -> list[RaeProduct]:
     return session.query(RaeProduct).all()
 
 
-def query_count_rae_products(rae_product_id: int) -> int:
+def query_count_rae_products(rae_product_id: int, user_id: int) -> int:
   with Session() as session:
     return (
       session.query(func.count(RaeProduct.id))
-      .filter(RaeProduct.id == rae_product_id)
-      .filter(extract('year', RaeProduct.created_at) == date.today().year)
+      .join(
+        Product,
+        and_(
+          Product.rae_product_id == RaeProduct.id,
+          RaeProduct.id == rae_product_id,
+          extract('year', RaeProduct.created_at) == date.today().year,
+        ),
+      )
+      .join(
+        ServiceUser,
+        and_(ServiceUser.id == Product.service_user_id, ServiceUser.user_id == user_id),
+      )
       .scalar()
     )
