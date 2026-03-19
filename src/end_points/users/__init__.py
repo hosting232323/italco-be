@@ -62,10 +62,7 @@ def create_user(user: User):
 @error_catching_decorator
 def login():
   user: User = get_user_by_nickname(request.json['email'])
-  if not user:
-    return {'status': 'ko', 'error': 'Utente non trovato'}
-
-  if user.nickname != request.json['email'] or user.password != request.json['password']:
+  if not user or user.nickname != request.json['email'] or user.password != request.json['password']:
     return {'status': 'ko', 'error': 'Credenziali errate'}
 
   return {
