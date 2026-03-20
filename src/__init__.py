@@ -5,7 +5,7 @@ from flask import Flask, send_from_directory
 from api.settings import IS_DEV
 from database_api.backup import db_backup
 from api import swagger_decorator, PrefixMiddleware
-
+from api.storage import check_mismatch
 
 allowed_origins = [
   'https://ares-logistics.it',
@@ -15,6 +15,8 @@ allowed_origins = [
 
 PORT = int(os.environ.get('PORT', 8080))
 DATABASE_URL = os.environ['DATABASE_URL']
+MISMATCH_QUERY = os.environ.get('MISMATCH_QUERY', None)
+MISMATCH_BUCKET = os.environ.get('MISMATCH_BUCKET', None)
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 POSTGRES_BACKUP_DAYS = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
 STATIC_FOLDER = os.environ.get(
@@ -50,3 +52,8 @@ def serve_image(filename):
 @swagger_decorator
 def trigger_backup():
   return db_backup(DATABASE_URL, STATIC_FOLDER, 'local', 'backup')
+
+
+@app.route('/check-mismatch', methods=['GET'])
+def trigger_check_mismatch():
+  return check_mismatch(DATABASE_URL, MISMATCH_QUERY, MISMATCH_BUCKET, 'italco-be', 's3')
