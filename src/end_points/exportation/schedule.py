@@ -2,9 +2,11 @@ from io import BytesIO
 from xhtml2pdf import pisa
 from flask import render_template
 
+from .rae import get_rae_products_by_order
 from ...database.schema import User, Order
 from .utils import get_signature, export_pdf
 from database_api.operations import get_by_id
+from ..users.queries import format_user_with_info
 from ..orders.queries import query_orders, format_query_result as format_order_query_result
 from ..schedule.queries import query_schedules, format_query_result as format_schedule_query_result
 
@@ -14,7 +16,7 @@ def export_schedule(user: User, id):
   for tupla in query_schedules([{'model': 'Schedule', 'field': 'id', 'value': int(id)}]):
     schedules = format_schedule_query_result(tupla, schedules, user)
   if len(schedules) != 1:
-    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
+    return {'status': 'ko', 'message': 'Numero di borderò trovati non valido'}
 
   orders = []
   for tupla in query_orders(
@@ -28,6 +30,9 @@ def export_schedule(user: User, id):
     ],
   ):
     orders = format_order_query_result(tupla, orders, user)
+  for order in orders:
+    order['rae_products'] = get_rae_products_by_order(order)
+    order['customer'] = format_user_with_info(get_by_id(User, order['user']['id']), user.role)
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(

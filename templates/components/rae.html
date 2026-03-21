@@ -1,0 +1,88 @@
+{% from "components/order.html" import info_table %}
+
+{% macro rae_block(rae_product, customer, addressee, address, created_at) %}
+
+<h1>Documento di trasporto raee</h1>
+
+<table width="100%">
+  <tr>
+    <td>
+      Tipologia: Domestici DDT RAEE N. {{ rae_product.index }}
+      del {{ created_at }}
+    </td>
+    <td align="right">Progressivo: {{ rae_product.index }}</td>
+  </tr>
+</table>
+
+{{ info_table("Distributore", [
+  ("Ragione Sociale", customer.customer_user_info.company_name),
+  ("Codice Distributore", customer.customer_user_info.rae_code),
+  ("Codice Fiscale", customer.customer_user_info.tax_code),
+  ("Città", customer.customer_user_info.city),
+  ("Indirizzo", customer.customer_user_info.address)
+]) }}
+
+<div class="section">
+  <h2>Trasportatore del rifiuto (RAEE)</h2>
+  <table class="info-table">
+    <tr>
+      <td class="short-label">Ragione Sociale</td><td colspan="2">Italco.Mi Logistribuzioni SRL</td>
+      <td class="short-label">Codice Fiscale</td><td>02735550747</td>
+    </tr>
+    <tr>
+      <td class="short-label">Estremi Iscrizione Ecc Raee</td><td colspan="2">RD401S00025192 del 26/02/26</td>
+      <td class="short-label">Targa</td><td>nd</td>
+    </tr>
+    <tr>
+      <td class="short-label">Indirizzo</td><td colspan="2">Via Brindisi, 160</td>
+      <td class="short-label">Città</td><td>Mesagne (BR)</td>
+    </tr>
+  </table>
+</div>
+
+{{ info_table("Utente che conferisce il rifiuto", [
+  ("Nominativo", addressee),
+  ("Indirizzo", address)
+]) }}
+
+{{ info_table("Primo destinatario", [
+  (
+    "Eventuale diverso Luogo di Raggruppamento dei RAEE",
+    "Via Brindisi, 160, Mesagne (BR)"
+  )
+]) }}
+
+<div class="section">
+  <h2>Destinatario finale</h2>
+  <table class="info-table">
+    <tr>
+      <td class="label">Ragione Sociale</td><td>Italco.Mi Logistribuzioni SRL</td>
+      <td class="label">Codice Fiscale</td><td>02735550747</td>
+    </tr>
+    <tr>
+      <td class="label">Luogo di destino</td><td>Via Brindisi, 160, Mesagne (BR)</td>
+      <td class="label">Codice Distribuzione</td><td>RD401S00025192 del 26/02/26</td>
+    </tr>
+  </table>
+</div>
+
+{{ info_table("Caratteristiche del rifiuto", [
+  ("Descrizione", rae_product.data.name),
+  ("Codice CER", rae_product.data.cer_code),
+  ("Codice Raggruppamento", rae_product.data.group_code),
+  ("Quantità", "1")
+]) }}
+
+<div class="section">
+  <table class="info-table">
+    <tr>
+      <td class="label" colspan="2">FIRMA UTENTE</td><td colspan="2">&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="label">FIRMA TRASPORTATORE</td><td>&nbsp;</td>
+      <td class="label">FIRMA DESTINATARIO</td><td>&nbsp;</td>
+    </tr>
+  </table>
+</div>
+
+{% endmacro %}

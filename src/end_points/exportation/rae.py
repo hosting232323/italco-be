@@ -7,25 +7,17 @@ from database_api.operations import get_by_id
 from ...database.schema import User, RaeProduct
 from ..users.queries import format_user_with_info
 from ..rae_product import query_count_rae_products
-from ..orders.queries import query_orders, format_query_result as format_order_query_result
+from ..orders.queries import query_orders, format_query_result
 
 
 def export_rae(user: User, order_id):
   orders = []
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(order_id)}]):
-    orders = format_order_query_result(tupla, orders, user)
+    orders = format_query_result(tupla, orders, user)
   if len(orders) != 1:
     return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
 
-  rae_products = []
-  for product_data in orders[0]['products'].values():
-    if 'rae_product_id' in product_data:
-      rae_products.append(
-        {
-          'data': get_by_id(RaeProduct, product_data['rae_product_id']),
-          'index': query_count_rae_products(product_data['rae_product_id'], orders[0]['user']['id']),
-        }
-      )
+  rae_products = get_rae_products_by_order(orders[0])
   if len(rae_products) == 0:
     return {'status': 'ko', 'message': 'Nessun prodotto rae identificato'}
 
@@ -36,6 +28,7 @@ def export_rae(user: User, order_id):
       rae_products=rae_products,
       address=orders[0]['address'],
       addressee=orders[0]['addressee'],
+      created_at=orders[0]['created_at'],
       customer=format_user_with_info(get_by_id(User, orders[0]['user']['id']), user.role),
     ),
     dest=result,
@@ -44,3 +37,16 @@ def export_rae(user: User, order_id):
     return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
 
   return export_pdf(result.getvalue())
+
+
+def get_rae_products_by_order(order: dict) -> list[dict]:
+  rae_products = []
+  for product_data in order['products'].values():
+    if 'rae_product_id' in product_data and product_data['rae_product_id']:
+      rae_products.append(
+        {
+          'data': get_by_id(RaeProduct, product_data['rae_product_id']),
+          'index': query_count_rae_products(product_data['services'][0]['product_id'], order['user']['id']),
+        }
+      )
+  return rae_products

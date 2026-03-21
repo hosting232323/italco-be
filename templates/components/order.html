@@ -1,0 +1,100 @@
+{% macro info_table(title, rows) %}
+<div class="section">
+  <h2>{{ title }}</h2>
+  <table class="info-table">
+    {% for label, value in rows %}
+      <tr>
+        <td class="label">{{ label }}</td>
+        <td>{{ value or '/' }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endmacro %}
+
+{% macro products_table(products) %}
+<div class="section">
+  <h2>Prodotti e Servizi</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Prodotto</th>
+        <th>Servizi associati</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for product_name, product in products.items() %}
+      <tr>
+        <td>
+          {{ product_name }} [{{ product.collection_point.name }}]
+        </td>
+        <td>
+          <ul style="margin: 0; padding-left: 16px;">
+            {% set counter = {} %}
+            {% for service in product.services %}
+              {% set _ = counter.update({ service.name: (counter.get(service.name, 0) + 1) }) %}
+            {% endfor %}
+
+            {% for name, count in counter.items() %}
+              {% if count > 3 %}
+                <li>{{ name }} x{{ count }}</li>
+              {% else %}
+                {% for i in range(count) %}
+                  <li>{{ name }}</li>
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+          </ul>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+{% macro signatures(signature=None) %}
+<div class="section">
+  <h2>Firme</h2>
+  <table class="info-table">
+    <tr>
+      <td style="width: 50%; border: none; padding-left: 0;">
+        <div style="border: 1px solid #999; padding: 10px 10px 30px; height: 160px;">
+          <em>Firma trasportatore</em>
+        </div>
+      </td>
+      <td style="width: 50%; border: none; padding-right: 0;">
+        <div style="border: 1px solid #999; height: 160px;">
+          <em>Firma destinatario</em>
+          {% if signature %}
+            <img src="{{ signature }}" style="height: 100%;">
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+{% endmacro %}
+
+{% macro order_block(order) %}
+
+{{ info_table("Informazioni", [
+  ("Committente", order.user.nickname),
+  ("Destinatario", order.addressee),
+  ("Indirizzo", order.address),
+  ("Recapito", order.addressee_contact),
+  ("Note", order.customer_note)
+]) }}
+
+{{ info_table("Dettagli Consegna", [
+  ("Data prevista consegna", order.dpc),
+  ("Data richiesta consegna", order.drc),
+  ("Data consegna effettiva", order.booking_date),
+  ("Note aggiuntive", order.operator_note)
+]) }}
+
+{{ products_table(order.products) }}
+
+{{ signatures(order.signature) }}
+
+{% endmacro %}

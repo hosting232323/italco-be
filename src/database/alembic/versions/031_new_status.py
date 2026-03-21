@@ -1,4 +1,4 @@
-"""new status
+"""New status
 
 Revision ID: 031
 Revises: 030
