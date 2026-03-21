@@ -151,7 +151,7 @@ def add_service(
     object['products'][product.name] = {'services': [], 'collection_point': collection_point.to_dict()}
 
   if next(
-    (s for s in object['products'][product.name]['services'] if s['product_id'] == product.id),
+    (service for service in object['products'][product.name]['services'] if service['product_id'] == product.id),
     None,
   ):
     return

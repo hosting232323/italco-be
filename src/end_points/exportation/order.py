@@ -6,13 +6,13 @@ from ...database.enum import OrderStatus
 from ...database.schema import User, Order
 from .utils import get_signature, export_pdf
 from database_api.operations import get_by_id
-from ..orders.queries import query_orders, format_query_result as format_order_query_result
+from ..orders.queries import query_orders, format_query_result
 
 
 def export_order(user: User, id):
   orders = []
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(id)}]):
-    orders = format_order_query_result(tupla, orders, user)
+    orders = format_query_result(tupla, orders, user)
   if len(orders) != 1:
     return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
 
@@ -46,7 +46,7 @@ def export_order_invoice(user: User):
     user,
     request.json['filters'] + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.DELIVERED}],
   ):
-    orders = format_order_query_result(tupla, orders, user)
+    orders = format_query_result(tupla, orders, user)
   if not orders:
     return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
 

@@ -70,29 +70,18 @@
   </style>
 </head>
 <body>
+  {% from "components/order.html" import info_table, products_table, signatures, order_block %}
+  {% from "components/rae.html" import rae_block %}
+
   <h1>N° Borderò: {{ id }}</h1>
 
-  <div class="section">
-    <h2>Informazioni</h2>
-    <table class="info-table">
-      <tr>
-        <td class="label">ID</td>
-        <td>{{ id }}</td>
-      </tr>
-      <tr>
-        <td class="label">Data</td>
-        <td>{{ date }}</td>
-      </tr>
-      <tr>
-        <td class="label">Utenti Delivery</td>
-        <td>{{ users }}</td>
-      </tr>
-      <tr>
-        <td class="label">Veicolo</td>
-        <td>{{ transport }}</td>
-      </tr>
-    </table>
-  </div>
+
+  {{ info_table("Informazioni", [
+    ("ID", id),
+    ("Data", date),
+    ("Utenti Delivery", users),
+    ("Veicolo", transport)
+  ]) }}
   
   <div class="section">
     <h2>Ordini</h2>
@@ -183,89 +172,19 @@
 
   {% for order in orders %}
 
-    <div class="section">
-      <h2>N° Ordine: {{ order.id }}</h2>
-      <h3 style="margin: 0 0 10px;">Informazioni</h3>
-      <table class="info-table">
-        <tr><td class="label">Committente</td><td>{{ order.user.nickname }}</td></tr>
-        <tr><td class="label">Destinatario</td><td>{{ order.addressee }}</td></tr>
-        <tr><td class="label">Indirizzo</td><td>{{ order.address }}</td></tr>
-        <tr><td class="label">Recapito</td><td>{{ order.addressee_contact or '/' }}</td></tr>
-        <tr><td class="label">Note</td><td>{{ order.customer_note or '/' }}</td></tr>
-      </table>
-    </div>
+    <h2>N° Ordine: {{ order.id }}</h2>
 
-    <div class="section">
-      <h2>Dettagli Consegna</h2>
-      <table class="info-table">
-        <tr><td class="label">Data prevista consegna</td><td>{{ order.dpc }}</td></tr>
-        <tr><td class="label">Data richiesta consegna</td><td>{{ order.drc }}</td></tr>
-        <tr><td class="label">Data consegna effettiva</td><td>{{ order.booking_date or '/' }}</td></tr>
-        <tr><td class="label">Note aggiuntive</td><td>{{ order.operator_note or '/' }}</td></tr>
-      </table>
-    </div>
+    {{ order_block(order) }}
 
-    <div class="section">
-      <h2>Prodotti e Servizi</h2>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Prodotto</th>
-            <th>Servizi associati</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for product_name, product in order.products.items() %}
-          <tr>
-            <td>
-              {{ product_name }}
-              [{{ product.collection_point.name }}]
-            </td>
-            <td>
-              <ul style="margin: 0; padding-left: 16px;">
-                {% set counter = {} %}
-                {% for service in product.services %}
-                  {% set _ = counter.update({ service.name: (counter.get(service.name, 0) + 1) }) %}
-                {% endfor %}
-
-                {% for name, count in counter.items() %}
-                  {% if count > 3 %}
-                    <li>{{ name }} x{{ count }}</li>
-                  {% else %}
-                    {% for i in range(count) %}
-                      <li>{{ name }}</li>
-                    {% endfor %}
-                  {% endif %}
-                {% endfor %}
-              </ul>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="section">
-      <h2>Firme</h2>
-      <table class="info-table">
-        <tr>
-          <td style="width: 50%; vertical-align: top; border: none; padding-left: 0px;">
-            <div style="border: 1px solid #999; padding: 10px 10px 30px;">
-              <em>Firma trasportatore</em>
-            </div>
-          </td>
-          <td style="width: 50%; vertical-align: top; border: none; padding-right: 0px;">
-            <div style="border: 1px solid #999; padding: 10px 10px 30px;">
-              <em>Firma destinatario</em>
-              {% if order.signature %}
-                <img src="{{ order.signature }}" style="height: 100%;" alt="Firma">
-              {% endif %}
-            </div>
-          </td>
-        </tr>
-      </table>
-    </div>
     <div style="page-break-before: always;"></div>
+    {% for rae_product in order.rae_products %}
+      {{ rae_block(rae_product, order.customer, order.addressee, order.address, order.created_at) }}
+      <div style="page-break-before: always;"></div>
+    {% endfor %}
+
+    {% if not loop.last %}
+    <div style="page-break-before: always;"></div>
+    {% endif %}
   {% endfor %}
 </body>
 </html>

@@ -58,10 +58,11 @@ class CustomerUserInfo(BaseEntity):
   __tablename__ = 'customer_user_info'
 
   city = Column(String)
-  code = Column(String)
   email = Column(String)
   address = Column(String)
   tax_code = Column(String)
+  rae_code = Column(String)
+  import_code = Column(String)
   company_name = Column(String)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
