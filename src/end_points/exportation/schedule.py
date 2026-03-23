@@ -16,7 +16,7 @@ def export_schedule(user: User, id):
   for tupla in query_schedules([{'model': 'Schedule', 'field': 'id', 'value': int(id)}]):
     schedules = format_schedule_query_result(tupla, schedules, user)
   if len(schedules) != 1:
-    return {'status': 'ko', 'message': 'Numero di borderò trovati non valido'}
+    return {'status': 'ko', 'error': 'Numero di borderò trovati non valido'}
 
   orders = []
   for tupla in query_orders(
@@ -47,6 +47,6 @@ def export_schedule(user: User, id):
     dest=result,
   )
   if pisa_status.err:
-    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
+    return {'status': 'ko', 'error': 'Errore nella creazione del PDF'}
 
   return export_pdf(result.getvalue())

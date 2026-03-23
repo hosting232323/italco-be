@@ -5,8 +5,9 @@ from ...database.schema import User
 from ..users.session import flask_session_authentication
 
 from .rae import export_rae
+from .order import export_order
 from .schedule import export_schedule
-from .order import export_order, export_order_invoice
+from .invoice import export_order_invoice
 
 
 export_bp = Blueprint('export_bp', __name__)

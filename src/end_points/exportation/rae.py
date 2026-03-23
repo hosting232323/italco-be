@@ -15,11 +15,11 @@ def export_rae(user: User, order_id):
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(order_id)}]):
     orders = format_query_result(tupla, orders, user)
   if len(orders) != 1:
-    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
+    return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
 
   rae_products = get_rae_products_by_order(orders[0])
   if len(rae_products) == 0:
-    return {'status': 'ko', 'message': 'Nessun prodotto rae identificato'}
+    return {'status': 'ko', 'error': 'Nessun prodotto rae identificato'}
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
@@ -34,7 +34,7 @@ def export_rae(user: User, order_id):
     dest=result,
   )
   if pisa_status.err:
-    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
+    return {'status': 'ko', 'error': 'Errore nella creazione del PDF'}
 
   return export_pdf(result.getvalue())
 
