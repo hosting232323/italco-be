@@ -1,8 +1,7 @@
 from io import BytesIO
 from xhtml2pdf import pisa
-from flask import render_template, request
+from flask import render_template
 
-from ...database.enum import OrderStatus
 from ...database.schema import User, Order
 from .utils import get_signature, export_pdf
 from database_api.operations import get_by_id
@@ -14,8 +13,7 @@ def export_order(user: User, id):
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(id)}]):
     orders = format_query_result(tupla, orders, user)
   if len(orders) != 1:
-    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
-
+    return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
     src=render_template(
@@ -35,40 +33,6 @@ def export_order(user: User, id):
     dest=result,
   )
   if pisa_status.err:
-    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
-
-  return export_pdf(result.getvalue())
-
-
-def export_order_invoice(user: User):
-  orders = []
-  for tupla in query_orders(
-    user,
-    request.json['filters'] + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.DELIVERED}],
-  ):
-    orders = format_query_result(tupla, orders, user)
-  if not orders:
-    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
-
-  for filter in request.json['filters']:
-    if filter['field'] == 'dpc' and filter['model'] == 'Order':
-      start_date = filter['value'][0]
-      end_date = filter['value'][1]
-      break
-
-  result = BytesIO()
-  pisa_status = pisa.CreatePDF(
-    src=render_template(
-      'orders_invoice.html',
-      orders=orders,
-      end_date=start_date,
-      start_date=end_date,
-      total=sum([order['price'] for order in orders]),
-      customer=orders[0]['user']['nickname'] if orders else None,
-    ),
-    dest=result,
-  )
-  if pisa_status.err:
-    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
+    return {'status': 'ko', 'error': 'Errore nella creazione del PDF'}
 
   return export_pdf(result.getvalue())

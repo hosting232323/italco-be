@@ -1,8 +1,6 @@
-{% from "components/order.html" import info_table %}
-
 {% macro rae_block(rae_product, customer, addressee, address, created_at) %}
 
-<h1>Documento di trasporto raee</h1>
+<h1 class="rae-h1">Documento di trasporto raee</h1>
 
 <table width="100%">
   <tr>
@@ -23,8 +21,8 @@
 ]) }}
 
 <div class="section">
-  <h2>Trasportatore del rifiuto (RAEE)</h2>
-  <table class="info-table">
+  <h2 class="rae-h2">Trasportatore del rifiuto (RAEE)</h2>
+  <table class="rae-info-table">
     <tr>
       <td class="short-label">Ragione Sociale</td><td colspan="2">Italco.Mi Logistribuzioni SRL</td>
       <td class="short-label">Codice Fiscale</td><td>02735550747</td>
@@ -53,8 +51,8 @@
 ]) }}
 
 <div class="section">
-  <h2>Destinatario finale</h2>
-  <table class="info-table">
+  <h2 class="rae-h2">Destinatario finale</h2>
+  <table class="rae-info-table">
     <tr>
       <td class="label">Ragione Sociale</td><td>Italco.Mi Logistribuzioni SRL</td>
       <td class="label">Codice Fiscale</td><td>02735550747</td>
@@ -74,7 +72,7 @@
 ]) }}
 
 <div class="section">
-  <table class="info-table">
+  <table class="rae-info-table">
     <tr>
       <td class="label" colspan="2">FIRMA UTENTE</td><td colspan="2">&nbsp;</td>
     </tr>
@@ -85,4 +83,18 @@
   </table>
 </div>
 
+{% endmacro %}
+
+{% macro info_table(title, rows) %}
+<div class="section">
+  <h2 class="rae-h2">{{ title }}</h2>
+  <table class="rae-info-table">
+    {% for label, value in rows %}
+      <tr>
+        <td class="label">{{ label }}</td>
+        <td>{{ value or '/' }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
 {% endmacro %}
