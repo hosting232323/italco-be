@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from database_api import Session
 from ... import EURONICS_API_PASSWORD
 from database_api.operations import create, update
-from ...database.enum import OrderType, EuronicsStatus
 from ..service.queries import get_service_user_by_user_and_code
 from ..users.queries import get_user_and_collection_point_by_code
+from ...database.enum import OrderType, EuronicsStatus, OrderStatus
 from ...database.schema import Order, Product, User, CollectionPoint
 from ..orders.queries import get_order_by_external_id_and_customer, get_order_by_external_id
 
@@ -57,9 +57,9 @@ def save_orders_by_euronics():
         create(
           Order,
           {
-            'status': EuronicsStatus.NEW,
             'type': OrderType.DELIVERY,
             'cap': imported_order['CAP'],
+            'status': OrderStatus.ACQUIRED,
             'external_status': external_status,
             'addressee': imported_order['cliente'],
             'external_id': imported_order['id_consegna'],
