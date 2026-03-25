@@ -14,7 +14,7 @@ from ..orders.queries import get_order_by_external_id_and_customer, get_order_by
 
 ORDER_STATUS_MAP = {
   0: EuronicsStatus.NEW,
-  1: EuronicsStatus.CONFIRMED,
+  1: EuronicsStatus.DELIVERED,
   2: EuronicsStatus.NOT_DELIVERED,
   3: EuronicsStatus.BOOKING,
   4: EuronicsStatus.CONFIRMED,
