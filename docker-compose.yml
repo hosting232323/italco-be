@@ -1,0 +1,16 @@
+services:
+  vanni-db:
+    image: postgres:16
+    env_file:
+      - .env.test
+    environment:
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_DB: ${PGDATABASE}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+
+volumes:
+  postgres-data:

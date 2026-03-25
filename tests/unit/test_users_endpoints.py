@@ -118,7 +118,7 @@ def test_save_user_info_endpoint_updates_delivery_data(client):
   delivery_user = create_user_for_login(_uniq('delivery.info'), 'pw', UserRole.DELIVERY)
   response = client.post(
     '/users/info',
-    json={'user_id': delivery_user.id, 'class': 'Delivery', 'data': {'cap': '20100'}},
+    json={'user_id': delivery_user.id, 'class': 'Delivery', 'data': {'cap': '70020'}},
     headers=auth_header_for('admin', role=UserRole.ADMIN),
   )
 
@@ -128,7 +128,7 @@ def test_save_user_info_endpoint_updates_delivery_data(client):
   with Session() as session:
     info = session.query(DeliveryUserInfo).filter(DeliveryUserInfo.user_id == delivery_user.id).first()
     assert info is not None
-    assert info.cap == '20100'
+    assert info.cap == '70020'
 
 
 def test_save_user_info_endpoint_updates_customer_data(client):
@@ -150,10 +150,10 @@ def test_save_user_info_endpoint_updates_customer_data(client):
 
 def test_save_user_info_creates_and_updates_records(seeded_db):
   delivery_user = create_user_for_login(_uniq('delivery.raw'), 'pw', UserRole.DELIVERY)
-  users_endpoints.save_user_info(delivery_user.id, {'cap': '00100'}, DeliveryUserInfo)
-  users_endpoints.save_user_info(delivery_user.id, {'cap': '20100'}, DeliveryUserInfo)
+  users_endpoints.save_user_info(delivery_user.id, {'cap': '70020'}, DeliveryUserInfo)
+  users_endpoints.save_user_info(delivery_user.id, {'cap': '70020'}, DeliveryUserInfo)
 
   with Session() as session:
     info = session.query(DeliveryUserInfo).filter(DeliveryUserInfo.user_id == delivery_user.id).first()
     assert info is not None
-    assert info.cap == '20100'
+    assert info.cap == '70020'

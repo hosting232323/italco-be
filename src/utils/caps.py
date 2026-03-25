@@ -29,7 +29,7 @@ def get_lat_lon_by_cap(cap: str) -> tuple[float, float]:
       cap_data = CAPS_DATA[province][cap]
       return cap_data['lat'], cap_data['lon']
 
-  raise ValueError('Cap not found')
+  raise ValueError(f'Cap {cap} not found')
 
 
 def get_cap_data_by_province(province: str) -> dict:

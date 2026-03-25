@@ -8,3 +8,4 @@ uv.lock
 .editorconfig
 build
 *.egg-info
+seed_data.py
