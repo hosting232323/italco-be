@@ -146,6 +146,8 @@ def update_order(user: User, id):
       data['status'] = OrderStatus(data['status'])
       if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED] and not order.completion_date:
         data['completion_date'] = datetime.now()
+    if 'confirmed' in data and data['confirmed'] and not order.confirmation_date:
+      data['confirmation_date'] = datetime.now()
     if 'external_status' in data:
       del data['external_status']
     if user.role != UserRole.DELIVERY and 'products' in data:
