@@ -62,6 +62,7 @@ def save_orders_by_euronics():
             'status': OrderStatus.ACQUIRED,
             'external_status': external_status,
             'addressee': imported_order['cliente'],
+            'external_link': imported_order['url'],
             'external_id': imported_order['id_consegna'],
             'drc': format_date(imported_order['data_vendita']),
             'dpc': format_date(imported_order['data_consegna']),

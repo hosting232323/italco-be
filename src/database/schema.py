@@ -121,6 +121,8 @@ class Order(BaseEntity):
   operator_note = Column(String)
   signature = Column(LargeBinary)
   mark = Column(Float)
+
+  external_link = Column(String)
   external_id = Column(String)
   external_status = Column(Enum(EuronicsStatus))
 
