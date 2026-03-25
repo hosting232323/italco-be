@@ -1,18 +1,16 @@
-import base64
-import json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
-from uuid import uuid4
+from urllib.error import URLError
+from urllib.parse import urlparse, urlunparse
+from urllib.request import urlopen
 
+from alembic import command
+from alembic.config import Config
+import database_api
 import pytest
-from cryptography.hazmat.primitives import padding
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
@@ -20,11 +18,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import OperationalError
 
-import database_api
 import src.database.schema  # noqa: F401
-from src.database.enum import UserRole
-from tests.utils import create_user_for_login
-
+from src.database.seed import seed_data
 
 # Ensure the project root is in sys.path for imports
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -40,11 +35,24 @@ def _assert_test_database_url(url: str) -> str:
   return url
 
 
+def _normalize_local_url(url: str) -> str:
+  parsed = urlparse(url)
+  if parsed.hostname != 'localhost':
+    return url.rstrip('/')
+
+  port = f':{parsed.port}' if parsed.port else ''
+  netloc = f'127.0.0.1{port}'
+  return urlunparse(parsed._replace(netloc=netloc)).rstrip('/')
+
+
+def _stamp_database_head() -> None:
+  command.stamp(Config(str(PROJECT_ROOT / 'alembic.ini')), 'head')
+
+
 @pytest.fixture(scope='session')
 def database_engine():
   database_url = os.environ.get('DATABASE_URL')
-  if not database_url:
-    raise RuntimeError('DATABASE_URL is required for tests.')
+  os.environ.setdefault('DATABASE_URL', database_url)
 
   safe_url = _assert_test_database_url(database_url)
   engine = create_engine(safe_url, pool_pre_ping=True)
@@ -68,7 +76,11 @@ def database_engine():
         pass
     else:
       raise
+  database_api.Base.metadata.drop_all(bind=engine)
+  database_api.Base.metadata.create_all(bind=engine)
   database_api.engine = engine
+  seed_data()
+  _stamp_database_head()
   yield engine
   engine.dispose()
 
@@ -85,34 +97,6 @@ def _wait_backend_ready(backend_url: str, timeout_seconds: int):
   raise RuntimeError(f'Backend did not become ready at {health_url} within {timeout_seconds} seconds.')
 
 
-def _encrypt_password(password: str, secret_key: str, iv_string: str) -> str:
-  """Encrypts the password using AES-CBC with PKCS7 padding, then encodes as base64."""
-  key_bytes = secret_key.encode('utf-8')
-  iv_bytes = iv_string.encode('utf-8')
-  if len(key_bytes) not in {16, 24, 32}:
-    raise ValueError('E2E secret key must be 16, 24, or 32 bytes for AES.')
-  if len(iv_bytes) != 16:
-    raise ValueError('E2E IV must be exactly 16 bytes for AES-CBC.')
-
-  padder = padding.PKCS7(128).padder()
-  padded = padder.update(password.encode('utf-8')) + padder.finalize()
-
-  cipher = Cipher(algorithms.AES(key_bytes), modes.CBC(iv_bytes))
-  encryptor = cipher.encryptor()
-  ciphertext = encryptor.update(padded) + encryptor.finalize()
-  return base64.b64encode(iv_bytes + ciphertext).decode('utf-8')
-
-
-@pytest.fixture(scope='session')
-def e2e_secret_key() -> str:
-  return os.environ.get('E2E_SECRET_KEY', '0123456789abcdef0123456789abcdef')
-
-
-@pytest.fixture(scope='session')
-def e2e_iv() -> str:
-  return os.environ.get('E2E_IV', '0123456789abcdef')
-
-
 def _wait_url_ready(url: str, timeout_seconds: int):
   deadline = time.time() + timeout_seconds
   while time.time() < deadline:
@@ -125,57 +109,13 @@ def _wait_url_ready(url: str, timeout_seconds: int):
 
 
 @pytest.fixture(scope='session')
-def frontend_server(backend_server: str, e2e_secret_key: str, e2e_iv: str):
-  if os.environ.get('E2E_MANAGE_FRONTEND', '1') != '1':
-    yield None
-    return
-
-  frontend_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'italco-fe'))
-  if not os.path.isdir(frontend_root):
-    pytest.fail(f'Cannot find frontend project at {frontend_root}')
-
-  frontend_port = int(os.environ.get('E2E_FRONTEND_PORT', '4173'))
-  managed_frontend_url = f'http://127.0.0.1:{frontend_port}/'
-  env = os.environ.copy()
-  env['VITE_HOSTNAME'] = f'{backend_server}/'
-  env['VITE_SECRET_KEY'] = e2e_secret_key
-  env['VITE_IV'] = e2e_iv
-
-  command = ['bun', 'run', 'dev', '--host', '127.0.0.1', '--port', str(frontend_port)]
-  process = subprocess.Popen(
-    command, cwd=frontend_root, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-  )
-
-  startup_timeout = int(os.environ.get('E2E_FRONTEND_STARTUP_TIMEOUT', '40'))
-  try:
-    _wait_url_ready(managed_frontend_url, startup_timeout)
-  except Exception as exc:
-    process.terminate()
-    process.wait(timeout=5)
-    stderr = process.stderr.read() if process.stderr else ''
-    stdout = process.stdout.read() if process.stdout else ''
-    pytest.fail(f'Failed to start frontend at {managed_frontend_url}: {exc}\nstdout:\n{stdout}\nstderr:\n{stderr}')
-
-  yield managed_frontend_url
-
-  process.terminate()
-  try:
-    process.wait(timeout=5)
-  except subprocess.TimeoutExpired:
-    process.kill()
-    process.wait(timeout=5)
-
-
-@pytest.fixture(scope='session')
-def frontend_url(frontend_server: str | None) -> str:
-  if frontend_server:
-    return frontend_server
+def frontend_url() -> str:
   return os.environ.get('E2E_FRONTEND_URL', 'http://localhost:3000/').rstrip('/') + '/'
 
 
 @pytest.fixture(scope='session')
 def backend_url() -> str:
-  return os.environ.get('E2E_BACKEND_URL', 'http://localhost:8080/').rstrip('/')
+  return _normalize_local_url(os.environ.get('E2E_BACKEND_URL', 'http://127.0.0.1:8080/'))
 
 
 @pytest.fixture(scope='session')
@@ -195,6 +135,7 @@ def backend_server(backend_url: str, database_engine):
   env['PYTHONPATH'] = f'{project_root}{os.pathsep}{existing_pythonpath}' if existing_pythonpath else project_root
   env['PORT'] = str(port)
   env.setdefault('IS_DEV', '1')
+  env.setdefault('DECODE_JWT_TOKEN', 'dummy')
 
   command = [
     sys.executable,
@@ -244,10 +185,16 @@ def selenium_remote_url() -> str | None:
 @pytest.fixture(scope='session')
 def driver(selenium_remote_url: str | None):
   options = Options()
+  chrome_binary = os.environ.get('CHROME_BIN')
+  if chrome_binary:
+    options.binary_location = chrome_binary
   options.add_argument('--headless=new')
   options.add_argument('--no-sandbox')
   options.add_argument('--disable-dev-shm-usage')
   options.add_argument('--window-size=1440,1000')
+  # Snap-packaged Chromium in this environment fails to create a session
+  # unless Chrome exposes a fixed DevTools port.
+  options.add_argument(f'--remote-debugging-port={os.environ.get("E2E_CHROME_DEBUG_PORT", "9222")}')
 
   if selenium_remote_url:
     browser = webdriver.Remote(command_executor=selenium_remote_url, options=options)
@@ -273,35 +220,6 @@ def frontend_reachable(frontend_url: str):
 
 
 @pytest.fixture
-def e2e_user(request, backend_server: str, e2e_secret_key: str, e2e_iv: str):
-  if not os.environ.get('DATABASE_URL'):
-    pytest.fail('DATABASE_URL is required to provision E2E login test user.')
+def e2e_user(request, backend_server: str):
   request.getfixturevalue('database_engine')
-  nickname = f'e2e.login.{uuid4().hex[:10]}@example.com'
-  plain_password = 'e2e-password'
-  encrypted_password = _encrypt_password(plain_password, e2e_secret_key, e2e_iv)
-  create_user_for_login(nickname, encrypted_password, UserRole.DELIVERY)
-  payload = json.dumps({'email': nickname, 'password': encrypted_password}).encode('utf-8')
-  req = Request(
-    f'{backend_server}/user/login',
-    data=payload,
-    headers={'Content-Type': 'application/json'},
-    method='POST',
-  )
-  try:
-    with urlopen(req, timeout=5) as response:
-      body = json.loads(response.read().decode('utf-8'))
-    if body.get('status') != 'ok':
-      pytest.fail(
-        'Backend login did not accept provisioned E2E user. '
-        f'endpoint={backend_server}/user/login response={body}. '
-        'Ensure backend uses the same DATABASE_URL as tests.'
-      )
-  except HTTPError as exc:
-    response_body = exc.read().decode('utf-8', errors='replace') if hasattr(exc, 'read') else ''
-    pytest.fail(
-      f'Backend login endpoint returned HTTP {exc.code} at {backend_server}/user/login. Body: {response_body}'
-    )
-  except URLError as exc:
-    pytest.fail(f'Backend is not reachable at {backend_server}. ({exc})')
-  return {'email': nickname, 'password': plain_password}
+  return {'email': 'admin', 'password': '1234admin'}

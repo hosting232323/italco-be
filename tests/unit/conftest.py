@@ -11,6 +11,7 @@ from sqlalchemy.exc import OperationalError
 import database_api
 import src.database.schema  # noqa: F401
 from src.database.seed import seed_data
+from src.end_points.orders import order_bp
 from src.end_points.users import user_bp
 
 
@@ -73,6 +74,7 @@ def seeded_db(database_engine):
 def app(seeded_db):
   app = Flask(__name__)
   app.register_blueprint(user_bp, url_prefix='/users/')
+  app.register_blueprint(order_bp, url_prefix='/order/')
   return app
 
 
