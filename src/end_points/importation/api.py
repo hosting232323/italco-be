@@ -41,12 +41,14 @@ def save_orders_by_euronics():
     external_status = ORDER_STATUS_MAP[imported_order['stato']]
     order = get_order_by_external_id_and_customer(imported_order['id_consegna'], result[0].id)
     if order:
-      if order.external_status != external_status or (
-        imported_order['dataconferma'] != '' and imported_order['dataconferma'] != order.confirmation_date
-      ):
-        update(
-          order, {'external_status': external_status, 'confirmation_date': format_date(imported_order['dataconferma'])}
-        )
+      diff = {}
+      if order.external_status != external_status:
+        diff['external_status'] = external_status
+      if format_date(imported_order['dataconferma']) != order.confirmation_date:
+        diff['confirmation_date'] = format_date(imported_order['dataconferma'])
+        diff['confirmed'] = True
+      if len(diff):
+        update(order, diff)
       continue
 
     with Session() as session:
@@ -67,6 +69,7 @@ def save_orders_by_euronics():
             'drc': format_date(imported_order['data_vendita']),
             'dpc': format_date(imported_order['data_consegna']),
             'confirmation_date': format_date(imported_order['dataconferma']),
+            'confirmed': format_date(imported_order['dataconferma']) is not None,
             'addressee_contact': f'{imported_order["telefono"]} {imported_order["telefono1"]}',
             'customer_note': imported_order['note_conferma'] if imported_order['note_conferma'] != '' else None,
             'address': f'{imported_order["indirizzo"]} {imported_order["localita"]} {imported_order["provincia"]}',
