@@ -6,15 +6,16 @@ stages:
 lint_backend:
   stage: lint
   image: python:3.11
-  script:
-    - pip install ruff
-    - ruff check ./src ./tests --exit-non-zero-on-fix
-    - ruff format ./src ./tests --exit-non-zero-on-fix
   allow_failure: true
+  interruptible: true
   tags:
     - linux
   rules:
     - if: '$CI_COMMIT_BRANCH != "main"'
+  script:
+    - pip install ruff
+    - ruff check ./src ./tests --exit-non-zero-on-fix
+    - ruff format ./src ./tests --exit-non-zero-on-fix
 
 .rewrite_test_env: &rewrite_test_env |
   python - <<'PY'
@@ -62,6 +63,9 @@ lint_backend:
 .python_test_template: &python_test_template
   stage: test
   image: python:3.11
+  interruptible: true
+  tags:
+    - linux
   services:
     - name: postgres:15
       alias: postgres
@@ -79,13 +83,11 @@ lint_backend:
     - pip install --upgrade pip
     - pip install --retries 10 --timeout 120 ".[dev]"
     - *rewrite_test_env
-  tags:
-    - linux
-  rules:
-    - if: '$CI_COMMIT_BRANCH != "main"'
 
 unit_tests:
   <<: *python_test_template
+  rules:
+    - if: '$CI_COMMIT_BRANCH != "main"'
   script:
     - pytest ./tests/unit
 
@@ -94,6 +96,12 @@ e2e_tests:
   services:
     - name: postgres:15
       alias: postgres
+  rules:
+    - if: '$CI_COMMIT_BRANCH != "main" && $CI_ITALCO_FE_USERNAME && $CI_ITALCO_FE_TOKEN'
+  artifacts:
+    when: always
+    paths:
+      - frontend.log
   variables:
     POSTGRES_DB: test_${CI_JOB_ID}
     POSTGRES_USER: postgres
@@ -146,12 +154,6 @@ e2e_tests:
         raise SystemExit(f'Frontend did not become ready at {url}')
       "
     - pytest -m "e2e" ./tests/e2e -vv
-  artifacts:
-    when: always
-    paths:
-      - frontend.log
-  rules:
-    - if: '$CI_COMMIT_BRANCH != "main" && $CI_ITALCO_FE_USERNAME && $CI_ITALCO_FE_TOKEN'
 
 .deploy_template: &deploy_template
   stage: deploy
