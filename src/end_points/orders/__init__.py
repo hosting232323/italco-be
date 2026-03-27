@@ -39,7 +39,7 @@ def create_order(user: User):
   if user.role in [UserRole.ADMIN, UserRole.OPERATOR]:
     data['confirmed'] = True
     data['confirmation_date'] = datetime.now()
-    if data['booking_date'] is not None:
+    if 'booking_date' in data and data['booking_date'] is not None:
       data['status'] = OrderStatus.BOOKED
 
   with Session() as session:
