@@ -28,29 +28,69 @@ def order_import_by_pdf(files, customer_id):
 
         orders_count += 1
         order: Order = pdf_create_order(text, session=session)
-        pdf_create_product(pagina.extract_tables(), order.id, collection_point.id, customer_id, session=session)
+        pdf_create_product(pagina.extract_tables(), text, order.id, collection_point.id, customer_id, session=session)
 
     session.commit()
   return {'status': 'ok', 'imported_orders_count': orders_count}
 
 
-def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id: int, session):
-  for table in tables:
-    header = table[0]
-    if header == ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']:
-      for row in table[1:]:
-        create(
-          Product,
-          {
-            'order_id': order_id,
-            'name': f'{row[0]} {row[1]} {row[2]}',
-            'collection_point_id': collection_point_id,
-            'service_user_id': get_service_user_by_user_and_code(user_id, row[4], session=session).id,
-          },
-          session=session,
-        )
+def pdf_create_product(tables, text, order_id: int, collection_point_id: int, user_id: int, session):
+  products = []
 
+  if tables:
+    for table in tables:
+      header = table[0]
+      if header == ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']:
+        for row in table[1:]:
+          products.append({'name': f'{row[0]} {row[1]} {row[2]}', 'quantity': row[3], 'service': row[4]})
 
+  if not products:
+    match_section = re.search(
+      (
+        r'ARTICOLI E SERVIZI RICHIESTI\s+'
+        r'Articolo Modello Tipologia - Descrizione Quantità - Peso Jg Servizio\s+'
+        r'(.*?)(?:Data carico:|$)'
+      ),
+      text,
+      flags=re.DOTALL,
+    )
+    products_text = match_section.group(1) if match_section else text
+
+    pattern = re.compile(
+      r'^\s*(\d+)\s+'
+      r'([^\s]+)\s+'
+      r'(.+?)\s+'
+      r'(\d+)\s+'
+      r'(.+)$',
+      flags=re.MULTILINE,
+    )
+
+    for match in pattern.finditer(products_text):
+      articolo, modello, descrizione, quantita, servizio = match.groups()
+      products.append(
+        {
+          'articolo': articolo.strip(),
+          'modello': modello.strip(),
+          'descrizione': descrizione.strip(),
+          'quantita': quantita.strip(),
+          'servizio': servizio.strip(),
+        }
+      )
+
+  for p in products:
+    service_user = get_service_user_by_user_and_code(user_id, p['servizio'], session=session)
+    create(
+      Product,
+      {
+        'order_id': order_id,
+        'name': f'{p["articolo"]} {p["modello"]} {p["descrizione"]}',
+        'collection_point_id': collection_point_id,
+        'service_user_id': service_user.id if service_user else None
+      },
+      session=session,
+    )
+
+          
 def pdf_create_order(text, session):
   m_addressee = re.search(r'Destinatario:\s*(.+)', text)
   addressee = m_addressee.group(1).strip() if m_addressee else None
