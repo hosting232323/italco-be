@@ -1,4 +1,4 @@
-"""update user info
+"""Update user info
 
 Revision ID: 023
 Revises: 022

@@ -45,6 +45,7 @@ def get_rae_products_by_order(order: dict) -> list[dict]:
     if 'rae_product_id' in product_data and product_data['rae_product_id']:
       rae_products.append(
         {
+          'quantity': product_data['rae_product_quantity'],
           'data': get_by_id(RaeProduct, product_data['rae_product_id']),
           'index': query_count_rae_products(product_data['services'][0]['product_id'], order['user']['id']),
         }
