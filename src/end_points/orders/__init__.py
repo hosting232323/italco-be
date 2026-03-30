@@ -22,7 +22,7 @@ from .queries import (
   get_order_photos,
   get_motivations_by_order_id,
   query_products,
-  get_all_statuses_by_order_id,
+  get_all_histories_by_order_id,
 )
 
 
@@ -229,7 +229,24 @@ def delete_order(user: User, id):
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def get_statuses(user: User, id):
-  return {'status': 'ok', 'statuses': [status.to_dict() for status in get_all_statuses_by_order_id(id)]}
+  histories = [
+    h
+    for h in get_all_histories_by_order_id(id)
+    if h.status.get('type') == 'status' and h.status.get('value') is not None
+  ]
+  status_map = {status.name: status.value for status in OrderStatus}
+  statuses = [
+    {
+      'id': h.id,
+      'order_id': h.order_id,
+      'status': status_map.get(h.status['value'], h.status['value']),
+      'created_at': h.created_at.strftime("%d/%m/%Y %H:%M"),
+      'updated_at': h.updated_at.strftime("%d/%m/%Y %H:%M"),
+    }
+    for h in histories
+  ]
+
+  return {'status': 'ok', 'statuses': statuses}
 
 
 def parse_time(value: str) -> datetime.time:
