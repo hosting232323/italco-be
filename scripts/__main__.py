@@ -5,7 +5,7 @@ from sqlalchemy import and_
 from collections import defaultdict
 
 from database_api import set_database, Session
-from src.database.schema import Order, Product, ServiceUser, Service, User
+from src.database.schema import Order, Product, ServiceUser, Service, User, OrderStatus
 
 
 def get_orders():
@@ -13,7 +13,7 @@ def get_orders():
     return session.query(
       Order, Product, Service
     ).join(
-      Product, Order.id == Product.order_id
+      Product, and_(Order.id == Product.order_id, Order.status == OrderStatus.DELIVERED)
     ).join(
       ServiceUser, Product.service_user_id == ServiceUser.id
     ).join(
