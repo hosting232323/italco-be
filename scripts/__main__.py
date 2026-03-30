@@ -2,6 +2,7 @@ import os
 import csv
 from tqdm import tqdm
 from sqlalchemy import and_
+from datetime import datetime
 from collections import defaultdict
 
 from database_api import set_database, Session
@@ -13,7 +14,11 @@ def get_orders():
     return session.query(
       Order, Product, Service
     ).join(
-      Product, and_(Order.id == Product.order_id, Order.status == OrderStatus.DELIVERED)
+      Product, and_(
+        Order.id == Product.order_id,
+        Order.status == OrderStatus.DELIVERED,
+        Order.booking_date.between(datetime(2026, 2, 1), datetime(2026, 2, 28, 23, 59, 59))
+      )
     ).join(
       ServiceUser, Product.service_user_id == ServiceUser.id
     ).join(
