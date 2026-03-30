@@ -78,7 +78,8 @@ def pdf_create_product(tables, text, order_id: int, collection_point_id: int, us
       )
 
   for p in products:
-    service_user = get_service_user_by_user_and_code(user_id, p['servizio'], session=session)
+    servizio = p['servizio'].strip()
+    service_user = get_service_user_by_user_and_code(user_id, servizio, session=session)
     create(
       Product,
       {
