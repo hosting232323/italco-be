@@ -1,4 +1,4 @@
-{% macro rae_block(rae_product, customer, addressee, address, created_at) %}
+{% macro rae_block(rae_product, customer, addressee, address) %}
 
 <h1 class="rae-h1">Documento di trasporto raee</h1>
 
@@ -6,7 +6,7 @@
   <tr>
     <td>
       Tipologia: Domestici DDT RAEE N. {{ rae_product.index }}
-      del {{ created_at }}
+      del {{ rae_product.date }}
     </td>
     <td align="right">Progressivo: {{ rae_product.index }}</td>
   </tr>
