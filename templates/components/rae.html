@@ -1,6 +1,6 @@
 {% macro rae_block(rae_product, customer, addressee, address) %}
 
-<h1 class="rae-h1">Documento di trasporto raee</h1>
+<h1 class="rae-h1" style="margin-bottom: -15px;">Documento di trasporto raee</h1>
 
 <table width="100%">
   <tr>
@@ -60,6 +60,18 @@
     <tr>
       <td class="label">Luogo di destino</td><td>Via Brindisi, 160, Mesagne (BR)</td>
       <td class="label">Ragione Sociale</td><td>Italco.Mi Logistribuzioni SRL</td>
+    </tr>
+    <tr>
+      <td class="label">Ritiro R.A.E.E. non effettuato per</td>
+      <td>
+        [&nbsp;&nbsp;] R.A.E.E. non disponibile
+        <br>
+        [&nbsp;&nbsp;] R.A.E.E. non conforme
+      </td>
+      <td class="short-label">Firma Cliente</td><td>&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="label">Annotazioni</td><td colspan="3">&nbsp;</td>
     </tr>
   </table>
 </div>
