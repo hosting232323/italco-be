@@ -108,6 +108,7 @@ e2e_tests:
     POSTGRES_PASSWORD: postgres
     DATABASE_URL_TEST: postgresql://postgres:postgres@postgres:5432/test_${CI_JOB_ID}
     DECODE_JWT_TOKEN: dummy
+    E2E_BACKEND_STARTUP_TIMEOUT: '60'
     CHROME_BIN: /usr/bin/chromium
     E2E_BACKEND_URL: http://127.0.0.1:8080/
     E2E_FRONTEND_URL: http://127.0.0.1:3000
