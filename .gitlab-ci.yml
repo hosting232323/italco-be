@@ -111,7 +111,7 @@ e2e_tests:
     E2E_BACKEND_STARTUP_TIMEOUT: '60'
     CHROME_BIN: /usr/bin/chromium
     E2E_BACKEND_URL: http://127.0.0.1:8080/
-    E2E_FRONTEND_URL: http://127.0.0.1:3000
+    E2E_FRONTEND_URL: http://localhost:3000
     ITALCO_FE_DIR: $CI_PROJECT_DIR/.e2e/italco-fe
   before_script:
     - apt-get update
