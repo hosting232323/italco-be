@@ -22,10 +22,6 @@
         TELEGRAM_TOKEN=$TELEGRAM_TOKEN
       EOF
 
-      echo "PORT_TEST=$PORT_TEST"
-      echo "FIRST_PORT=$FIRST_PORT"
-      echo "SECOND_PORT=$SECOND_PORT"
-
       docker build --no-cache -t $PJ_NAME:latest .
       docker rm -f "${CONTAINER_NEXT}" 2>/dev/null || true
 
