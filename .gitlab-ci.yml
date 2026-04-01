@@ -4,6 +4,6 @@ stages:
   - test
 
 include:
-  - local: '.gitlab/deploy.yml'
-  - local: '.gitlab/lint.yml'
-  - local: '.gitlab/test.yml'
+  - local: 'gitlab/deploy.yml'
+  - local: 'gitlab/lint.yml'
+  - local: 'gitlab/test.yml'
