@@ -1,18 +1,28 @@
-from flask import Blueprint
-
 from database_api import Session
+from api.storage import check_mismatch
 from api.telegram import send_telegram_message
-from api import error_catching_decorator, swagger_decorator
-from ..database.schema import Order, Product, ServiceUser, Schedule
+from .database.schema import Order, Product, ServiceUser, Schedule, Photo
 
 
-checks_bp = Blueprint('checks_bp', __name__)
+def trigger_checks(folder):
+  database_integrity_test()
+  check_storage_mismatch(folder)
+
+  return {'status': 'ok', 'message': 'Check eseguiti con successo'}
 
 
-@checks_bp.route('', methods=['GET'])
-@error_catching_decorator
-@swagger_decorator
-def check_mismatch():
+def check_storage_mismatch(folder):
+  check_mismatch(get_all_files(), folder, 'local')
+
+
+def get_all_files() -> set[str]:
+  with Session() as session:
+    return [
+      row.replace('https://ares-logistics.it/api/photos/prod/', '') for row in session.query(Photo.link).all() if row
+    ]
+
+
+def database_integrity_test():
   with Session() as session:
     # --- Schedule senza ScheduleItem o DeliveryGroup ---
     schedules = session.query(Schedule).all()
@@ -75,5 +85,3 @@ def check_mismatch():
 
   message = '\n'.join(message_lines)
   send_telegram_message(message)
-
-  return {'status': 'ok', 'message': 'Check eseguiti con successo'}
