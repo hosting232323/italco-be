@@ -1,7 +1,15 @@
+import os
+import re
+
 from database_api import Session
 from api.storage import check_mismatch
 from api.telegram import send_telegram_message
 from .database.schema import Order, Product, ServiceUser, Schedule, Photo
+
+
+missing_photos_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'missing_photos.txt')
+with open(missing_photos_path, 'r', encoding='utf-8') as file:
+  MISSING_PHOTOS = re.findall(r'link:\s*(https?://\S+)', file.read())
 
 
 def trigger_checks(folder):
@@ -18,7 +26,9 @@ def check_storage_mismatch(folder):
 def get_all_files() -> set[str]:
   with Session() as session:
     return [
-      row.replace('https://ares-logistics.it/api/photos/prod/', '') for row in session.query(Photo.link).all() if row
+      row.replace('https://ares-logistics.it/api/photos/prod/', '')
+      for row in session.query(Photo.link).filter(Photo.link.not_in(MISSING_PHOTOS)).all()
+      if row
     ]
 
 
