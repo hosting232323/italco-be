@@ -3,7 +3,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import URLError, HTTPError
 from urllib.parse import urlparse, urlunparse
 from urllib.request import urlopen
 
@@ -92,6 +92,10 @@ def _wait_backend_ready(backend_url: str, timeout_seconds: int):
     try:
       with urlopen(health_url, timeout=2):
         return
+    except HTTPError:
+      # HTTPError means the server responded with a status (404, 500 etc.)
+      # which indicates the backend process is up and listening.
+      return
     except URLError:
       time.sleep(0.5)
   raise RuntimeError(f'Backend did not become ready at {health_url} within {timeout_seconds} seconds.')
