@@ -17,10 +17,13 @@
         STATIC_FOLDER=$STATIC_FOLDER
         EURONICS_API_PASSWORD=$EURONICS_API_PASSWORD_PIPELINE
         IS_DEV=$IS_DEV
-        SWAGGER_KEY=$SWAGGER_KEY_TEST
+        SWAGGER_KEY=$SWAGGER_KEY
         PROJECT_NAME=$PROJECT_NAME
         TELEGRAM_TOKEN=$TELEGRAM_TOKEN
       EOF
+
+      echo "==== ENV FILE ===="
+      cat env_file
 
       docker build --no-cache -t $PJ_NAME:latest .
       docker rm -f "${CONTAINER_NEXT}" 2>/dev/null || true
