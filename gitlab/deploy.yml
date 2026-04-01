@@ -65,12 +65,13 @@ deploy_test:
     PJ_NAME: "${PROJECT_NAME}-test"
     CONTAINER_ACTIVE: "${PROJECT_NAME}-test"
     CONTAINER_NEXT: "${PROJECT_NAME}-test-next"
-    FIRST_PORT: "${PORT_TEST%%-*}"
-    SECOND_PORT: "${PORT_TEST#*-}"
     DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
     STATIC_FOLDER: $STATIC_FOLDER_TEST
     EURONICS_API_PASSWORD_PIPELINE: 0
     IS_DEV: 1
+  before_script:
+    - export FIRST_PORT="${PORT_TEST%%-*}"
+    - export SECOND_PORT="${PORT_TEST#*-}"
 
 deploy_prod:
   <<: *deploy_template
@@ -83,9 +84,10 @@ deploy_prod:
     PJ_NAME: $PROJECT_NAME
     CONTAINER_ACTIVE: $PROJECT_NAME
     CONTAINER_NEXT: "${PROJECT_NAME}-next"
-    FIRST_PORT: "${PORT_PROD%%-*}"
-    SECOND_PORT: "${PORT_PROD#*-}"
     DATABASE_URL_PIPELINE: $DATABASE_URL
     STATIC_FOLDER: $STATIC_FOLDER_PROD
     EURONICS_API_PASSWORD_PIPELINE: $EURONICS_API_PASSWORD
     IS_DEV: 0
+  before_script:
+    - export FIRST_PORT="${PORT_PROD%%-*}"
+    - export SECOND_PORT="${PORT_PROD#*-}"
