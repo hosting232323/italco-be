@@ -43,11 +43,13 @@ def index():
 
 
 @app.route('/<path:filename>', methods=['GET'])
+@error_catching_decorator
 def serve_image(filename):
   return send_from_directory(STATIC_FOLDER, filename)
 
 
 @app.route('/internal-backup', methods=['GET'])
+@error_catching_decorator
 @swagger_decorator
 def trigger_backup():
   return db_backup(DATABASE_URL, STATIC_FOLDER, 'local', 'backup')

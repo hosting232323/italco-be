@@ -51,7 +51,6 @@ app.register_blueprint(collection_point_bp, url_prefix='/collection-point')
 set_database(DATABASE_URL)
 
 
-if __name__ == '__main__':
-  if IS_DEV:
-    seed_data()
+if IS_DEV:
+  seed_data()
   app.run(host='0.0.0.0', port=PORT, debug=True)
