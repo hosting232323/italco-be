@@ -102,6 +102,10 @@ e2e_tests:
     when: always
     paths:
       - frontend.log
+      - browser_console.log
+      - browser_performance.log
+      - backend_stdout.log
+      - backend_stderr.log
   variables:
     POSTGRES_DB: test_${CI_JOB_ID}
     POSTGRES_USER: postgres

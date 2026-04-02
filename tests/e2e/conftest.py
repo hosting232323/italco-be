@@ -200,13 +200,40 @@ def driver(selenium_remote_url: str | None):
   # unless Chrome exposes a fixed DevTools port.
   options.add_argument(f'--remote-debugging-port={os.environ.get("E2E_CHROME_DEBUG_PORT", "9222")}')
 
+  # Enable browser logging (console / performance) so CI can collect diagnostics
+  from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+  caps = DesiredCapabilities.CHROME.copy()
+  caps['goog:loggingPrefs'] = {'browser': 'ALL', 'performance': 'ALL'}
+
   if selenium_remote_url:
-    browser = webdriver.Remote(command_executor=selenium_remote_url, options=options)
+    browser = webdriver.Remote(command_executor=selenium_remote_url, options=options, desired_capabilities=caps)
   else:
-    browser = webdriver.Chrome(options=options)
+    browser = webdriver.Chrome(options=options, desired_capabilities=caps)
 
   yield browser
-  browser.quit()
+
+  # On teardown, dump browser logs to files for artifact collection.
+  try:
+    try:
+      logs = browser.get_log('browser')
+    except Exception:
+      logs = []
+    with open('browser_console.log', 'w') as f:
+      for entry in logs:
+        # entry keys: level, message, timestamp
+        f.write(f"{entry.get('level')} {entry.get('timestamp')} {entry.get('message')}\n")
+    try:
+      perf = browser.get_log('performance')
+      if perf:
+        with open('browser_performance.log', 'w') as pf:
+          for e in perf:
+            pf.write(e.get('message') + "\n")
+    except Exception:
+      pass
+  except Exception:
+    pass
+  finally:
+    browser.quit()
 
 
 @pytest.fixture
