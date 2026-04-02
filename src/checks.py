@@ -28,7 +28,6 @@ def get_all_files() -> set[str]:
     return [
       row.replace('https://ares-logistics.it/api/photos/prod/', '')
       for row in session.query(Photo.link).filter(Photo.link.not_in(MISSING_PHOTOS)).all()
-      if row
     ]
 
 
