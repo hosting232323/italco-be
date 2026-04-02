@@ -102,7 +102,6 @@ e2e_tests:
     when: always
     paths:
       - frontend.log
-      - backend.log
   variables:
     POSTGRES_DB: test_${CI_JOB_ID}
     POSTGRES_USER: postgres
@@ -157,35 +156,7 @@ e2e_tests:
       "
     - export E2E_BACKEND_HOST=0.0.0.0
     - export E2E_BACKEND_STARTUP_TIMEOUT=120
-    - python -u -c "import sys, time; print('--- backend wrapper start ---'); import os; os.environ['PORT']='8080'; from src.__main__ import app; app.run(host=os.environ.get('E2E_BACKEND_HOST','127.0.0.1'), port=int(os.environ.get('PORT')), debug=False, use_reloader=False)" > backend.log 2>&1 &
-    - |
-      # run a simple loop to wait for the backend to become ready, with a timeout from E2E_BACKEND_STARTUP_TIMEOUT
-      python -c "
-      from time import sleep, time
-      from urllib.request import urlopen
-      import os, sys
-
-      deadline = time() + int(os.environ.get('E2E_BACKEND_STARTUP_TIMEOUT','20'))
-      url = 'http://127.0.0.1:8080/'
-      while time() < deadline:
-        try:
-          with urlopen(url, timeout=2):
-            break
-        except Exception:
-          sleep(0.5)
-      else:
-        # Print backend.log to stderr for debugging then fail
-        try:
-          with open('backend.log', 'r') as f:
-            sys.stderr.write('----- BEGIN backend.log -----\n')
-            sys.stderr.write(f.read())
-            sys.stderr.write('\n----- END backend.log -----\n')
-        except Exception as e:
-          sys.stderr.write(f'Could not read backend.log: {e}\n')
-        raise SystemExit(f'Backend did not become ready at {url}')
-      "
     - pytest -m "e2e" ./tests/e2e -vv
-    - cat backend.log || true
     - cat frontend.log || true
 
 .deploy_template: &deploy_template
