@@ -229,22 +229,25 @@ def delete_order(user: User, id):
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def get_statuses(user: User, id):
-  histories = [
-    h
-    for h in get_all_histories_by_order_id(id)
-    if h.status.get('type') == 'status' and h.status.get('value') is not None
-  ]
+  histories = get_all_histories_by_order_id(id)
   status_map = {status.name: status.value for status in OrderStatus}
-  statuses = [
-    {
+
+  statuses = []
+
+  for h in histories:
+    record = {
       'id': h.id,
       'order_id': h.order_id,
-      'status': status_map.get(h.status['value'], h.status['value']),
       'created_at': h.created_at.strftime("%d/%m/%Y %H:%M"),
       'updated_at': h.updated_at.strftime("%d/%m/%Y %H:%M"),
     }
-    for h in histories
-  ]
+
+    if h.status.get('type') == 'status':
+      record['status'] = status_map.get(h.status['value'], h.status['value'])
+    else:
+      record[h.status['type']] = h.status.get('value')
+
+    statuses.append(record)
 
   return {'status': 'ok', 'statuses': statuses}
 
