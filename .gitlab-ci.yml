@@ -102,6 +102,7 @@ e2e_tests:
     when: always
     paths:
       - frontend.log
+      - backend.log
   variables:
     POSTGRES_DB: test_${CI_JOB_ID}
     POSTGRES_USER: postgres
@@ -162,7 +163,7 @@ e2e_tests:
       python -c "
       from time import sleep, time
       from urllib.request import urlopen
-      import os
+      import os, sys
 
       deadline = time() + int(os.environ.get('E2E_BACKEND_STARTUP_TIMEOUT','20'))
       url = 'http://127.0.0.1:8080/'
@@ -173,6 +174,14 @@ e2e_tests:
         except Exception:
           sleep(0.5)
       else:
+        # Print backend.log to stderr for debugging then fail
+        try:
+          with open('backend.log', 'r') as f:
+            sys.stderr.write('----- BEGIN backend.log -----\n')
+            sys.stderr.write(f.read())
+            sys.stderr.write('\n----- END backend.log -----\n')
+        except Exception as e:
+          sys.stderr.write(f'Could not read backend.log: {e}\n')
         raise SystemExit(f'Backend did not become ready at {url}')
       "
     - pytest -m "e2e" ./tests/e2e -vv
