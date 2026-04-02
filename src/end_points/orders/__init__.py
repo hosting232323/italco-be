@@ -136,9 +136,10 @@ def update_order(user: User, id):
       data['status'] = OrderStatus(data['status'])
       if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED] and not order.completion_date:
         data['completion_date'] = datetime.now()
-      schedule_item = get_schedule_item_by_order(order)
-      if schedule_item:
-        update(schedule_item, {'completed': True}, session=session)
+      if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED, OrderStatus.TO_RESCHEDULE]:
+        schedule_item = get_schedule_item_by_order(order)
+        if schedule_item:
+          update(schedule_item, {'completed': True}, session=session)
     if 'confirmed' in data and data['confirmed'] and not order.confirmation_date:
       data['confirmation_date'] = datetime.now()
     if 'external_status' in data:
