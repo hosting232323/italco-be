@@ -131,16 +131,22 @@ e2e_tests:
     - cd "$ITALCO_FE_DIR" && npm ci --no-audit --no-fund && cd "$CI_PROJECT_DIR"
   script:
     - |
-      # Use the container's real network IP so headless Chromium can reach services
-      # (loopback 127.0.0.1 is sometimes unreachable from the Chrome renderer inside Docker)
+      # Compute the container's real network IP.
+      # Headless Chromium in Docker cannot reach 127.0.0.1 from its renderer process;
+      # the container IP routes through the bridge interface and is always reachable.
       CONTAINER_IP=$(hostname -I | tr ' ' '\n' | grep -m1 '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$')
-      export E2E_BACKEND_URL="http://${CONTAINER_IP}:8080/"
-      export E2E_FRONTEND_URL="http://${CONTAINER_IP}:3000"
+
+      # Patch .env.test BEFORE pytest starts — tests/conftest.py loads it with
+      # override=True, which would overwrite any shell exports we make.
+      sed -i "s|^E2E_BACKEND_URL=.*|E2E_BACKEND_URL=http://${CONTAINER_IP}:8080|" .env.test
+      sed -i "s|^E2E_FRONTEND_URL=.*|E2E_FRONTEND_URL=http://${CONTAINER_IP}:3000|" .env.test
+
+      # E2E_BACKEND_HOST / TIMEOUT are not in .env.test so exports survive the override.
       export E2E_BACKEND_HOST=0.0.0.0
       export E2E_BACKEND_STARTUP_TIMEOUT=120
 
       cd "$ITALCO_FE_DIR"
-      VITE_HOSTNAME="${E2E_BACKEND_URL%/}/" VITE_SECRET_KEY="local-dev-key-1234567890" VITE_IV="1234567890123456" npm run build
+      VITE_HOSTNAME="http://${CONTAINER_IP}:8080/" VITE_SECRET_KEY="local-dev-key-1234567890" VITE_IV="1234567890123456" npm run build
       HOST=0.0.0.0 PORT=3000 npm run serve > "$CI_PROJECT_DIR/frontend.log" 2>&1 &
       cd "$CI_PROJECT_DIR"
 
@@ -148,17 +154,13 @@ e2e_tests:
       python -c "
       from time import sleep, time
       from urllib.request import urlopen
-      import os
       deadline = time() + 30
-      url = os.environ['E2E_FRONTEND_URL'].rstrip('/') + '/'
+      url = 'http://${CONTAINER_IP}:3000/'
       while time() < deadline:
         try:
-          with urlopen(url, timeout=2):
-            break
-        except Exception:
-          sleep(0.5)
-      else:
-        raise SystemExit(f'Frontend did not become ready at {url}')
+          with urlopen(url, timeout=2): break
+        except Exception: sleep(0.5)
+      else: raise SystemExit('Frontend did not become ready at http://${CONTAINER_IP}:3000/')
       "
 
       pytest -m "e2e" ./tests/e2e -vv
