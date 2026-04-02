@@ -145,8 +145,8 @@ def backend_server(backend_url: str, database_engine):
     sys.executable,
     '-c',
     (
-      'from src.__main__ import app; '
-      'app.run(host="127.0.0.1", '
+      'import os; from src.__main__ import app; '
+      'app.run(host=os.environ.get("E2E_BACKEND_HOST", "127.0.0.1"), '
       'port=int(__import__("os").environ["PORT"]), '
       'debug=False, use_reloader=False)'
     ),

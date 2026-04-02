@@ -154,7 +154,30 @@ e2e_tests:
       else:
         raise SystemExit(f'Frontend did not become ready at {url}')
       "
+    - export E2E_BACKEND_HOST=0.0.0.0
+    - export E2E_BACKEND_STARTUP_TIMEOUT=120
+    - python -u -c "import sys, time; print('--- backend wrapper start ---'); import os; os.environ['PORT']='8080'; from src.__main__ import app; app.run(host=os.environ.get('E2E_BACKEND_HOST','127.0.0.1'), port=int(os.environ.get('PORT')), debug=False, use_reloader=False)" > backend.log 2>&1 &
+    - |
+      # run a simple loop to wait for the backend to become ready, with a timeout from E2E_BACKEND_STARTUP_TIMEOUT
+      python -c "
+      from time import sleep, time
+      from urllib.request import urlopen
+      import os
+
+      deadline = time() + int(os.environ.get('E2E_BACKEND_STARTUP_TIMEOUT','20'))
+      url = 'http://127.0.0.1:8080/'
+      while time() < deadline:
+        try:
+          with urlopen(url, timeout=2):
+            break
+        except Exception:
+          sleep(0.5)
+      else:
+        raise SystemExit(f'Backend did not become ready at {url}')
+      "
     - pytest -m "e2e" ./tests/e2e -vv
+    - cat backend.log || true
+    - cat frontend.log || true
 
 .deploy_template: &deploy_template
   stage: deploy
