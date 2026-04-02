@@ -19,7 +19,10 @@ def get_items_for_delivery(delivery_user: User):
   if len(schedules) != 1:
     return {'status': 'ko', 'message': 'Numero di bordero trovati non valido'}
 
-  return {'status': 'ok', 'schedule_items': schedules[0]['schedule_items']}
+  return {
+    'status': 'ok',
+    'schedule_items': sorted(schedules[0]['schedule_items'], key=lambda schedule_item: schedule_item['index']),
+  }
 
 
 def update_schedule_item(delivery_user: User, schedule_item_id: int, completed: bool):
