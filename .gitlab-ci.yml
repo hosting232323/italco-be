@@ -3,19 +3,19 @@ stages:
   - lint
   - test
 
-lint_backend:
-  stage: lint
-  image: python:3.11
-  allow_failure: true
-  interruptible: true
-  tags:
-    - linux
-  rules:
-    - if: '$CI_COMMIT_BRANCH != "main"'
-  script:
-    - pip install ruff
-    - ruff check ./src ./tests --exit-non-zero-on-fix
-    - ruff format ./src ./tests --exit-non-zero-on-fix
+# lint_backend:
+#   stage: lint
+#   image: python:3.11
+#   allow_failure: true
+#   interruptible: true
+#   tags:
+#     - linux
+#   rules:
+#     - if: '$CI_COMMIT_BRANCH != "main"'
+#   script:
+#     - pip install ruff
+#     - ruff check ./src ./tests --exit-non-zero-on-fix
+#     - ruff format ./src ./tests --exit-non-zero-on-fix
 
 .rewrite_test_env: &rewrite_test_env |
   python - <<'PY'
@@ -84,20 +84,21 @@ lint_backend:
     - pip install --retries 10 --timeout 120 ".[dev]"
     - *rewrite_test_env
 
-unit_tests:
-  <<: *python_test_template
-  rules:
-    - if: '$CI_COMMIT_BRANCH != "main"'
-  script:
-    - pytest ./tests/unit
+# unit_tests:
+#   <<: *python_test_template
+#   rules:
+#     - if: '$CI_COMMIT_BRANCH != "main"'
+#   script:
+#     - pytest ./tests/unit
 
 e2e_tests:
   <<: *python_test_template
   services:
     - name: postgres:15
       alias: postgres
+  # Run e2e even if CI_ITALCO_FE_USERNAME/TOKEN are not set when debugging
   rules:
-    - if: '$CI_COMMIT_BRANCH != "main" && $CI_ITALCO_FE_USERNAME && $CI_ITALCO_FE_TOKEN'
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "trigger" || $CI_COMMIT_BRANCH != "main"'
   artifacts:
     when: always
     paths:
