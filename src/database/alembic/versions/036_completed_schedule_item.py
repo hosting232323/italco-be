@@ -1,4 +1,4 @@
-"""completed schedule item
+"""Completed schedule item
 
 Revision ID: 036
 Revises: 035
