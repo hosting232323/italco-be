@@ -142,6 +142,10 @@ def backend_server(backend_url: str, database_engine):
   env['PORT'] = str(port)
   env.setdefault('IS_DEV', '1')
   env.setdefault('DECODE_JWT_TOKEN', 'dummy')
+  # API_PREFIX may be set as a project-level CI/CD variable for production deployments.
+  # Unset it for the test server so the PrefixMiddleware is not applied and all
+  # routes are reachable at their plain paths (e.g. /user/login, not /api/user/login).
+  env.pop('API_PREFIX', None)
 
   command = [
     sys.executable,
@@ -194,7 +198,11 @@ def backend_server(backend_url: str, database_engine):
       with urlopen(_login_req, timeout=10) as _resp:
         _login_data = _json.loads(_resp.read())
     except HTTPError as _e:
-      _login_data = _json.loads(_e.read())
+      _raw = _e.read()
+      try:
+        _login_data = _json.loads(_raw)
+      except Exception:
+        _login_data = {'status': 'ko', 'raw': _raw.decode('utf-8', errors='replace'), 'http_status': _e.code}
   except URLError as _exc:
     process.terminate()
     try:
