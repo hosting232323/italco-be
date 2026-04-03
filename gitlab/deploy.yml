@@ -1,0 +1,89 @@
+.deploy_template: &deploy_template
+  stage: deploy
+  script:
+    - |
+      cat <<-EOF > env_file
+        DATABASE_URL=$DATABASE_URL_PIPELINE
+        DECODE_JWT_TOKEN=$DECODE_JWT_TOKEN
+        VONAGE_API_KEY=$VONAGE_API_KEY
+        VONAGE_API_SECRET=$VONAGE_API_SECRET
+        EMAIL_SENDER_NAME=$EMAIL_SENDER_NAME
+        EMAIL_SENDER_ADDRESS=$EMAIL_SENDER_ADDRESS
+        EMAIL_SENDER_PASSWORD=$EMAIL_SENDER_PASSWORD
+        EMAIL_SENDER_SMTP_SERVER=$EMAIL_SENDER_SMTP_SERVER
+        OPENAI_KEY=$OPENAI_KEY
+        ASSISTANT_ID=$ASSISTANT_ID
+        API_PREFIX=$API_PREFIX
+        STATIC_FOLDER=$STATIC_FOLDER
+        EURONICS_API_PASSWORD=$EURONICS_API_PASSWORD_PIPELINE
+        IS_DEV=$IS_DEV
+        SWAGGER_KEY=$SWAGGER_KEY
+        PROJECT_NAME=$PROJECT_NAME
+        TELEGRAM_TOKEN=$TELEGRAM_TOKEN
+      EOF
+
+      docker build --no-cache -t $PJ_NAME:latest .
+      docker rm -f "${CONTAINER_NEXT}" 2>/dev/null || true
+
+      docker run --rm \
+        --env-file env_file \
+        -v $STATIC_FOLDER:$STATIC_FOLDER \
+        $PJ_NAME:latest python -m alembic upgrade heads
+
+      docker run -d --name ${CONTAINER_NEXT} \
+        --env-file env_file \
+        -p ${SECOND_PORT}:8080 \
+        -v $STATIC_FOLDER:$STATIC_FOLDER \
+        $PJ_NAME:latest
+
+      sleep 10
+
+      if curl -v http://localhost:$SECOND_PORT/api/; then
+        docker rm -f ${CONTAINER_ACTIVE} 2>/dev/null || true
+        docker run -d --restart unless-stopped \
+          --name ${CONTAINER_ACTIVE} \
+          --env-file env_file \
+          -p ${FIRST_PORT}:8080 \
+          -v $STATIC_FOLDER:$STATIC_FOLDER \
+          $PJ_NAME:latest
+        docker rm -f ${CONTAINER_NEXT} 2>/dev/null || true
+      else
+        docker logs ${CONTAINER_NEXT} || true
+        exit 1
+      fi
+
+deploy_test:
+  <<: *deploy_template
+  tags:
+    - deploy-local
+  when: manual
+  variables:
+    PJ_NAME: "${PROJECT_NAME}-test"
+    CONTAINER_ACTIVE: "${PROJECT_NAME}-test"
+    CONTAINER_NEXT: "${PROJECT_NAME}-test-next"
+    DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
+    STATIC_FOLDER: $STATIC_FOLDER_TEST
+    EURONICS_API_PASSWORD_PIPELINE: 0
+    IS_DEV: 1
+  before_script:
+    - export FIRST_PORT="${PORT_TEST%%-*}"
+    - export SECOND_PORT="${PORT_TEST#*-}"
+
+deploy_prod:
+  <<: *deploy_template
+  tags:
+    - deploy-local
+  when: manual
+  only:
+    - main
+  variables:
+    PJ_NAME: $PROJECT_NAME
+    CONTAINER_ACTIVE: $PROJECT_NAME
+    CONTAINER_NEXT: "${PROJECT_NAME}-next"
+    DATABASE_URL_PIPELINE: $DATABASE_URL
+    STATIC_FOLDER: $STATIC_FOLDER_PROD
+    EURONICS_API_PASSWORD_PIPELINE: $EURONICS_API_PASSWORD
+    IS_DEV: 0
+  before_script:
+    - export FIRST_PORT="${PORT_PROD%%-*}"
+    - export SECOND_PORT="${PORT_PROD#*-}"

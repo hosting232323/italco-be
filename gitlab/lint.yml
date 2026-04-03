@@ -1,0 +1,13 @@
+lint_backend:
+  stage: lint
+  image: python:3.11
+  allow_failure: true
+  interruptible: true
+  tags:
+    - linux
+  rules:
+    - if: '$CI_COMMIT_BRANCH != "main"'
+  script:
+    - pip install ruff
+    - ruff check ./src ./tests --exit-non-zero-on-fix
+    - ruff format ./src ./tests --exit-non-zero-on-fix

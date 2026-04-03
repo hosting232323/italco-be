@@ -1,12 +1,12 @@
-{% macro rae_block(rae_product, customer, addressee, address, created_at) %}
+{% macro rae_block(rae_product, customer, addressee, address) %}
 
-<h1 class="rae-h1">Documento di trasporto raee</h1>
+<h1 class="rae-h1" style="margin-bottom: -15px;">Documento di trasporto raee</h1>
 
 <table width="100%">
   <tr>
     <td>
       Tipologia: Domestici DDT RAEE N. {{ rae_product.index }}
-      del {{ created_at }}
+      del {{ rae_product.date }}
     </td>
     <td align="right">Progressivo: {{ rae_product.index }}</td>
   </tr>
@@ -32,7 +32,7 @@
       <td class="short-label">Targa</td><td>nd</td>
     </tr>
     <tr>
-      <td class="short-label">Indirizzo</td><td colspan="2">Via Brindisi, 160</td>
+      <td class="short-label">Indirizzo</td><td colspan="2">Via Emmanuele Filiberto 24 A</td>
       <td class="short-label">Città</td><td>Mesagne (BR)</td>
     </tr>
   </table>
@@ -54,12 +54,24 @@
   <h2 class="rae-h2">Destinatario finale</h2>
   <table class="rae-info-table">
     <tr>
-      <td class="label">Ragione Sociale</td><td>Italco.Mi Logistribuzioni SRL</td>
+      <td class="label">Codice Distribuzione</td><td>RD401S00025192 del 26/02/26</td>
       <td class="label">Codice Fiscale</td><td>02735550747</td>
     </tr>
     <tr>
       <td class="label">Luogo di destino</td><td>Via Brindisi, 160, Mesagne (BR)</td>
-      <td class="label">Codice Distribuzione</td><td>RD401S00025192 del 26/02/26</td>
+      <td class="label">Ragione Sociale</td><td>Italco.Mi Logistribuzioni SRL</td>
+    </tr>
+    <tr>
+      <td class="label">Ritiro R.A.E.E. non effettuato per</td>
+      <td>
+        [&nbsp;&nbsp;] R.A.E.E. non disponibile
+        <br>
+        [&nbsp;&nbsp;] R.A.E.E. non conforme
+      </td>
+      <td class="short-label">Firma Cliente</td><td>&nbsp;</td>
+    </tr>
+    <tr>
+      <td class="label">Annotazioni</td><td colspan="3">&nbsp;</td>
     </tr>
   </table>
 </div>
@@ -68,7 +80,7 @@
   ("Descrizione", rae_product.data.name),
   ("Codice CER", rae_product.data.cer_code),
   ("Codice Raggruppamento", rae_product.data.group_code),
-  ("Quantità", "1")
+  ("Quantità", rae_product.quantity)
 ]) }}
 
 <div class="section">

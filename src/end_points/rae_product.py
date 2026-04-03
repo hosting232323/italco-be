@@ -60,7 +60,7 @@ def query_count_rae_products(product_id: int, user_id: int) -> int:
           ServiceUser.id == Product.service_user_id,
           ServiceUser.user_id == user_id,
           Product.rae_product_id.isnot(None),
-          Product.created_at <= product.created_at,
+          Product.id <= product_id,
           extract('year', Product.created_at) == date.today().year,
         ),
       )

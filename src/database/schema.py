@@ -253,6 +253,7 @@ class Product(BaseEntity):
   __tablename__ = 'product'
 
   name = Column(String, nullable=False)
+  rae_product_quantity = Column(Integer, default=1)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
   rae_product_id = Column(Integer, ForeignKey('rae_product.id'), nullable=True)
   service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)

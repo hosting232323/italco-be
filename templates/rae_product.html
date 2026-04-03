@@ -84,7 +84,7 @@
   {% from "components/rae.html" import rae_block %}
 
   {% for rae_product in rae_products %}
-    {{ rae_block(rae_product, customer, addressee, address, created_at) }}
+    {{ rae_block(rae_product, customer, addressee, address) }}
   {% if not loop.last %}
   <div style="page-break-before: always;"></div>
   {% endif %}
