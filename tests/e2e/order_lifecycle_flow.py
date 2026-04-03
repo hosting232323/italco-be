@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 
 @dataclass(frozen=True)
@@ -200,7 +201,7 @@ def _pick_dropdown_item(driver, wait, item_text):
 
 def _login(driver, wait, frontend_url, email, password):
   driver.get(frontend_url)
-  _first_visible(
+  email_input = _first_visible(
     driver,
     wait,
     [
@@ -208,23 +209,22 @@ def _login(driver, wait, frontend_url, email, password):
       (By.CSS_SELECTOR, "input[name='email']"),
       (By.XPATH, "//input[contains(@placeholder,'mail')]"),
     ],
-  ).send_keys(email)
-  _first_visible(
+  )
+  # Click to focus so Vue's reactive binding registers the subsequent input events.
+  email_input.click()
+  email_input.send_keys(email)
+  pass_input = _first_visible(
     driver,
     wait,
     [
       (By.CSS_SELECTOR, "input[type='password']"),
       (By.CSS_SELECTOR, "input[name='password']"),
     ],
-  ).send_keys(password)
-  _first_clickable(
-    driver,
-    wait,
-    [
-      (By.CSS_SELECTOR, "button[type='submit']"),
-      (By.XPATH, "//button[normalize-space()='LOGIN' or normalize-space()='Login']"),
-    ],
-  ).click()
+  )
+  pass_input.click()
+  pass_input.send_keys(password)
+  # Submit via ENTER — more reliable than clicking the button with Vuetify loading states.
+  pass_input.send_keys(Keys.ENTER)
   try:
     wait.until(lambda x: '/dashboard' in x.current_url)
   except TimeoutException as exc:

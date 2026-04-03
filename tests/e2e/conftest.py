@@ -1,7 +1,9 @@
+import json as _json
 import os
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 from urllib.error import URLError, HTTPError
 from urllib.parse import urlparse, urlunparse
@@ -166,19 +168,64 @@ def backend_server(backend_url: str, database_engine):
     _wait_backend_ready(backend_url, startup_timeout)
   except Exception as exc:
     process.terminate()
-    process.wait(timeout=5)
-    stderr = process.stderr.read() if process.stderr else ''
-    stdout = process.stdout.read() if process.stdout else ''
+    try:
+      stdout, stderr = process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+      process.kill()
+      stdout, stderr = process.communicate()
     pytest.fail(f'Failed to start backend at {backend_url}: {exc}\nstdout:\n{stdout}\nstderr:\n{stderr}')
+
+  # Verify the login endpoint actually works before running browser tests.
+  # This catches DB connectivity or seed issues early with a clear error message.
+  from src.database.seed import _encrypt_seed_password  # noqa: PLC0415
+
+  _login_payload = _json.dumps({
+    'email': 'admin',
+    'password': _encrypt_seed_password('1234admin'),
+  }).encode('utf-8')
+  _login_req = urllib.request.Request(
+    f'{backend_url}/user/login',
+    data=_login_payload,
+    headers={'Content-Type': 'application/json'},
+    method='POST',
+  )
+  try:
+    try:
+      with urlopen(_login_req, timeout=10) as _resp:
+        _login_data = _json.loads(_resp.read())
+    except HTTPError as _e:
+      _login_data = _json.loads(_e.read())
+  except URLError as _exc:
+    process.terminate()
+    try:
+      stdout, stderr = process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+      process.kill()
+      stdout, stderr = process.communicate()
+    pytest.fail(f'Login endpoint not reachable at {backend_url}/user/login: {_exc}\nstdout:\n{stdout}\nstderr:\n{stderr}')
+  if _login_data.get('status') != 'ok':
+    process.terminate()
+    try:
+      stdout, stderr = process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+      process.kill()
+      stdout, stderr = process.communicate()
+    pytest.fail(
+      f'Backend login endpoint not working (expected status=ok): {_login_data}\nstdout:\n{stdout}\nstderr:\n{stderr}'
+    )
 
   yield backend_url
 
   process.terminate()
   try:
-    process.wait(timeout=5)
+    stdout, stderr = process.communicate(timeout=10)
   except subprocess.TimeoutExpired:
     process.kill()
-    process.wait(timeout=5)
+    stdout, stderr = process.communicate()
+  with open('backend_stdout.log', 'w') as _f:
+    _f.write(stdout or '')
+  with open('backend_stderr.log', 'w') as _f:
+    _f.write(stderr or '')
 
 
 @pytest.fixture(scope='session')
