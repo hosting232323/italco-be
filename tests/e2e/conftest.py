@@ -183,10 +183,12 @@ def backend_server(backend_url: str, database_engine):
   # This catches DB connectivity or seed issues early with a clear error message.
   from src.database.seed import _encrypt_seed_password  # noqa: PLC0415
 
-  _login_payload = _json.dumps({
-    'email': 'admin',
-    'password': _encrypt_seed_password('1234admin'),
-  }).encode('utf-8')
+  _login_payload = _json.dumps(
+    {
+      'email': 'admin',
+      'password': _encrypt_seed_password('1234admin'),
+    }
+  ).encode('utf-8')
   _login_req = urllib.request.Request(
     f'{backend_url}/user/login',
     data=_login_payload,
@@ -210,7 +212,9 @@ def backend_server(backend_url: str, database_engine):
     except subprocess.TimeoutExpired:
       process.kill()
       stdout, stderr = process.communicate()
-    pytest.fail(f'Login endpoint not reachable at {backend_url}/user/login: {_exc}\nstdout:\n{stdout}\nstderr:\n{stderr}')
+    pytest.fail(
+      f'Login endpoint not reachable at {backend_url}/user/login: {_exc}\nstdout:\n{stdout}\nstderr:\n{stderr}'
+    )
   if _login_data.get('status') != 'ok':
     process.terminate()
     try:
@@ -275,13 +279,13 @@ def driver(selenium_remote_url: str | None):
     with open('browser_console.log', 'w') as f:
       for entry in logs:
         # entry keys: level, message, timestamp
-        f.write(f"{entry.get('level')} {entry.get('timestamp')} {entry.get('message')}\n")
+        f.write(f'{entry.get("level")} {entry.get("timestamp")} {entry.get("message")}\n')
     try:
       perf = browser.get_log('performance')
       if perf:
         with open('browser_performance.log', 'w') as pf:
           for e in perf:
-            pf.write(e.get('message') + "\n")
+            pf.write(e.get('message') + '\n')
     except Exception:
       pass
   except Exception:
