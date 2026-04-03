@@ -31,7 +31,6 @@ def upgrade() -> None:
   )
 
   connection = op.get_bind()
-
   connection.execute(
     sa.text("""
       INSERT INTO history (status, order_id, created_at, updated_at)
@@ -47,23 +46,6 @@ def upgrade() -> None:
       WHERE status IS NOT NULL
     """)
   )
-
-  for field in ['delay', 'anomaly', 'confirmed']:
-    connection.execute(
-      sa.text(f"""
-        INSERT INTO history (status, order_id, created_at, updated_at)
-        SELECT
-          json_build_object(
-            'type', '{field}',
-            'value', {field}
-          ),
-          id,
-          created_at,
-          updated_at
-        FROM "order"
-        WHERE {field} IS NOT NULL
-      """)
-    )
 
   op.drop_table('status')
 
