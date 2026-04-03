@@ -201,14 +201,13 @@ def driver(selenium_remote_url: str | None):
   options.add_argument(f'--remote-debugging-port={os.environ.get("E2E_CHROME_DEBUG_PORT", "9222")}')
 
   # Enable browser logging (console / performance) so CI can collect diagnostics
-  from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-  caps = DesiredCapabilities.CHROME.copy()
-  caps['goog:loggingPrefs'] = {'browser': 'ALL', 'performance': 'ALL'}
+  # Selenium 4 removed `desired_capabilities`; use set_capability on the options object instead.
+  options.set_capability('goog:loggingPrefs', {'browser': 'ALL', 'performance': 'ALL'})
 
   if selenium_remote_url:
-    browser = webdriver.Remote(command_executor=selenium_remote_url, options=options, desired_capabilities=caps)
+    browser = webdriver.Remote(command_executor=selenium_remote_url, options=options)
   else:
-    browser = webdriver.Chrome(options=options, desired_capabilities=caps)
+    browser = webdriver.Chrome(options=options)
 
   yield browser
 
