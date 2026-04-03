@@ -221,7 +221,7 @@
 
     <div style="page-break-before: always;"></div>
     {% for rae_product in order.rae_products %}
-      {{ rae_block(rae_product, order.customer, order.addressee, order.address, order.created_at) }}
+      {{ rae_block(rae_product, order.customer, order.addressee, order.address) }}
       <div style="page-break-before: always;"></div>
     {% endfor %}
 

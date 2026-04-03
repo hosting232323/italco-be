@@ -94,6 +94,23 @@ def get_schedule_item_by_order(order: Order) -> ScheduleItem:
     )
 
 
+def get_schedule_by_order(order_id: int) -> Schedule:
+  with Session() as session:
+    return (
+      session.query(Schedule)
+      .join(ScheduleItem, Schedule.id == ScheduleItem.schedule_id)
+      .join(
+        ScheduleItemOrder,
+        and_(
+          ScheduleItemOrder.order_id == order_id,
+          ScheduleItem.operation_type == ScheduleType.ORDER,
+          ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
+        ),
+      )
+      .first()
+    )
+
+
 def format_query_result(
   tupla: tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User], list: list[dict], user: User
 ) -> list[dict]:
