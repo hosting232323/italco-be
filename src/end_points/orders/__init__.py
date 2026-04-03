@@ -11,6 +11,7 @@ from ..users.queries import get_user_info
 from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_product, update_product
+from .utils import parse_time, get_statuses_by_order_id
 from ..users.session import flask_session_authentication
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id, delete
@@ -22,7 +23,6 @@ from .queries import (
   get_order_photos,
   get_motivations_by_order_id,
   query_products,
-  get_all_histories_by_order_id,
 )
 
 
@@ -229,33 +229,4 @@ def delete_order(user: User, id):
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def get_statuses(user: User, id):
-  histories = get_all_histories_by_order_id(id)
-  status_map = {status.name: status.value for status in OrderStatus}
-
-  statuses = []
-
-  for h in histories:
-    record = {
-      'id': h.id,
-      'order_id': h.order_id,
-      'created_at': h.created_at.strftime("%d/%m/%Y %H:%M"),
-      'updated_at': h.updated_at.strftime("%d/%m/%Y %H:%M"),
-    }
-
-    if h.status.get('type') == 'status':
-      record['status'] = status_map.get(h.status['value'], h.status['value'])
-    else:
-      record[h.status['type']] = h.status.get('value')
-
-    statuses.append(record)
-
-  return {'status': 'ok', 'statuses': statuses}
-
-
-def parse_time(value: str) -> datetime.time:
-  for fmt in ['%H:%M', '%H:%M:%S']:
-    try:
-      return datetime.strptime(value, fmt).time()
-    except ValueError:
-      continue
-  raise ValueError(f'Formato orario non riconosciuto: {value}')
+  return get_statuses_by_order_id(id)

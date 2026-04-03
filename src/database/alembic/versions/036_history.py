@@ -1,4 +1,4 @@
-"""history table
+"""History
 
 Revision ID: 036
 Revises: 035
@@ -34,35 +34,35 @@ def upgrade() -> None:
 
   connection.execute(
     sa.text("""
-        INSERT INTO history (status, order_id, created_at, updated_at)
-        SELECT
-            json_build_object(
-                'type', 'status',
-                'value', status::text
-            ),
-            order_id,
-            created_at,
-            updated_at
-        FROM status
-        WHERE status IS NOT NULL
+      INSERT INTO history (status, order_id, created_at, updated_at)
+      SELECT
+        json_build_object(
+          'type', 'status',
+          'value', status::text
+        ),
+        order_id,
+        created_at,
+        updated_at
+      FROM status
+      WHERE status IS NOT NULL
     """)
   )
 
   for field in ['delay', 'anomaly', 'confirmed']:
     connection.execute(
       sa.text(f"""
-            INSERT INTO history (status, order_id, created_at, updated_at)
-            SELECT
-                json_build_object(
-                    'type', '{field}',
-                    'value', {field}
-                ),
-                id,
-                created_at,
-                updated_at
-            FROM "order"
-            WHERE {field} IS NOT NULL
-        """)
+        INSERT INTO history (status, order_id, created_at, updated_at)
+        SELECT
+          json_build_object(
+            'type', '{field}',
+            'value', {field}
+          ),
+          id,
+          created_at,
+          updated_at
+        FROM "order"
+        WHERE {field} IS NOT NULL
+      """)
     )
 
   op.drop_table('status')
