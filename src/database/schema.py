@@ -332,7 +332,7 @@ class Log(BaseEntity):
 
 
 @event.listens_for(Session, 'before_flush')
-def track_order_history(session, flush_context, instances):
+def track_order_history(session: Session, flush_context, instances):
   for obj in session.new:
     if isinstance(obj, Order):
       session.add(
@@ -348,13 +348,9 @@ def track_order_history(session, flush_context, instances):
   for obj in session.dirty:
     if isinstance(obj, Order):
       state = inspect(obj)
-
-      fields = ['status', 'anomaly', 'delay', 'confirmed']
-
-      for field in fields:
+      for field in ['status', 'anomaly', 'delay', 'confirmed']:
         if state.attrs[field].history.has_changes():
           value = getattr(obj, field)
-
           if field == 'status' and value:
             value = value.value
 
