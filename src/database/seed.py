@@ -224,6 +224,18 @@ def seed_data():
       )
     )
 
+  # E2E: give the base customer user access to the first DELIVERY service so that
+  # the admin can create an order on their behalf in end-to-end tests.
+  create(
+    ServiceUser,
+    {
+      'code': 'E2E-CUST-001',
+      'price': 50.0,
+      'user_id': base_customer_user.id,
+      'service_id': services[0].id,
+    },
+  )
+
   schedules = []
   for index in range(10):
     schedules.append(

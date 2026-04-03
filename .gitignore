@@ -9,3 +9,4 @@ uv.lock
 build
 *.egg-info
 seed_data.py
+*.log
