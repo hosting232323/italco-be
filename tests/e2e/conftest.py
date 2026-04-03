@@ -1,9 +1,11 @@
+import json as _json
 import os
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import URLError, HTTPError
 from urllib.parse import urlparse, urlunparse
 from urllib.request import urlopen
 
@@ -92,6 +94,10 @@ def _wait_backend_ready(backend_url: str, timeout_seconds: int):
     try:
       with urlopen(health_url, timeout=2):
         return
+    except HTTPError:
+      # HTTPError means the server responded with a status (404, 500 etc.)
+      # which indicates the backend process is up and listening.
+      return
     except URLError:
       time.sleep(0.5)
   raise RuntimeError(f'Backend did not become ready at {health_url} within {timeout_seconds} seconds.')
@@ -136,13 +142,17 @@ def backend_server(backend_url: str, database_engine):
   env['PORT'] = str(port)
   env.setdefault('IS_DEV', '1')
   env.setdefault('DECODE_JWT_TOKEN', 'dummy')
+  # API_PREFIX may be set as a project-level CI/CD variable for production deployments.
+  # Unset it for the test server so the PrefixMiddleware is not applied and all
+  # routes are reachable at their plain paths (e.g. /user/login, not /api/user/login).
+  env.pop('API_PREFIX', None)
 
   command = [
     sys.executable,
     '-c',
     (
-      'from src.__main__ import app; '
-      'app.run(host="127.0.0.1", '
+      'import os; from src.__main__ import app; '
+      'app.run(host=os.environ.get("E2E_BACKEND_HOST", "127.0.0.1"), '
       'port=int(__import__("os").environ["PORT"]), '
       'debug=False, use_reloader=False)'
     ),
@@ -162,19 +172,72 @@ def backend_server(backend_url: str, database_engine):
     _wait_backend_ready(backend_url, startup_timeout)
   except Exception as exc:
     process.terminate()
-    process.wait(timeout=5)
-    stderr = process.stderr.read() if process.stderr else ''
-    stdout = process.stdout.read() if process.stdout else ''
+    try:
+      stdout, stderr = process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+      process.kill()
+      stdout, stderr = process.communicate()
     pytest.fail(f'Failed to start backend at {backend_url}: {exc}\nstdout:\n{stdout}\nstderr:\n{stderr}')
+
+  # Verify the login endpoint actually works before running browser tests.
+  # This catches DB connectivity or seed issues early with a clear error message.
+  from src.database.seed import _encrypt_seed_password  # noqa: PLC0415
+
+  _login_payload = _json.dumps(
+    {
+      'email': 'admin',
+      'password': _encrypt_seed_password('1234admin'),
+    }
+  ).encode('utf-8')
+  _login_req = urllib.request.Request(
+    f'{backend_url}/user/login',
+    data=_login_payload,
+    headers={'Content-Type': 'application/json'},
+    method='POST',
+  )
+  try:
+    try:
+      with urlopen(_login_req, timeout=10) as _resp:
+        _login_data = _json.loads(_resp.read())
+    except HTTPError as _e:
+      _raw = _e.read()
+      try:
+        _login_data = _json.loads(_raw)
+      except Exception:
+        _login_data = {'status': 'ko', 'raw': _raw.decode('utf-8', errors='replace'), 'http_status': _e.code}
+  except URLError as _exc:
+    process.terminate()
+    try:
+      stdout, stderr = process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+      process.kill()
+      stdout, stderr = process.communicate()
+    pytest.fail(
+      f'Login endpoint not reachable at {backend_url}/user/login: {_exc}\nstdout:\n{stdout}\nstderr:\n{stderr}'
+    )
+  if _login_data.get('status') != 'ok':
+    process.terminate()
+    try:
+      stdout, stderr = process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+      process.kill()
+      stdout, stderr = process.communicate()
+    pytest.fail(
+      f'Backend login endpoint not working (expected status=ok): {_login_data}\nstdout:\n{stdout}\nstderr:\n{stderr}'
+    )
 
   yield backend_url
 
   process.terminate()
   try:
-    process.wait(timeout=5)
+    stdout, stderr = process.communicate(timeout=10)
   except subprocess.TimeoutExpired:
     process.kill()
-    process.wait(timeout=5)
+    stdout, stderr = process.communicate()
+  with open('backend_stdout.log', 'w') as _f:
+    _f.write(stdout or '')
+  with open('backend_stderr.log', 'w') as _f:
+    _f.write(stderr or '')
 
 
 @pytest.fixture(scope='session')
@@ -196,13 +259,39 @@ def driver(selenium_remote_url: str | None):
   # unless Chrome exposes a fixed DevTools port.
   options.add_argument(f'--remote-debugging-port={os.environ.get("E2E_CHROME_DEBUG_PORT", "9222")}')
 
+  # Enable browser logging (console / performance) so CI can collect diagnostics
+  # Selenium 4 removed `desired_capabilities`; use set_capability on the options object instead.
+  options.set_capability('goog:loggingPrefs', {'browser': 'ALL', 'performance': 'ALL'})
+
   if selenium_remote_url:
     browser = webdriver.Remote(command_executor=selenium_remote_url, options=options)
   else:
     browser = webdriver.Chrome(options=options)
 
   yield browser
-  browser.quit()
+
+  # On teardown, dump browser logs to files for artifact collection.
+  try:
+    try:
+      logs = browser.get_log('browser')
+    except Exception:
+      logs = []
+    with open('browser_console.log', 'w') as f:
+      for entry in logs:
+        # entry keys: level, message, timestamp
+        f.write(f'{entry.get("level")} {entry.get("timestamp")} {entry.get("message")}\n')
+    try:
+      perf = browser.get_log('performance')
+      if perf:
+        with open('browser_performance.log', 'w') as pf:
+          for e in perf:
+            pf.write(e.get('message') + '\n')
+    except Exception:
+      pass
+  except Exception:
+    pass
+  finally:
+    browser.quit()
 
 
 @pytest.fixture
