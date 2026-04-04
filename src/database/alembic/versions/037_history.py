@@ -1,7 +1,7 @@
 """History
 
-Revision ID: 036
-Revises: 035
+Revision ID: 037
+Revises: 036
 Create Date: 2026-03-30 12:26:19.004557
 
 """
@@ -12,8 +12,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision: str = '036'
-down_revision: Union[str, None] = '035'
+revision: str = '037'
+down_revision: Union[str, None] = '036'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
