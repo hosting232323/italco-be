@@ -5,7 +5,7 @@ from database_api import Session
 from ...database.enum import UserRole, OrderType
 from ...database.schema import (
   Order,
-  Status,
+  History,
   Product,
   ServiceUser,
   Service,
@@ -172,6 +172,6 @@ def get_order_by_external_id(external_id: str) -> Order:
     return session.query(Order).filter(Order.external_id == external_id).first()
 
 
-def get_all_statuses_by_order_id(order_id: int) -> list[Status]:
+def get_all_histories_by_order_id(order_id: int) -> list[History]:
   with Session() as session:
-    return session.query(Status).filter(Status.order_id == order_id).order_by(desc(Status.id)).all()
+    return session.query(History).filter(History.order_id == order_id).order_by(History.created_at).all()
