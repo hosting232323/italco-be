@@ -79,7 +79,7 @@ def get_schedules(user: User):
   if any(filter['model'] == 'Order' and filter['field'] == 'id' for filter in request.json['filters']):
     for schedule in schedules:
       for tupla in get_schedule_item_for_order_id_filter(schedule['id']):
-        format_schedule_item(schedule['schedule_items'], tupla[1], tupla[2], tupla[3], tupla[4])
+        format_schedule_item(schedule['schedule_items'], tupla[1], tupla[2], tupla[3], tupla[4], None)
 
   return {'status': 'ok', 'schedules': schedules}
 
