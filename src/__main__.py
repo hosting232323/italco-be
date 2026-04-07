@@ -1,4 +1,3 @@
-from api.settings import IS_DEV
 from .database.schema import User
 from .database.enum import UserRole
 from .database.seed import seed_data
@@ -9,7 +8,6 @@ from .end_points.users.session import flask_session_authentication
 from .end_points.log import log_bp
 from .end_points.users import user_bp
 from .end_points.orders import order_bp
-from .end_points.checks import checks_bp
 from .end_points.chatty import chatty_bp
 from .end_points.service import service_bp
 from .end_points.schedule import schedule_bp
@@ -36,7 +34,6 @@ def check_constraints(user: User):
 app.register_blueprint(log_bp, url_prefix='/log')
 app.register_blueprint(user_bp, url_prefix='/user')
 app.register_blueprint(order_bp, url_prefix='/order')
-app.register_blueprint(checks_bp, url_prefix='/checks')
 app.register_blueprint(chatty_bp, url_prefix='/chatty')
 app.register_blueprint(import_bp, url_prefix='/import')
 app.register_blueprint(export_bp, url_prefix='/export')
@@ -54,6 +51,5 @@ set_database(DATABASE_URL)
 
 
 if __name__ == '__main__':
-  if IS_DEV:
-    seed_data()
+  seed_data()
   app.run(host='0.0.0.0', port=PORT, debug=True)
