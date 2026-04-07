@@ -52,11 +52,11 @@ def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id:
               'order_id': order_id,
               'name': f'{row[0]} {row[1]} {row[2]}',
               'collection_point_id': collection_point_id,
-              'service_user_id': get_service_user_by_user_and_code(user_id, row[4], session=session).id
+              'service_user_id': get_service_user_by_user_and_code(user_id, row[4], session=session).id,
             },
             session=session,
           )
-          
+
 
 def pdf_create_order(text, session):
   m_addressee = re.search(r'Destinatario:\s*(.+)', text)
