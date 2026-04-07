@@ -1,6 +1,8 @@
 import os
+import json
 from flask_cors import CORS
-from flask import Flask, send_from_directory
+from flask_swagger_ui import get_swaggerui_blueprint
+from flask import Flask, send_from_directory, jsonify
 
 from api.settings import IS_DEV
 from .checks import trigger_checks
@@ -34,6 +36,16 @@ if API_PREFIX:
   app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f'/{API_PREFIX}')
 
 
+app.register_blueprint(
+  get_swaggerui_blueprint(
+    f'/{API_PREFIX}/swagger' if API_PREFIX else '/swagger',
+    f'/{API_PREFIX}/swagger-file' if API_PREFIX else '/swagger-file',
+    config={'app_name': 'Italco Backend'},
+  ),
+  url_prefix='/swagger',
+)
+
+
 if IS_DEV:
   CORS(app)
 else:
@@ -43,6 +55,18 @@ else:
 @app.route('/', methods=['GET'])
 def index():
   return 'Hello World', 200
+
+
+@app.route('/swagger-file')
+@error_catching_decorator
+def swagger_file():
+  swagger_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'swagger.json')
+  with open(swagger_path, 'r', encoding='utf-8') as f:
+    spec = json.load(f)
+
+  prefix = (f'/{API_PREFIX}' if API_PREFIX else '').rstrip('/')
+  spec['servers'] = [{'url': prefix or '/'}]
+  return jsonify(spec)
 
 
 @app.route('/<path:filename>', methods=['GET'])

@@ -10,9 +10,9 @@ from datetime import datetime, timedelta
 
 from api import send_telegram_error
 from ...database.enum import UserRole
-from ...database.schema import User, Log
+from ...database.schema import User, Log, Company
 from .queries import get_user_by_nickname
-from database_api.operations import create
+from database_api.operations import create, get_by_id
 from api.telegram import extract_request_data
 
 
@@ -34,8 +34,13 @@ def flask_session_authentication(roles: list[UserRole] = None):
         if not user:
           return {'status': 'session', 'error': 'Utente non trovato'}
 
-        if roles and user.role not in roles:
-          return {'status': 'session', 'error': 'Ruolo non autorizzato'}
+        if user.role != UserRole.SUPER_ADMIN:
+          if roles and user.role not in roles:
+            return {'status': 'session', 'error': 'Ruolo non autorizzato'}
+
+        company = get_by_id(Company, user.company_id)
+        if not company:
+          return {'status': 'ko', 'error': 'Company non trovata'}
 
         result = func(user, *args, **kwargs)
         if isinstance(result, dict):

@@ -11,6 +11,7 @@ from .queries import (
   count_user_dependencies,
   get_user_by_nickname,
   get_user_info,
+  get_user_and_company,
 )
 
 
@@ -61,15 +62,19 @@ def create_user(user: User):
 @user_bp.route('login', methods=['POST'])
 @error_catching_decorator
 def login():
-  user: User = get_user_by_nickname(request.json['email'])
-  if not user or user.nickname != request.json['email'] or user.password != request.json['password']:
+  user_company = get_user_and_company(request.json['email'])
+  if not user_company:
+    return {'status': 'ko', 'error': 'Credenziali errate'}
+
+  if user_company[0].nickname != request.json['email'] or user_company[0].password != request.json['password']:
     return {'status': 'ko', 'error': 'Credenziali errate'}
 
   return {
     'status': 'ok',
-    'user_id': user.id,
-    'role': user.role.value,
-    'token': create_jwt_token(user),
+    'user_id': user_company[0].id,
+    'role': user_company[0].role.value,
+    'company': user_company[1].to_dict(),
+    'token': create_jwt_token(user_company[0]),
   }
 
 

@@ -15,7 +15,21 @@ service_bp = Blueprint('service_bp', __name__)
 @flask_session_authentication([UserRole.ADMIN])
 def create_service(user: User):
   request.json['type'] = OrderType(request.json['type'])
-  return {'status': 'ok', 'service': create(Service, request.json).to_dict()}
+
+  service = create(
+    Service,
+    {
+      'duration': request.json.get('duration', None),
+      'description': request.json.get('description', None),
+      'max_services': request.json.get('max_services', None),
+      'name': request.json['name'],
+      'type': request.json['type'],
+      'professional': request.json['professional'],
+      'user_id': user.id,
+    },
+  )
+
+  return {'status': 'ok', 'service': service.to_dict()}
 
 
 @service_bp.route('', methods=['GET'])

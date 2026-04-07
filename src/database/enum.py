@@ -2,6 +2,7 @@ import enum
 
 
 class UserRole(enum.Enum):
+  SUPER_ADMIN = 'Super Admin'
   ADMIN = 'Admin'
   CUSTOMER = 'Customer'
   OPERATOR = 'Operator'

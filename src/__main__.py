@@ -10,6 +10,7 @@ from .end_points.rae import rae_bp
 from .end_points.users import user_bp
 from .end_points.orders import order_bp
 from .end_points.chatty import chatty_bp
+from .end_points.company import company_bp
 from .end_points.service import service_bp
 from .end_points.schedule import schedule_bp
 from .end_points.importation import import_bp
@@ -38,6 +39,7 @@ app.register_blueprint(order_bp, url_prefix='/order')
 app.register_blueprint(chatty_bp, url_prefix='/chatty')
 app.register_blueprint(import_bp, url_prefix='/import')
 app.register_blueprint(export_bp, url_prefix='/export')
+app.register_blueprint(company_bp, url_prefix='/company')
 app.register_blueprint(service_bp, url_prefix='/service')
 app.register_blueprint(schedule_bp, url_prefix='/schedule')
 app.register_blueprint(transport_bp, url_prefix='/transport')

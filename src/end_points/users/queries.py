@@ -10,6 +10,7 @@ from ...database.schema import (
   Product,
   DeliveryUserInfo,
   CustomerUserInfo,
+  Company,
 )
 
 
@@ -57,6 +58,16 @@ def format_user_with_info(user: User, role: UserRole) -> dict:
 def get_user_by_nickname(nickname: str) -> User | None:
   with Session() as session:
     return session.query(User).filter(User.nickname == nickname).first()
+
+
+def get_user_and_company(nickname: str) -> tuple[User, Company] | None:
+  with Session() as session:
+    return (
+      session.query(User, Company)
+      .outerjoin(Company, User.company_id == Company.id)
+      .filter(User.nickname == nickname)
+      .first()
+    )
 
 
 def get_user_info(user_id: int, klass) -> DeliveryUserInfo | CustomerUserInfo:

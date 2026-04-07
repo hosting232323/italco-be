@@ -106,7 +106,7 @@ def get_order(id):
 
 @order_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
-def update_order(user: User, id):
+def update_order(user: User):
   with Session() as session:
     order: Order = get_by_id(Order, int(id), session=session)
     if isinstance(request.form.get('data'), str):

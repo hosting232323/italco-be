@@ -1,0 +1,42 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Italco Backend Swagger",
+    "version": "2.0.0"
+  },
+  "tags": [
+    {"name": "Company"}
+  ],
+  "paths": {
+    "/project": {
+      "post": {
+        "summary": "Create a new company",
+        "description": "Endpoint to register a new project",
+        "tags": ["Company"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {},
+        "security": [{"SwaggerAuth": []}]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "SwaggerAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "SwaggerAuthorization"
+      }
+    }
+  }
+}
