@@ -34,37 +34,29 @@ def order_import_by_pdf(files, customer_id):
 
       orders_count += 1
       order: Order = pdf_create_order(text, session=session)
-      pdf_create_product(tables, text, order.id, collection_point.id, customer_id, session=session)
+      pdf_create_product(tables, order.id, collection_point.id, customer_id, session=session)
 
     session.commit()
   return {'status': 'ok', 'imported_orders_count': orders_count}
 
 
-def pdf_create_product(tables, text, order_id: int, collection_point_id: int, user_id: int, session):
-  products = []
-
+def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id: int, session):
   if tables:
     for table in tables:
       header = table[0]
       if header == ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']:
         for row in table[1:]:
-          products.append(
-            {'articolo': row[0], 'modello': row[1], 'descrizione': row[2], 'quantita': row[3], 'servizio': row[4]}
+          create(
+            Product,
+            {
+              'order_id': order_id,
+              'name': f'{row[0]} {row[1]} {row[2]}',
+              'collection_point_id': collection_point_id,
+              'service_user_id': get_service_user_by_user_and_code(user_id, row[4], session=session).id
+            },
+            session=session,
           )
-
-  for p in products:
-    service_user = get_service_user_by_user_and_code(user_id, p['servizio'].strip(), session=session)
-    create(
-      Product,
-      {
-        'order_id': order_id,
-        'name': f'{p["articolo"]} {p["modello"]} {p["descrizione"]}',
-        'collection_point_id': collection_point_id,
-        'service_user_id': service_user.id if service_user else None
-      },
-      session=session,
-    )
-
+          
 
 def pdf_create_order(text, session):
   m_addressee = re.search(r'Destinatario:\s*(.+)', text)
