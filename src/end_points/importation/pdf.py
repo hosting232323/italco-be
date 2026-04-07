@@ -1,5 +1,6 @@
 import re
 import pdfplumber
+import camelot
 from datetime import datetime
 
 from database_api import Session
@@ -9,7 +10,6 @@ from ...database.enum import OrderType, OrderStatus
 from ...database.schema import Order, Product, CollectionPoint
 from ..service.queries import get_service_user_by_user_and_code
 
-
 CITY_FIXES = {'Noic?ttaro': 'Noicattaro'}
 
 
@@ -18,17 +18,24 @@ def order_import_by_pdf(files, customer_id):
   if not collection_point:
     return {'status': 'ko', 'error': 'Punto di ritiro non identificato'}
 
-  text = ''
   orders_count = 0
   with Session() as session:
     for file in files.values():
+      text = ''
+      tables = []
       with pdfplumber.open(file) as pdf:
-        for pagina in pdf.pages:
-          text += pagina.extract_text() + '\n'
+        for page in pdf.pages:
+          text += page.extract_text() + '\n'
+          tables.extend(page.extract_tables())
 
-        orders_count += 1
-        order: Order = pdf_create_order(text, session=session)
-        pdf_create_product(pagina.extract_tables(), text, order.id, collection_point.id, customer_id, session=session)
+      if not tables:
+        camelot_tables = camelot.read_pdf(file, pages='all', flavor='stream')
+        tables = [t.df.values.tolist() for t in camelot_tables]
+
+      orders_count += 1
+      order: Order = pdf_create_order(text, session=session)
+      print(tables)
+      pdf_create_product(tables, text, order.id, collection_point.id, customer_id, session=session)
 
     session.commit()
   return {'status': 'ok', 'imported_orders_count': orders_count}
@@ -42,44 +49,12 @@ def pdf_create_product(tables, text, order_id: int, collection_point_id: int, us
       header = table[0]
       if header == ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']:
         for row in table[1:]:
-          products.append({'name': f'{row[0]} {row[1]} {row[2]}', 'quantity': row[3], 'service': row[4]})
-
-  if not products:
-    match_section = re.search(
-      (
-        r'ARTICOLI E SERVIZI RICHIESTI\s+'
-        r'Articolo Modello Tipologia - Descrizione Quantità - Peso Jg Servizio\s+'
-        r'(.*?)(?:Data carico:|$)'
-      ),
-      text,
-      flags=re.DOTALL,
-    )
-    products_text = match_section.group(1) if match_section else text
-
-    pattern = re.compile(
-      r'^\s*(\d+)\s+'
-      r'([^\s]+)\s+'
-      r'(.+?)\s+'
-      r'(\d+)\s+'
-      r'(.+)$',
-      flags=re.MULTILINE,
-    )
-
-    for match in pattern.finditer(products_text):
-      articolo, modello, descrizione, quantita, servizio = match.groups()
-      products.append(
-        {
-          'articolo': articolo.strip(),
-          'modello': modello.strip(),
-          'descrizione': descrizione.strip(),
-          'quantita': quantita.strip(),
-          'servizio': servizio.strip(),
-        }
-      )
+          products.append(
+            {'articolo': row[0], 'modello': row[1], 'descrizione': row[2], 'quantita': row[3], 'servizio': row[4]}
+          )
 
   for p in products:
-    servizio = p['servizio'].strip()
-    service_user = get_service_user_by_user_and_code(user_id, servizio, session=session)
+    service_user = get_service_user_by_user_and_code(user_id, p['servizio'].strip(), session=session)
     create(
       Product,
       {
@@ -91,7 +66,7 @@ def pdf_create_product(tables, text, order_id: int, collection_point_id: int, us
       session=session,
     )
 
-          
+
 def pdf_create_order(text, session):
   m_addressee = re.search(r'Destinatario:\s*(.+)', text)
   addressee = m_addressee.group(1).strip() if m_addressee else None
@@ -100,6 +75,7 @@ def pdf_create_order(text, session):
   addressee_contact = m_addressee_contact.group(1).strip() if m_addressee_contact else None
 
   address = None
+  city = None
   if addressee:
     m_address = re.search(r'Destinatario:.*\n(.+)', text)
     if m_address:
@@ -135,5 +111,5 @@ def get_collection_point(customer_id: int) -> CollectionPoint:
 
 
 def normalize_city(city: str) -> str:
-  city_clean = city.strip()
+  city_clean = city.strip() if city else ''
   return CITY_FIXES.get(city_clean, city_clean)
