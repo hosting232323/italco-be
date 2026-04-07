@@ -3,6 +3,7 @@ import re
 
 from database_api import Session
 from api.storage import check_mismatch
+from api.storage.local import list_files_local
 from api.telegram import send_telegram_message
 from .database.schema import Order, Product, ServiceUser, Schedule, Photo
 
@@ -16,7 +17,9 @@ def trigger_checks(folder):
   database_integrity_test()
   check_mismatch(get_all_files(), folder, 'local', 'photos')
 
-  return {'status': 'ok', 'message': 'Check eseguiti con successo'}
+  print(get_all_files())
+  print(list_files_local(folder, 'photos'))
+  return {'status': 'ok', 'message': 'CAZZABBUBOLA'}
   
 
 def get_all_files() -> set[str]:
