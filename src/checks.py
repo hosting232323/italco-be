@@ -1,18 +1,37 @@
-from flask import Blueprint
+import os
+import re
 
 from database_api import Session
+from api.storage import check_mismatch
 from api.telegram import send_telegram_message
-from api import error_catching_decorator, swagger_decorator
-from ..database.schema import Order, Product, ServiceUser, Schedule
+from .database.schema import Order, Product, ServiceUser, Schedule, Photo
 
 
-checks_bp = Blueprint('checks_bp', __name__)
+missing_photos_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'missing_photos.txt')
+with open(missing_photos_path, 'r', encoding='utf-8') as file:
+  MISSING_PHOTOS = re.findall(r'link:\s*(https?://\S+)', file.read())
 
 
-@checks_bp.route('', methods=['GET'])
-@error_catching_decorator
-@swagger_decorator
-def check_mismatch():
+def trigger_checks(folder):
+  database_integrity_test()
+  check_storage_mismatch(folder)
+
+  return {'status': 'ok', 'message': 'Check eseguiti con successo'}
+
+
+def check_storage_mismatch(folder):
+  check_mismatch(get_all_files(), folder, 'local', 'photos')
+
+
+def get_all_files() -> set[str]:
+  with Session() as session:
+    return [
+      row.link.replace('https://ares-logistics.it/api/photos/prod/', '')
+      for row in session.query(Photo).filter(Photo.link.not_in(MISSING_PHOTOS)).all()
+    ]
+
+
+def database_integrity_test():
   with Session() as session:
     # --- Schedule senza ScheduleItem o DeliveryGroup ---
     schedules = session.query(Schedule).all()
@@ -75,5 +94,3 @@ def check_mismatch():
 
   message = '\n'.join(message_lines)
   send_telegram_message(message)
-
-  return {'status': 'ok', 'message': 'Check eseguiti con successo'}

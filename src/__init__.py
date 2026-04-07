@@ -3,8 +3,9 @@ from flask_cors import CORS
 from flask import Flask, send_from_directory
 
 from api.settings import IS_DEV
+from .checks import trigger_checks
 from database_api.backup import db_backup
-from api import swagger_decorator, PrefixMiddleware
+from api import swagger_decorator, error_catching_decorator, PrefixMiddleware
 
 
 allowed_origins = [
@@ -42,11 +43,20 @@ def index():
 
 
 @app.route('/<path:filename>', methods=['GET'])
+@error_catching_decorator
 def serve_image(filename):
   return send_from_directory(STATIC_FOLDER, filename)
 
 
 @app.route('/internal-backup', methods=['GET'])
+@error_catching_decorator
 @swagger_decorator
 def trigger_backup():
   return db_backup(DATABASE_URL, STATIC_FOLDER, 'local', 'backup')
+
+
+@app.route('/checks', methods=['GET'])
+@error_catching_decorator
+@swagger_decorator
+def checks_endpoint():
+  return trigger_checks(STATIC_FOLDER)

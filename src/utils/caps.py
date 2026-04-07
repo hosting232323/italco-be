@@ -1,7 +1,9 @@
+import os
 import json
 
 
-with open('assets/caps.json', 'r') as file:
+caps_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'caps.json')
+with open(caps_file_path, 'r') as file:
   CAPS_DATA: dict = json.load(file)
 
 
