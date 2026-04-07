@@ -15,6 +15,7 @@ dependencies = [
     "geopy",
     "scipy",
     "pdfplumber",
+    "camelot,
 ]
 
 [project.optional-dependencies]

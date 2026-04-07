@@ -1,6 +1,6 @@
 import re
-import pdfplumber
 import camelot
+import pdfplumber
 from datetime import datetime
 
 from database_api import Session
@@ -9,6 +9,7 @@ from database_api.operations import create
 from ...database.enum import OrderType, OrderStatus
 from ...database.schema import Order, Product, CollectionPoint
 from ..service.queries import get_service_user_by_user_and_code
+
 
 CITY_FIXES = {'Noic?ttaro': 'Noicattaro'}
 
@@ -102,5 +103,5 @@ def get_collection_point(customer_id: int) -> CollectionPoint:
 
 
 def normalize_city(city: str) -> str:
-  city_clean = city.strip() if city else ''
+  city_clean = city.strip()
   return CITY_FIXES.get(city_clean, city_clean)
