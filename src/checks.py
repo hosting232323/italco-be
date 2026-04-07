@@ -20,14 +20,14 @@ def trigger_checks(folder):
 
 
 def check_storage_mismatch(folder):
-  check_mismatch(get_all_files(), folder, 'local')
+  check_mismatch(get_all_files(), folder, 'local', 'photos')
 
 
 def get_all_files() -> set[str]:
   with Session() as session:
     return [
-      row.replace('https://ares-logistics.it/api/photos/prod/', '')
-      for row in session.query(Photo.link).filter(Photo.link.not_in(MISSING_PHOTOS)).all()
+      row.link.replace('https://ares-logistics.it/api/photos/prod/', '')
+      for row in session.query(Photo).filter(Photo.link.not_in(MISSING_PHOTOS)).all()
     ]
 
 
