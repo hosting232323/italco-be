@@ -14,14 +14,10 @@ with open(missing_photos_path, 'r', encoding='utf-8') as file:
 
 def trigger_checks(folder):
   database_integrity_test()
-  check_storage_mismatch(folder)
-
-  return {'status': 'ok', 'message': 'Check eseguiti con successo'}
-
-
-def check_storage_mismatch(folder):
   check_mismatch(get_all_files(), folder, 'local', 'photos')
 
+  return {'status': 'ok', 'message': 'Check eseguiti con successo'}
+  
 
 def get_all_files() -> set[str]:
   with Session() as session:
@@ -66,8 +62,7 @@ def database_integrity_test():
       {'order_id': o.id, 'addressee': o.addressee, 'status': o.status.value} for o in orders_no_product
     ]
 
-  message_lines = ['*📊 Report Check Mismatch*\n']
-  message_lines.append('*⚠️ Schedules con problemi:*')
+  message_lines = ['*📊 Report Dati Corrotti*\n\n*⚠️ Schedules con problemi:*']
   if schedule_issues:
     for s in schedule_issues:
       missing_str = ', '.join(s['missing'])
@@ -92,5 +87,4 @@ def database_integrity_test():
   else:
     message_lines.append('✔️ Nessun ordine senza prodotti.')
 
-  message = '\n'.join(message_lines)
-  send_telegram_message(message)
+  send_telegram_message('\n'.join(message_lines))
