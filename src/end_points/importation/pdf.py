@@ -34,7 +34,6 @@ def order_import_by_pdf(files, customer_id):
 
       orders_count += 1
       order: Order = pdf_create_order(text, session=session)
-      print(tables)
       pdf_create_product(tables, text, order.id, collection_point.id, customer_id, session=session)
 
     session.commit()
