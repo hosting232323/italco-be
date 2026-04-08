@@ -17,7 +17,7 @@ def trigger_checks(folder):
   check_mismatch(get_all_files(), os.path.join(folder, 'photos'), 'local')
 
   return {'status': 'ok', 'message': 'Check eseguiti con successo'}
-  
+
 
 def get_all_files() -> set[str]:
   with Session() as session:

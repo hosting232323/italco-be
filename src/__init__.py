@@ -14,8 +14,8 @@ allowed_origins = [
 ]
 
 
-PORT = int(os.environ.get('PORT', 8080))
 DATABASE_URL = os.environ['DATABASE_URL']
+LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 POSTGRES_BACKUP_DAYS = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
 STATIC_FOLDER = os.environ.get(
