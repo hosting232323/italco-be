@@ -2,7 +2,7 @@ from .database.schema import User
 from .database.enum import UserRole
 from .database.seed import seed_data
 from database_api import set_database
-from . import app, DATABASE_URL, PORT
+from . import app, DATABASE_URL, LOCAL_PORT
 from .end_points.users.session import flask_session_authentication
 
 from .end_points.log import log_bp
@@ -52,4 +52,4 @@ set_database(DATABASE_URL)
 
 if __name__ == '__main__':
   seed_data()
-  app.run(host='0.0.0.0', port=PORT, debug=True)
+  app.run(host='0.0.0.0', port=LOCAL_PORT, debug=True)

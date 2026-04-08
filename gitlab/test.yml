@@ -133,7 +133,7 @@ e2e_tests:
 
       cd "$ITALCO_FE_DIR"
       VITE_HOSTNAME="http://${CONTAINER_IP}:8080/" VITE_SECRET_KEY="local-dev-key-1234567890" VITE_IV="1234567890123456" npm run build
-      HOST=0.0.0.0 PORT=3000 npm run serve > "$CI_PROJECT_DIR/frontend.log" 2>&1 &
+      HOST=0.0.0.0 LOCAL_PORT=3000 npm run serve > "$CI_PROJECT_DIR/frontend.log" 2>&1 &
       cd "$CI_PROJECT_DIR"
 
       # Wait for the frontend to become ready
