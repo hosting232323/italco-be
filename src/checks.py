@@ -9,12 +9,12 @@ from .database.schema import Order, Product, ServiceUser, Schedule, Photo
 
 missing_photos_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'missing_photos.txt')
 with open(missing_photos_path, 'r', encoding='utf-8') as file:
-  MISSING_PHOTOS = re.findall(r'link:\s*(https?://\S+)', file.read())
+  MISSING_PHOTOS = [int(id) for id in re.findall(r'id:\s*(\d+)', file.read())]
 
 
 def trigger_checks(folder):
   database_integrity_test()
-  check_mismatch(get_all_files(), folder, 'local', 'photos')
+  check_mismatch(get_all_files(), os.path.join(folder, 'photos'), 'local')
 
   return {'status': 'ok', 'message': 'Check eseguiti con successo'}
   
@@ -23,7 +23,7 @@ def get_all_files() -> set[str]:
   with Session() as session:
     return [
       row.link.replace('https://ares-logistics.it/api/photos/prod/', '')
-      for row in session.query(Photo).filter(Photo.link.not_in(MISSING_PHOTOS)).all()
+      for row in session.query(Photo).filter(Photo.id.not_in(MISSING_PHOTOS)).all()
     ]
 
 
