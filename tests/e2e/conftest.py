@@ -134,12 +134,11 @@ def backend_server(backend_url: str, database_engine):
   if parsed.path not in {'', '/'}:
     pytest.fail(f'E2E_BACKEND_URL must not include a path. Got: {backend_url}')
 
-  port = parsed.port or 8080
   project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
   env = os.environ.copy()
   existing_pythonpath = env.get('PYTHONPATH')
   env['PYTHONPATH'] = f'{project_root}{os.pathsep}{existing_pythonpath}' if existing_pythonpath else project_root
-  env['PORT'] = str(port)
+  env['LOCAL_PORT'] = str(parsed.port or 8080)
   env.setdefault('IS_DEV', '1')
   env.setdefault('DECODE_JWT_TOKEN', 'dummy')
   # API_PREFIX may be set as a project-level CI/CD variable for production deployments.
@@ -153,7 +152,7 @@ def backend_server(backend_url: str, database_engine):
     (
       'import os; from src.__main__ import app; '
       'app.run(host=os.environ.get("E2E_BACKEND_HOST", "127.0.0.1"), '
-      'port=int(__import__("os").environ["PORT"]), '
+      'port=int(__import__("os").environ["LOCAL_PORT"]), '
       'debug=False, use_reloader=False)'
     ),
   ]
