@@ -120,22 +120,17 @@ def update_schedule(user: User, id):
 @schedule_bp.route('suggestions', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
 def get_schedule_suggestions(user: User):
-  work_date = datetime.strptime(request.args['work_date'], '%Y-%m-%d')
   orders = []
-  for tupla in query_orders(
-    user,
-    [
-      {'model': 'Order', 'field': 'work_date', 'value': work_date},
-      {'model': 'Order', 'field': 'status', 'value': OrderStatus.BOOKED},
-    ],
-  ) + query_orders(
-    user,
-    [
-      {'model': 'Order', 'field': 'work_date', 'value': work_date},
-      {'model': 'Order', 'field': 'status', 'value': OrderStatus.ACQUIRED},
-    ],
-  ):
-    orders = format_query_orders_result(tupla, orders, user)
+  work_date = datetime.strptime(request.args['work_date'], '%Y-%m-%d')
+  for status in [OrderStatus.BOOKED, OrderStatus.ACQUIRED]:
+    for tupla in query_orders(
+      user,
+      [
+        {'model': 'Order', 'field': 'work_date', 'value': work_date},
+        {'model': 'Order', 'field': 'status', 'value': status},
+      ],
+    ):
+      orders = format_query_orders_result(tupla, orders, user)
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
 
