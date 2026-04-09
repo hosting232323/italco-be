@@ -1,6 +1,7 @@
 import pytest
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 pytestmark = pytest.mark.e2e
 
@@ -64,20 +65,15 @@ def test_login_redirects_to_dashboard(driver, wait, frontend_reachable, e2e_user
       (By.CSS_SELECTOR, "input[name='password']"),
     ],
   )
+  # Click each field to ensure Vue's reactive binding picks up the input events.
+  email.click()
   email.clear()
   email.send_keys(e2e_user['email'])
+  password.click()
   password.clear()
   password.send_keys(e2e_user['password'])
-  login_button = _first_clickable(
-    driver,
-    wait,
-    [
-      (By.CSS_SELECTOR, "button[type='submit']"),
-      (By.XPATH, "//button[normalize-space()='LOGIN' or normalize-space()='Login']"),
-      (By.XPATH, "//button[contains(., 'LOGIN') or contains(., 'Login')]"),
-    ],
-  )
-  login_button.click()
+  # Submit via ENTER — more reliable than clicking the button with Vuetify loading states.
+  password.send_keys(Keys.ENTER)
   try:
     wait.until(lambda current_driver: '/dashboard' in current_driver.current_url)
   except TimeoutException:

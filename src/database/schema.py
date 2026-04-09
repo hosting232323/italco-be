@@ -13,6 +13,7 @@ from sqlalchemy import (
   Time,
   event,
   inspect,
+  JSON,
 )
 
 from database_api import BaseEntity
@@ -128,18 +129,18 @@ class Order(BaseEntity):
 
   schedule_item_order = relationship('ScheduleItemOrder', back_populates='order')
   photo = relationship('Photo', back_populates='order', cascade='all, delete-orphan')
-  statuses = relationship('Status', back_populates='order', cascade='all, delete-orphan')
   product = relationship('Product', back_populates='order', cascade='all, delete-orphan')
+  histories = relationship('History', back_populates='order', cascade='all, delete-orphan')
   motivations = relationship('Motivation', back_populates='order', cascade='all, delete-orphan')
 
 
-class Status(BaseEntity):
-  __tablename__ = 'status'
+class History(BaseEntity):
+  __tablename__ = 'history'
 
-  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.ACQUIRED)
+  status = Column(JSON, nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
 
-  order = relationship('Order', back_populates='statuses')
+  order = relationship('Order', back_populates='histories')
 
 
 class Motivation(BaseEntity):
@@ -169,6 +170,7 @@ class ScheduleItem(BaseEntity):
   __tablename__ = 'schedule_item'
 
   index = Column(Integer)
+  completed = Column(Boolean, default=False)
   end_time_slot = Column(Time)
   start_time_slot = Column(Time)
   operation_type = Column(Enum(ScheduleType))
@@ -330,12 +332,34 @@ class Log(BaseEntity):
 
 
 @event.listens_for(Session, 'before_flush')
-def track_order_status_change(session, flush_context, instances):
-  for obj in session.dirty:
-    if isinstance(obj, Order):
-      if inspect(obj).attrs.status.history.has_changes():
-        session.add(Status(order=obj, status=obj.status))
-
+def track_order_history(session: Session, flush_context, instances):
   for obj in session.new:
     if isinstance(obj, Order):
-      session.add(Status(order=obj, status=obj.status))
+      session.add(
+        History(
+          order=obj,
+          status={
+            'type': 'status',
+            'value': obj.status.value if obj.status else None,
+          },
+        )
+      )
+
+  for obj in session.dirty:
+    if isinstance(obj, Order):
+      state = inspect(obj)
+      for field in ['status', 'anomaly', 'delay', 'confirmed']:
+        if state.attrs[field].history.has_changes():
+          value = getattr(obj, field)
+          if field == 'status' and value:
+            value = value.value
+
+          session.add(
+            History(
+              order=obj,
+              status={
+                'type': field,
+                'value': value,
+              },
+            )
+          )

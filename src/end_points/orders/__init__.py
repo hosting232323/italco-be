@@ -11,6 +11,7 @@ from ..users.queries import get_user_info
 from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_product, update_product
+from .utils import parse_time, get_statuses_by_order_id
 from ..users.session import flask_session_authentication
 from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id, delete
@@ -18,12 +19,10 @@ from ...database.schema import User, Order, Motivation, ServiceUser, DeliveryUse
 from ..schedule.queries import get_schedule_item_by_order, get_delivery_groups_by_order_id
 from .queries import (
   query_orders,
-  query_delivery_orders,
   format_query_result,
   get_order_photos,
   get_motivations_by_order_id,
   query_products,
-  get_all_statuses_by_order_id,
 )
 
 
@@ -73,20 +72,6 @@ def create_order(user: User):
     session.commit()
     save_order_status_to_euronics(order)
   return {'status': 'ok', 'order': order.to_dict()}
-
-
-@order_bp.route('delivery', methods=['GET'])
-@flask_session_authentication([UserRole.DELIVERY])
-def get_orders_for_delivery(user: User):
-  orders = []
-  for tupla in query_delivery_orders(user):
-    orders = format_query_result(tupla, orders, user)
-  response = {}
-  for order in orders:
-    if order['status'] not in response:
-      response[order['status']] = []
-    response[order['status']].append(order)
-  return {'status': 'ok', 'orders': response}
 
 
 @order_bp.route('filter', methods=['POST'])
@@ -151,6 +136,10 @@ def update_order(user: User, id):
       data['status'] = OrderStatus(data['status'])
       if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED] and not order.completion_date:
         data['completion_date'] = datetime.now()
+      if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED, OrderStatus.TO_RESCHEDULE]:
+        schedule_item = get_schedule_item_by_order(order)
+        if schedule_item:
+          update(schedule_item, {'completed': True}, session=session)
     if 'confirmed' in data and data['confirmed'] and not order.confirmation_date:
       data['confirmation_date'] = datetime.now()
     if 'external_status' in data:
@@ -240,13 +229,4 @@ def delete_order(user: User, id):
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def get_statuses(user: User, id):
-  return {'status': 'ok', 'statuses': [status.to_dict() for status in get_all_statuses_by_order_id(id)]}
-
-
-def parse_time(value: str) -> datetime.time:
-  for fmt in ['%H:%M', '%H:%M:%S']:
-    try:
-      return datetime.strptime(value, fmt).time()
-    except ValueError:
-      continue
-  raise ValueError(f'Formato orario non riconosciuto: {value}')
+  return get_statuses_by_order_id(id)

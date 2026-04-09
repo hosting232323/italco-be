@@ -1,11 +1,11 @@
 from datetime import datetime, date
-from sqlalchemy import and_, not_, desc, or_
+from sqlalchemy import and_, desc, or_
 
 from database_api import Session
-from ...database.enum import UserRole, OrderType, OrderStatus
+from ...database.enum import UserRole, OrderType
 from ...database.schema import (
   Order,
-  Status,
+  History,
   Product,
   ServiceUser,
   Service,
@@ -80,32 +80,6 @@ def query_orders(
     if limit:
       query = query.limit(limit)
     return query.all()
-
-
-def query_delivery_orders(
-  user: User,
-) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint]]:
-  with Session() as session:
-    return (
-      session.query(Order, Product, ServiceUser, Service, User, CollectionPoint)
-      .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
-      .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
-      .join(
-        Schedule,
-        and_(
-          Schedule.date == datetime.now().date(),
-          Schedule.id == ScheduleItem.schedule_id,
-          not_(Order.status.in_([OrderStatus.ACQUIRED])),
-        ),
-      )
-      .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user.id))
-      .outerjoin(Product, Product.order_id == Order.id)
-      .outerjoin(CollectionPoint, Product.collection_point_id == CollectionPoint.id)
-      .outerjoin(ServiceUser, Product.service_user_id == ServiceUser.id)
-      .outerjoin(Service, ServiceUser.service_id == Service.id)
-      .outerjoin(User, ServiceUser.user_id == User.id)
-      .all()
-    )
 
 
 def query_products(order: Order) -> list[Product]:
@@ -198,6 +172,6 @@ def get_order_by_external_id(external_id: str) -> Order:
     return session.query(Order).filter(Order.external_id == external_id).first()
 
 
-def get_all_statuses_by_order_id(order_id: int) -> list[Status]:
+def get_all_histories_by_order_id(order_id: int) -> list[History]:
   with Session() as session:
-    return session.query(Status).filter(Status.order_id == order_id).order_by(desc(Status.id)).all()
+    return session.query(History).filter(History.order_id == order_id).order_by(History.created_at).all()
