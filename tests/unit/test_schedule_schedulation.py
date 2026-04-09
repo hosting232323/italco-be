@@ -5,6 +5,7 @@ from src.end_points.schedule.clustering import (
   ClusteringRuleFactory,
   MergeSmallGroupsRule,
   SplitLargeGroupsRule,
+  ProfessionalServicesLimitRule,
 )
 
 
@@ -42,7 +43,7 @@ def _order_ids(group: dict) -> list[int]:
 def test_clustering_rule_factory_builds_default_rules():
   rules = ClusteringRuleFactory().build()
 
-  assert [type(rule) for rule in rules] == [MergeSmallGroupsRule, SplitLargeGroupsRule]
+  assert [type(rule) for rule in rules] == [MergeSmallGroupsRule, SplitLargeGroupsRule, ProfessionalServicesLimitRule]
 
 
 def test_build_clustered_schedule_item_groups_merges_small_groups(monkeypatch):

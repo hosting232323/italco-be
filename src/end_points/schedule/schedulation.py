@@ -6,12 +6,13 @@ from .clustering import ClusteringContext, ScheduleClusteringPipeline
 from .experiments import set_schedule_index
 
 
-def assign_orders_to_groups(orders, delivery_users, min_size_group, max_size_group, max_distance_km):
+def assign_orders_to_groups(orders, delivery_users, min_size_group, max_size_group, max_distance_km, max_professional_services=None):
   schedule_item_groups = build_clustered_schedule_item_groups(
     orders,
     min_size_group,
     max_size_group,
     max_distance_km,
+    max_professional_services,
   )
 
   available_delivery_users = [
@@ -47,7 +48,7 @@ def assign_orders_to_groups(orders, delivery_users, min_size_group, max_size_gro
   ]
 
 
-def build_clustered_schedule_item_groups(orders, min_size_group, max_size_group, max_distance_km):
+def build_clustered_schedule_item_groups(orders, min_size_group, max_size_group, max_distance_km, max_professional_services=None):
   clustering_pipeline = ScheduleClusteringPipeline()
   return clustering_pipeline.cluster(
     orders,
@@ -56,6 +57,7 @@ def build_clustered_schedule_item_groups(orders, min_size_group, max_size_group,
       min_size_group=min_size_group,
       max_size_group=max_size_group,
       max_distance_km=max_distance_km,
+      max_professional_services=max_professional_services,
     ),
   )
 

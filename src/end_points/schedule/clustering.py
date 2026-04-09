@@ -21,6 +21,7 @@ class ClusteringContext:
   min_size_group: int
   max_size_group: int
   max_distance_km: float
+  max_professional_services: int | None = None
 
 
 class ClusteringRule(ABC):
@@ -61,11 +62,68 @@ class SplitLargeGroupsRule(ClusteringRule):
     )
 
 
+class ProfessionalServicesLimitRule(ClusteringRule):
+  def apply(
+    self,
+    schedule_item_groups: list[ScheduleItemGroup],
+    context: ClusteringContext,
+  ) -> list[ScheduleItemGroup]:
+    max_professional = getattr(context, 'max_professional_services', None)
+    if max_professional is None:
+      return schedule_item_groups
+
+    new_groups: list[ScheduleItemGroup] = []
+    for group in schedule_item_groups:
+      cp_items = [item for item in group if item['operation_type'] == 'CollectionPoint']
+      order_items = [item for item in group if item['operation_type'] == 'Order']
+      if not order_items:
+        new_groups.append(group)
+        continue
+
+      current_orders: list[ScheduleItem] = []
+      current_prof_count = 0
+      for order_item in order_items:
+        prof_count = 0
+        for product in order_item.get('products', {}).values():
+          for service in product.get('services', []):
+            if service.get('professional'):
+              prof_count += 1
+
+        if current_orders and current_prof_count + prof_count > max_professional:
+          cp_ids = set()
+          for o in current_orders:
+            for p in o.get('products', {}).values():
+              cp = p.get('collection_point')
+              if cp and 'id' in cp:
+                cp_ids.add(cp['id'])
+
+          cp_for_group = [cp for cp in cp_items if cp.get('collection_point_id') in cp_ids]
+          new_groups.append(cp_for_group + current_orders)
+          current_orders = []
+          current_prof_count = 0
+
+        current_orders.append(order_item)
+        current_prof_count += prof_count
+
+      if current_orders:
+        cp_ids = set()
+        for o in current_orders:
+          for p in o.get('products', {}).values():
+            cp = p.get('collection_point')
+            if cp and 'id' in cp:
+              cp_ids.add(cp['id'])
+        cp_for_group = [cp for cp in cp_items if cp.get('collection_point_id') in cp_ids]
+        new_groups.append(cp_for_group + current_orders)
+
+    return new_groups
+
+
 @dataclass(frozen=True, slots=True)
 class ClusteringRuleFactory:
   rules: tuple[type[ClusteringRule], ...] = (
     MergeSmallGroupsRule,
     SplitLargeGroupsRule,
+    ProfessionalServicesLimitRule,
   )
 
   def build(self) -> list[ClusteringRule]:
