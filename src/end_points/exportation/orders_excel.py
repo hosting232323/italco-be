@@ -7,16 +7,12 @@ from ..orders.queries import query_orders, format_query_result
 
 
 def export_orders_excel(user: User, order_ids: list):
-  print(f"DEBUG order_ids ricevuti: {order_ids}")
-
   if not order_ids:
     return {'status': 'ko', 'error': 'Nessun ordine selezionato'}
 
   orders = []
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': order_ids}]):
     orders = format_query_result(tupla, orders, user)
-
-  print(f"DEBUG ordini trovati: {len(orders)}")
 
   if not orders:
     return {'status': 'ko', 'error': 'Nessun ordine trovato'}
@@ -34,28 +30,28 @@ def export_orders_excel(user: User, order_ids: list):
         servizi_list.append(nome)
     servizi = ', '.join(servizi_list)
 
-    rows.append({
-      'ID Ordine': o['id'],
-      'Destinatario': o.get('addressee', ''),
-      'Indirizzo': o.get('address', ''),
-      'CAP': o.get('cap', ''),
-      'Stato': o.get('status', ''),
-      'Tipo': o.get('type', ''),
-      'Data Prevista Consegna': str(o.get('dpc', '') or ''),
-      'Data Richiesta Consegna': str(o.get('drc', '') or ''),
-      'Data Prenotazione': str(o.get('booking_date', '') or ''),
-      'Prodotti': prodotti,
-      'Servizi': servizi,
-      'Note Cliente': o.get('customer_note', '') or '',
-      'Note Operatori': o.get('operator_note', '') or '',
-      'Anomalia': 'Si' if o.get('anomaly') else 'No',
-      'Ritardo': 'Si' if o.get('delay') else 'No',
-      'Punto Vendita': o.get('user', {}).get('name', '') if isinstance(o.get('user'), dict) else '',
-    })
+    rows.append(
+      {
+        'ID Ordine': o['id'],
+        'Destinatario': o.get('addressee', ''),
+        'Indirizzo': o.get('address', ''),
+        'CAP': o.get('cap', ''),
+        'Stato': o.get('status', ''),
+        'Tipo': o.get('type', ''),
+        'Data Prevista Consegna': str(o.get('dpc', '') or ''),
+        'Data Richiesta Consegna': str(o.get('drc', '') or ''),
+        'Data Prenotazione': str(o.get('booking_date', '') or ''),
+        'Prodotti': prodotti,
+        'Servizi': servizi,
+        'Note Cliente': o.get('customer_note', '') or '',
+        'Note Operatori': o.get('operator_note', '') or '',
+        'Anomalia': 'Si' if o.get('anomaly') else 'No',
+        'Ritardo': 'Si' if o.get('delay') else 'No',
+        'Punto Vendita': o.get('user', {}).get('name', '') if isinstance(o.get('user'), dict) else '',
+      }
+    )
 
   df = pd.DataFrame(rows)
-  print(f"DEBUG dataframe shape: {df.shape}")
-
   output = BytesIO()
   with pd.ExcelWriter(output, engine='openpyxl') as writer:
     df.to_excel(writer, index=False, sheet_name='Ordini')
@@ -66,8 +62,6 @@ def export_orders_excel(user: User, order_ids: list):
 
   output.seek(0)
   excel_bytes = output.getvalue()
-  print(f"DEBUG dimensione file excel: {len(excel_bytes)} bytes")
-
   response = make_response(excel_bytes)
   response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   response.headers['Content-Disposition'] = 'attachment; filename=ordini_selezionati.xlsx'
