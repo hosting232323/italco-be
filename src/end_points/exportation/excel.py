@@ -1,7 +1,7 @@
-from io import BytesIO
 import pandas as pd
-from flask import make_response
+from io import BytesIO
 
+from .utils import export_excel
 from ...database.schema import User
 from ..orders.queries import query_orders, format_query_result
 
@@ -13,7 +13,6 @@ def export_orders_excel(user: User, order_ids: list):
   orders = []
   for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': order_ids}]):
     orders = format_query_result(tupla, orders, user)
-
   if not orders:
     return {'status': 'ko', 'error': 'Nessun ordine trovato'}
 
@@ -59,10 +58,5 @@ def export_orders_excel(user: User, order_ids: list):
     for col_idx, col in enumerate(df.columns, 1):
       max_len = max(df[col].astype(str).map(len).max(), len(col)) + 4
       worksheet.column_dimensions[worksheet.cell(1, col_idx).column_letter].width = min(max_len, 50)
-
   output.seek(0)
-  excel_bytes = output.getvalue()
-  response = make_response(excel_bytes)
-  response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  response.headers['Content-Disposition'] = 'attachment; filename=ordini_selezionati.xlsx'
-  return response
+  return export_excel(output.getvalue())

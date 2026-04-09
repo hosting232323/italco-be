@@ -7,8 +7,8 @@ from ..users.session import flask_session_authentication
 from .rae import export_rae
 from .order import export_order
 from .schedule import export_schedule
+from .excel import export_orders_excel
 from .invoice import export_order_invoice
-from .orders_excel import export_orders_excel
 
 
 export_bp = Blueprint('export_bp', __name__)
@@ -41,6 +41,4 @@ def export_orders_rae(user: User, order_id):
 @export_bp.route('orders/excel', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_selected_orders_excel(user: User):
-  data = request.json
-  order_ids = data.get('order_ids', [])
-  return export_orders_excel(user, order_ids)
+  return export_orders_excel(user, request.json['order_ids'])

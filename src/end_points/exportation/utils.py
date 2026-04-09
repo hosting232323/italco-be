@@ -17,3 +17,10 @@ def export_pdf(document):
   response.headers['Content-Type'] = 'application/pdf'
   response.headers['Content-Disposition'] = 'inline; filename=report.pdf'
   return response
+
+
+def export_excel(document):
+  response = make_response(document)
+  response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  response.headers['Content-Disposition'] = 'attachment; filename=report.xlsx'
+  return response
