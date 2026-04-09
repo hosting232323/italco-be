@@ -120,26 +120,27 @@ def update_schedule(user: User, id):
 @schedule_bp.route('suggestions', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
 def get_schedule_suggestions(user: User):
-  booking_date = datetime.strptime(request.args['booking_date'], '%Y-%m-%d')
   orders = []
-  for tupla in query_orders(
-    user,
-    [
-      {'model': 'Order', 'field': 'booking_date', 'value': booking_date},
-      {'model': 'Order', 'field': 'status', 'value': OrderStatus.BOOKED},
-    ],
-  ):
-    orders = format_query_orders_result(tupla, orders, user)
+  work_date = datetime.strptime(request.args['work_date'], '%Y-%m-%d')
+  for status in [OrderStatus.BOOKED, OrderStatus.ACQUIRED]:
+    for tupla in query_orders(
+      user,
+      [
+        {'model': 'Order', 'field': 'work_date', 'value': work_date},
+        {'model': 'Order', 'field': 'status', 'value': status},
+      ],
+    ):
+      orders = format_query_orders_result(tupla, orders, user)
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
 
   delivery_users = [
-    format_user_with_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(booking_date)
+    format_user_with_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(work_date)
   ]
   return {
     'status': 'ok',
     'delivery_users': delivery_users,
-    'transports': [transport.to_dict() for transport in get_transports_by_date(booking_date)],
+    'transports': [transport.to_dict() for transport in get_transports_by_date(work_date)],
     'groups': assign_orders_to_groups(
       orders,
       delivery_users,
