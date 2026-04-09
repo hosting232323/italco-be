@@ -17,19 +17,33 @@ def get_cap_by_name(city_name: str) -> str | None:
   city_name_lower = city_name.lower()
   for _, caps in CAPS_DATA.items():
     for cap, info in caps.items():
-      if info['name'].lower() == city_name_lower:
-        return cap
+      if isinstance(info, list):
+        for city in info:
+          if city['name'].lower() == city_name_lower:
+            return cap
+      else:
+        if info['name'].lower() == city_name_lower:
+          return cap
 
   return None
 
 
-def get_lat_lon_by_cap(cap: str) -> tuple[float, float]:
-  for province in CAPS_DATA.keys():
-    if cap in CAPS_DATA[province]:
-      cap_data = CAPS_DATA[province][cap]
-      return cap_data['lat'], cap_data['lon']
+def get_cities_by_cap(cap: str) -> list[dict]:
+  for province_caps in CAPS_DATA.values():
+    if cap in province_caps:
+      info = province_caps[cap]
 
-  raise ValueError(f'Cap {cap} not found')
+      if isinstance(info, list):
+        return info
+
+      return [info]
+
+  raise ValueError(f'CAP {cap} not found')
+
+
+def get_lat_lon_by_cap(cap: str) -> tuple[float, float]:
+  cities = get_cities_by_cap(cap)
+  return [(c['lat'], c['lon']) for c in cities]
 
 
 def get_cap_data_by_province(province: str) -> dict:
