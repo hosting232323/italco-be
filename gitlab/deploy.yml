@@ -38,7 +38,7 @@
 
       sleep 10
 
-      if curl -v http://localhost:$SECOND_PORT/api/; then
+      if curl --fail http://localhost:$SECOND_PORT/$API_PREFIX/; then
         docker rm -f ${CONTAINER_ACTIVE} 2>/dev/null || true
         docker run -d --restart unless-stopped \
           --name ${CONTAINER_ACTIVE} \
