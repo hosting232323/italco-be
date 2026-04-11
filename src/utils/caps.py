@@ -28,19 +28,13 @@ def get_cap_by_name(city_name: str) -> str | None:
   raise ValueError(f'City name {city_name} not found in any CAP')
 
 
-def get_cities_by_cap(cap: str) -> list[dict]:
-  for province_caps in CAPS_DATA.values():
-    if cap in province_caps:
-      info = province_caps[cap]
-      if isinstance(info, list):
-        return info
-      return [info]
+def get_lat_lon_by_cap(cap: str) -> tuple[float, float]:
+  for province in CAPS_DATA.keys():
+    if cap in CAPS_DATA[province]:
+      cap_data = CAPS_DATA[province][cap]
+      return cap_data['lat'], cap_data['lon']
 
   raise ValueError(f'CAP {cap} not found')
-
-
-def get_lat_lon_by_cap(cap: str) -> tuple[float, float]:
-  return [(city['lat'], city['lon']) for city in get_cities_by_cap(cap)]
 
 
 def get_cap_data_by_province(province: str) -> dict:
