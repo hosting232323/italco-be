@@ -32,7 +32,7 @@ def order_import_by_pdf(files, customer_id):
         tables = [table.df.values.tolist() for table in camelot.read_pdf(file, pages='all', flavor='stream')]
 
       orders_count += 1
-      order: Order = pdf_create_order(text, session=session)
+      order = pdf_create_order(text, session=session)
       pdf_create_product(tables, order.id, collection_point.id, customer_id, session=session)
 
     session.commit()
@@ -42,8 +42,7 @@ def order_import_by_pdf(files, customer_id):
 def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id: int, session):
   if tables:
     for table in tables:
-      header = table[0]
-      if header == ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']:
+      if table[0] == ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']:
         for row in table[1:]:
           create(
             Product,
@@ -57,7 +56,7 @@ def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id:
           )
 
 
-def pdf_create_order(text, session):
+def pdf_create_order(text, session) -> Order:
   city = re.findall(r'Città\s*:\s*(.+)', text)
   city = (
     normalize_city(

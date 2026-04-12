@@ -1,4 +1,4 @@
-.deploy_template: &deploy_template
+.deploy:
   stage: deploy
   script:
     - |
@@ -53,7 +53,7 @@
       fi
 
 deploy_test:
-  <<: *deploy_template
+  extends: .deploy
   tags:
     - deploy-local
   when: manual
@@ -69,7 +69,7 @@ deploy_test:
     - export SECOND_PORT="${PORT_TEST#*-}"
 
 deploy_prod:
-  <<: *deploy_template
+  extends: .deploy
   tags:
     - deploy-local
   when: manual
