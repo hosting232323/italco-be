@@ -28,10 +28,8 @@ def order_import_by_pdf(files, customer_id):
         for page in pdf.pages:
           text += page.extract_text() + '\n'
           tables.extend(page.extract_tables())
-
       if not tables:
-        camelot_tables = camelot.read_pdf(file, pages='all', flavor='stream')
-        tables = [t.df.values.tolist() for t in camelot_tables]
+        tables = [table.df.values.tolist() for table in camelot.read_pdf(file, pages='all', flavor='stream')]
 
       orders_count += 1
       order: Order = pdf_create_order(text, session=session)
@@ -60,48 +58,41 @@ def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id:
 
 
 def pdf_create_order(text, session):
-  m_addressee = re.search(r'Destinatario:\s*(.+)', text)
-  addressee = m_addressee.group(1).strip() if m_addressee else None
-
-  m_addressee_contact = re.search(r'Tel - Cell:\s*(\d+)', text)
-  addressee_contact = m_addressee_contact.group(1).strip() if m_addressee_contact else None
-
-  address = None
-  city = None
-  if addressee:
-    m_address = re.search(r'Destinatario:.*\n(.+)', text)
-    if m_address:
-      address = re.sub(r'Città\s*:\s*.+', '', m_address.group(1).strip()).strip()
-
-      cities = re.findall(r'Città\s*:\s*(.+)', text)
-      city = cities[1].strip() if len(cities) > 1 else (cities[0].strip() if cities else None)
-      city = re.sub(r'\bnd\b', '', city, flags=re.IGNORECASE).strip()
-      city = normalize_city(city)
-
-  m_dpc = re.search(r'Data consegna:\s*(\d{2}/\d{2}/\d{4})', text)
-  dpc = datetime.strptime(m_dpc.group(1).strip(), '%d/%m/%Y').date() if m_dpc else None
+  cities = re.findall(r'Città\s*:\s*(.+)', text)
+  city = (
+    normalize_city(
+      re.sub(r'\bnd\b', '', cities[1].strip() if len(cities) > 1 else cities[0].strip(), flags=re.IGNORECASE).strip()
+    )
+    if cities
+    else None
+  )
+  address = re.search(r'Destinatario:.*\n(.+)', text)
+  address = re.sub(r'Città\s*:\s*.+', '', address.group(1).strip()).strip() if address else None
+  addressee = re.search(r'Destinatario:\s*(.+)', text)
+  addressee_contact = re.search(r'Tel - Cell:\s*(\d+)', text)
+  dpc = re.search(r'Data consegna:\s*(\d{2}/\d{2}/\d{4})', text)
 
   return create(
     Order,
     {
-      'dpc': dpc,
-      'address': address,
       'drc': datetime.now(),
-      'addressee': addressee,
       'type': OrderType.DELIVERY,
       'cap': get_cap_by_name(city),
       'status': OrderStatus.ACQUIRED,
-      'addressee_contact': addressee_contact,
+      'address': f'{address}, {city}',
+      'addressee': addressee.group(1).strip() if addressee else None,
+      'dpc': datetime.strptime(dpc.group(1).strip(), '%d/%m/%Y').date() if dpc else None,
+      'addressee_contact': addressee_contact.group(1).strip() if addressee_contact else None,
     },
     session=session,
   )
 
 
-def get_collection_point(customer_id: int) -> CollectionPoint:
-  with Session() as session:
-    return session.query(CollectionPoint).filter(CollectionPoint.user_id == customer_id).first()
-
-
 def normalize_city(city: str) -> str:
   city_clean = city.strip()
   return CITY_FIXES.get(city_clean, city_clean)
+
+
+def get_collection_point(customer_id: int) -> CollectionPoint:
+  with Session() as session:
+    return session.query(CollectionPoint).filter(CollectionPoint.user_id == customer_id).first()

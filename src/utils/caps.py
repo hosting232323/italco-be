@@ -13,7 +13,7 @@ def get_province_by_cap(cap: str) -> str:
   raise ValueError(f'CAP {cap} not found in any province')
 
 
-def get_cap_by_name(city_name: str) -> str | None:
+def get_cap_by_name(city_name: str) -> str:
   city_name_lower = city_name.lower()
   for _, caps in CAPS_DATA.items():
     for cap, info in caps.items():
