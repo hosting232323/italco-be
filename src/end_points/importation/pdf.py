@@ -11,7 +11,10 @@ from ...database.schema import Order, Product, CollectionPoint
 from ..service.queries import get_service_user_by_user_and_code
 
 
-CITY_FIXES = {'Noic?ttaro': 'Noicattaro'}
+CITY_FIXES = {
+  'Noic?ttaro': 'Noicattaro',
+  'BARI-CARBONARA Bari': 'Carbonara',
+}
 
 
 def order_import_by_pdf(files, customer_id):
