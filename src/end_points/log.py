@@ -1,7 +1,9 @@
+from sqlalchemy import cast, Date
 from flask import Blueprint, request
 
 from sqlalchemy.orm import defer
 from database_api import Session
+from ..utils.date import handle_date
 from ..database.enum import UserRole
 from ..database.schema import User, Log
 from database_api.operations import get_by_id
@@ -38,7 +40,11 @@ def query_logs(filters: list) -> list[tuple[Log, User]]:
       field = getattr(model, filter['field'])
       value = filter['value']
 
-      if model == User:
+      if model == Log and type(value) is list and field == Log.created_at:
+        query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
+      elif model == Log and field == Log.created_at:
+        query = query.filter(cast(field, Date) == value)
+      else:
         query = query.filter(field == value)
 
     query = query.order_by(Log.created_at.desc())
