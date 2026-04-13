@@ -1,9 +1,8 @@
-from datetime import datetime
-from sqlalchemy import and_, desc, or_, cast, Date
+from datetime import datetime, date
+from sqlalchemy import and_, desc, or_
 from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
-from ...utils.date import handle_date
 from ...database.enum import ScheduleType, UserRole
 from database_api.operations import db_session_decorator
 from ...database.schema import (
@@ -61,12 +60,11 @@ def query_schedules(
       field = getattr(model, filter['field'])
       value = filter['value']
 
-      if (
-        model == Schedule and type(value) is list and field in [Schedule.created_at, Schedule.date, Schedule.updated_at]
-      ):
-        query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
-      elif model == Schedule and field in [Schedule.created_at, Schedule.updated_at]:
-        query = query.filter(cast(field, Date) == value)
+      if model == Schedule and field in [Schedule.created_at, Schedule.date]:
+        query = query.filter(
+          field >= (value[0] if isinstance(value[0], date) else datetime.strptime(value[0], '%Y-%m-%d')),
+          field <= (value[1] if isinstance(value[1], date) else datetime.strptime(value[1], '%Y-%m-%d')),
+        )
       else:
         query = query.filter(field == value)
 
