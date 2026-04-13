@@ -23,7 +23,7 @@ def export_order_report(user: User, id):
 @export_bp.route('invoice', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def export_orders_invoice(user: User):
-  return export_order_invoice(user, request.json['filters'])
+  return export_order_invoice(user)
 
 
 @export_bp.route('schedule/<id>', methods=['GET'])
