@@ -1,7 +1,7 @@
-from datetime import datetime, date
-from sqlalchemy import and_, desc, or_
+from sqlalchemy import and_, desc, or_, cast, Date
 
 from database_api import Session
+from ...utils.date import handle_date
 from ...database.enum import UserRole, OrderType
 from ...database.schema import (
   Order,
@@ -40,8 +40,15 @@ def query_orders(
     for filter in filters:
       value = filter['value']
       if filter['field'] == 'work_date':
-        work_date = value if isinstance(value, date) else datetime.strptime(value, '%Y-%m-%d').date()
-        query = query.filter(or_(Order.booking_date == work_date, Order.dpc == work_date))
+        if type(value) is list:
+          query = query.filter(
+            or_(
+              and_(Order.booking_date >= handle_date(value[0]), Order.booking_date <= handle_date(value[1])),
+              and_(Order.dpc >= handle_date(value[0]), Order.dpc <= handle_date(value[1])),
+            )
+          )
+        else:
+          query = query.filter(or_(Order.booking_date == handle_date(value), Order.dpc == handle_date(value)))
         continue
 
       model = globals()[filter['model']] if filter['model'] not in ['CustomerUser', 'DeliveryUser'] else User
@@ -64,11 +71,23 @@ def query_orders(
       elif model == CustomerGroup:
         query = query.join(CustomerGroup, CustomerGroup.id == User.customer_group_id)
 
-      if model == Order and field in [Order.created_at, Order.dpc] and type(value) is list:
-        query = query.filter(
-          field >= (value[0] if isinstance(value[0], date) else datetime.strptime(value[0], '%Y-%m-%d')),
-          field <= (value[1] if isinstance(value[1], date) else datetime.strptime(value[1], '%Y-%m-%d')),
-        )
+      if (
+        model == Order
+        and type(value) is list
+        and field
+        in [
+          Order.created_at,
+          Order.dpc,
+          Order.booking_date,
+          Order.drc,
+          Order.updated_at,
+          Order.confirmation_date,
+          Order.completion_date,
+        ]
+      ):
+        query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
+      elif model == Order and field in [Order.created_at, Order.updated_at]:
+        query = query.filter(cast(field, Date) == value)
       elif model == Order and field == Order.addressee:
         query = query.filter(field.ilike(f'%{value}%'))
       elif model == Order and field == Order.id and type(value) is list:
