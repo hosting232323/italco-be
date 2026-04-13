@@ -1,6 +1,6 @@
 from io import BytesIO
 from xhtml2pdf import pisa
-from flask import render_template, request
+from flask import render_template
 
 from .utils import export_pdf
 from ...database.enum import OrderStatus
@@ -8,17 +8,17 @@ from ...database.schema import User
 from ..orders.queries import query_orders, format_query_result
 
 
-def export_order_invoice(user: User):
+def export_order_invoice(user: User, filters: list[dict]):
   orders = []
   for tupla in query_orders(
     user,
-    request.json['filters'] + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.DELIVERED}],
+    filters + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.DELIVERED}],
   ):
     orders = format_query_result(tupla, orders, user)
   if not orders:
     return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
 
-  for filter in request.json['filters']:
+  for filter in filters:
     if filter['field'] == 'dpc' and filter['model'] == 'Order':
       start_date = filter['value'][0]
       end_date = filter['value'][1]
