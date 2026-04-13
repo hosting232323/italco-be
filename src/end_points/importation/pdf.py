@@ -11,7 +11,10 @@ from ...database.schema import Order, Product, CollectionPoint
 from ..service.queries import get_service_user_by_user_and_code
 
 
-CITY_FIXES = {'Noic?ttaro': 'Noicattaro'}
+CITY_FIXES = {
+  'Noic?ttaro': 'Noicattaro',
+  'BARI-CARBONARA Bari': 'Carbonara'
+}
 
 
 def order_import_by_pdf(files, customer_id):
@@ -58,6 +61,7 @@ def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id:
 
 def pdf_create_order(text, session) -> Order:
   city = re.findall(r'Città\s*:\s*(.+)', text)
+  print(city)
   city = (
     normalize_city(
       re.sub(r'\bnd\b', '', city[1].strip() if len(city) > 1 else city[0].strip(), flags=re.IGNORECASE).strip()
@@ -65,6 +69,8 @@ def pdf_create_order(text, session) -> Order:
     if city
     else None
   )
+  print(city)
+  
   address = re.search(r'Destinatario:.*\n(.+)', text)
   address = re.sub(r'Città\s*:\s*.+', '', address.group(1).strip()).strip() if address else None
   addressee = re.search(r'Destinatario:\s*(.+)', text)
