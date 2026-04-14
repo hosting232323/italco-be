@@ -57,7 +57,7 @@ def create_order(user: User):
         cloned_order,
         {
           'completion_date': datetime.now(),
-          'status': OrderStatus.REDELIVERY,
+          'status': OrderStatus.RESCHEDULED,
           'operator_note': f'{new_note}, {cloned_order.operator_note}' if cloned_order.operator_note else new_note,
         },
         session=session,
