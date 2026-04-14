@@ -17,7 +17,7 @@ from sqlalchemy import (
 )
 
 from database_api import BaseEntity
-from .enum import UserRole, OrderStatus, OrderType, ScheduleType, EuronicsStatus
+from .enum import UserRole, OrderStatus, OrderType, ScheduleType, EuronicsStatus, RaeStatus
 
 
 class User(BaseEntity):
@@ -255,7 +255,6 @@ class Product(BaseEntity):
   __tablename__ = 'product'
 
   name = Column(String, nullable=False)
-  rae_product_quantity = Column(Integer, default=1)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
   rae_product_id = Column(Integer, ForeignKey('rae_product.id'), nullable=True)
   service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
@@ -270,11 +269,23 @@ class Product(BaseEntity):
 class RaeProduct(BaseEntity):
   __tablename__ = 'rae_product'
 
+  quantity = Column(Integer, default=1)
+  cancellations = Column(Integer, default=0)
+  status = Column(Enum(RaeStatus), nullable=False)
+  rae_product_group_id = Column(Integer, ForeignKey('rae_product_group.id'), nullable=False)
+
+  product = relationship('Product', back_populates='rae_product')
+  rae_product_group = relationship('RaeProductGroup', back_populates='rae_product')
+
+
+class RaeProductGroup(BaseEntity):
+  __tablename__ = 'rae_product_group'
+
   name = Column(String, nullable=False)
   cer_code = Column(Integer, nullable=False)
   group_code = Column(String, nullable=False)
 
-  product = relationship('Product', back_populates='rae_product')
+  rae_product = relationship('RaeProduct', back_populates='rae_product_group')
 
 
 class GeographicZone(BaseEntity):

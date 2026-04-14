@@ -23,8 +23,8 @@ def export_schedule(user: User, id):
     user,
     [
       {
-        'model': 'Order',
         'field': 'id',
+        'model': 'Order',
         'value': [order['order_id'] for order in schedules[0]['schedule_items'] if order['operation_type'] == 'Order'],
       }
     ],
@@ -40,8 +40,8 @@ def export_schedule(user: User, id):
       'schedules_report.html',
       id=schedules[0]['id'],
       date=schedules[0]['date'],
-      users=', '.join([user['nickname'] for user in schedules[0]['users']]),
       transport=schedules[0]['transport']['name'],
+      users=', '.join([user['nickname'] for user in schedules[0]['users']]),
       orders=[{**order, 'signature': get_signature(get_by_id(Order, order['id']))} for order in orders],
     ),
     dest=result,

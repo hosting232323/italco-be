@@ -3,12 +3,12 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from .utils import export_pdf
+from ...database.schema import User
 from database_api.operations import get_by_id
-from ...database.schema import User, RaeProduct
 from ..users.queries import format_user_with_info
-from ..rae_product import query_count_rae_products
 from ..schedule.queries import get_schedule_by_order
 from ..orders.queries import query_orders, format_query_result
+from ..rae.product import query_count_rae_products, get_product_and_group
 
 
 def export_rae(user: User, order_id):
@@ -47,10 +47,9 @@ def get_rae_products_by_order(order: dict) -> list[dict]:
       schedule = get_schedule_by_order(order['id'])
       rae_products.append(
         {
-          'quantity': product_data['rae_product_quantity'],
-          'data': get_by_id(RaeProduct, product_data['rae_product_id']),
+          'data': get_product_and_group(product_data['rae_product_id']),
           'date': schedule.date.strftime('%d/%m/%Y') if schedule else 'N/D',
-          'index': query_count_rae_products(product_data['services'][0]['product_id'], order['user']['id']),
+          'index': query_count_rae_products(product_data['rae_product_id'], order['user']['id']),
         }
       )
   return rae_products

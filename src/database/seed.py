@@ -22,7 +22,7 @@ from .schema import (
   Order,
   Photo,
   Product,
-  RaeProduct,
+  RaeProductGroup,
   Schedule,
   ScheduleItem,
   ScheduleItemCollectionPoint,
@@ -281,7 +281,7 @@ def seed_data():
   for index in range(10):
     rae_products.append(
       create(
-        RaeProduct,
+        RaeProductGroup,
         {
           'name': f'RAE Product {index + 1}',
           'cer_code': 200000 + index,
@@ -399,7 +399,7 @@ def can_create() -> bool:
     Service,
     ServiceUser,
     Product,
-    RaeProduct,
+    RaeProductGroup,
     GeographicZone,
     GeographicCode,
     Constraint,
