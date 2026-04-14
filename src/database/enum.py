@@ -51,4 +51,5 @@ class OrderType(enum.Enum):
 
 class ScheduleType(enum.Enum):
   ORDER = 'Order'
-  COLLECTIONPOINT = 'CollectionPoint'
+  RELEASE_PLACE = 'ReleacePlace'
+  COLLECTION_POINT = 'CollectionPoint'
