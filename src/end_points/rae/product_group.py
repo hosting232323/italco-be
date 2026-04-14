@@ -16,7 +16,7 @@ def delete_rae_product_group(id: int):
 def get_rae_product_groups():
   return {
     'status': 'ok',
-    'rae_products': [rae_product_group.to_dict() for rae_product_group in query_rae_product_groups()],
+    'rae_product_groups': [rae_product_group.to_dict() for rae_product_group in query_rae_product_groups()],
   }
 
 

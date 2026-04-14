@@ -348,7 +348,6 @@ def seed_data():
         'order_id': orders[index].id,
         'service_user_id': service_users[index % 10].id,
         'collection_point_id': collection_points[index % 10].id,
-        'rae_product_id': rae_products[index % 10].id if index % 2 == 0 else None,
       },
     )
 

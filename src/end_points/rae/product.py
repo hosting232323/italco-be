@@ -2,8 +2,7 @@ from datetime import date
 from sqlalchemy import extract, func, and_
 
 from database_api import Session
-from database_api.operations import get_by_id
-from ...database.schema import Product, ServiceUser, RaeProduct, RaeProductGroup
+from ...database.schema import Order, Product, ServiceUser, RaeProduct, RaeProductGroup
 
 
 def get_rae_products():
@@ -19,10 +18,6 @@ def query_rae_products() -> list[RaeProduct]:
 
 
 def query_count_rae_products(rae_product_id: int, user_id: int) -> int:
-  rae_product: Product = get_by_id(RaeProduct, rae_product_id)
-  if not rae_product:
-    return 0
-
   with Session() as session:
     return (
       session.query(func.coalesce(func.sum(1 + func.coalesce(RaeProduct.cancellations, 0)), 0))
@@ -57,3 +52,12 @@ def get_product_and_group(rae_product_id: int) -> dict:
     rae_product['cer_code'] = result[1].cer_code
     rae_product['group_code'] = result[1].group_code
     return rae_product
+
+
+def get_rae_products_by_order(order: Order) -> list[RaeProduct]:
+  with Session() as session:
+    return (
+      session.query(RaeProduct)
+      .join(Product, and_(Product.rae_product_id == RaeProduct.id, Product.order_id == order.id))
+      .all()
+    )

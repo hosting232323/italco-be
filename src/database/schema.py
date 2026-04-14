@@ -271,7 +271,7 @@ class RaeProduct(BaseEntity):
 
   quantity = Column(Integer, default=1)
   cancellations = Column(Integer, default=0)
-  status = Column(Enum(RaeStatus), nullable=False)
+  status = Column(Enum(RaeStatus), nullable=False, default=RaeStatus.GENERATED)
   rae_product_group_id = Column(Integer, ForeignKey('rae_product_group.id'), nullable=False)
 
   product = relationship('Product', back_populates='rae_product')

@@ -2,9 +2,9 @@ from io import BytesIO
 from xhtml2pdf import pisa
 from flask import render_template
 
-from .rae import get_rae_products_by_order
 from ...database.schema import User, Order
 from .utils import get_signature, export_pdf
+from .rae import get_rae_export_info_by_order
 from database_api.operations import get_by_id
 from ..users.queries import format_user_with_info
 from ..orders.queries import query_orders, format_query_result as format_order_query_result
@@ -31,7 +31,7 @@ def export_schedule(user: User, id):
   ):
     orders = format_order_query_result(tupla, orders, user)
   for order in orders:
-    order['rae_products'] = get_rae_products_by_order(order)
+    order['rae_products'] = get_rae_export_info_by_order(order)
     order['customer'] = format_user_with_info(get_by_id(User, order['user']['id']), user.role)
 
   result = BytesIO()

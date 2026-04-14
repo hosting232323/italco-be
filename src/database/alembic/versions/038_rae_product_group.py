@@ -20,7 +20,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
   op.rename_table('rae_product', 'rae_product_group')
-
   op.create_table(
     'rae_product',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -37,12 +36,21 @@ def upgrade() -> None:
   )
 
   op.execute("""
-    INSERT INTO rae_product (quantity, cancellations, status, rae_product_group_id)
+    INSERT INTO rae_product (
+      quantity,
+      cancellations,
+      status,
+      rae_product_group_id,
+      created_at,
+      updated_at
+    )
     SELECT
       p.rae_product_quantity,
       0,
       'GENERATED',
-      p.rae_product_id
+      p.rae_product_id,
+      NOW(),
+      NOW()
     FROM product p
     WHERE p.rae_product_id IS NOT NULL
   """)
