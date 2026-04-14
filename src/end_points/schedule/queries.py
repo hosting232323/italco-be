@@ -61,11 +61,9 @@ def query_schedules(
       field = getattr(model, filter['field'])
       value = filter['value']
 
-      if (
-        model == Schedule and type(value) is list and field in [Schedule.created_at, Schedule.date, Schedule.updated_at]
-      ):
+      if field in [Schedule.created_at, Schedule.date, Schedule.updated_at] and type(value) is list:
         query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
-      elif model == Schedule and field in [Schedule.created_at, Schedule.updated_at]:
+      elif field in [Schedule.created_at, Schedule.updated_at]:
         query = query.filter(cast(field, Date) == value)
       else:
         query = query.filter(field == value)
