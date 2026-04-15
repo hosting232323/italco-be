@@ -29,6 +29,7 @@ def upgrade() -> None:
     ),
     sa.Column('rae_product_group_id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('product_id_tmp', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['rae_product_group_id'], ['rae_product_group.id']),
@@ -42,6 +43,7 @@ def upgrade() -> None:
       status,
       rae_product_group_id,
       user_id,
+      product_id_tmp,
       created_at,
       updated_at
     )
@@ -50,6 +52,7 @@ def upgrade() -> None:
       'GENERATED',
       p.rae_product_id,
       su.user_id,
+      p.id,
       NOW(),
       NOW()
     FROM product p
@@ -61,8 +64,9 @@ def upgrade() -> None:
     UPDATE product p
     SET rae_product_id = rp.id
     FROM rae_product rp
-    WHERE rp.rae_product_group_id = p.rae_product_id
+    WHERE rp.product_id_tmp = p.id
   """)
+  op.drop_column('rae_product', 'product_id_tmp')
 
   op.create_foreign_key('product_rae_product_id_fkey', 'product', 'rae_product', ['rae_product_id'], ['id'])
   op.drop_column('product', 'rae_product_quantity')
