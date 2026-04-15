@@ -3,13 +3,13 @@ from .queries import query_service_users, query_products
 from ...database.schema import Order, Product, RaeProduct, ServiceUser
 
 
-def create_product(order: Order, products: dict, user_id: int, session=None):
+def create_products(order: Order, products: dict, user_id: int, session=None):
   service_users = get_service_users(order, products, user_id)
   for product in products.keys():
-    create_products(product, products[product], order, service_users, session=session)
+    create_product(product, products[product], order, service_users, session=session)
 
 
-def update_product(order: Order, products: dict, user_id: int, session=None):
+def update_products(order: Order, products: dict, user_id: int, session=None):
   service_users = get_service_users(order, products, user_id)
   old_products = query_products(order)
 
@@ -17,23 +17,24 @@ def update_product(order: Order, products: dict, user_id: int, session=None):
     if len([old_product for old_product in old_products if old_product.name == product]) > 0:
       continue
 
-    create_products(product, products[product], order, service_users, session=session)
+    create_product(product, products[product], order, service_users, session=session)
 
   for old_product in old_products:
     if old_product.name not in products:
       delete(old_product, session=session)
 
 
-def create_products(product_name: str, data: dict, order: Order, service_users: list[ServiceUser], session):
+def create_product(product_name: str, data: dict, order: Order, service_users: list[ServiceUser], session):
   rae_product = None
   if 'rae_product' in data:
     rae_product: RaeProduct = create(
       RaeProduct,
       {
+        'user_id': service_users[0].user_id,
         'quantity': data['rae_product']['quantity'],
         'rae_product_group_id': data['rae_product']['group_id'],
       },
-      session=session
+      session=session,
     )
 
   for service in data['services']:

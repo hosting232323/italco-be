@@ -2,7 +2,9 @@ from datetime import date
 from sqlalchemy import extract, func, and_
 
 from database_api import Session
-from ...database.schema import Order, Product, ServiceUser, RaeProduct, RaeProductGroup
+from ...database.enum import RaeStatus
+from database_api.operations import create, update
+from ...database.schema import Order, Product, RaeProduct, RaeProductGroup
 
 
 def get_rae_products():
@@ -20,18 +22,11 @@ def query_rae_products() -> list[RaeProduct]:
 def query_count_rae_products(rae_product_id: int, user_id: int) -> int:
   with Session() as session:
     return (
-      session.query(func.coalesce(func.sum(1 + func.coalesce(RaeProduct.cancellations, 0)), 0))
-      .join(
-        Product,
-        and_(
-          Product.rae_product_id == RaeProduct.id,
-          RaeProduct.id <= rae_product_id,
-          extract('year', RaeProduct.created_at) == date.today().year,
-        ),
-      )
-      .join(
-        ServiceUser,
-        and_(ServiceUser.id == Product.service_user_id, ServiceUser.user_id == user_id),
+      session.query(func.count(RaeProduct.id))
+      .filter(
+        RaeProduct.id <= rae_product_id,
+        RaeProduct.user_id == user_id,
+        extract('year', RaeProduct.created_at) == date.today().year,
       )
       .scalar()
     )
@@ -58,6 +53,32 @@ def get_rae_products_by_order(order: Order) -> list[RaeProduct]:
   with Session() as session:
     return (
       session.query(RaeProduct)
+      .join(Product, and_(Product.rae_product_id == RaeProduct.id, Product.order_id == order.id))
+      .all()
+    )
+
+
+def recreate_rae_products(order: Order, session):
+  rae_product_ids = {}
+  for tupla in get_rae_product_tuples_by_order(order):
+    if tupla[0].id not in rae_product_ids:
+      rae_product_ids[tupla[0].id] = create(
+        RaeProduct,
+        {
+          'user_id': tupla[0].user_id,
+          'quantity': tupla[0].quantity,
+          'rae_product_group_id': tupla[0].rae_product_group_id,
+        },
+        session=session,
+      ).id
+      update(tupla[0], {'status': RaeStatus.ANNULLED})
+    update(tupla[1], {'rae_product_id': rae_product_ids[tupla[0].id]}, session=session)
+
+
+def get_rae_product_tuples_by_order(order: Order) -> list[tuple[RaeProduct, Product]]:
+  with Session() as session:
+    return (
+      session.query(RaeProduct, Product)
       .join(Product, and_(Product.rae_product_id == RaeProduct.id, Product.order_id == order.id))
       .all()
     )

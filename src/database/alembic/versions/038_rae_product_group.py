@@ -24,34 +24,36 @@ def upgrade() -> None:
     'rae_product',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('quantity', sa.Integer(), nullable=True, server_default='1'),
-    sa.Column('cancellations', sa.Integer(), nullable=True, server_default='0'),
     sa.Column(
       'status', sa.Enum('GENERATED', 'EMITTED', 'LDR', 'DISPOSED_OFF', 'ANNULLED', name='raestatus'), nullable=False
     ),
     sa.Column('rae_product_group_id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['rae_product_group_id'], ['rae_product_group.id']),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id']),
     sa.PrimaryKeyConstraint('id'),
   )
 
   op.execute("""
     INSERT INTO rae_product (
       quantity,
-      cancellations,
       status,
       rae_product_group_id,
+      user_id,
       created_at,
       updated_at
     )
     SELECT
       p.rae_product_quantity,
-      0,
       'GENERATED',
       p.rae_product_id,
+      su.user_id,
       NOW(),
       NOW()
     FROM product p
+    JOIN service_user su ON su.id = p.service_user_id
     WHERE p.rae_product_id IS NOT NULL
   """)
   op.drop_constraint('product_rae_product_id_fkey', 'product', type_='foreignkey')

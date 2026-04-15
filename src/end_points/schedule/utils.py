@@ -1,5 +1,5 @@
 from .sms_sender import schedule_sms_check
-from ..rae.product import get_rae_products_by_order
+from ..rae.product import recreate_rae_products
 from ..orders.api import save_order_status_to_euronics
 from ...database.enum import OrderStatus, ScheduleType
 from database_api.operations import create, delete, get_by_id, update, get_by_ids
@@ -109,8 +109,7 @@ def delete_schedule_items(
       delete(schedule_item[2], session=session)
       order = get_by_id(Order, schedule_item[2].order_id, session=session)
       update(order, {'status': OrderStatus.BOOKED}, session=session)
-      for rae_product in get_rae_products_by_order(order):
-        update(rae_product, {'cancellations': rae_product.cancellations + 1}, session=session)
+      recreate_rae_products(order, session=session)
     if schedule_item[1]:
       delete(schedule_item[1], session=session)
     delete(schedule_item[0], session=session)

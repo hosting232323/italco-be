@@ -29,6 +29,7 @@ class User(BaseEntity):
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
 
   log = relationship('Log', back_populates='user')
+  rae_product = relationship('RaeProduct', back_populates='user')
   customer_group = relationship('CustomerGroup', back_populates='user')
   delivery_group = relationship('DeliveryGroup', back_populates='user')
   delivery_user_info = relationship('DeliveryUserInfo', back_populates='user')
@@ -270,10 +271,11 @@ class RaeProduct(BaseEntity):
   __tablename__ = 'rae_product'
 
   quantity = Column(Integer, default=1)
-  cancellations = Column(Integer, default=0)
+  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   status = Column(Enum(RaeStatus), nullable=False, default=RaeStatus.GENERATED)
   rae_product_group_id = Column(Integer, ForeignKey('rae_product_group.id'), nullable=False)
 
+  user = relationship('User', back_populates='rae_product')
   product = relationship('Product', back_populates='rae_product')
   rae_product_group = relationship('RaeProductGroup', back_populates='rae_product')
 
