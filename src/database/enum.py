@@ -27,6 +27,14 @@ class OrderStatus(enum.Enum):
   TO_RESCHEDULE = 'To Reschedule'
 
 
+class RaeStatus(enum.Enum):
+  GENERATED = 'Generated'
+  EMITTED = 'Emitted'
+  LDR = 'LDR'
+  DISPOSED_OFF = 'Disposed Off'
+  ANNULLED = 'Annulled'
+
+
 class EuronicsStatus(enum.Enum):
   NEW = 'New'
   CONFIRMED = 'Confirmed'

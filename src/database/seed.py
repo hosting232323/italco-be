@@ -22,7 +22,7 @@ from .schema import (
   Order,
   Photo,
   Product,
-  RaeProduct,
+  RaeProductGroup,
   Schedule,
   ScheduleItem,
   ScheduleItemCollectionPoint,
@@ -281,7 +281,7 @@ def seed_data():
   for index in range(10):
     rae_products.append(
       create(
-        RaeProduct,
+        RaeProductGroup,
         {
           'name': f'RAE Product {index + 1}',
           'cer_code': 200000 + index,
@@ -348,7 +348,6 @@ def seed_data():
         'order_id': orders[index].id,
         'service_user_id': service_users[index % 10].id,
         'collection_point_id': collection_points[index % 10].id,
-        'rae_product_id': rae_products[index % 10].id if index % 2 == 0 else None,
       },
     )
 
@@ -399,7 +398,7 @@ def can_create() -> bool:
     Service,
     ServiceUser,
     Product,
-    RaeProduct,
+    RaeProductGroup,
     GeographicZone,
     GeographicCode,
     Constraint,

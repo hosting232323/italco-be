@@ -10,7 +10,7 @@ from api import error_catching_decorator
 from ..users.queries import get_user_info
 from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
-from .services import create_product, update_product
+from .services import create_products, update_products
 from .utils import parse_time, get_statuses_by_order_id
 from ..users.session import flask_session_authentication
 from ...database.enum import OrderStatus, UserRole, OrderType
@@ -43,7 +43,7 @@ def create_order(user: User):
 
   with Session() as session:
     order: Order = create(Order, data, session=session)
-    create_product(
+    create_products(
       order,
       request.json['products'],
       user.id if user.role == UserRole.CUSTOMER else request.json['user_id'],
@@ -145,7 +145,7 @@ def update_order(user: User, id):
     if 'external_status' in data:
       del data['external_status']
     if user.role != UserRole.DELIVERY and 'products' in data:
-      update_product(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
+      update_products(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
 
     if order.status == OrderStatus.ACQUIRED and 'booking_date' in data and order.booking_date != data['booking_date']:
       data['status'] = OrderStatus.BOOKED

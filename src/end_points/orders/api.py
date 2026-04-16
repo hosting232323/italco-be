@@ -4,6 +4,7 @@ from sqlalchemy import and_
 from database_api import Session
 from ... import EURONICS_API_PASSWORD
 from database_api.operations import get_by_id
+from ..rae.product import get_rae_products_by_order
 from ...database.schema import (
   Order,
   Schedule,
@@ -13,7 +14,6 @@ from ...database.schema import (
   ServiceUser,
   Product,
   Transport,
-  RaeProduct,
 )
 
 
@@ -64,15 +64,6 @@ def get_schedule_info_by_order(order: Order) -> tuple[Schedule, ScheduleItem]:
 
 def get_transport_by_schedule(schedule: Schedule) -> Transport:
   return get_by_id(Transport, schedule.transport_id)
-
-
-def get_rae_products_by_order(order: Order) -> list[RaeProduct]:
-  with Session() as session:
-    return (
-      session.query(RaeProduct)
-      .join(Product, and_(Product.rae_product_id == RaeProduct.id, Product.order_id == order.id))
-      .all()
-    )
 
 
 def is_available_order(order: Order) -> bool:
