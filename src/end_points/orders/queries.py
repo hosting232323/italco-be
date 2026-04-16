@@ -2,6 +2,7 @@ from sqlalchemy import and_, desc, or_, cast, Date
 
 from database_api import Session
 from ...utils.date import handle_date
+from ..rae.product import get_product_and_group
 from ...database.enum import UserRole, OrderType
 from ...database.schema import (
   Order,
@@ -152,8 +153,8 @@ def add_service(
   object['price'] += price
   object['products'][product.name]['services'].append(service.to_dict())
   object['products'][product.name]['services'][-1]['product_id'] = product.id
-  object['products'][product.name]['rae_product_id'] = product.rae_product_id
-  object['products'][product.name]['rae_product_quantity'] = product.rae_product_quantity
+  if product.rae_product_id:
+    object['products'][product.name]['rae_product'] = get_product_and_group(product.rae_product_id)
 
 
 def get_order_photos(order_id: int) -> list[Photo]:
