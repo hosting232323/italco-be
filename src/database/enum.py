@@ -27,14 +27,6 @@ class RaeStatus(enum.Enum):
   ANNULLED = 'Annulled'
 
 
-class RaeStatus(enum.Enum):
-  GENERATED = 'Generated'
-  EMITTED = 'Emitted'
-  LDR = 'LDR'
-  DISPOSED_OFF = 'Disposed Off'
-  ANNULLED = 'Annulled'
-
-
 class EuronicsStatus(enum.Enum):
   NEW = 'New'
   CONFIRMED = 'Confirmed'
