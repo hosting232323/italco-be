@@ -32,7 +32,7 @@ def create_product(product_name: str, data: dict, order: Order, service_users: l
       {
         'user_id': service_users[0].user_id,
         'quantity': data['rae_product']['quantity'],
-        'rae_product_group_id': data['rae_product']['group_id'],
+        'rae_product_group_id': data['rae_product']['rae_product_group_id'],
       },
       session=session,
     )
