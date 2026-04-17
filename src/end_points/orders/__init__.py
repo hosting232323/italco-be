@@ -238,7 +238,7 @@ def get_statuses(user: User, id):
 @error_catching_decorator
 def serve_image(filename):
   if IS_DEV:
-    folder = os.path.join(STATIC_FOLDER, 'test')
+    folder = os.path.join(STATIC_FOLDER, 'photos', 'test')
   else:
-    folder = os.path.join(STATIC_FOLDER, 'prod')
+    folder = os.path.join(STATIC_FOLDER, 'photos', 'prod')
   return send_from_directory(folder, filename)
