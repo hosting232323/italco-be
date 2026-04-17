@@ -1,10 +1,12 @@
+import os
 import json
 from datetime import datetime
-from flask import Blueprint, request
+from flask import Blueprint, request, send_from_directory
 
 from database_api import Session
 from .mailer import mailer_check
 from .photo import handle_photos
+from ... import STATIC_FOLDER, IS_DEV
 from .sms_sender import delay_sms_check
 from api import error_catching_decorator
 from ..users.queries import get_user_info
@@ -230,3 +232,13 @@ def delete_order(user: User, id):
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def get_statuses(user: User, id):
   return get_statuses_by_order_id(id)
+
+
+@order_bp.route('photos/<filename>', methods=['GET'])
+@error_catching_decorator
+def serve_image(filename):
+  if IS_DEV:
+    folder = os.path.join(STATIC_FOLDER, 'test')
+  else:
+    folder = os.path.join(STATIC_FOLDER, 'prod')
+  return send_from_directory(folder, filename)
