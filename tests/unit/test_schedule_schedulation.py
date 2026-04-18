@@ -171,17 +171,19 @@ def test_professional_services_limit_rule_splits_when_exceeds_limit(monkeypatch)
   assert len(groups) == 2
   # No empty groups
   assert all(any(item['operation_type'] == 'Order' for item in g) for g in groups)
-  # Each group has at most 2 unique professional service IDs
+  # Each group has at most 2 professional orders (orders with ≥1 professional service)
   for g in groups:
-    prof_service_ids = {
-      svc.get('id')
+    pro_order_count = sum(
+      1
       for item in g
       if item['operation_type'] == 'Order'
-      for product in item.get('products', {}).values()
-      for svc in product.get('services', [])
-      if isinstance(svc, dict) and svc.get('professional')
-    }
-    assert len(prof_service_ids) <= 2
+      and any(
+        isinstance(svc, dict) and svc.get('professional')
+        for product in item.get('products', {}).values()
+        for svc in product.get('services', [])
+      )
+    )
+    assert pro_order_count <= 2
 
 
 def test_professional_services_limit_rule_non_professional_services_ignored(monkeypatch):
@@ -201,3 +203,47 @@ def test_professional_services_limit_rule_non_professional_services_ignored(monk
 
   assert len(groups) == 1
   assert len([item for g in groups for item in g if item['operation_type'] == 'Order']) == 3
+
+
+def test_professional_services_limit_rule_rebalances_after_uneven_split(monkeypatch):
+  """
+  With 20 orders (3 pro, 17 non-pro), min=9, max=12:
+  SplitLargeGroupsRule produces [12, 8] because 8 can't be merged back (8+12=20 > max=12).
+  PSLimit must rebalance to [10, 10]: 2 pro+8 non-pro and 1 pro+9 non-pro.
+  Both groups must be ≥ min=9.
+  """
+  _patch_cap_lookup(monkeypatch, {'70020': (41.0, 16.0)})
+
+  pro_service = [{'id': 99, 'name': 'ProfSrv', 'professional': True}]
+  non_pro_service = [{'id': 1, 'name': 'NormalSrv', 'professional': False}]
+
+  orders = [_make_order(i, '70020', collection_point_id=i, services=pro_service) for i in range(1, 4)] + [
+    _make_order(i, '70020', collection_point_id=i, services=non_pro_service) for i in range(4, 21)
+  ]
+
+  groups = schedulation_module.build_clustered_schedule_item_groups(
+    orders=orders,
+    min_size_group=9,
+    max_size_group=12,
+    max_distance_km=500,
+  )
+
+  order_counts = sorted(sum(1 for item in g if item['operation_type'] == 'Order') for g in groups)
+
+  # Should produce exactly 2 groups, each with ≥ min=9 orders
+  assert len(groups) == 2, f'Expected 2 groups, got {len(groups)} with sizes {order_counts}'
+  assert all(c >= 9 for c in order_counts), f'A group is smaller than min=9: {order_counts}'
+
+  # Each group must have ≤ 2 professional orders
+  for g in groups:
+    pro_count = sum(
+      1
+      for item in g
+      if item['operation_type'] == 'Order'
+      and any(
+        isinstance(svc, dict) and svc.get('professional')
+        for product in item.get('products', {}).values()
+        for svc in product.get('services', [])
+      )
+    )
+    assert pro_count <= 2, f'Group has {pro_count} professional orders (limit 2)'

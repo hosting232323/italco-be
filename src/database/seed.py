@@ -194,9 +194,9 @@ def seed_data():
     )
 
   service_types = [OrderType.DELIVERY, OrderType.WITHDRAW, OrderType.REPLACEMENT, OrderType.CHECK]
-  services = []
+
+  # 3 professional services — used only by the explicit PRO-SU service users for orders 0-2
   professional_srv_ids = []
-  # First, add at least three known professional services
   for i in range(3):
     srv = create(
       Service,
@@ -209,10 +209,11 @@ def seed_data():
         'professional': True,
       },
     )
-    services.append(srv)
     professional_srv_ids.append(srv.id)
-  # Fill out to a total of 10 services with original logic
-  for index in range(3, 10):
+
+  # 10 non-professional services for the general service_users pool
+  services = []
+  for index in range(10):
     services.append(
       create(
         Service,
@@ -222,10 +223,11 @@ def seed_data():
           'duration': 30 + (index * 5),
           'description': f'Descrizione servizio {index + 1}',
           'max_services': 3 + (index % 4),
-          'professional': index % 2 == 0,
+          'professional': False,
         },
       )
     )
+
   service_users = []
   for index in range(10):
     service_users.append(
@@ -239,27 +241,6 @@ def seed_data():
         },
       )
     )
-
-    services.append(srv)
-    professional_srv_ids.append(srv.id)
-  # Fill out to a total of 10 services with original logic
-  for index in range(3, 10):
-    services.append(
-      create(
-        Service,
-        {
-          'name': f'Service {index + 1}',
-          'type': service_types[index % len(service_types)],
-          'duration': 30 + (index * 5),
-          'description': f'Descrizione servizio {index + 1}',
-          'max_services': 3 + (index % 4),
-          'professional': index % 2 == 0,
-        },
-      )
-    )
-
-    services.append(srv)
-    professional_srv_ids.append(srv.id)
 
   # fill out the rest of the 10 services as before
 

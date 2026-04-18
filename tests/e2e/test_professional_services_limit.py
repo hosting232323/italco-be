@@ -1,10 +1,11 @@
 """
-E2E test: Pianificazione Automatica respects MAX_PROFESSIONAL_SERVICES=2.
+E2E test: Pianificazione Automatica respects MAX_PROFESSIONAL_ORDERS=2.
 
 Uses Playwright (sync API) instead of Selenium so it can run independently of
 the Selenium infrastructure.  The test opens a real browser, logs in, fills out
 the schedule-suggestion form for today's date, submits it, and asserts that
-every returned proposal group contains at most 2 distinct professional services.
+every returned proposal group contains at most 2 professional orders
+(orders that have at least one product with a professional service).
 """
 
 import datetime
@@ -15,7 +16,7 @@ from playwright.sync_api import sync_playwright
 
 pytestmark = pytest.mark.e2e
 
-MAX_PROFESSIONAL_SERVICES = 2
+MAX_PROFESSIONAL_ORDERS = 2
 
 
 # ---------------------------------------------------------------------------
@@ -23,18 +24,18 @@ MAX_PROFESSIONAL_SERVICES = 2
 # ---------------------------------------------------------------------------
 
 
-def _prof_service_ids_in_group(schedule_items: list) -> set:
-  """Return the set of unique professional service IDs (or names) across all
-  Order items in a single proposal group."""
-  ids: set = set()
+def _count_professional_orders_in_group(schedule_items: list) -> int:
+  """Return the number of Order items in a proposal group that have at least
+  one product with a professional service."""
+  count = 0
   for item in schedule_items:
     if item.get('operation_type') != 'Order':
       continue
     for product in item.get('products', {}).values():
-      for svc in product.get('services', []):
-        if isinstance(svc, dict) and svc.get('professional'):
-          ids.add(svc.get('id') or svc.get('name'))
-  return ids
+      if any(isinstance(svc, dict) and svc.get('professional') for svc in product.get('services', [])):
+        count += 1
+        break
+  return count
 
 
 # ---------------------------------------------------------------------------
@@ -51,8 +52,8 @@ def test_schedule_proposals_professional_services_limit(frontend_reachable):
   4. Set "Dimensione minima gruppo" = 1 (so all 20 seed orders are grouped).
   5. Submit the form.
   6. Capture the /schedule/suggestions API response.
-  7. Assert every group has ≤ MAX_PROFESSIONAL_SERVICES=2 distinct professional
-     service IDs across its orders.
+  7. Assert every group has ≤ MAX_PROFESSIONAL_ORDERS=2 professional orders
+     (orders that have at least one product with a professional service).
   """
   today = datetime.date.today()
 
@@ -122,8 +123,7 @@ def test_schedule_proposals_professional_services_limit(frontend_reachable):
   assert len(groups) > 0, 'Expected at least one proposal group from the seed data'
 
   for i, group in enumerate(groups):
-    prof_ids = _prof_service_ids_in_group(group['schedule_items'])
-    assert len(prof_ids) <= MAX_PROFESSIONAL_SERVICES, (
-      f'Group {i} contains {len(prof_ids)} distinct professional services '
-      f'(limit is {MAX_PROFESSIONAL_SERVICES}): {prof_ids}'
+    pro_count = _count_professional_orders_in_group(group['schedule_items'])
+    assert pro_count <= MAX_PROFESSIONAL_ORDERS, (
+      f'Group {i} contains {pro_count} professional orders (limit is {MAX_PROFESSIONAL_ORDERS})'
     )
