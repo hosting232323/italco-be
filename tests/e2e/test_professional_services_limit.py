@@ -19,11 +19,6 @@ pytestmark = pytest.mark.e2e
 MAX_PROFESSIONAL_ORDERS = 2
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _count_professional_orders_in_group(schedule_items: list) -> int:
   """Return the number of Order items in a proposal group that have at least
   one product with a professional service."""
@@ -36,11 +31,6 @@ def _count_professional_orders_in_group(schedule_items: list) -> int:
         count += 1
         break
   return count
-
-
-# ---------------------------------------------------------------------------
-# Test
-# ---------------------------------------------------------------------------
 
 
 def test_schedule_proposals_professional_services_limit(frontend_reachable):
@@ -65,7 +55,7 @@ def test_schedule_proposals_professional_services_limit(frontend_reachable):
     context = browser.new_context(viewport={'width': 1440, 'height': 900})
     page = context.new_page()
 
-    # ── 1. Login ──────────────────────────────────────────────────────────
+    # Login ──────────────────────────────────────────────────────────
     page.goto(frontend_reachable)
     page.wait_for_load_state('networkidle')
 
@@ -77,11 +67,11 @@ def test_schedule_proposals_professional_services_limit(frontend_reachable):
     page.wait_for_url('**/dashboard**', timeout=20_000)
     page.wait_for_load_state('networkidle')
 
-    # ── 2. Open PIANIFICAZIONE AUTOMATICA dialog ──────────────────────────
+    # Open PIANIFICAZIONE AUTOMATICA dialog ──────────────────────────
     page.get_by_text('Pianificazione Automatica', exact=True).click()
     page.wait_for_selector('.v-overlay--active', timeout=10_000)
 
-    # ── 3. Select today in the DateField ──────────────────────────────────
+    # Select today in the DateField ──────────────────────────────────
     # The DateField uses a readonly v-text-field as a v-menu activator.
     # The calendar icon (mdi-calendar) is bound to the activator; clicking
     # it opens the v-date-picker.
@@ -98,12 +88,12 @@ def test_schedule_proposals_professional_services_limit(frontend_reachable):
     page.keyboard.press('Escape')
     page.wait_for_selector('.v-date-picker', state='hidden', timeout=5_000)
 
-    # ── 4. Set minimum group size = 1 ─────────────────────────────────────
+    # Set minimum group size = 1 ─────────────────────────────────────
     min_input = page.get_by_label('Dimensione minima gruppo')
     min_input.click(click_count=3)
     min_input.fill('1')
 
-    # ── 5. Submit & capture API response ──────────────────────────────────
+    # Submit & capture API response ──────────────────────────────────
     with page.expect_response(
       lambda r: 'schedule/suggestions' in r.url and r.request.method == 'GET',
       timeout=30_000,
@@ -116,7 +106,7 @@ def test_schedule_proposals_professional_services_limit(frontend_reachable):
     context.close()
     browser.close()
 
-  # ── 6–7. Assertions ───────────────────────────────────────────────────────
+  # Assertions ───────────────────────────────────────────────────────
   assert body.get('status') == 'ok', f'schedule/suggestions returned non-ok status: {body}'
 
   groups = body['groups']
