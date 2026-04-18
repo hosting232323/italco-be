@@ -5,6 +5,7 @@ from flask import Flask, send_from_directory
 from api.settings import IS_DEV
 from .checks import trigger_checks
 from database_api.backup import db_backup
+from api.storage.local import folder_backup
 from api import swagger_decorator, error_catching_decorator, PrefixMiddleware
 
 
@@ -16,6 +17,8 @@ allowed_origins = [
 
 DATABASE_URL = os.environ['DATABASE_URL']
 LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
+FOLDER_BACKUP = os.environ.get('FOLDER_BACKUP', None)
+RESTIC_PASSWORD = os.environ.get('RESTIC_PASSWORD', None)
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 POSTGRES_BACKUP_DAYS = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
 STATIC_FOLDER = os.environ.get(
@@ -53,6 +56,13 @@ def serve_image(filename):
 @swagger_decorator
 def trigger_backup():
   return db_backup(DATABASE_URL, STATIC_FOLDER, 'local', 'backup')
+
+
+@app.route('/folder-backup', methods=['GET'])
+@error_catching_decorator
+@swagger_decorator
+def trigger_backup_folder():
+  return folder_backup(FOLDER_BACKUP, os.path.join(STATIC_FOLDER, 'photos', 'prod'), RESTIC_PASSWORD)
 
 
 @app.route('/checks', methods=['GET'])
