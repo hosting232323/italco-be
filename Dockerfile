@@ -5,6 +5,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     git \
     gcc \
+    restic \
     pkg-config \
     libcairo2-dev \
     libpq-dev \
