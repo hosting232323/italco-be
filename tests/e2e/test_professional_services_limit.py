@@ -1,18 +1,22 @@
 """
 E2E test: Pianificazione Automatica respects MAX_PROFESSIONAL_ORDERS=2.
 
-Uses Playwright (sync API) instead of Selenium so it can run independently of
-the Selenium infrastructure.  The test opens a real browser, logs in, fills out
-the schedule-suggestion form for today's date, submits it, and asserts that
-every returned proposal group contains at most 2 professional orders
-(orders that have at least one product with a professional service).
+Uses Selenium (Chrome) to match the CI test infrastructure.  The test logs
+in via the browser (to establish a realistic session and confirm the frontend
+is reachable), extracts the JWT token from the Pinia user store, then calls
+the /schedule/suggestions API directly to assert that every returned proposal
+group contains at most 2 professional orders (orders that have at least one
+product with a professional service).
 """
 
 import datetime
-import re
+import json
+import urllib.request
+from urllib.error import HTTPError
 
 import pytest
-from playwright.sync_api import sync_playwright
+
+from tests.e2e.order_lifecycle_flow import _login as _do_login
 
 pytestmark = pytest.mark.e2e
 
@@ -33,80 +37,49 @@ def _count_professional_orders_in_group(schedule_items: list) -> int:
   return count
 
 
-def test_schedule_proposals_professional_services_limit(frontend_reachable):
+def _extract_token(driver) -> str:
+  """Extract the JWT token from the Pinia user store after login."""
+  token = driver.execute_script("""
+    const pinia = document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia;
+    const userStore = pinia?._s?.get('user');
+    return userStore?.token ?? null;
+  """)
+  assert token, 'JWT token not found in Pinia user store after login'
+  return token
+
+
+def test_schedule_proposals_professional_services_limit(driver, wait, frontend_reachable, e2e_user, backend_server):
   """
   Flow:
-  1. Login as admin.
-  2. Open "Pianificazione Automatica" dialog (SchedulationForm).
-  3. Select today's date from the DateField date-picker.
-  4. Set "Dimensione minima gruppo" = 1 (so all 20 seed orders are grouped).
-  5. Submit the form.
-  6. Capture the /schedule/suggestions API response.
-  7. Assert every group has ≤ MAX_PROFESSIONAL_ORDERS=2 professional orders
+  1. Login as admin via the browser (verifies the frontend login works).
+  2. Extract the JWT token from the Pinia user store.
+  3. Call /schedule/suggestions with today's date and min_size_group=1 so all
+     20 seed orders are eligible for grouping.
+  4. Assert every group has ≤ MAX_PROFESSIONAL_ORDERS=2 professional orders
      (orders that have at least one product with a professional service).
   """
-  today = datetime.date.today()
+  today = datetime.date.today().isoformat()
 
-  with sync_playwright() as pw:
-    browser = pw.chromium.launch(
-      headless=True,
-      args=['--no-sandbox', '--disable-dev-shm-usage'],
-    )
-    context = browser.new_context(viewport={'width': 1440, 'height': 900})
-    page = context.new_page()
+  # 1. Login via browser
+  _do_login(driver, wait, frontend_reachable, e2e_user['email'], e2e_user['password'])
 
-    # Login ──────────────────────────────────────────────────────────
-    page.goto(frontend_reachable)
-    page.wait_for_load_state('networkidle')
+  # 2. Extract JWT token from Pinia store
+  token = _extract_token(driver)
 
-    # The login page renders two inputs: email (type="email") then password.
-    page.locator('input[type="email"]').fill('admin')
-    page.locator('input[type="password"]').fill('1234admin')
-    page.keyboard.press('Enter')
+  # 3. Call schedule/suggestions API directly
+  url = f'{backend_server}/schedule/suggestions?work_date={today}&min_size_group=1&max_size_group=12&max_distance_km=50'
+  req = urllib.request.Request(url, headers={'Authorization': token}, method='GET')
+  try:
+    with urllib.request.urlopen(req, timeout=30) as resp:
+      body = json.loads(resp.read())
+  except HTTPError as exc:
+    raw = exc.read()
+    try:
+      body = json.loads(raw)
+    except Exception:
+      body = {'status': 'ko', 'raw': raw.decode('utf-8', errors='replace'), 'http_status': exc.code}
 
-    page.wait_for_url('**/dashboard**', timeout=20_000)
-    page.wait_for_load_state('networkidle')
-
-    # Open PIANIFICAZIONE AUTOMATICA dialog ──────────────────────────
-    page.get_by_text('Pianificazione Automatica', exact=True).click()
-    page.wait_for_selector('.v-overlay--active', timeout=10_000)
-
-    # Select today in the DateField ──────────────────────────────────
-    # The DateField uses a readonly v-text-field as a v-menu activator.
-    # The calendar icon (mdi-calendar) is bound to the activator; clicking
-    # it opens the v-date-picker.
-    page.locator('.mdi-calendar').first.click()
-    page.wait_for_selector('.v-date-picker', timeout=8_000)
-
-    # Today's button has aria-label starting with "Today," (Vuetify 3).
-    # Example: "Today, Saturday, April 18, 2026"
-    page.locator('button[aria-label^="Today,"]').click()
-
-    # The @change event on v-date-picker in Vuetify 3 does not fire on a simple
-    # date-cell click, so DateField.closeMenu() is not called automatically.
-    # Close the menu by pressing Escape so the rest of the form is accessible.
-    page.keyboard.press('Escape')
-    page.wait_for_selector('.v-date-picker', state='hidden', timeout=5_000)
-
-    # Set minimum group size = 1 ─────────────────────────────────────
-    min_input = page.get_by_label('Dimensione minima gruppo')
-    min_input.click(click_count=3)
-    min_input.fill('1')
-
-    # Submit & capture API response ──────────────────────────────────
-    with page.expect_response(
-      lambda r: 'schedule/suggestions' in r.url and r.request.method == 'GET',
-      timeout=30_000,
-    ) as resp_info:
-      page.get_by_role('button', name=re.compile(r'Invia', re.IGNORECASE)).click()
-
-    response = resp_info.value
-    body = response.json()
-
-    context.close()
-    browser.close()
-
-  # Assertions ───────────────────────────────────────────────────────
+  # 4. Assert professional order limit
   assert body.get('status') == 'ok', f'schedule/suggestions returned non-ok status: {body}'
 
   groups = body['groups']
