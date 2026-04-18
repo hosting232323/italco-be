@@ -1,11 +1,12 @@
-from datetime import datetime, date
-from sqlalchemy import and_, not_, desc, or_
+from sqlalchemy import and_, desc, or_, cast, Date
 
 from database_api import Session
-from ...database.enum import UserRole, OrderType, OrderStatus
+from ...utils.date import handle_date
+from ..rae.product import get_product_and_group
+from ...database.enum import UserRole, OrderType
 from ...database.schema import (
   Order,
-  Status,
+  History,
   Product,
   ServiceUser,
   Service,
@@ -40,8 +41,15 @@ def query_orders(
     for filter in filters:
       value = filter['value']
       if filter['field'] == 'work_date':
-        work_date = value if isinstance(value, date) else datetime.strptime(value, '%Y-%m-%d').date()
-        query = query.filter(or_(Order.booking_date == work_date, Order.dpc == work_date))
+        if type(value) is list:
+          query = query.filter(
+            or_(
+              and_(Order.booking_date >= handle_date(value[0]), Order.booking_date <= handle_date(value[1])),
+              and_(Order.dpc >= handle_date(value[0]), Order.dpc <= handle_date(value[1])),
+            )
+          )
+        else:
+          query = query.filter(or_(Order.booking_date == handle_date(value), Order.dpc == handle_date(value)))
         continue
 
       model = globals()[filter['model']] if filter['model'] not in ['CustomerUser', 'DeliveryUser'] else User
@@ -64,11 +72,23 @@ def query_orders(
       elif model == CustomerGroup:
         query = query.join(CustomerGroup, CustomerGroup.id == User.customer_group_id)
 
-      if model == Order and field in [Order.created_at, Order.dpc] and type(value) is list:
-        query = query.filter(
-          field >= (value[0] if isinstance(value[0], date) else datetime.strptime(value[0], '%Y-%m-%d')),
-          field <= (value[1] if isinstance(value[1], date) else datetime.strptime(value[1], '%Y-%m-%d')),
-        )
+      if (
+        model == Order
+        and type(value) is list
+        and field
+        in [
+          Order.created_at,
+          Order.dpc,
+          Order.booking_date,
+          Order.drc,
+          Order.updated_at,
+          Order.confirmation_date,
+          Order.completion_date,
+        ]
+      ):
+        query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
+      elif model == Order and field in [Order.created_at, Order.updated_at]:
+        query = query.filter(cast(field, Date) == value)
       elif model == Order and field == Order.addressee:
         query = query.filter(field.ilike(f'%{value}%'))
       elif model == Order and field == Order.id and type(value) is list:
@@ -80,32 +100,6 @@ def query_orders(
     if limit:
       query = query.limit(limit)
     return query.all()
-
-
-def query_delivery_orders(
-  user: User,
-) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint]]:
-  with Session() as session:
-    return (
-      session.query(Order, Product, ServiceUser, Service, User, CollectionPoint)
-      .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
-      .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
-      .join(
-        Schedule,
-        and_(
-          Schedule.date == datetime.now().date(),
-          Schedule.id == ScheduleItem.schedule_id,
-          not_(Order.status.in_([OrderStatus.ACQUIRED])),
-        ),
-      )
-      .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user.id))
-      .outerjoin(Product, Product.order_id == Order.id)
-      .outerjoin(CollectionPoint, Product.collection_point_id == CollectionPoint.id)
-      .outerjoin(ServiceUser, Product.service_user_id == ServiceUser.id)
-      .outerjoin(Service, ServiceUser.service_id == Service.id)
-      .outerjoin(User, ServiceUser.user_id == User.id)
-      .all()
-    )
 
 
 def query_products(order: Order) -> list[Product]:
@@ -159,8 +153,8 @@ def add_service(
   object['price'] += price
   object['products'][product.name]['services'].append(service.to_dict())
   object['products'][product.name]['services'][-1]['product_id'] = product.id
-  object['products'][product.name]['rae_product_id'] = product.rae_product_id
-  object['products'][product.name]['rae_product_quantity'] = product.rae_product_quantity
+  if product.rae_product_id:
+    object['products'][product.name]['rae_product'] = get_product_and_group(product.rae_product_id)
 
 
 def get_order_photos(order_id: int) -> list[Photo]:
@@ -198,6 +192,6 @@ def get_order_by_external_id(external_id: str) -> Order:
     return session.query(Order).filter(Order.external_id == external_id).first()
 
 
-def get_all_statuses_by_order_id(order_id: int) -> list[Status]:
+def get_all_histories_by_order_id(order_id: int) -> list[History]:
   with Session() as session:
-    return session.query(Status).filter(Status.order_id == order_id).order_by(desc(Status.id)).all()
+    return session.query(History).filter(History.order_id == order_id).order_by(History.created_at).all()

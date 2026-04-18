@@ -1,7 +1,9 @@
+import os
 import json
 
 
-with open('assets/caps.json', 'r') as file:
+caps_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'caps.json')
+with open(caps_file_path, 'r') as file:
   CAPS_DATA: dict = json.load(file)
 
 
@@ -13,14 +15,19 @@ def get_province_by_cap(cap: str) -> str:
   raise ValueError(f'CAP {cap} not found in any province')
 
 
-def get_cap_by_name(city_name: str) -> str | None:
+def get_cap_by_name(city_name: str) -> str:
   city_name_lower = city_name.lower()
   for _, caps in CAPS_DATA.items():
     for cap, info in caps.items():
-      if info['name'].lower() == city_name_lower:
-        return cap
+      if isinstance(info, list):
+        for city in info:
+          if city['name'].lower() == city_name_lower:
+            return cap
+      else:
+        if info['name'].lower() == city_name_lower:
+          return cap
 
-  return None
+  raise ValueError(f'City name {city_name} not found in any CAP')
 
 
 def get_lat_lon_by_cap(cap: str) -> tuple[float, float]:
@@ -29,7 +36,7 @@ def get_lat_lon_by_cap(cap: str) -> tuple[float, float]:
       cap_data = CAPS_DATA[province][cap]
       return cap_data['lat'], cap_data['lon']
 
-  raise ValueError(f'Cap {cap} not found')
+  raise ValueError(f'CAP {cap} not found')
 
 
 def get_cap_data_by_province(province: str) -> dict:

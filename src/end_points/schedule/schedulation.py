@@ -90,5 +90,10 @@ def build_schedule_item(item, type):
     ('order_id' if type == 'Order' else 'collection_point_id'): item['id'],
   }
   if type == 'Order':
+    schedule_item['status'] = item['status']
     schedule_item['products'] = item['products']
+    schedule_item['dpc'] = item['dpc']
+    schedule_item['drc'] = item['drc']
+    if 'booking_date' in item and item['booking_date']:
+      schedule_item['booking_date'] = item['booking_date']
   return schedule_item

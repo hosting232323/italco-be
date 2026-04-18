@@ -1,8 +1,9 @@
-from datetime import datetime, date
-from sqlalchemy import and_, desc, or_
+from datetime import datetime
+from sqlalchemy import and_, desc, or_, cast, Date
 from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
+from ...utils.date import handle_date
 from ...database.enum import ScheduleType, UserRole
 from database_api.operations import db_session_decorator
 from ...database.schema import (
@@ -16,15 +17,21 @@ from ...database.schema import (
   ScheduleItemOrder,
   CollectionPoint,
   Product,
+  ServiceUser,
+  Service,
 )
 
 
 def query_schedules(
-  filters: list, limit: int = None
-) -> list[tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User]]:
+  filters: list, limit: int = None, get_services: bool = False
+) -> list[tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User, Service]]:
   with Session() as session:
+    entities = [Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User]
+    if get_services:
+      entities.append(Service)
+
     query = (
-      session.query(Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User)
+      session.query(*entities)
       .join(Transport, Schedule.transport_id == Transport.id)
       .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
       .outerjoin(
@@ -43,18 +50,23 @@ def query_schedules(
       .outerjoin(Product, Order.id == Product.order_id)
       .join(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
       .join(User, DeliveryGroup.user_id == User.id)
-      .order_by(desc(Schedule.updated_at))
     )
+    if get_services:
+      query = query.outerjoin(ServiceUser, Product.service_user_id == ServiceUser.id).outerjoin(
+        Service, ServiceUser.service_id == Service.id
+      )
+
     for filter in filters:
       model = globals()[filter['model']]
       field = getattr(model, filter['field'])
       value = filter['value']
 
-      if model == Schedule and field in [Schedule.created_at, Schedule.date]:
-        query = query.filter(
-          field >= (value[0] if isinstance(value[0], date) else datetime.strptime(value[0], '%Y-%m-%d')),
-          field <= (value[1] if isinstance(value[1], date) else datetime.strptime(value[1], '%Y-%m-%d')),
-        )
+      if (
+        model == Schedule and type(value) is list and field in [Schedule.created_at, Schedule.date, Schedule.updated_at]
+      ):
+        query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
+      elif model == Schedule and field in [Schedule.created_at, Schedule.updated_at]:
+        query = query.filter(cast(field, Date) == value)
       else:
         query = query.filter(field == value)
 
@@ -112,11 +124,15 @@ def get_schedule_by_order(order_id: int) -> Schedule:
 
 
 def format_query_result(
-  tupla: tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User], list: list[dict], user: User
+  tupla: tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User, Service],
+  list: list[dict],
+  user: User,
 ) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      format_schedule_item(element['schedule_items'], tupla[2], tupla[3], tupla[4], tupla[5])
+      format_schedule_item(
+        element['schedule_items'], tupla[2], tupla[3], tupla[4], tupla[5], tupla[7] if len(tupla) == 8 else None
+      )
       if tupla[6] and tupla[6].id not in [user['id'] for user in element['users']]:
         element['users'].append(tupla[6].format_user(user.role))
       return list
@@ -127,7 +143,9 @@ def format_query_result(
     'users': [tupla[6].format_user(user.role)] if tupla[6] else [],
     'schedule_items': [],
   }
-  format_schedule_item(schedule['schedule_items'], tupla[2], tupla[3], tupla[4], tupla[5])
+  format_schedule_item(
+    schedule['schedule_items'], tupla[2], tupla[3], tupla[4], tupla[5], tupla[7] if len(tupla) == 8 else None
+  )
   list.append(schedule)
   return list
 
@@ -158,19 +176,29 @@ def get_schedule_item_for_order_id_filter(
 
 
 def format_schedule_item(
-  schedule_items: list, schedule_item: ScheduleItem, collection_point: CollectionPoint, order: Order, product: Product
+  schedule_items: list,
+  schedule_item: ScheduleItem,
+  collection_point: CollectionPoint,
+  order: Order,
+  product: Product,
+  service: Service,
 ):
   if schedule_item.operation_type == ScheduleType.ORDER and order and product:
     schedule_item_order = next(
       (item for item in schedule_items if 'order_id' in item and item['order_id'] == order.id), None
     )
-    order_collection_point = {'collection_point': {'id': product.collection_point_id}}
+    product_dict = {'collection_point': {'id': product.collection_point_id}}
+    if service:
+      product_dict['services'] = [service.name]
     if not schedule_item_order:
       item = order.to_dict()
       item['order_id'] = order.id
-      item['products'] = {product.name: order_collection_point}
+      item['products'] = {product.name: product_dict}
     elif product.name not in schedule_item_order['products']:
-      schedule_item_order['products'][product.name] = order_collection_point
+      schedule_item_order['products'][product.name] = product_dict
+      return
+    elif service and service.name not in schedule_item_order['products'][product.name]['services']:
+      schedule_item_order['products'][product.name]['services'].append(service.name)
       return
     else:
       return
@@ -188,6 +216,7 @@ def format_schedule_item(
 
   item['id'] = schedule_item.id
   item['index'] = schedule_item.index
+  item['completed'] = schedule_item.completed
   item['operation_type'] = schedule_item.operation_type.value
   item['end_time_slot'] = schedule_item.end_time_slot.strftime('%H:%M:%S')
   item['start_time_slot'] = schedule_item.start_time_slot.strftime('%H:%M:%S')

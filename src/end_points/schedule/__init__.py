@@ -6,6 +6,7 @@ from ..users.queries import format_user_with_info
 from ...database.enum import UserRole, OrderStatus
 from ..users.session import flask_session_authentication
 from ...database.schema import Schedule, User, DeliveryGroup
+from .delivery import get_items_for_delivery, update_schedule_item
 from database_api.operations import create, delete, get_by_id, update
 from .schedulation import assign_orders_to_groups, build_schedule_items
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
@@ -69,7 +70,7 @@ def delete_schedule(user: User, id):
 
 
 @schedule_bp.route('filter', methods=['POST'])
-@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY])
 def get_schedules(user: User):
   schedules = []
   for tupla in query_schedules(request.json['filters'], 100):
@@ -78,7 +79,7 @@ def get_schedules(user: User):
   if any(filter['model'] == 'Order' and filter['field'] == 'id' for filter in request.json['filters']):
     for schedule in schedules:
       for tupla in get_schedule_item_for_order_id_filter(schedule['id']):
-        format_schedule_item(schedule['schedule_items'], tupla[1], tupla[2], tupla[3], tupla[4])
+        format_schedule_item(schedule['schedule_items'], tupla[1], tupla[2], tupla[3], tupla[4], None)
 
   return {'status': 'ok', 'schedules': schedules}
 
@@ -89,7 +90,6 @@ def update_schedule(user: User, id):
   with Session() as session:
     schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     actual_schedule_items = get_schedule_items(schedule, session=session)
-
     delivery_groups = get_delivery_groups(schedule, session=session)
     deleted_users = []
     if 'deleted_users' in request.json:
@@ -120,26 +120,27 @@ def update_schedule(user: User, id):
 @schedule_bp.route('suggestions', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
 def get_schedule_suggestions(user: User):
-  booking_date = datetime.strptime(request.args['booking_date'], '%Y-%m-%d')
   orders = []
-  for tupla in query_orders(
-    user,
-    [
-      {'model': 'Order', 'field': 'booking_date', 'value': booking_date},
-      {'model': 'Order', 'field': 'status', 'value': OrderStatus.BOOKED},
-    ],
-  ):
-    orders = format_query_orders_result(tupla, orders, user)
+  work_date = datetime.strptime(request.args['work_date'], '%Y-%m-%d')
+  for status in [OrderStatus.BOOKED, OrderStatus.ACQUIRED]:
+    for tupla in query_orders(
+      user,
+      [
+        {'model': 'Order', 'field': 'work_date', 'value': work_date},
+        {'model': 'Order', 'field': 'status', 'value': status},
+      ],
+    ):
+      orders = format_query_orders_result(tupla, orders, user)
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
 
   delivery_users = [
-    format_user_with_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(booking_date)
+    format_user_with_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(work_date)
   ]
   return {
     'status': 'ok',
     'delivery_users': delivery_users,
-    'transports': [transport.to_dict() for transport in get_transports_by_date(booking_date)],
+    'transports': [transport.to_dict() for transport in get_transports_by_date(work_date)],
     'groups': assign_orders_to_groups(
       orders,
       delivery_users,
@@ -167,3 +168,15 @@ def pianification(user: User):
       return {'status': 'ko', 'error': 'Hai selezionato degli ordini che non sono in stato Booked'}
 
   return {'status': 'ok', 'schedule_items': build_schedule_items(orders)}
+
+
+@schedule_bp.route('item/<id>', methods=['PUT'])
+@flask_session_authentication([UserRole.DELIVERY])
+def update_schedule_item_endpoint(user: User, id):
+  return update_schedule_item(user, int(id), request.json['completed'])
+
+
+@schedule_bp.route('delivery', methods=['GET'])
+@flask_session_authentication([UserRole.DELIVERY])
+def get_items_for_delivery_endpoint(user: User):
+  return get_items_for_delivery(user)

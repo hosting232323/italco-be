@@ -13,10 +13,11 @@ from sqlalchemy import (
   Time,
   event,
   inspect,
+  JSON,
 )
 
 from database_api import BaseEntity
-from .enum import UserRole, OrderStatus, OrderType, ScheduleType, EuronicsStatus
+from .enum import UserRole, OrderStatus, OrderType, ScheduleType, EuronicsStatus, RaeStatus
 
 
 class User(BaseEntity):
@@ -28,6 +29,7 @@ class User(BaseEntity):
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
 
   log = relationship('Log', back_populates='user')
+  rae_product = relationship('RaeProduct', back_populates='user')
   customer_group = relationship('CustomerGroup', back_populates='user')
   delivery_group = relationship('DeliveryGroup', back_populates='user')
   delivery_user_info = relationship('DeliveryUserInfo', back_populates='user')
@@ -128,18 +130,18 @@ class Order(BaseEntity):
 
   schedule_item_order = relationship('ScheduleItemOrder', back_populates='order')
   photo = relationship('Photo', back_populates='order', cascade='all, delete-orphan')
-  statuses = relationship('Status', back_populates='order', cascade='all, delete-orphan')
   product = relationship('Product', back_populates='order', cascade='all, delete-orphan')
+  histories = relationship('History', back_populates='order', cascade='all, delete-orphan')
   motivations = relationship('Motivation', back_populates='order', cascade='all, delete-orphan')
 
 
-class Status(BaseEntity):
-  __tablename__ = 'status'
+class History(BaseEntity):
+  __tablename__ = 'history'
 
-  status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.ACQUIRED)
+  status = Column(JSON, nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
 
-  order = relationship('Order', back_populates='statuses')
+  order = relationship('Order', back_populates='histories')
 
 
 class Motivation(BaseEntity):
@@ -169,6 +171,7 @@ class ScheduleItem(BaseEntity):
   __tablename__ = 'schedule_item'
 
   index = Column(Integer)
+  completed = Column(Boolean, default=False)
   end_time_slot = Column(Time)
   start_time_slot = Column(Time)
   operation_type = Column(Enum(ScheduleType))
@@ -253,7 +256,6 @@ class Product(BaseEntity):
   __tablename__ = 'product'
 
   name = Column(String, nullable=False)
-  rae_product_quantity = Column(Integer, default=1)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
   rae_product_id = Column(Integer, ForeignKey('rae_product.id'), nullable=True)
   service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
@@ -268,11 +270,24 @@ class Product(BaseEntity):
 class RaeProduct(BaseEntity):
   __tablename__ = 'rae_product'
 
+  quantity = Column(Integer, default=1)
+  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+  status = Column(Enum(RaeStatus), nullable=False, default=RaeStatus.GENERATED)
+  rae_product_group_id = Column(Integer, ForeignKey('rae_product_group.id'), nullable=False)
+
+  user = relationship('User', back_populates='rae_product')
+  product = relationship('Product', back_populates='rae_product')
+  rae_product_group = relationship('RaeProductGroup', back_populates='rae_product')
+
+
+class RaeProductGroup(BaseEntity):
+  __tablename__ = 'rae_product_group'
+
   name = Column(String, nullable=False)
   cer_code = Column(Integer, nullable=False)
   group_code = Column(String, nullable=False)
 
-  product = relationship('Product', back_populates='rae_product')
+  rae_product = relationship('RaeProduct', back_populates='rae_product_group')
 
 
 class GeographicZone(BaseEntity):
@@ -330,12 +345,34 @@ class Log(BaseEntity):
 
 
 @event.listens_for(Session, 'before_flush')
-def track_order_status_change(session, flush_context, instances):
-  for obj in session.dirty:
-    if isinstance(obj, Order):
-      if inspect(obj).attrs.status.history.has_changes():
-        session.add(Status(order=obj, status=obj.status))
-
+def track_order_history(session: Session, flush_context, instances):
   for obj in session.new:
     if isinstance(obj, Order):
-      session.add(Status(order=obj, status=obj.status))
+      session.add(
+        History(
+          order=obj,
+          status={
+            'type': 'status',
+            'value': obj.status.value if obj.status else None,
+          },
+        )
+      )
+
+  for obj in session.dirty:
+    if isinstance(obj, Order):
+      state = inspect(obj)
+      for field in ['status', 'anomaly', 'delay', 'confirmed']:
+        if state.attrs[field].history.has_changes():
+          value = getattr(obj, field)
+          if field == 'status' and value:
+            value = value.value
+
+          session.add(
+            History(
+              order=obj,
+              status={
+                'type': field,
+                'value': value,
+              },
+            )
+          )
