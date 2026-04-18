@@ -195,7 +195,55 @@ def seed_data():
 
   service_types = [OrderType.DELIVERY, OrderType.WITHDRAW, OrderType.REPLACEMENT, OrderType.CHECK]
   services = []
+  professional_srv_ids = []
+  # First, add at least three known professional services
+  for i in range(3):
+    srv = create(
+      Service,
+      {
+        'name': f'RealProfessional-{i + 1}',
+        'type': service_types[i % len(service_types)],
+        'duration': 40 + (i * 10),
+        'description': f'Professional service {i + 1}',
+        'max_services': 5,
+        'professional': True,
+      },
+    )
+    services.append(srv)
+    professional_srv_ids.append(srv.id)
+  # Fill out to a total of 10 services with original logic
+  for index in range(3, 10):
+    services.append(
+      create(
+        Service,
+        {
+          'name': f'Service {index + 1}',
+          'type': service_types[index % len(service_types)],
+          'duration': 30 + (index * 5),
+          'description': f'Descrizione servizio {index + 1}',
+          'max_services': 3 + (index % 4),
+          'professional': index % 2 == 0,
+        },
+      )
+    )
+  service_users = []
   for index in range(10):
+    service_users.append(
+      create(
+        ServiceUser,
+        {
+          'code': f'SVC-{index + 1:03d}',
+          'price': 39.0 + (index * 7.5),
+          'user_id': delivery_users[index].id,
+          'service_id': services[index].id,
+        },
+      )
+    )
+
+    services.append(srv)
+    professional_srv_ids.append(srv.id)
+  # Fill out to a total of 10 services with original logic
+  for index in range(3, 10):
     services.append(
       create(
         Service,
@@ -210,19 +258,10 @@ def seed_data():
       )
     )
 
-  service_users = []
-  for index in range(10):
-    service_users.append(
-      create(
-        ServiceUser,
-        {
-          'code': f'SVC-{index + 1:03d}',
-          'price': 39.0 + (index * 7.5),
-          'user_id': delivery_users[index].id,
-          'service_id': services[index].id,
-        },
-      )
-    )
+    services.append(srv)
+    professional_srv_ids.append(srv.id)
+
+  # fill out the rest of the 10 services as before
 
   # E2E: give the base customer user access to the first DELIVERY service so that
   # the admin can create an order on their behalf in end-to-end tests.
@@ -341,15 +380,36 @@ def seed_data():
       )
     )
 
-    create(
-      Product,
-      {
-        'name': f'Prodotto {index + 1}',
-        'order_id': orders[index].id,
-        'service_user_id': service_users[index % 10].id,
-        'collection_point_id': collection_points[index % 10].id,
-      },
-    )
+    if index < 3:
+      # For the first three, force linking to professional services
+      su = create(
+        ServiceUser,
+        {
+          'code': f'PRO-SU-{index + 1}',
+          'price': 99.99 + index,
+          'user_id': delivery_users[index].id,
+          'service_id': professional_srv_ids[index],
+        },
+      )
+      create(
+        Product,
+        {
+          'name': f'ProdottoPro-{index + 1}',
+          'order_id': orders[index].id,
+          'service_user_id': su.id,
+          'collection_point_id': collection_points[index % 10].id,
+        },
+      )
+    else:
+      create(
+        Product,
+        {
+          'name': f'Prodotto {index + 1}',
+          'order_id': orders[index].id,
+          'service_user_id': service_users[index % 10].id,
+          'collection_point_id': collection_points[index % 10].id,
+        },
+      )
 
   for index in range(10):
     create(

@@ -61,11 +61,72 @@ class SplitLargeGroupsRule(ClusteringRule):
     )
 
 
+# Maximum number of unique professional services allowed per schedule group
+MAX_PROFESSIONAL_SERVICES = 2
+
+
+class ProfessionalServicesLimitRule(ClusteringRule):
+  def apply(
+    self,
+    schedule_item_groups: list[ScheduleItemGroup],
+    context: ClusteringContext,
+  ) -> list[ScheduleItemGroup]:
+    new_groups = []
+    for group in schedule_item_groups:
+      orders = [item for item in group if item.get('operation_type') == 'Order']
+      collection_points = {
+        item['collection_point_id']: item for item in group if item.get('operation_type') == 'CollectionPoint'
+      }
+
+      # Map order_id -> set of professional service IDs used by that order
+      order_prof_services: dict[int, set] = {}
+      for order in orders:
+        prof_services: set = set()
+        for product in order.get('products', {}).values():
+          for service in product.get('services', []):
+            if isinstance(service, dict) and service.get('professional'):
+              prof_services.add(service.get('id') or service.get('name'))
+        order_prof_services[order['order_id']] = prof_services
+
+      # If total unique professional services already within limit, keep group as-is
+      all_prof_services = set().union(*order_prof_services.values()) if order_prof_services else set()
+      if len(all_prof_services) <= MAX_PROFESSIONAL_SERVICES:
+        new_groups.append(group)
+        continue
+
+      # Greedy bin-packing: assign each order to the first subgroup that still fits
+      subgroups: list[tuple[set, list]] = []  # (accumulated_prof_services, order_items)
+      for order in orders:
+        order_svcs = order_prof_services[order['order_id']]
+        placed = False
+        for subgroup_svcs, subgroup_orders in subgroups:
+          if len(subgroup_svcs | order_svcs) <= MAX_PROFESSIONAL_SERVICES:
+            subgroup_svcs.update(order_svcs)
+            subgroup_orders.append(order)
+            placed = True
+            break
+        if not placed:
+          subgroups.append((set(order_svcs), [order]))
+
+      # Reconstruct each subgroup with only the collection points belonging to those orders
+      for _, subgroup_orders in subgroups:
+        cp_ids = {
+          product.get('collection_point', {}).get('id')
+          for order in subgroup_orders
+          for product in order.get('products', {}).values()
+        }
+        cp_items = [collection_points[cp_id] for cp_id in cp_ids if cp_id in collection_points]
+        new_groups.append(cp_items + subgroup_orders)
+
+    return new_groups
+
+
 @dataclass(frozen=True, slots=True)
 class ClusteringRuleFactory:
   rules: tuple[type[ClusteringRule], ...] = (
     MergeSmallGroupsRule,
     SplitLargeGroupsRule,
+    ProfessionalServicesLimitRule,
   )
 
   def build(self) -> list[ClusteringRule]:

@@ -24,6 +24,7 @@ dev = [
     "python-dotenv",
     "selenium",
     "ruff",
+    "playwright",
 ]
 
 [tool.ruff]
@@ -36,3 +37,4 @@ quote-style = "single"
 [tool.ruff.lint]
 select = ["E", "F", "T"]
 ignore = ["COM812"]
+
