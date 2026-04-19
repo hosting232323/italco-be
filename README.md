@@ -2,7 +2,7 @@
 
 ```bash
 sudo apt update
-sudo apt install -y pkg-config libcairo2-dev cmake
+sudo apt install -y libpq-dev postgresql-client restic pkg-config libcairo2-dev 
 ```
 
 ## Install from pyproject

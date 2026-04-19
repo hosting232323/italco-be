@@ -3,27 +3,27 @@ name = "italco-be"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
-    "generic_lib[unix] @ git+https://github.com/hosting232323/generic-lib.git ; sys_platform != 'win32'",
-    "generic_lib[win] @ git+https://github.com/hosting232323/generic-lib.git ; sys_platform == 'win32'",
-    "xhtml2pdf",
-    "pandas",
-    "openpyxl",
-    "hashids",
-    "openai",
-    "python-telegram-bot",
-    "gunicorn",
-    "geopy",
-    "scipy",
-    "pdfplumber",
-    "camelot-py[cv]",
+  "generic_lib[unix] @ git+https://github.com/hosting232323/generic-lib.git ; sys_platform != 'win32'",
+  "generic_lib[win] @ git+https://github.com/hosting232323/generic-lib.git ; sys_platform == 'win32'",
+  "xhtml2pdf",
+  "pandas",
+  "openpyxl",
+  "hashids",
+  "openai",
+  "python-telegram-bot",
+  "gunicorn",
+  "geopy",
+  "scipy",
+  "pdfplumber",
+  "camelot-py[cv]",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
-    "python-dotenv",
-    "selenium",
-    "ruff",
+  "pytest",
+  "python-dotenv",
+  "selenium",
+  "ruff",
 ]
 
 [tool.ruff]

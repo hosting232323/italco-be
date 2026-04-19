@@ -37,14 +37,14 @@ def pdf_order_import(user: User):
   return order_import_by_pdf(request.files, request.form['customer_id'])
 
 
-@import_bp.route('euronics/list-api', methods=['POST'])
+@import_bp.route('euronics/list', methods=['POST'])
 @error_catching_decorator
 @swagger_decorator
 def api_order_import():
   return save_orders_by_euronics()
 
 
-@import_bp.route('euronics/status-api', methods=['POST'])
+@import_bp.route('euronics/status', methods=['POST'])
 @error_catching_decorator
 @swagger_decorator
 def api_order_status_update():
