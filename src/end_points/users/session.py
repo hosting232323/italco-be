@@ -4,10 +4,11 @@ import pytz
 import json
 import decimal
 import traceback
-from flask import request
+from flask import request, g
 from functools import wraps
 from datetime import datetime, timedelta
 
+from database_api import Session
 from api import send_telegram_error
 from ...database.enum import UserRole
 from ...database.schema import User, Log, Company
@@ -41,6 +42,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
         company = get_by_id(Company, user.company_id)
         if not company:
           return {'status': 'ko', 'error': 'Company non trovata'}
+        g.company_id = user.company_id
 
         result = func(user, *args, **kwargs)
         if isinstance(result, dict):

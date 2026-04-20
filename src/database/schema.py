@@ -1,4 +1,4 @@
-from sqlalchemy.orm import relationship, Session
+from sqlalchemy.orm import relationship, Session, with_loader_criteria
 from sqlalchemy import (
   Column,
   Enum,
@@ -442,3 +442,21 @@ def track_order_history(session: Session, flush_context, instances):
               },
             )
           )
+
+
+@event.listens_for(Session, "do_orm_execute")
+def add_company_filter(execute_state):
+    if not execute_state.is_select:
+        return
+      
+    company_id = execute_state.session.info.get("company_id")
+    if not company_id:
+        return
+
+    execute_state.statement = execute_state.statement.options(
+        with_loader_criteria(
+            BaseItalcoEntity,
+            lambda cls: cls.company_id == company_id,
+            include_aliases=True
+        )
+    )
