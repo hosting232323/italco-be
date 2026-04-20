@@ -179,6 +179,7 @@ class ScheduleItem(BaseEntity):
 
   schedule = relationship('Schedule', back_populates='schedule_item')
   schedule_item_order = relationship('ScheduleItemOrder', back_populates='schedule_item')
+  schedule_item_release_place = relationship('ScheduleItemReleasePlace', back_populates='schedule_item')
   schedule_item_collection_point = relationship('ScheduleItemCollectionPoint', back_populates='schedule_item')
 
 
@@ -202,6 +203,16 @@ class ScheduleItemCollectionPoint(BaseEntity):
   collection_point = relationship('CollectionPoint', back_populates='schedule_item_collection_point')
 
 
+class ScheduleItemReleasePlace(BaseEntity):
+  __tablename__ = 'schedule_item_release_place'
+
+  schedule_item_id = Column(ForeignKey('schedule_item.id'), nullable=False)
+  collection_point_id = Column(ForeignKey('collection_point.id'), nullable=True)
+
+  schedule_item = relationship('ScheduleItem', back_populates='schedule_item_release_place')
+  collection_point = relationship('CollectionPoint', back_populates='schedule_item_release_place')
+
+
 class Photo(BaseEntity):
   __tablename__ = 'photo'
 
@@ -223,6 +234,7 @@ class CollectionPoint(BaseEntity):
 
   user = relationship('User', back_populates='collection_point')
   product = relationship('Product', back_populates='collection_point')
+  schedule_item_release_place = relationship('ScheduleItemReleasePlace', back_populates='collection_point')
   schedule_item_collection_point = relationship('ScheduleItemCollectionPoint', back_populates='collection_point')
 
 

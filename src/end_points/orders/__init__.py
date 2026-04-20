@@ -14,6 +14,7 @@ from .services import create_products, update_products
 from .utils import parse_time, get_statuses_by_order_id
 from ..users.session import flask_session_authentication
 from ...database.enum import OrderStatus, UserRole, OrderType
+from ..collection_point import query_collection_points_available
 from database_api.operations import create, update, get_by_id, delete
 from ...database.schema import User, Order, Motivation, ServiceUser, DeliveryUserInfo
 from ..schedule.queries import get_schedule_item_by_order, get_delivery_groups_by_order_id
@@ -225,8 +226,20 @@ def delete_order(user: User, id):
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
-@order_bp.route('get-statuses/<id>', methods=['GET'])
+@order_bp.route('statuses/<id>', methods=['GET'])
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def get_statuses(user: User, id):
-  return get_statuses_by_order_id(id)
+  return get_statuses_by_order_id(int(id))
+
+
+@order_bp.route('collection-points/<id>', methods=['GET'])
+@error_catching_decorator
+@flask_session_authentication([UserRole.DELIVERY])
+def get_collection_points_available(user: User, id):
+  return {
+    'status': 'ok',
+    'collection_points': [
+      collection_point.to_dict() for collection_point in query_collection_points_available(int(id))
+    ],
+  }

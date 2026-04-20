@@ -90,7 +90,7 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
     update(order, {'status': OrderStatus.SCHEDULED}, session=session)
     schedule_sms_check(order, new_item)
 
-  elif operation_type == ScheduleType.COLLECTIONPOINT:
+  elif operation_type == ScheduleType.COLLECTION_POINT:
     create(
       ScheduleItemCollectionPoint,
       {
