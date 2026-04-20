@@ -29,13 +29,11 @@
 
       docker run --rm \
         --env-file env_file \
-        -v $STATIC_FOLDER:$STATIC_FOLDER \
         $PJ_NAME:latest python -m alembic upgrade heads
 
       docker run -d --name ${CONTAINER_NEXT} \
         --env-file env_file \
         -p ${SECOND_PORT}:8080 \
-        -v $STATIC_FOLDER:$STATIC_FOLDER \
         $PJ_NAME:latest
 
       sleep 10
