@@ -17,7 +17,7 @@ allowed_origins = [
 
 DATABASE_URL = os.environ['DATABASE_URL']
 LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
-FOLDER_BACKUP = os.environ.get('FOLDER_BACKUP', None)
+BACKUP_FOLDER = os.environ.get('BACKUP_FOLDER', None)
 RESTIC_PASSWORD = os.environ.get('RESTIC_PASSWORD', None)
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 POSTGRES_BACKUP_DAYS = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
@@ -55,14 +55,16 @@ def serve_image(filename):
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup():
-  return db_backup(DATABASE_URL, STATIC_FOLDER, 'local', 'backup')
+  return db_backup(DATABASE_URL, os.path.joint(BACKUP_FOLDER, 'postgres-backup'), 'local', 'backup')
 
 
 @app.route('/folder-backup', methods=['GET'])
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  return folder_backup(FOLDER_BACKUP, os.path.join(STATIC_FOLDER, 'photos', 'prod'), RESTIC_PASSWORD)
+  return folder_backup(
+    os.path.joint(BACKUP_FOLDER, 'folder-backup'), os.path.join(STATIC_FOLDER, 'photos', 'prod'), RESTIC_PASSWORD
+  )
 
 
 @app.route('/checks', methods=['GET'])

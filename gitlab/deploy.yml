@@ -21,7 +21,7 @@
         PROJECT_NAME=$PROJECT_NAME
         TELEGRAM_TOKEN=$TELEGRAM_TOKEN
         RESTIC_PASSWORD=$RESTIC_PASSWORD
-        FOLDER_BACKUP=$FOLDER_BACKUP
+        BACKUP_FOLDER=$BACKUP_FOLDER
       EOF
 
       docker build --no-cache -t $PJ_NAME:latest .
@@ -45,7 +45,7 @@
           --env-file env_file \
           -p ${FIRST_PORT}:8080 \
           -v $STATIC_FOLDER:$STATIC_FOLDER \
-          -v $FOLDER_BACKUP:$FOLDER_BACKUP \
+          -v $BACKUP_FOLDER:$BACKUP_FOLDER \
           $PJ_NAME:latest
         docker rm -f ${CONTAINER_NEXT} 2>/dev/null || true
       else
