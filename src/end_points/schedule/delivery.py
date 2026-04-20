@@ -102,7 +102,8 @@ def query_schedules(
 
 
 def format_query_result(
-  tupla: tuple[ScheduleItem, CollectionPoint, CollectionPoint, Order, Product, CollectionPoint, Service], list: list[dict]
+  tupla: tuple[ScheduleItem, CollectionPoint, CollectionPoint, Order, Product, CollectionPoint, Service],
+  list: list[dict],
 ) -> list[dict]:
   if tupla[0].operation_type == ScheduleType.COLLECTION_POINT and tupla[1]:
     schedule_item = tupla[1].to_dict()
@@ -131,10 +132,4 @@ def format_query_result(
 
 
 def extract_product(collection_point: CollectionPoint, service: Service) -> dict:
-  return {
-    'services': [service.name],
-    'collection_point': {
-      'id': collection_point.id,
-      'name': collection_point.name
-    }
-  }
+  return {'services': [service.name], 'collection_point': {'id': collection_point.id, 'name': collection_point.name}}
