@@ -73,9 +73,7 @@ def query_orders(
         query = query.join(CustomerGroup, CustomerGroup.id == User.customer_group_id)
 
       if (
-        model == Order
-        and type(value) is list
-        and field
+        field
         in [
           Order.created_at,
           Order.dpc,
@@ -85,13 +83,14 @@ def query_orders(
           Order.confirmation_date,
           Order.completion_date,
         ]
+        and type(value) is list
       ):
         query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
-      elif model == Order and field in [Order.created_at, Order.updated_at]:
+      elif field in [Order.created_at, Order.updated_at]:
         query = query.filter(cast(field, Date) == value)
-      elif model == Order and field == Order.addressee:
+      elif field == Order.addressee:
         query = query.filter(field.ilike(f'%{value}%'))
-      elif model == Order and field == Order.id and type(value) is list:
+      elif type(value) is list:
         query = query.filter(Order.id.in_(value))
       else:
         query = query.filter(field == value)
