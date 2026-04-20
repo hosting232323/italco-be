@@ -63,7 +63,7 @@ def trigger_backup():
 @swagger_decorator
 def trigger_backup_folder():
   return folder_backup(
-    os.path.joint(BACKUP_FOLDER, 'folder-backup'), os.path.join(STATIC_FOLDER, 'photos', 'prod'), RESTIC_PASSWORD
+    os.path.join(BACKUP_FOLDER, 'folder-backup'), os.path.join(STATIC_FOLDER, 'photos', 'prod'), RESTIC_PASSWORD
   )
 
 
