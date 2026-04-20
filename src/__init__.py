@@ -55,7 +55,7 @@ def serve_image(filename):
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup():
-  return db_backup(DATABASE_URL, os.path.join(BACKUP_FOLDER, 'postgres-backup'), 'local', 'backup')
+  return db_backup(DATABASE_URL, os.path.join(BACKUP_FOLDER, 'postgres-backup'), 'local')
 
 
 @app.route('/folder-backup', methods=['GET'])
