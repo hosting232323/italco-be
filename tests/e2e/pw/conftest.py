@@ -6,10 +6,8 @@ e aggiunge la fixture `pw_page` — una Page Playwright già loggata come admin 
 che i test Playwright usano al posto del driver Selenium.
 """
 
-import os
-
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page
 
 # ── re-use backend/db fixtures from the parent conftest ──────────────────────
 # Le fixture `backend_server`, `database_engine`, `frontend_url` e `e2e_user`
