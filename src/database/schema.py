@@ -364,15 +364,16 @@ def track_order_history(session: Session, flush_context, instances):
       for field in ['status', 'anomaly', 'delay', 'confirmed']:
         if state.attrs[field].history.has_changes():
           value = getattr(obj, field)
-          if field == 'status' and value:
-            value = value.value
+          if value:
+            if field == 'status':
+              value = value.value
 
-          session.add(
-            History(
-              order=obj,
-              status={
-                'type': field,
-                'value': value,
-              },
+            session.add(
+              History(
+                order=obj,
+                status={
+                  'type': field,
+                  'value': value,
+                },
+              )
             )
-          )

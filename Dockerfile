@@ -3,14 +3,14 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
-    git \
-    gcc \
-    restic \
-    pkg-config \
-    libcairo2-dev \
-    libpq-dev \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+  git \
+  gcc \
+  libpq-dev \
+  postgresql-client \
+  restic \
+  pkg-config \
+  libcairo2-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir .

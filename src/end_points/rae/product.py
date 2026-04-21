@@ -1,22 +1,91 @@
 from datetime import date
-from sqlalchemy import extract, func, and_
+from sqlalchemy import extract, func, and_, exists, cast, Date, desc
 
 from database_api import Session
+from ...utils.date import handle_date
 from ...database.enum import RaeStatus
-from database_api.operations import create, update
-from ...database.schema import Order, Product, RaeProduct, RaeProductGroup
+from ..users.queries import format_user_with_info
+from database_api.operations import create, update, delete, get_by_id
+from ...database.schema import (
+  Order,
+  Product,
+  RaeProduct,
+  RaeProductGroup,
+  User,
+  Schedule,
+  ScheduleItem,
+  ScheduleItemOrder,
+)
 
 
-def get_rae_products():
-  return {
-    'status': 'ok',
-    'rae_products': [rae_product.to_dict() for rae_product in query_rae_products()],
-  }
+def get_rae_products(user: User, filters: list[dict]):
+  rae_products = []
+  for tupla in query_rae_products(filters):
+    rae_products = format_query_result(tupla, rae_products, user)
+  return {'status': 'ok', 'rae_products': rae_products}
 
 
-def query_rae_products() -> list[RaeProduct]:
+def delete_rae_product(id: int):
+  if check_orders(id):
+    return {'status': 'ko', 'message': 'Prodotto Rae ancora associato ad un Ordine'}
+
+  delete(get_by_id(RaeProduct, id))
+  return {'status': 'ok', 'message': 'Operazione completata'}
+
+
+def query_rae_products(filters: list[dict]) -> list[tuple[RaeProduct, RaeProductGroup, User, Order]]:
   with Session() as session:
-    return session.query(RaeProduct).all()
+    query = (
+      session.query(RaeProduct, RaeProductGroup, User, Order)
+      .join(RaeProductGroup, RaeProduct.rae_product_group_id == RaeProductGroup.id)
+      .join(User, RaeProduct.user_id == User.id)
+      .outerjoin(Product, RaeProduct.id == Product.rae_product_id)
+      .outerjoin(Order, Product.order_id == Order.id)
+    )
+
+    for filter in filters:
+      model = globals()[filter['model']]
+      field = getattr(model, filter['field'])
+      value = filter['value']
+
+      if model == Schedule:
+        query = (
+          query.join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
+          .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+          .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
+        )
+
+      if field in [Schedule.date, RaeProduct.created_at] and type(value) is list:
+        query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
+      elif field == RaeProduct.created_at:
+        query = query.filter(cast(field, Date) == value)
+      elif field == RaeProduct.status:
+        query = query.filter(field == RaeStatus(value))
+      else:
+        query = query.filter(field == value)
+    return query.order_by(desc(RaeProduct.created_at)).all()
+
+
+def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order], list: list[dict], user: User):
+  for element in list:
+    if element['id'] == tupla[0].id:
+      return list
+
+  output = {
+    **tupla[0].to_dict(),
+    'product_group': tupla[1].to_dict(),
+    'user': format_user_with_info(tupla[2], user.role),
+    'rae_number': query_count_rae_products(tupla[0].id, tupla[2].id),
+  }
+  if tupla[3]:
+    output['order'] = tupla[3].to_dict()
+  list.append(output)
+  return list
+
+
+def check_orders(rae_product_id) -> bool:
+  with Session() as session:
+    return session.query(exists().where(Product.rae_product_id == rae_product_id)).scalar()
 
 
 def query_count_rae_products(rae_product_id: int, user_id: int) -> int:
