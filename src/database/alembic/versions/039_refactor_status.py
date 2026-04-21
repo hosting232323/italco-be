@@ -57,43 +57,43 @@ def upgrade() -> None:
   op.execute(f'CREATE TYPE orderstatus_new AS ENUM {new_values}')
 
   op.execute("""
-      ALTER TABLE "order"
-      ALTER COLUMN status DROP DEFAULT,
-      ALTER COLUMN status TYPE orderstatus_new
-      USING (
-        CASE status::text
-            WHEN 'REPLACEMENT' THEN 'RESCHEDULED'
-            
-            WHEN 'REDELIVERY' THEN 'NOT_DELIVERED'
-            WHEN 'CANCELLED' THEN 'NOT_DELIVERED'
-            WHEN 'URGENT' THEN 'NOT_DELIVERED'
-            WHEN 'VERIFICATION' THEN 'NOT_DELIVERED'
-            WHEN 'CANCELLED_TO_BE_REFUNDED' THEN 'NOT_DELIVERED'
-            WHEN 'DELETED' THEN 'NOT_DELIVERED'
-            WHEN 'AT_WAREHOUSE' THEN 'NOT_DELIVERED'
+    ALTER TABLE "order"
+    ALTER COLUMN status DROP DEFAULT,
+    ALTER COLUMN status TYPE orderstatus_new
+    USING (
+      CASE status::text
+        WHEN 'REPLACEMENT' THEN 'RESCHEDULED'
 
-            ELSE status::text
-        END
-      )::orderstatus_new
+        WHEN 'REDELIVERY' THEN 'NOT_DELIVERED'
+        WHEN 'CANCELLED' THEN 'NOT_DELIVERED'
+        WHEN 'URGENT' THEN 'NOT_DELIVERED'
+        WHEN 'VERIFICATION' THEN 'NOT_DELIVERED'
+        WHEN 'CANCELLED_TO_BE_REFUNDED' THEN 'NOT_DELIVERED'
+        WHEN 'DELETED' THEN 'NOT_DELIVERED'
+        WHEN 'AT_WAREHOUSE' THEN 'NOT_DELIVERED'
+
+        ELSE status::text
+      END
+    )::orderstatus_new
   """)
 
   op.execute("""
     ALTER TABLE "motivation"
     ALTER COLUMN status TYPE orderstatus_new
     USING (
-        CASE status::text
-            WHEN 'REPLACEMENT' THEN 'RESCHEDULED'
-            
-            WHEN 'REDELIVERY' THEN 'NOT_DELIVERED'
-            WHEN 'CANCELLED' THEN 'NOT_DELIVERED'
-            WHEN 'URGENT' THEN 'NOT_DELIVERED'
-            WHEN 'VERIFICATION' THEN 'NOT_DELIVERED'
-            WHEN 'CANCELLED_TO_BE_REFUNDED' THEN 'NOT_DELIVERED'
-            WHEN 'DELETED' THEN 'NOT_DELIVERED'
-            WHEN 'AT_WAREHOUSE' THEN 'NOT_DELIVERED'
+      CASE status::text
+        WHEN 'REPLACEMENT' THEN 'RESCHEDULED'
 
-            ELSE status::text
-        END
+        WHEN 'REDELIVERY' THEN 'NOT_DELIVERED'
+        WHEN 'CANCELLED' THEN 'NOT_DELIVERED'
+        WHEN 'URGENT' THEN 'NOT_DELIVERED'
+        WHEN 'VERIFICATION' THEN 'NOT_DELIVERED'
+        WHEN 'CANCELLED_TO_BE_REFUNDED' THEN 'NOT_DELIVERED'
+        WHEN 'DELETED' THEN 'NOT_DELIVERED'
+        WHEN 'AT_WAREHOUSE' THEN 'NOT_DELIVERED'
+
+        ELSE status::text
+      END
     )::orderstatus_new
   """)
 
