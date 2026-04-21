@@ -10,3 +10,4 @@ build
 *.egg-info
 seed_data.py
 *.log
+.playwright-mcp/

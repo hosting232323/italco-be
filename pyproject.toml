@@ -25,6 +25,7 @@ dev = [
   "selenium",
   "ruff",
   "playwright",
+  "pytest-playwright",
 ]
 
 [tool.ruff]
