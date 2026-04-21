@@ -365,7 +365,7 @@ def seed_data():
         'text': f'Motivazione {index + 1}',
         'delay': index % 2 == 0,
         'anomaly': index % 3 == 0,
-        'status': OrderStatus.NOT_DELIVERED if index % 2 == 0 else OrderStatus.REDELIVERY,
+        'status': OrderStatus.NOT_DELIVERED if index % 2 == 0 else OrderStatus.DELIVERED,
         'order_id': orders[index].id,
       },
     )
