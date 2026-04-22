@@ -1,7 +1,7 @@
 from .sms_sender import schedule_sms_check
-from ..rae.product import recreate_rae_products
 from ..orders.api import save_order_status_to_euronics
 from ...database.enum import OrderStatus, ScheduleType
+from ..rae.product import recreate_rae_products, emit_rae_products
 from database_api.operations import create, delete, get_by_id, update, get_by_ids
 from ...database.schema import (
   CollectionPoint,
@@ -88,6 +88,7 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
       session=session,
     )
     update(order, {'status': OrderStatus.SCHEDULED}, session=session)
+    emit_rae_products(order, session=session)
     schedule_sms_check(order, new_item)
 
   elif operation_type == ScheduleType.COLLECTIONPOINT:
