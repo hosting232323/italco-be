@@ -9,9 +9,7 @@ from sqlalchemy.orm import Session as session_type
 from .database.schema import Order, Product, ServiceUser, Schedule, Photo, History
 
 
-missing_photos_path = os.path.join(
-  os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src', 'assets', 'missing_photos.txt'
-)
+missing_photos_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'missing_photos.txt')
 with open(missing_photos_path, 'r', encoding='utf-8') as file:
   MISSING_PHOTOS = [int(id) for id in re.findall(r'id:\s*(\d+)', file.read())]
 
