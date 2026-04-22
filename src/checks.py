@@ -111,13 +111,11 @@ def check_orders_no_product(session: session_type):
 
 
 def check_history_invalid_status(session: session_type):
-  return session.query(History).filter(
-    or_(
-      History.status.is_(None),
-      History.status['value'].is_(None),
-      History.status['type'].is_(None)
-    )
-  ).all()
+  return (
+    session.query(History)
+    .filter(or_(History.status.is_(None), History.status['value'].is_(None), History.status['type'].is_(None)))
+    .all()
+  )
 
 
 def format_schedule_issue(s):
@@ -132,8 +130,4 @@ def format_order(o):
 
 
 def format_history_invalid(h):
-  return (
-    f'- History ID {h.id} | '
-    f'Order ID: {h.order_id} | '
-    f'Status: {h.status}'
-  )
+  return f'- History ID {h.id} | Order ID: {h.order_id} | Status: {h.status}'
