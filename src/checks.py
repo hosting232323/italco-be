@@ -1,7 +1,7 @@
 import os
 import re
+from sqlalchemy import or_, cast, String
 
-from sqlalchemy import or_
 from database_api import Session
 from api.storage import check_mismatch
 from api.telegram import send_telegram_message
@@ -10,7 +10,7 @@ from .database.schema import Order, Product, ServiceUser, Schedule, Photo, Histo
 
 
 missing_photos_path = os.path.join(
-  os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'assets', 'missing_photos.txt'
+  os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src', 'assets', 'missing_photos.txt'
 )
 with open(missing_photos_path, 'r', encoding='utf-8') as file:
   MISSING_PHOTOS = [int(id) for id in re.findall(r'id:\s*(\d+)', file.read())]
@@ -113,7 +113,13 @@ def check_orders_no_product(session: session_type):
 def check_history_invalid_status(session: session_type):
   return (
     session.query(History)
-    .filter(or_(History.status.is_(None), History.status['value'].is_(None), History.status['type'].is_(None)))
+    .filter(
+      or_(
+        History.status.is_(None),
+        cast(History.status['value'], String) == 'null',
+        cast(History.status['type'], String) == 'null',
+      )
+    )
     .all()
   )
 
