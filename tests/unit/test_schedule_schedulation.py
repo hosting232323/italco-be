@@ -1,12 +1,9 @@
-from src.end_points.schedule import clustering as clustering_module
-from src.end_points.schedule import experiments as experiments_module
-from src.end_points.schedule import schedulation as schedulation_module
-from src.end_points.schedule.clustering import (
-  ClusteringRuleFactory,
-  MergeSmallGroupsRule,
-  ProfessionalServicesLimitRule,
-  SplitLargeGroupsRule,
-)
+from src import schedulation as schedulation_module
+
+from src.schedulation.clustering import ClusteringRuleFactory
+from src.schedulation.clustering_rules.merge_small_group import MergeSmallGroupsRule
+from src.schedulation.clustering_rules.split_large_group import SplitLargeGroupsRule
+from src.schedulation.clustering_rules.professional_services_limit import ProfessionalServicesLimitRule
 
 
 def _make_order(
@@ -40,8 +37,6 @@ def _patch_cap_lookup(monkeypatch, coords: dict[str, tuple[float, float]]):
   def cap_lookup(cap: str) -> tuple[float, float]:
     return coords[cap]
 
-  monkeypatch.setattr(clustering_module, 'get_lat_lon_by_cap', cap_lookup)
-  monkeypatch.setattr(experiments_module, 'get_lat_lon_by_cap', cap_lookup)
   monkeypatch.setattr(schedulation_module, 'get_lat_lon_by_cap', cap_lookup)
 
 
