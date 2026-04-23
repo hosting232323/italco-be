@@ -1,8 +1,9 @@
-from src import schedulation as schedulation_module
+from src.utils import caps as utils_caps_module
 
-from src.schedulation.clustering import ClusteringRuleFactory
+from src.schedulation import assign_orders_to_groups
 from src.schedulation.clustering_rules.merge_small_group import MergeSmallGroupsRule
 from src.schedulation.clustering_rules.split_large_group import SplitLargeGroupsRule
+from src.schedulation.clustering import ClusteringRuleFactory, build_clustered_schedule_item_groups
 from src.schedulation.clustering_rules.professional_services_limit import ProfessionalServicesLimitRule
 
 
@@ -37,7 +38,7 @@ def _patch_cap_lookup(monkeypatch, coords: dict[str, tuple[float, float]]):
   def cap_lookup(cap: str) -> tuple[float, float]:
     return coords[cap]
 
-  monkeypatch.setattr(schedulation_module, 'get_lat_lon_by_cap', cap_lookup)
+  monkeypatch.setattr(utils_caps_module, 'get_lat_lon_by_cap', cap_lookup)
 
 
 def _order_ids(group: dict) -> list[int]:
@@ -59,7 +60,7 @@ def test_build_clustered_schedule_item_groups_merges_small_groups(monkeypatch):
     },
   )
 
-  groups = schedulation_module.build_clustered_schedule_item_groups(
+  groups = build_clustered_schedule_item_groups(
     orders=[
       _make_order(1, '10000'),
       _make_order(2, '10001'),
@@ -81,7 +82,7 @@ def test_build_clustered_schedule_item_groups_splits_large_groups(monkeypatch):
     },
   )
 
-  groups = schedulation_module.build_clustered_schedule_item_groups(
+  groups = build_clustered_schedule_item_groups(
     orders=[
       _make_order(1, '10000', collection_point_id=10),
       _make_order(2, '10000', collection_point_id=11),
@@ -107,7 +108,7 @@ def test_assign_orders_to_groups_preserves_delivery_assignment(monkeypatch):
     },
   )
 
-  groups = schedulation_module.assign_orders_to_groups(
+  groups = assign_orders_to_groups(
     orders=[
       _make_order(1, '10000'),
       _make_order(2, '20000'),
@@ -134,7 +135,7 @@ def test_professional_services_limit_rule_keeps_group_within_limit(monkeypatch):
   _patch_cap_lookup(monkeypatch, {'10000': (41.0, 16.0)})
 
   # 2 orders, each with 1 distinct professional service → total 2 → keep as 1 group
-  groups = schedulation_module.build_clustered_schedule_item_groups(
+  groups = build_clustered_schedule_item_groups(
     orders=[
       _make_order(1, '10000', services=[{'id': 10, 'name': 'SrvA', 'professional': True}]),
       _make_order(2, '10000', services=[{'id': 11, 'name': 'SrvB', 'professional': True}]),
@@ -152,7 +153,7 @@ def test_professional_services_limit_rule_splits_when_exceeds_limit(monkeypatch)
   _patch_cap_lookup(monkeypatch, {'10000': (41.0, 16.0)})
 
   # 3 orders each with a distinct professional service → must split into 2 groups
-  groups = schedulation_module.build_clustered_schedule_item_groups(
+  groups = build_clustered_schedule_item_groups(
     orders=[
       _make_order(1, '10000', services=[{'id': 10, 'name': 'SrvA', 'professional': True}]),
       _make_order(2, '10000', services=[{'id': 11, 'name': 'SrvB', 'professional': True}]),
@@ -185,7 +186,7 @@ def test_professional_services_limit_rule_non_professional_services_ignored(monk
   _patch_cap_lookup(monkeypatch, {'10000': (41.0, 16.0)})
 
   # 3 orders with only non-professional services → no split needed
-  groups = schedulation_module.build_clustered_schedule_item_groups(
+  groups = build_clustered_schedule_item_groups(
     orders=[
       _make_order(1, '10000', services=[{'id': 10, 'name': 'SrvA', 'professional': False}]),
       _make_order(2, '10000', services=[{'id': 11, 'name': 'SrvB', 'professional': False}]),
@@ -216,7 +217,7 @@ def test_professional_services_limit_rule_rebalances_after_uneven_split(monkeypa
     _make_order(i, '70020', collection_point_id=i, services=non_pro_service) for i in range(4, 21)
   ]
 
-  groups = schedulation_module.build_clustered_schedule_item_groups(
+  groups = build_clustered_schedule_item_groups(
     orders=orders,
     min_size_group=9,
     max_size_group=12,
