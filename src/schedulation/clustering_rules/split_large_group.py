@@ -1,6 +1,22 @@
 from geopy.distance import geodesic
 
+from ..building import set_schedule_index
 from ...utils.caps import get_lat_lon_by_cap
+from . import ClusteringRule, ScheduleItemGroup, ClusteringContext
+
+
+class SplitLargeGroupsRule(ClusteringRule):
+  def apply(
+    self,
+    schedule_item_groups: list[ScheduleItemGroup],
+    context: ClusteringContext,
+  ) -> list[ScheduleItemGroup]:
+    return split_large_groups(
+      schedule_item_groups,
+      context.min_size_group,
+      context.max_size_group,
+      context.max_distance_km,
+    )
 
 
 def split_large_groups(schedule_item_groups, min_size_group, max_size_group, max_distance_km):
@@ -190,12 +206,6 @@ def build_sub_groups(sub_groups_orders, collection_point_items):
     result.append(sub_group)
 
   return result
-
-
-def set_schedule_index(item, index):
-  new_item = item.copy()
-  new_item['index'] = index
-  return new_item
 
 
 def enforce_max_size(groups, max_size_group):
