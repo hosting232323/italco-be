@@ -85,7 +85,7 @@ deploy_prod:
     - export SECOND_PORT="${PORT_PROD#*-}"
 
 .setup_database:
-  stage: database
+  stage: deploy
   image: postgres:17
   when: manual
   tags:
