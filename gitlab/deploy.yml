@@ -1,5 +1,8 @@
 .deploy:
   stage: deploy
+  when: manual
+  tags:
+    - deploy-local
   script:
     - |
       cat <<-EOF > env_file
@@ -55,9 +58,6 @@
 
 deploy_test:
   extends: .deploy
-  tags:
-    - deploy-local
-  when: manual
   variables:
     PJ_NAME: "${PROJECT_NAME}-test"
     CONTAINER_ACTIVE: "${PROJECT_NAME}-test"
@@ -71,9 +71,6 @@ deploy_test:
 
 deploy_prod:
   extends: .deploy
-  tags:
-    - deploy-local
-  when: manual
   only:
     - main
   variables:
@@ -86,3 +83,39 @@ deploy_prod:
   before_script:
     - export FIRST_PORT="${PORT_PROD%%-*}"
     - export SECOND_PORT="${PORT_PROD#*-}"
+
+.setup_database:
+  stage: database
+  image: postgres:17
+  when: manual
+  tags:
+    - deploy-local
+  script:
+    - echo "Using DATABASE_URL_PIPELINE..."
+    - export DB_URL="$DATABASE_URL_PIPELINE"
+    - export DB_NAME=$(echo "$DB_URL" | awk -F/ '{print $NF}')
+    - export BASE_URL="${DB_URL%/*}/postgres"
+    - echo "Checking if database '$DB_NAME' already exists..."
+
+    - |
+      EXISTS=$(psql "$BASE_URL" -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'")
+      if [ "$EXISTS" = "1" ]; then
+        echo "❌ Database '$DB_NAME' already exists. Failing job."
+        exit 1
+      fi
+
+    - echo "Database does not exist. Creating..."
+    - psql "$BASE_URL" -c "CREATE DATABASE ${DB_NAME};"
+    - echo "✅ Database '$DB_NAME' created successfully."
+
+setup_database_test:
+  extends: .setup_database
+  variables:
+    DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
+
+setup_database_prod:
+  extends: .setup_database
+  only:
+    - main
+  variables:
+    DATABASE_URL_PIPELINE: "${DATABASE_URL}"
