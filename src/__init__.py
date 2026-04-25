@@ -1,4 +1,5 @@
 import os
+import threading
 from flask_cors import CORS
 from flask import Flask, send_from_directory
 
@@ -62,9 +63,18 @@ def trigger_backup():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  return folder_backup(
-    os.path.join(BACKUP_FOLDER, 'folder-backup'), os.path.join(STATIC_FOLDER, 'photos', 'prod'), RESTIC_PASSWORD
-  )
+  threading.Thread(
+    target=folder_backup,
+    args=(
+      os.path.join(BACKUP_FOLDER, 'folder-backup'),
+      os.path.join(STATIC_FOLDER, 'photos', 'prod'),
+      RESTIC_PASSWORD,
+      'Pichu',
+    ),
+    daemon=True,
+  ).start()
+
+  return {'status': 'ok', 'message': 'Operazione completata con successo!'}
 
 
 @app.route('/checks', methods=['GET'])
