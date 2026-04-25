@@ -63,15 +63,18 @@ def trigger_backup():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  thread = threading.Thread(
+  threading.Thread(
     target=folder_backup,
-    args=(os.path.join(BACKUP_FOLDER, 'folder-backup'), os.path.join(STATIC_FOLDER, 'photos', 'prod'), RESTIC_PASSWORD, 'Pichu'),
+    args=(
+      os.path.join(BACKUP_FOLDER, 'folder-backup'),
+      os.path.join(STATIC_FOLDER, 'photos', 'prod'),
+      RESTIC_PASSWORD,
+      'Pichu',
+    ),
     daemon=True,
-  )
-  thread.start()
+  ).start()
 
   return {'status': 'ok', 'message': 'Operazione completata con successo!'}
-
 
 
 @app.route('/checks', methods=['GET'])
