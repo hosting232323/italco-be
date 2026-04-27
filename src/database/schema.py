@@ -348,12 +348,15 @@ class Log(BaseEntity):
 def track_order_history(session: Session, flush_context, instances):
   for obj in session.new:
     if isinstance(obj, Order):
+      value = obj.status.value if obj.status else None
+      if value is None:
+        continue
       session.add(
         History(
           order=obj,
           status={
             'type': 'status',
-            'value': obj.status.value if obj.status else None,
+            'value': value,
           },
         )
       )
@@ -362,18 +365,23 @@ def track_order_history(session: Session, flush_context, instances):
     if isinstance(obj, Order):
       state = inspect(obj)
       for field in ['status', 'anomaly', 'delay', 'confirmed']:
-        if state.attrs[field].history.has_changes():
-          value = getattr(obj, field)
-          if value:
-            if field == 'status':
-              value = value.value
+        attr = state.attrs[field]
 
-            session.add(
-              History(
-                order=obj,
-                status={
-                  'type': field,
-                  'value': value,
-                },
-              )
-            )
+        if not attr.history.has_changes():
+          continue
+
+        value = attr.history.added[-1] if attr.history.added else None
+        if field == 'status' and value is not None:
+          value = value.value
+
+        if value is None:
+          continue
+        session.add(
+          History(
+            order=obj,
+            status={
+              'type': field,
+              'value': value,
+            },
+          )
+        )
