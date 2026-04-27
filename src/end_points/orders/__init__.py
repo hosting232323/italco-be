@@ -35,6 +35,7 @@ order_bp = Blueprint('order_bp', __name__)
 def create_order(user: User):
   data = {key: value for key, value in request.json.items() if key not in ['products', 'user_id', 'cloned_order_id']}
   data['type'] = OrderType(data['type'])
+  data.setdefault('status', OrderStatus.ACQUIRED)
   if user.role in [UserRole.ADMIN, UserRole.OPERATOR]:
     data['confirmed'] = True
     data['confirmation_date'] = datetime.now()
