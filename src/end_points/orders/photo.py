@@ -27,7 +27,7 @@ def handle_photos(data: dict, order: Order, session: session_type):
               f'{id}{guess_extension(uploaded_file.mimetype)}',
               os.path.join(STATIC_FOLDER, 'photos'),
               'local',
-            ),
+            ).replace('/api/photos/prod/', '/api/order/photos/'),
           },
           session=session,
         )
