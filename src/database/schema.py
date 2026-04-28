@@ -1,4 +1,4 @@
-from sqlalchemy.orm import relationship, Session
+from sqlalchemy.orm import relationship
 from sqlalchemy import (
   Column,
   Enum,
@@ -11,8 +11,6 @@ from sqlalchemy import (
   Boolean,
   Numeric,
   Time,
-  event,
-  inspect,
   JSON,
 )
 
@@ -342,35 +340,3 @@ class Log(BaseEntity):
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='log')
-
-
-@event.listens_for(Session, 'before_flush')
-def track_order_history(session: Session, flush_context, instances):
-  for obj in session.new:
-    if isinstance(obj, Order):
-      create_history(session, obj, 'status', obj.status if obj.status else OrderStatus.ACQUIRED)
-      if obj.confirmed:
-        create_history(session, obj, 'confirmed', True)
-
-  for obj in session.dirty:
-    if isinstance(obj, Order):
-      state = inspect(obj)
-      for field in ['status', 'anomaly', 'delay', 'confirmed']:
-        if state.attrs[field].history.has_changes():
-          value = getattr(obj, field)
-          create_history(session, obj, field, value)
-
-
-def create_history(session: Session, obj, field, value):
-  if field == 'status':
-    value = value.value
-
-  session.add(
-    History(
-      order=obj,
-      status={
-        'type': field,
-        'value': value,
-      },
-    )
-  )
