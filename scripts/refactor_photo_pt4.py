@@ -14,4 +14,4 @@ def get_all_photos() -> list[Photo]:
 if __name__ == '__main__':
   set_database(DATABASE_URL)
   for photo in tqdm(get_all_photos()):
-    update(photo, {'link': photo.link.replace('/photos/', '/photos/prod/')})
+    update(photo, {'link': photo.link.replace('/api/photos/prod/', '/api/order/photos/')})
