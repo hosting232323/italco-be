@@ -4,10 +4,10 @@ from flask import Blueprint, request
 
 from database_api import Session
 from .mailer import mailer_check
-from .photo import handle_photos
 from .sms_sender import delay_sms_check
 from api import error_catching_decorator
 from ..users.queries import get_user_info
+from .photo import handle_photos, serve_image
 from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_products, update_products
@@ -230,3 +230,9 @@ def delete_order(user: User, id):
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def get_statuses(user: User, id):
   return get_statuses_by_order_id(id)
+
+
+@order_bp.route('photos/<filename>', methods=['GET'])
+@error_catching_decorator
+def serve_image_endpoint(filename):
+  return serve_image(filename)
