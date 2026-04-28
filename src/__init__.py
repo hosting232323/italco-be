@@ -27,7 +27,7 @@ STATIC_FOLDER = os.environ.get(
 )
 
 
-app = Flask(__name__, static_folder=STATIC_FOLDER, template_folder='../templates')
+app = Flask(__name__, template_folder='../templates')
 
 
 API_PREFIX = os.environ.get('API_PREFIX', None)
