@@ -25,6 +25,9 @@
         TELEGRAM_TOKEN=$TELEGRAM_TOKEN
         RESTIC_PASSWORD=$RESTIC_PASSWORD
         BACKUP_FOLDER=$BACKUP_FOLDER
+        SFTP_USER=$SFTP_USER
+        SFTP_HOST=$SFTP_HOST
+        SERVER_NAME=$SERVER_NAME
       EOF
 
       docker build --no-cache -t $PJ_NAME:latest .

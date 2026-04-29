@@ -1,12 +1,11 @@
 import os
-import threading
 from flask import Flask
 from flask_cors import CORS
 
 from api.settings import IS_DEV
 from .checks import trigger_checks
 from database_api.backup import db_backup
-from api.storage.local import folder_backup
+from api.storage.local import folder_backup, send_file_or_folder
 from api import swagger_decorator, error_catching_decorator, PrefixMiddleware
 
 
@@ -18,8 +17,6 @@ allowed_origins = [
 
 DATABASE_URL = os.environ['DATABASE_URL']
 LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
-BACKUP_FOLDER = os.environ.get('BACKUP_FOLDER', None)
-RESTIC_PASSWORD = os.environ.get('RESTIC_PASSWORD', None)
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 POSTGRES_BACKUP_DAYS = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
 STATIC_FOLDER = os.environ.get(
@@ -50,24 +47,15 @@ def index():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup():
-  return db_backup(DATABASE_URL, BACKUP_FOLDER, 'local', 'postgres-backup')
+  db_backup(DATABASE_URL, 'server', 'postgres-backup')
+  return {'status': 'ok', 'message': 'Operazione completata con successo!'}
 
 
 @app.route('/folder-backup', methods=['GET'])
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  threading.Thread(
-    target=folder_backup,
-    args=(
-      os.path.join(BACKUP_FOLDER, 'folder-backup'),
-      os.path.join(STATIC_FOLDER, 'photos', 'prod'),
-      RESTIC_PASSWORD,
-      'Pichu',
-    ),
-    daemon=True,
-  ).start()
-
+  folder_backup(os.path.join(STATIC_FOLDER, 'photos', 'prod'))
   return {'status': 'ok', 'message': 'Operazione completata con successo!'}
 
 
