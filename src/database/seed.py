@@ -50,9 +50,6 @@ def _encrypt_seed_password(password: str) -> str:
   return base64.b64encode(iv_bytes + ciphertext).decode('utf-8')
 
 
-DEFAULT_PASSWORD = _encrypt_seed_password('1234admin')
-
-
 def seed_data():
   if not can_create():
     return
@@ -87,7 +84,7 @@ def seed_data():
     User,
     {
       'nickname': 'customer',
-      'password': DEFAULT_PASSWORD,
+      'password': _encrypt_seed_password('1234customer'),
       'role': UserRole.CUSTOMER,
     },
   )
@@ -104,7 +101,7 @@ def seed_data():
         User,
         {
           'nickname': f'delivery_{index}',
-          'password': DEFAULT_PASSWORD,
+          'password': _encrypt_seed_password(f'1234delivery'),
           'role': UserRole.DELIVERY,
         },
       )
@@ -114,7 +111,7 @@ def seed_data():
         User,
         {
           'nickname': f'customer_{index}',
-          'password': DEFAULT_PASSWORD,
+          'password': _encrypt_seed_password(f'1234customer'),
           'role': UserRole.CUSTOMER,
           'customer_group_id': customer_groups[index].id,
         },
@@ -125,7 +122,7 @@ def seed_data():
     User,
     {
       'nickname': 'customer_group_owner',
-      'password': DEFAULT_PASSWORD,
+      'password': _encrypt_seed_password('1234customer'),
       'role': UserRole.CUSTOMER,
       'customer_group_id': customer_groups[0].id,
     },
