@@ -2,7 +2,7 @@
   stage: deploy
   when: manual
   tags:
-    - deploy-local
+    - deploy-local-ralts
   script:
     - |
       cat <<-EOF > env_file
@@ -89,7 +89,7 @@ deploy_prod:
   image: postgres:17
   when: manual
   tags:
-    - deploy-local
+    - deploy-local-ralts
   script:
     - export DB_URL="$DATABASE_URL_PIPELINE"
     - export DB_NAME=$(echo "$DB_URL" | awk -F/ '{print $NF}')
