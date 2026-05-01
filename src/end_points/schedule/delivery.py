@@ -38,7 +38,7 @@ def update_schedule_item(delivery_user: User, schedule_item_id: int, completed: 
     if item['operation_type'] == 'CollectionPoint':
       continue
 
-    required_cp_ids = [product['collection_point']['id'] for product in item['products'].values()]
+    required_cp_ids = [product['collection_point']['id'] for product in item['products'].values() if 'collection_point' in product]
     if all(
       collection_point['completed']
       for collection_point in [
