@@ -232,6 +232,7 @@ class CollectionPoint(BaseEntity):
 
   user = relationship('User', back_populates='collection_point')
   product = relationship('Product', back_populates='collection_point')
+  release_product = relationship('Product', back_populates='release_place')
   schedule_item_release_place = relationship('ScheduleItemReleasePlace', back_populates='collection_point')
   schedule_item_collection_point = relationship('ScheduleItemCollectionPoint', back_populates='collection_point')
 
@@ -265,16 +266,19 @@ class ServiceUser(BaseEntity):
 class Product(BaseEntity):
   __tablename__ = 'product'
 
+  on_transport = Column(Boolean)
   name = Column(String, nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
   rae_product_id = Column(Integer, ForeignKey('rae_product.id'), nullable=True)
   service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
-  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
+  release_place_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
+  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=True)
 
   order = relationship('Order', back_populates='product')
   rae_product = relationship('RaeProduct', back_populates='product')
   service_user = relationship('ServiceUser', back_populates='product')
   collection_point = relationship('CollectionPoint', back_populates='product')
+  release_place = relationship('CollectionPoint', back_populates='release_product')
 
 
 class RaeProduct(BaseEntity):

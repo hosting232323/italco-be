@@ -51,7 +51,7 @@ def update_schedule_item(delivery_user: User, schedule_item_id: int, completed: 
       for collection_point in [
         item
         for item in schedule_items
-        if item['operation_type'] == 'CollectionPoint' and item['collection_point']['id'] in required_cp_ids
+        if item['operation_type'] == 'CollectionPoint' and item['collection_point_id'] in required_cp_ids
       ]
     ):
       order: Order = get_by_id(Order, item['order_id'])
@@ -107,10 +107,10 @@ def format_query_result(
 ) -> list[dict]:
   if tupla[0].operation_type == ScheduleType.COLLECTION_POINT and tupla[1]:
     schedule_item = tupla[1].to_dict()
-    schedule_item['collection_point'] = tupla[1].id
+    schedule_item['collection_point_id'] = tupla[1].id
   elif tupla[0].operation_type == ScheduleType.RELEASE_PLACE and tupla[2]:
     schedule_item = tupla[2].to_dict()
-    schedule_item['collection_point'] = tupla[2].id
+    schedule_item['collection_point_id'] = tupla[2].id
   elif tupla[0].operation_type == ScheduleType.ORDER and tupla[3]:
     for element in list:
       if element['id'] == tupla[0].id:

@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from flask import Blueprint, request
 
+from .clone import format_data_cloning_order, update_cloned_order
 from database_api import Session
 from .mailer import mailer_check
 from .sms_sender import delay_sms_check
@@ -43,32 +44,21 @@ def create_order(user: User):
       data['status'] = OrderStatus.BOOKED
 
   with Session() as session:
+    cloned_order = False
+    if 'cloned_order_id' in request.json and request.json['cloned_order_id']:
+      cloned_order = True
+      data = format_data_cloning_order(data)
+
     order: Order = create(Order, data, session=session)
     create_products(
       order,
       request.json['products'],
       user.id if user.role == UserRole.CUSTOMER else request.json['user_id'],
+      cloned_order,
       session=session,
     )
-
-    if 'cloned_order_id' in request.json and request.json['cloned_order_id']:
-      cloned_order: Order = get_by_id(Order, request.json['cloned_order_id'], session=session)
-      new_note = f"Rischedulato con l'ordine {order.id}"
-      update(
-        cloned_order,
-        {
-          'completion_date': datetime.now(),
-          'status': OrderStatus.RESCHEDULED,
-          'operator_note': f'{new_note}, {cloned_order.operator_note}' if cloned_order.operator_note else new_note,
-        },
-        session=session,
-      )
-      new_note = f'Clonato da ordine {request.json["cloned_order_id"]}'
-      update(
-        order,
-        {'operator_note': f'{new_note}, {data["operator_note"]}' if 'operator_note' in data else new_note},
-        session=session,
-      )
+    if cloned_order:
+      update_cloned_order(order, request.json['cloned_order_id'], session=session)
 
     session.commit()
     save_order_status_to_euronics(order)
@@ -131,8 +121,6 @@ def update_order(user: User, id):
     else:
       motivation = None
 
-    if 'type' in data:
-      data['type'] = OrderType(data['type'])
     if 'status' in data:
       data['status'] = OrderStatus(data['status'])
       if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED] and not order.completion_date:
@@ -141,15 +129,24 @@ def update_order(user: User, id):
         schedule_item = get_schedule_item_by_order(order)
         if schedule_item:
           update(schedule_item, {'completed': True}, session=session)
+    if order.status == OrderStatus.ACQUIRED and 'booking_date' in data and order.booking_date != data['booking_date']:
+      data['status'] = OrderStatus.BOOKED
+
+    if 'type' in data:
+      data['type'] = OrderType(data['type'])
     if 'confirmed' in data and data['confirmed'] and not order.confirmation_date:
       data['confirmation_date'] = datetime.now()
     if 'external_status' in data:
       del data['external_status']
-    if user.role != UserRole.DELIVERY and 'products' in data:
-      update_products(order, data['products'], user.id if user.role == UserRole.CUSTOMER else data['user_id'], session)
 
-    if order.status == OrderStatus.ACQUIRED and 'booking_date' in data and order.booking_date != data['booking_date']:
-      data['status'] = OrderStatus.BOOKED
+    if user.role != UserRole.DELIVERY and 'products' in data:
+      update_products(
+        order,
+        data['products'],
+        user.id if user.role == UserRole.CUSTOMER else data['user_id'],
+        data['status'] if 'status' in data else None,
+        session,
+      )
 
     if is_delay and 'start_time_slot' in data and 'end_time_slot' in data:
       schedule_item = get_schedule_item_by_order(order)

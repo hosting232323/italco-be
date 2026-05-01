@@ -58,6 +58,16 @@ def upgrade() -> None:
   op.execute('DROP TYPE scheduletype_old')
   op.execute('ALTER TYPE scheduletype_new RENAME TO scheduletype')
 
+  op.add_column('product', sa.Column('on_transport', sa.Boolean(), nullable=True))
+  op.add_column('product', sa.Column('release_place_id', sa.Integer(), nullable=False))
+  op.alter_column('product', 'collection_point_id', existing_type=sa.INTEGER(), nullable=True)
+  op.create_foreign_key(None, 'product', 'collection_point', ['release_place_id'], ['id'])
+
 
 def downgrade() -> None:
   op.drop_table('schedule_item_release_place')
+
+  op.drop_constraint(None, 'product', type_='foreignkey')
+  op.alter_column('product', 'collection_point_id', existing_type=sa.INTEGER(), nullable=False)
+  op.drop_column('product', 'release_place_id')
+  op.drop_column('product', 'on_transport')

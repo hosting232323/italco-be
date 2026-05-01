@@ -1,20 +1,27 @@
+from ...database.enum import OrderStatus
 from database_api.operations import create, delete
 from .queries import query_service_users, query_products
+from .clone import reschedule_check, format_data_cloning_product
 from ...database.schema import Order, Product, RaeProduct, ServiceUser
 
 
-def create_products(order: Order, products: dict, user_id: int, session=None):
+def create_products(order: Order, products: dict, user_id: int, cloned_order: bool, session):
   service_users = get_service_users(order, products, user_id)
   for product in products.keys():
-    create_product(product, products[product], order, service_users, session=session)
+    create_product(product, products[product], order, service_users, session=session, cloned_order=cloned_order)
 
 
-def update_products(order: Order, products: dict, user_id: int, session=None):
+def update_products(order: Order, products: dict, user_id: int, status: OrderStatus, session):
   service_users = get_service_users(order, products, user_id)
   old_products = query_products(order)
 
   for product in products.keys():
-    if len([old_product for old_product in old_products if old_product.name == product]) > 0:
+    already_exists = False
+    for old_product in old_products:
+      if old_product.name == product:
+          already_exists = True
+          reschedule_check(status, old_product, products[product], session=session)
+    if already_exists:
       continue
 
     create_product(product, products[product], order, service_users, session=session)
@@ -24,7 +31,9 @@ def update_products(order: Order, products: dict, user_id: int, session=None):
       delete(old_product, session=session)
 
 
-def create_product(product_name: str, data: dict, order: Order, service_users: list[ServiceUser], session):
+def create_product(
+  product_name: str, data: dict, order: Order, service_users: list[ServiceUser], session, cloned_order=False
+):
   rae_product = None
   if 'rae_product' in data:
     rae_product: RaeProduct = create(
@@ -40,17 +49,16 @@ def create_product(product_name: str, data: dict, order: Order, service_users: l
   for service in data['services']:
     for service_user in service_users:
       if service_user.service_id == service['id']:
-        create(
-          Product,
-          {
-            'order_id': order.id,
-            'name': product_name,
-            'service_user_id': service_user.id,
-            'collection_point_id': data['collection_point']['id'],
-            'rae_product_id': rae_product.id if rae_product else None,
-          },
-          session=session,
-        )
+        product_data = {
+          'order_id': order.id,
+          'name': product_name,
+          'service_user_id': service_user.id,
+          'collection_point_id': data['collection_point']['id'],
+          'rae_product_id': rae_product.id if rae_product else None,
+        }
+        if cloned_order:
+          product_data = format_data_cloning_product(product_data)
+        create(Product, product_data, session=session)
         break
 
 
