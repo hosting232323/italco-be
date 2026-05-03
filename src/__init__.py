@@ -1,12 +1,17 @@
 import os
+import threading
+from flask import Flask
 from flask_cors import CORS
-from flask import Flask, send_from_directory
 
 from api.settings import IS_DEV
 from .checks import trigger_checks
 from database_api.backup import db_backup
-from api.storage.local import folder_backup
 from api import swagger_decorator, error_catching_decorator, PrefixMiddleware
+
+try:
+  from api.storage.local import folder_backup
+except ImportError:
+  folder_backup = None
 
 
 allowed_origins = [
@@ -26,7 +31,7 @@ STATIC_FOLDER = os.environ.get(
 )
 
 
-app = Flask(__name__, static_folder=STATIC_FOLDER, template_folder='../templates')
+app = Flask(__name__, template_folder='../templates')
 
 
 API_PREFIX = os.environ.get('API_PREFIX', None)
@@ -45,12 +50,6 @@ def index():
   return 'Hello World', 200
 
 
-@app.route('/<path:filename>', methods=['GET'])
-@error_catching_decorator
-def serve_image(filename):
-  return send_from_directory(STATIC_FOLDER, filename)
-
-
 @app.route('/internal-backup', methods=['GET'])
 @error_catching_decorator
 @swagger_decorator
@@ -62,9 +61,24 @@ def trigger_backup():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  return folder_backup(
-    os.path.join(BACKUP_FOLDER, 'folder-backup'), os.path.join(STATIC_FOLDER, 'photos', 'prod'), RESTIC_PASSWORD
-  )
+  if folder_backup is None:
+    return {
+      'status': 'error',
+      'message': 'folder_backup is not available in the installed api.storage.local package.',
+    }, 503
+
+  threading.Thread(
+    target=folder_backup,
+    args=(
+      os.path.join(BACKUP_FOLDER, 'folder-backup'),
+      os.path.join(STATIC_FOLDER, 'photos', 'prod'),
+      RESTIC_PASSWORD,
+      'Pichu',
+    ),
+    daemon=True,
+  ).start()
+
+  return {'status': 'ok', 'message': 'Operazione completata con successo!'}
 
 
 @app.route('/checks', methods=['GET'])
