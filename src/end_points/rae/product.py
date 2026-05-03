@@ -127,6 +127,11 @@ def get_rae_products_by_order(order: Order) -> list[RaeProduct]:
     )
 
 
+def emit_rae_products(order: Order, session):
+  for rae_product in get_rae_products_by_order(order):
+    update(rae_product, {'status': RaeStatus.EMITTED}, session=session)
+
+
 def recreate_rae_products(order: Order, session):
   rae_product_ids = {}
   for tupla in get_rae_product_tuples_by_order(order):

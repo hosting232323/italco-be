@@ -1,10 +1,10 @@
 import os
-from flask import request
 from sqlalchemy import text
+from flask import request, send_from_directory
 from sqlalchemy.orm import Session as session_type
 
-from ... import STATIC_FOLDER
 from api.storage import upload_file
+from ... import STATIC_FOLDER, IS_DEV
 from database_api.operations import create
 from ...database.schema import Photo, Order
 
@@ -27,11 +27,20 @@ def handle_photos(data: dict, order: Order, session: session_type):
               f'{id}{guess_extension(uploaded_file.mimetype)}',
               os.path.join(STATIC_FOLDER, 'photos'),
               'local',
-            ),
+            )
+            .replace('/api/photos/prod/', '/api/order/photos/')
+            .replace('/api/photos/test/', '/api/order/photos/'),
           },
           session=session,
         )
   return data
+
+
+def serve_image(filename: str):
+  return send_from_directory(
+    os.path.join(STATIC_FOLDER, 'photos', 'test' if IS_DEV else 'prod'),
+    filename,
+  )
 
 
 def guess_extension(mime_type: str) -> str:
