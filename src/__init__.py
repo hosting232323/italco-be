@@ -6,12 +6,8 @@ from flask_cors import CORS
 from api.settings import IS_DEV
 from .checks import trigger_checks
 from database_api.backup import db_backup
+from api.storage.local import folder_backup
 from api import swagger_decorator, error_catching_decorator, PrefixMiddleware
-
-try:
-  from api.storage.local import folder_backup
-except ImportError:
-  folder_backup = None
 
 
 allowed_origins = [
@@ -61,12 +57,6 @@ def trigger_backup():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  if folder_backup is None:
-    return {
-      'status': 'error',
-      'message': 'folder_backup is not available in the installed api.storage.local package.',
-    }, 503
-
   threading.Thread(
     target=folder_backup,
     args=(
