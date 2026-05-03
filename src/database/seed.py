@@ -50,9 +50,6 @@ def _encrypt_seed_password(password: str) -> str:
   return base64.b64encode(iv_bytes + ciphertext).decode('utf-8')
 
 
-DEFAULT_PASSWORD = _encrypt_seed_password('1234admin')
-
-
 def seed_data():
   if not can_create():
     return
@@ -87,7 +84,7 @@ def seed_data():
     User,
     {
       'nickname': 'customer',
-      'password': DEFAULT_PASSWORD,
+      'password': _encrypt_seed_password('1234customer'),
       'role': UserRole.CUSTOMER,
     },
   )
@@ -104,7 +101,7 @@ def seed_data():
         User,
         {
           'nickname': f'delivery_{index}',
-          'password': DEFAULT_PASSWORD,
+          'password': _encrypt_seed_password('1234delivery'),
           'role': UserRole.DELIVERY,
         },
       )
@@ -114,7 +111,7 @@ def seed_data():
         User,
         {
           'nickname': f'customer_{index}',
-          'password': DEFAULT_PASSWORD,
+          'password': _encrypt_seed_password('1234customer'),
           'role': UserRole.CUSTOMER,
           'customer_group_id': customer_groups[index].id,
         },
@@ -125,7 +122,7 @@ def seed_data():
     User,
     {
       'nickname': 'customer_group_owner',
-      'password': DEFAULT_PASSWORD,
+      'password': _encrypt_seed_password('1234customer'),
       'role': UserRole.CUSTOMER,
       'customer_group_id': customer_groups[0].id,
     },
@@ -194,6 +191,24 @@ def seed_data():
     )
 
   service_types = [OrderType.DELIVERY, OrderType.WITHDRAW, OrderType.REPLACEMENT, OrderType.CHECK]
+
+  # 3 professional services — used only by the explicit PRO-SU service users for orders 0-2
+  professional_srv_ids = []
+  for i in range(3):
+    srv = create(
+      Service,
+      {
+        'name': f'RealProfessional-{i + 1}',
+        'type': service_types[i % len(service_types)],
+        'duration': 40 + (i * 10),
+        'description': f'Professional service {i + 1}',
+        'max_services': 5,
+        'professional': True,
+      },
+    )
+    professional_srv_ids.append(srv.id)
+
+  # 10 non-professional services for the general service_users pool
   services = []
   for index in range(10):
     services.append(
@@ -205,7 +220,7 @@ def seed_data():
           'duration': 30 + (index * 5),
           'description': f'Descrizione servizio {index + 1}',
           'max_services': 3 + (index % 4),
-          'professional': index % 2 == 0,
+          'professional': False,
         },
       )
     )
@@ -223,6 +238,8 @@ def seed_data():
         },
       )
     )
+
+  # fill out the rest of the 10 services as before
 
   # E2E: give the base customer user access to the first DELIVERY service so that
   # the admin can create an order on their behalf in end-to-end tests.
@@ -341,15 +358,36 @@ def seed_data():
       )
     )
 
-    create(
-      Product,
-      {
-        'name': f'Prodotto {index + 1}',
-        'order_id': orders[index].id,
-        'service_user_id': service_users[index % 10].id,
-        'collection_point_id': collection_points[index % 10].id,
-      },
-    )
+    if index < 3:
+      # For the first three, force linking to professional services
+      su = create(
+        ServiceUser,
+        {
+          'code': f'PRO-SU-{index + 1}',
+          'price': 99.99 + index,
+          'user_id': delivery_users[index].id,
+          'service_id': professional_srv_ids[index],
+        },
+      )
+      create(
+        Product,
+        {
+          'name': f'ProdottoPro-{index + 1}',
+          'order_id': orders[index].id,
+          'service_user_id': su.id,
+          'collection_point_id': collection_points[index % 10].id,
+        },
+      )
+    else:
+      create(
+        Product,
+        {
+          'name': f'Prodotto {index + 1}',
+          'order_id': orders[index].id,
+          'service_user_id': service_users[index % 10].id,
+          'collection_point_id': collection_points[index % 10].id,
+        },
+      )
 
   for index in range(10):
     create(

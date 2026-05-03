@@ -2,13 +2,13 @@ from datetime import datetime
 from flask import Blueprint, request
 
 from database_api import Session
-from ..users.queries import format_user_with_info
-from ...database.enum import UserRole, OrderStatus
+from ...database.enum import UserRole
+from ...schedulation import execute_schedulation
 from ..users.session import flask_session_authentication
+from ...schedulation.building import build_schedule_items
 from ...database.schema import Schedule, User, DeliveryGroup
 from .delivery import get_items_for_delivery, update_schedule_item
 from database_api.operations import create, delete, get_by_id, update
-from .schedulation import assign_orders_to_groups, build_schedule_items
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
 from .utils import (
   handle_schedule_item,
@@ -23,8 +23,6 @@ from .queries import (
   format_query_result,
   get_delivery_groups,
   get_schedule_items,
-  get_delivery_users_by_date,
-  get_transports_by_date,
   get_schedule_item_for_order_id_filter,
   format_schedule_item,
 )
@@ -120,35 +118,13 @@ def update_schedule(user: User, id):
 @schedule_bp.route('suggestions', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
 def get_schedule_suggestions(user: User):
-  orders = []
-  work_date = datetime.strptime(request.args['work_date'], '%Y-%m-%d')
-  for status in [OrderStatus.BOOKED, OrderStatus.ACQUIRED]:
-    for tupla in query_orders(
-      user,
-      [
-        {'model': 'Order', 'field': 'work_date', 'value': work_date},
-        {'model': 'Order', 'field': 'status', 'value': status},
-      ],
-    ):
-      orders = format_query_orders_result(tupla, orders, user)
-  if len(orders) == 0:
-    return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
-
-  delivery_users = [
-    format_user_with_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(work_date)
-  ]
-  return {
-    'status': 'ok',
-    'delivery_users': delivery_users,
-    'transports': [transport.to_dict() for transport in get_transports_by_date(work_date)],
-    'groups': assign_orders_to_groups(
-      orders,
-      delivery_users,
-      int(request.args['min_size_group']),
-      int(request.args['max_size_group']),
-      int(request.args['max_distance_km']),
-    ),
-  }
+  return execute_schedulation(
+    user,
+    datetime.strptime(request.args['work_date'], '%Y-%m-%d'),
+    int(request.args['min_size_group']),
+    int(request.args['max_size_group']),
+    int(request.args['max_distance_km']),
+  )
 
 
 @schedule_bp.route('pianification', methods=['POST'])
