@@ -101,7 +101,7 @@ def seed_data():
         User,
         {
           'nickname': f'delivery_{index}',
-          'password': _encrypt_seed_password(f'1234delivery'),
+          'password': _encrypt_seed_password('1234delivery'),
           'role': UserRole.DELIVERY,
         },
       )
@@ -111,7 +111,7 @@ def seed_data():
         User,
         {
           'nickname': f'customer_{index}',
-          'password': _encrypt_seed_password(f'1234customer'),
+          'password': _encrypt_seed_password('1234customer'),
           'role': UserRole.CUSTOMER,
           'customer_group_id': customer_groups[index].id,
         },

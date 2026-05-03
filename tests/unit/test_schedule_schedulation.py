@@ -1,5 +1,3 @@
-from src.utils import caps as utils_caps_module
-
 from src.schedulation import assign_orders_to_groups
 from src.schedulation.clustering_rules.merge_small_group import MergeSmallGroupsRule
 from src.schedulation.clustering_rules.split_large_group import SplitLargeGroupsRule
@@ -34,13 +32,6 @@ def _make_order(
   }
 
 
-def _patch_cap_lookup(monkeypatch, coords: dict[str, tuple[float, float]]):
-  def cap_lookup(cap: str) -> tuple[float, float]:
-    return coords[cap]
-
-  monkeypatch.setattr(utils_caps_module, 'get_lat_lon_by_cap', cap_lookup)
-
-
 def _order_ids(group: dict) -> list[int]:
   return [item['order_id'] for item in group['schedule_items'] if item['operation_type'] == 'Order']
 
@@ -51,19 +42,11 @@ def test_clustering_rule_factory_builds_default_rules():
   assert [type(rule) for rule in rules] == [MergeSmallGroupsRule, SplitLargeGroupsRule, ProfessionalServicesLimitRule]
 
 
-def test_build_clustered_schedule_item_groups_merges_small_groups(monkeypatch):
-  _patch_cap_lookup(
-    monkeypatch,
-    {
-      '10000': (41.0, 16.0),
-      '10001': (41.001, 16.001),
-    },
-  )
-
+def test_build_clustered_schedule_item_groups_merges_small_groups():
   groups = build_clustered_schedule_item_groups(
     orders=[
-      _make_order(1, '10000'),
-      _make_order(2, '10001'),
+      _make_order(1, '70121'),
+      _make_order(2, '70122'),
     ],
     min_size_group=2,
     max_size_group=2,
@@ -74,19 +57,12 @@ def test_build_clustered_schedule_item_groups_merges_small_groups(monkeypatch):
   assert len([item for item in groups[0] if item['operation_type'] == 'Order']) == 2
 
 
-def test_build_clustered_schedule_item_groups_splits_large_groups(monkeypatch):
-  _patch_cap_lookup(
-    monkeypatch,
-    {
-      '10000': (41.0, 16.0),
-    },
-  )
-
+def test_build_clustered_schedule_item_groups_splits_large_groups():
   groups = build_clustered_schedule_item_groups(
     orders=[
-      _make_order(1, '10000', collection_point_id=10),
-      _make_order(2, '10000', collection_point_id=11),
-      _make_order(3, '10000', collection_point_id=12),
+      _make_order(1, '70056', collection_point_id=10),
+      _make_order(2, '70056', collection_point_id=11),
+      _make_order(3, '70056', collection_point_id=12),
     ],
     min_size_group=1,
     max_size_group=2,
@@ -97,25 +73,15 @@ def test_build_clustered_schedule_item_groups_splits_large_groups(monkeypatch):
   assert sorted(len([item for item in group if item['operation_type'] == 'Order']) for group in groups) == [1, 2]
 
 
-def test_assign_orders_to_groups_preserves_delivery_assignment(monkeypatch):
-  _patch_cap_lookup(
-    monkeypatch,
-    {
-      '10000': (41.0, 16.0),
-      '20000': (42.0, 17.0),
-      '90000': (41.0, 16.001),
-      '90001': (42.0, 17.001),
-    },
-  )
-
+def test_assign_orders_to_groups_preserves_delivery_assignment():
   groups = assign_orders_to_groups(
     orders=[
-      _make_order(1, '10000'),
-      _make_order(2, '20000'),
+      _make_order(1, '70121'),
+      _make_order(2, '71010'),
     ],
     delivery_users=[
-      {'id': 11, 'delivery_user_info': {'cap': '90000'}},
-      {'id': 22, 'delivery_user_info': {'cap': '90001'}},
+      {'id': 11, 'delivery_user_info': {'cap': '70122'}},
+      {'id': 22, 'delivery_user_info': {'cap': '71011'}},
     ],
     min_size_group=1,
     max_size_group=2,
@@ -131,14 +97,12 @@ def test_assign_orders_to_groups_preserves_delivery_assignment(monkeypatch):
   assert all(group['transports'] == [] for group in groups)
 
 
-def test_professional_services_limit_rule_keeps_group_within_limit(monkeypatch):
-  _patch_cap_lookup(monkeypatch, {'10000': (41.0, 16.0)})
-
+def test_professional_services_limit_rule_keeps_group_within_limit():
   # 2 orders, each with 1 distinct professional service → total 2 → keep as 1 group
   groups = build_clustered_schedule_item_groups(
     orders=[
-      _make_order(1, '10000', services=[{'id': 10, 'name': 'SrvA', 'professional': True}]),
-      _make_order(2, '10000', services=[{'id': 11, 'name': 'SrvB', 'professional': True}]),
+      _make_order(1, '70056', services=[{'id': 10, 'name': 'SrvA', 'professional': True}]),
+      _make_order(2, '70056', services=[{'id': 11, 'name': 'SrvB', 'professional': True}]),
     ],
     min_size_group=1,
     max_size_group=10,
@@ -149,15 +113,13 @@ def test_professional_services_limit_rule_keeps_group_within_limit(monkeypatch):
   assert len([item for g in groups for item in g if item['operation_type'] == 'Order']) == 2
 
 
-def test_professional_services_limit_rule_splits_when_exceeds_limit(monkeypatch):
-  _patch_cap_lookup(monkeypatch, {'10000': (41.0, 16.0)})
-
+def test_professional_services_limit_rule_splits_when_exceeds_limit():
   # 3 orders each with a distinct professional service → must split into 2 groups
   groups = build_clustered_schedule_item_groups(
     orders=[
-      _make_order(1, '10000', services=[{'id': 10, 'name': 'SrvA', 'professional': True}]),
-      _make_order(2, '10000', services=[{'id': 11, 'name': 'SrvB', 'professional': True}]),
-      _make_order(3, '10000', services=[{'id': 12, 'name': 'SrvC', 'professional': True}]),
+      _make_order(1, '70056', services=[{'id': 10, 'name': 'SrvA', 'professional': True}]),
+      _make_order(2, '70056', services=[{'id': 11, 'name': 'SrvB', 'professional': True}]),
+      _make_order(3, '70056', services=[{'id': 12, 'name': 'SrvC', 'professional': True}]),
     ],
     min_size_group=1,
     max_size_group=10,
@@ -182,15 +144,13 @@ def test_professional_services_limit_rule_splits_when_exceeds_limit(monkeypatch)
     assert pro_order_count <= 2
 
 
-def test_professional_services_limit_rule_non_professional_services_ignored(monkeypatch):
-  _patch_cap_lookup(monkeypatch, {'10000': (41.0, 16.0)})
-
+def test_professional_services_limit_rule_non_professional_services_ignored():
   # 3 orders with only non-professional services → no split needed
   groups = build_clustered_schedule_item_groups(
     orders=[
-      _make_order(1, '10000', services=[{'id': 10, 'name': 'SrvA', 'professional': False}]),
-      _make_order(2, '10000', services=[{'id': 11, 'name': 'SrvB', 'professional': False}]),
-      _make_order(3, '10000', services=[{'id': 12, 'name': 'SrvC', 'professional': False}]),
+      _make_order(1, '70056', services=[{'id': 10, 'name': 'SrvA', 'professional': False}]),
+      _make_order(2, '70056', services=[{'id': 11, 'name': 'SrvB', 'professional': False}]),
+      _make_order(3, '70056', services=[{'id': 12, 'name': 'SrvC', 'professional': False}]),
     ],
     min_size_group=1,
     max_size_group=10,
@@ -201,15 +161,13 @@ def test_professional_services_limit_rule_non_professional_services_ignored(monk
   assert len([item for g in groups for item in g if item['operation_type'] == 'Order']) == 3
 
 
-def test_professional_services_limit_rule_rebalances_after_uneven_split(monkeypatch):
+def test_professional_services_limit_rule_rebalances_after_uneven_split():
   """
   With 20 orders (3 pro, 17 non-pro), min=9, max=12:
   SplitLargeGroupsRule produces [12, 8] because 8 can't be merged back (8+12=20 > max=12).
   PSLimit must rebalance to [10, 10]: 2 pro+8 non-pro and 1 pro+9 non-pro.
   Both groups must be ≥ min=9.
   """
-  _patch_cap_lookup(monkeypatch, {'70020': (41.0, 16.0)})
-
   pro_service = [{'id': 99, 'name': 'ProfSrv', 'professional': True}]
   non_pro_service = [{'id': 1, 'name': 'NormalSrv', 'professional': False}]
 
