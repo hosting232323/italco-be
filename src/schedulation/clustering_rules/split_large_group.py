@@ -1,6 +1,22 @@
 from geopy.distance import geodesic
 
+from ..building import set_schedule_index
 from ...utils.caps import get_lat_lon_by_cap
+from . import ClusteringRule, ScheduleItemGroup, ClusteringContext
+
+
+class SplitLargeGroupsRule(ClusteringRule):
+  def apply(
+    self,
+    schedule_item_groups: list[ScheduleItemGroup],
+    context: ClusteringContext,
+  ) -> list[ScheduleItemGroup]:
+    return split_large_groups(
+      schedule_item_groups,
+      context.min_size_group,
+      context.max_size_group,
+      context.max_distance_km,
+    )
 
 
 def split_large_groups(schedule_item_groups, min_size_group, max_size_group, max_distance_km):
@@ -185,17 +201,10 @@ def build_sub_groups(sub_groups_orders, collection_point_items):
           needed_cp_ids.add(product['collection_point']['id'])
 
     relevant_cps = [cp for cp in collection_point_items if cp.get('collection_point_id') in needed_cp_ids]
-
     sub_group = [set_schedule_index(item, idx) for idx, item in enumerate(relevant_cps + orders_subset)]
     result.append(sub_group)
 
   return result
-
-
-def set_schedule_index(item, index):
-  new_item = item.copy()
-  new_item['index'] = index
-  return new_item
 
 
 def enforce_max_size(groups, max_size_group):
@@ -203,16 +212,13 @@ def enforce_max_size(groups, max_size_group):
 
   for group in groups:
     orders = [i for i in group if i['operation_type'] == 'Order']
-
     if len(orders) <= max_size_group:
       result.append(group)
       continue
 
     collection_points = [i for i in group if i['operation_type'] == 'CollectionPoint']
-
     for i in range(0, len(orders), max_size_group):
       chunk = orders[i : i + max_size_group]
-
       needed_cp_ids = set()
 
       for order in chunk:
@@ -220,9 +226,7 @@ def enforce_max_size(groups, max_size_group):
           needed_cp_ids.add(product['collection_point']['id'])
 
       cps = [cp for cp in collection_points if cp.get('collection_point_id') in needed_cp_ids]
-
       new_group = [set_schedule_index(item, idx) for idx, item in enumerate(cps + chunk)]
-
       result.append(new_group)
 
   return result
