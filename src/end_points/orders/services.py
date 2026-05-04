@@ -47,11 +47,12 @@ def create_product(
           'order_id': order.id,
           'name': product_name,
           'service_user_id': service_user.id,
-          'collection_point_id': data['collection_point']['id'],
           'rae_product_id': rae_product.id if rae_product else None,
         }
         if cloned_order:
           product_data = format_data_cloning_product(product_data, data)
+        else:
+          product_data['collection_point_id'] = data['collection_point']['id']
         create(Product, product_data, session=session)
         break
 

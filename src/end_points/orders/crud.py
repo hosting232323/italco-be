@@ -8,8 +8,8 @@ from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .queries import query_orders, format_query_result
 from .services import create_products, update_products
-from ...database.enum import OrderStatus, UserRole, OrderType
 from database_api.operations import create, update, get_by_id, delete
+from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus
 from ...database.schema import User, Order, Motivation, DeliveryUserInfo, ServiceUser
 from ..schedule.queries import get_delivery_groups_by_order_id, get_schedule_item_by_order
 from .clone import format_data_cloning_order, update_cloned_order, query_products, reschedule_products
@@ -18,6 +18,8 @@ from .clone import format_data_cloning_order, update_cloned_order, query_product
 def create_order(user: User, data: dict):
   clean_data = {key: value for key, value in data.items() if key not in ['products', 'user_id', 'cloned_order_id']}
   clean_data['type'] = OrderType(clean_data['type'])
+  if 'external_status' in clean_data:
+    clean_data['external_status'] = EuronicsStatus(clean_data['external_status'])
   if user.role in [UserRole.ADMIN, UserRole.OPERATOR]:
     clean_data['confirmed'] = True
     clean_data['confirmation_date'] = datetime.now()
