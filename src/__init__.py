@@ -5,7 +5,7 @@ from flask_cors import CORS
 from api.settings import IS_DEV
 from .checks import trigger_checks
 from database_api.backup import db_backup
-from api.storage.local import folder_backup, send_file_or_folder
+from api.storage import folder_backup
 from api import swagger_decorator, error_catching_decorator, PrefixMiddleware
 
 
@@ -55,7 +55,7 @@ def trigger_backup():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  folder_backup(os.path.join(STATIC_FOLDER, 'photos', 'prod'))
+  folder_backup(os.path.join(STATIC_FOLDER, 'photos', 'prod'), 'storage')
   return {'status': 'ok', 'message': 'Operazione completata con successo!'}
 
 
