@@ -60,10 +60,7 @@ def trigger_backup_folder():
   threading.Thread(
     target=folder_backup,
     args=(
-      os.path.join(BACKUP_FOLDER, 'folder-backup'),
       os.path.join(STATIC_FOLDER, 'photos', 'prod'),
-      RESTIC_PASSWORD,
-      'Pichu',
     ),
     daemon=True,
   ).start()
