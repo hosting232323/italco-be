@@ -5,8 +5,8 @@ from flask_cors import CORS
 
 from api.settings import IS_DEV
 from .checks import trigger_checks
+from api.storage import folder_backup
 from database_api.backup import db_backup
-from api.storage.local import folder_backup
 from api import swagger_decorator, error_catching_decorator, PrefixMiddleware
 
 
