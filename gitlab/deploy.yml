@@ -52,7 +52,7 @@
           -p ${FIRST_PORT}:8080 \
           -v $STATIC_FOLDER:$STATIC_FOLDER \
           -v $BACKUP_FOLDER:$BACKUP_FOLDER \
-          -v ~/.ssh:/root/.ssh:ro \
+          -v /home/vanni/.ssh:/root/.ssh:ro
           $PJ_NAME:latest
         docker rm -f ${CONTAINER_NEXT} 2>/dev/null || true
       else
