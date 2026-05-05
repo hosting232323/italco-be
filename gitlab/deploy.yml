@@ -1,3 +1,6 @@
+include:
+  - local: './ssh-setup.yml'
+
 .deploy:
   stage: deploy
   when: manual
@@ -25,6 +28,9 @@
         TELEGRAM_TOKEN=$TELEGRAM_TOKEN
         RESTIC_PASSWORD=$RESTIC_PASSWORD
         BACKUP_FOLDER=$BACKUP_FOLDER
+        SFTP_USER=$SFTP_USER
+        SFTP_HOST=$SFTP_HOST
+        SERVER_NAME=$SERVER_NAME
       EOF
 
       docker build --no-cache -t $PJ_NAME:latest .
@@ -49,7 +55,6 @@
           -p ${FIRST_PORT}:8080 \
           -v $STATIC_FOLDER:$STATIC_FOLDER \
           -v $BACKUP_FOLDER:$BACKUP_FOLDER \
-          -v /home/vanni/.ssh:/root/.ssh:ro
           $PJ_NAME:latest
         docker rm -f ${CONTAINER_NEXT} 2>/dev/null || true
       else
@@ -67,6 +72,7 @@ deploy_test:
     EURONICS_API_PASSWORD_PIPELINE: 0
     IS_DEV: 1
   before_script:
+    - !reference [.ssh_setup, before_script]
     - export FIRST_PORT="${PORT_TEST%%-*}"
     - export SECOND_PORT="${PORT_TEST#*-}"
 
@@ -82,6 +88,7 @@ deploy_prod:
     EURONICS_API_PASSWORD_PIPELINE: $EURONICS_API_PASSWORD
     IS_DEV: 0
   before_script:
+    - !reference [.ssh_setup, before_script]
     - export FIRST_PORT="${PORT_PROD%%-*}"
     - export SECOND_PORT="${PORT_PROD#*-}"
 
