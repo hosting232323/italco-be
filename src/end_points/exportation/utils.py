@@ -19,6 +19,13 @@ def export_pdf(document):
   return response
 
 
+def export_pdf_attachment(document, filename='report.pdf'):
+  response = make_response(document)
+  response.headers['Content-Type'] = 'application/pdf'
+  response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+  return response
+
+
 def export_excel(document):
   response = make_response(document)
   response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

@@ -205,7 +205,7 @@ def get_delivery_details(user: User, order_id: int):
   return {
     'status': 'ok',
     'motivations': [m.to_dict() for m in get_motivations_by_order_id(order_id)],
-    'photos': [photo.link for photo in get_order_photos(order_id)],
+    'photos': [{'id': photo.id, 'link': photo.link} for photo in get_order_photos(order_id)],
   }
 
 

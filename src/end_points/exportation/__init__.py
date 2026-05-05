@@ -9,6 +9,7 @@ from .order import export_order
 from .schedule import export_schedule
 from .excel import export_orders_excel
 from .invoice import export_order_invoice
+from .order_delivery_photo import export_order_delivery_photo
 
 
 export_bp = Blueprint('export_bp', __name__)
@@ -18,6 +19,12 @@ export_bp = Blueprint('export_bp', __name__)
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER])
 def export_order_report(user: User, id):
   return export_order(user, id)
+
+
+@export_bp.route('order-photo/<photo_id>', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER])
+def export_order_delivery_photo_endpoint(user: User, photo_id):
+  return export_order_delivery_photo(user, photo_id)
 
 
 @export_bp.route('invoice', methods=['POST'])
