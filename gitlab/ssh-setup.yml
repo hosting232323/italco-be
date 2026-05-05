@@ -3,9 +3,15 @@
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
 
+    # scrive la chiave privata correttamente
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
     - chmod 600 ~/.ssh/id_ed25519
 
-    - ssh-keyscan -H $SFTP_HOST >> ~/.ssh/known_hosts
+    # known hosts
+    - ssh-keyscan -H "$SFTP_HOST" >> ~/.ssh/known_hosts
 
-    - ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes vanni@$SFTP_HOST "echo OK"
+    # DEBUG (solo se serve)
+    - ssh-keygen -lf ~/.ssh/id_ed25519
+
+  script:
+    - ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes vanni@$SFTP_HOST "echo OK"
