@@ -26,7 +26,10 @@
     - cat -A ~/.ssh/id_ed25519 | head -n 3
 
     - echo "=== VALIDATE KEY ==="
-    - ssh-keygen -lf ~/.ssh/id_ed25519
+    - ssh -i ~/.ssh/id_ed25519 \
+      -o StrictHostKeyChecking=no \
+      -o BatchMode=yes \
+      vanni@$SFTP_HOST "echo SSH_OK"
 
     - echo "=== HOST KEYSCAN ==="
     - ssh-keyscan -H $SFTP_HOST >> ~/.ssh/known_hosts 2>/dev/null
