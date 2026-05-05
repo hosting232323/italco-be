@@ -10,10 +10,11 @@ from ... import STATIC_FOLDER, IS_DEV
 from ...database.schema import Order, Photo, User
 from database_api.operations import get_by_id
 from ..orders.queries import format_query_result, query_orders
+from .delivery_photo_enhance import enhance_delivery_photo_for_scan
 from .utils import export_pdf_attachment
 
 
-def export_order_delivery_photo(user: User, photo_id: str):
+def export_order_delivery_photo(user: User, photo_id: str, scanned: bool = False):
   try:
     pid = int(photo_id)
   except ValueError:
@@ -42,13 +43,19 @@ def export_order_delivery_photo(user: User, photo_id: str):
   with open(filepath, 'rb') as f:
     img_bytes = f.read()
 
-  ext = os.path.splitext(filename)[1].lower()
-  if ext in ('.jpg', '.jpeg'):
-    mime = 'image/jpeg'
-  elif ext == '.png':
-    mime = 'image/png'
+  if scanned:
+    try:
+      img_bytes, mime = enhance_delivery_photo_for_scan(img_bytes)
+    except Exception:
+      return {'status': 'ko', 'error': 'Errore elaborazione immagine'}
   else:
-    mime = 'image/jpeg'
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in ('.jpg', '.jpeg'):
+      mime = 'image/jpeg'
+    elif ext == '.png':
+      mime = 'image/png'
+    else:
+      mime = 'image/jpeg'
 
   data_uri = f'data:{mime};base64,{base64.b64encode(img_bytes).decode("utf-8")}'
 
@@ -60,4 +67,5 @@ def export_order_delivery_photo(user: User, photo_id: str):
   if pisa_status.err:
     return {'status': 'ko', 'error': 'Errore nella creazione del PDF'}
 
-  return export_pdf_attachment(result.getvalue(), filename=f'bolla_foto_{pid}.pdf')
+  pdf_name = f'bolla_foto_scanned_{pid}.pdf' if scanned else f'bolla_foto_{pid}.pdf'
+  return export_pdf_attachment(result.getvalue(), filename=pdf_name)

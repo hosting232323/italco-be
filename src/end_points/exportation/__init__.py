@@ -27,6 +27,12 @@ def export_order_delivery_photo_endpoint(user: User, photo_id):
   return export_order_delivery_photo(user, photo_id)
 
 
+@export_bp.route('order-photo-scanned/<photo_id>', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER])
+def export_order_delivery_photo_scanned_endpoint(user: User, photo_id):
+  return export_order_delivery_photo(user, photo_id, scanned=True)
+
+
 @export_bp.route('invoice', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def export_orders_invoice(user: User):
