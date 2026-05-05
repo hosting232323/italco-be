@@ -1,5 +1,5 @@
 include:
-  - local: './ssh-setup.yml'
+  - local: 'gitlab/ssh-setup.yml'
 
 .deploy:
   stage: deploy
