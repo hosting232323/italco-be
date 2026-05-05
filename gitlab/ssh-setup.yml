@@ -1,33 +1,10 @@
-.ssh_setup:
-  before_script:
-    - echo "=== USER ==="
-    - whoami
-    - echo "HOME=$HOME"
+before_script:
+  - mkdir -p ~/.ssh
+  - chmod 700 ~/.ssh
 
-    - echo "=== SSH_PRIVATE_KEY FILE ==="
-    - echo "$SSH_PRIVATE_KEY"
-    - ls -la "$SSH_PRIVATE_KEY"
+  - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+  - chmod 600 ~/.ssh/id_ed25519
 
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
+  - ssh-keyscan -H $SFTP_HOST >> ~/.ssh/known_hosts
 
-    - echo "=== COPY KEY ==="
-    - tr -d '\r' < "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-    - chmod 600 ~/.ssh/id_ed25519
-
-    - echo "=== SSH DIR ==="
-    - ls -la ~/.ssh
-
-    - echo "=== KEY CONTENT (HEADER/FOOTER) ==="
-    - head -n 2 ~/.ssh/id_ed25519
-    - tail -n 2 ~/.ssh/id_ed25519
-
-    - echo "=== CHECK FOR WINDOWS CRLF (^M) ==="
-    - cat -A ~/.ssh/id_ed25519 | head -n 3
-
-    - echo "=== VALIDATE KEY ==="
-    - ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o BatchMode=yes vanni@$SFTP_HOST "echo SSH_OK"
-
-    - echo "=== HOST KEYSCAN ==="
-    - ssh-keyscan -H $SFTP_HOST >> ~/.ssh/known_hosts 2>/dev/null
-    - tail -n 3 ~/.ssh/known_hosts
+  - ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes vanni@$SFTP_HOST "echo OK"
