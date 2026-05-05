@@ -1,12 +1,33 @@
 .ssh_setup:
   before_script:
+    - echo "=== USER ==="
+    - whoami
+    - echo "HOME=$HOME"
+
+    - echo "=== SSH_PRIVATE_KEY FILE ==="
+    - echo "$SSH_PRIVATE_KEY"
+    - ls -la "$SSH_PRIVATE_KEY"
+
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - cp "$SSH_PRIVATE_KEY" ~/.ssh/id_ed25519
+
+    - echo "=== COPY KEY ==="
+    - tr -d '\r' < "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
     - chmod 600 ~/.ssh/id_ed25519
-    - ssh-keyscan -H $SFTP_HOST >> ~/.ssh/known_hosts 2>/dev/null
-    # DEBUG
+
     - echo "=== SSH DIR ==="
     - ls -la ~/.ssh
-    - echo "=== TEST KEY ==="
+
+    - echo "=== KEY CONTENT (HEADER/FOOTER) ==="
+    - head -n 2 ~/.ssh/id_ed25519
+    - tail -n 2 ~/.ssh/id_ed25519
+
+    - echo "=== CHECK FOR WINDOWS CRLF (^M) ==="
+    - cat -A ~/.ssh/id_ed25519 | head -n 3
+
+    - echo "=== VALIDATE KEY ==="
     - ssh-keygen -lf ~/.ssh/id_ed25519
+
+    - echo "=== HOST KEYSCAN ==="
+    - ssh-keyscan -H $SFTP_HOST >> ~/.ssh/known_hosts 2>/dev/null
+    - tail -n 3 ~/.ssh/known_hosts
