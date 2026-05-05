@@ -61,6 +61,7 @@ def trigger_backup_folder():
     target=folder_backup,
     args=(
       os.path.join(STATIC_FOLDER, 'photos', 'prod'),
+      'server'
     ),
     daemon=True,
   ).start()
