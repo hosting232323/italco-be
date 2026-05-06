@@ -2,7 +2,7 @@
   stage: deploy
   when: manual
   tags:
-    - deploy-local-ralts
+    - "${SERVER_NAME}-deploy"
   script:
     - |
       cat <<-EOF > env_file
