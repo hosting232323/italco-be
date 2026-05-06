@@ -4,7 +4,7 @@ lint_backend:
   allow_failure: true
   interruptible: true
   tags:
-    - rattata-lint
+    - "${SERVER_NAME}-test"
   rules:
     - if: '$CI_COMMIT_BRANCH != "main"'
   script:
