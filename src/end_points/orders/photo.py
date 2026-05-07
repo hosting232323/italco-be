@@ -22,7 +22,8 @@ def handle_photos(data: dict, order: Order, session: session_type):
           {
             'id': id,
             'order_id': order.id,
-            'link': f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/order/photos/'
+            'link': f'http{"s" if not IS_DEV else ""}://{request.host}'
+            + f'{f"/{API_PREFIX}" if API_PREFIX else ""}/order/photos/'
             + os.path.basename(
               upload_file(
                 uploaded_file,
