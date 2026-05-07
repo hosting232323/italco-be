@@ -4,9 +4,9 @@ from flask import request, send_from_directory
 from sqlalchemy.orm import Session as session_type
 
 from api.storage import upload_file
-from ... import STATIC_FOLDER, IS_DEV, API_PREFIX
 from database_api.operations import create
 from ...database.schema import Photo, Order
+from ... import STATIC_FOLDER, IS_DEV, API_PREFIX
 
 
 def handle_photos(data: dict, order: Order, session: session_type):
