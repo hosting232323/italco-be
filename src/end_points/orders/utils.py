@@ -4,7 +4,7 @@ from ...database.enum import OrderStatus
 from .queries import get_all_histories_by_order_id
 
 
-def get_statuses_by_order_id(order_id):
+def get_statuses_by_order_id(order_id: int):
   status_map = {status.name: status.value for status in OrderStatus}
   statuses = []
   for history in get_all_histories_by_order_id(order_id):

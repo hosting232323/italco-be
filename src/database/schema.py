@@ -95,6 +95,10 @@ class Transport(BaseEntity):
   plate = Column(String, nullable=False)
 
   schedule = relationship('Schedule', back_populates='transport')
+  product = relationship('Product', foreign_keys='Product.transport_id', back_populates='transport')
+  release_product = relationship(
+    'Product', foreign_keys='Product.release_transport_id', back_populates='release_transport'
+  )
 
 
 class Order(BaseEntity):
@@ -220,8 +224,11 @@ class CollectionPoint(BaseEntity):
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='collection_point')
-  product = relationship('Product', back_populates='collection_point')
   schedule_item_collection_point = relationship('ScheduleItemCollectionPoint', back_populates='collection_point')
+  product = relationship('Product', foreign_keys='Product.collection_point_id', back_populates='collection_point')
+  release_product = relationship(
+    'Product', foreign_keys='Product.release_collection_point_id', back_populates='release_collection_point'
+  )
 
 
 class Service(BaseEntity):
@@ -255,14 +262,22 @@ class Product(BaseEntity):
 
   name = Column(String, nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
+  transport_id = Column(Integer, ForeignKey('transport.id'), nullable=True)
   rae_product_id = Column(Integer, ForeignKey('rae_product.id'), nullable=True)
   service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
-  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False)
+  release_transport_id = Column(Integer, ForeignKey('transport.id'), nullable=True)
+  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=True)
+  release_collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=True)
 
   order = relationship('Order', back_populates='product')
   rae_product = relationship('RaeProduct', back_populates='product')
   service_user = relationship('ServiceUser', back_populates='product')
-  collection_point = relationship('CollectionPoint', back_populates='product')
+  transport = relationship('Transport', foreign_keys=[transport_id], back_populates='product')
+  collection_point = relationship('CollectionPoint', foreign_keys=[collection_point_id], back_populates='product')
+  release_transport = relationship('Transport', foreign_keys=[release_transport_id], back_populates='release_product')
+  release_collection_point = relationship(
+    'CollectionPoint', foreign_keys=[release_collection_point_id], back_populates='release_product'
+  )
 
 
 class RaeProduct(BaseEntity):

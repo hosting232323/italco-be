@@ -198,7 +198,8 @@ def build_sub_groups(sub_groups_orders, collection_point_items):
     for order in orders_subset:
       if 'products' in order:
         for product in order['products'].values():
-          needed_cp_ids.add(product['collection_point']['id'])
+          if 'collection_point' in product:
+            needed_cp_ids.add(product['collection_point']['id'])
 
     relevant_cps = [cp for cp in collection_point_items if cp.get('collection_point_id') in needed_cp_ids]
     sub_group = [set_schedule_index(item, idx) for idx, item in enumerate(relevant_cps + orders_subset)]
@@ -223,7 +224,8 @@ def enforce_max_size(groups, max_size_group):
 
       for order in chunk:
         for product in order['products'].values():
-          needed_cp_ids.add(product['collection_point']['id'])
+          if 'collection_point' in product:
+            needed_cp_ids.add(product['collection_point']['id'])
 
       cps = [cp for cp in collection_points if cp.get('collection_point_id') in needed_cp_ids]
       new_group = [set_schedule_index(item, idx) for idx, item in enumerate(cps + chunk)]
