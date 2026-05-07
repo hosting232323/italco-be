@@ -1,10 +1,11 @@
+from sqlalchemy import and_
 from flask import Blueprint, request
 
 from database_api import Session
 from ..database.enum import UserRole
-from ..database.schema import CollectionPoint, User
 from .users.session import flask_session_authentication
 from database_api.operations import create, delete, get_by_id, update
+from ..database.schema import CollectionPoint, User, ServiceUser, Product
 
 
 collection_point_bp = Blueprint('collection_point_bp', __name__)
@@ -46,3 +47,14 @@ def query_collection_points(user: User) -> list[CollectionPoint]:
     if user.role == UserRole.CUSTOMER:
       query = query.filter(CollectionPoint.user_id == user.id)
     return query.all()
+
+
+def query_collection_points_available(order_id: int) -> list[CollectionPoint]:
+  with Session() as session:
+    return (
+      session.query(CollectionPoint)
+      .join(User, CollectionPoint.user_id == User.id)
+      .join(ServiceUser, User.id == ServiceUser.user_id)
+      .join(Product, and_(Product.service_user_id == ServiceUser.id, Product.order_id == order_id))
+      .all()
+    )

@@ -1,16 +1,17 @@
+from .clone import format_data_cloning_product
 from database_api.operations import create, delete
 from .queries import query_service_users, query_products
 from ...database.schema import Order, Product, RaeProduct, ServiceUser
 
 
-def create_products(order: Order, products: dict, user_id: int, session=None):
-  service_users = get_service_users(order, products, user_id)
+def create_products(order: Order, products: dict, customer_user_id: int, cloned_order: bool, session):
+  service_users = get_service_users(order, products, customer_user_id)
   for product in products.keys():
-    create_product(product, products[product], order, service_users, session=session)
+    create_product(product, products[product], order, service_users, session=session, cloned_order=cloned_order)
 
 
-def update_products(order: Order, products: dict, user_id: int, session=None):
-  service_users = get_service_users(order, products, user_id)
+def update_products(order: Order, products: dict, customer_user_id: int, session=None):
+  service_users = get_service_users(order, products, customer_user_id)
   old_products = query_products(order)
 
   for product in products.keys():
@@ -24,7 +25,9 @@ def update_products(order: Order, products: dict, user_id: int, session=None):
       delete(old_product, session=session)
 
 
-def create_product(product_name: str, data: dict, order: Order, service_users: list[ServiceUser], session):
+def create_product(
+  product_name: str, data: dict, order: Order, service_users: list[ServiceUser], session, cloned_order=False
+):
   rae_product = None
   if 'rae_product' in data:
     rae_product: RaeProduct = create(
@@ -40,17 +43,17 @@ def create_product(product_name: str, data: dict, order: Order, service_users: l
   for service in data['services']:
     for service_user in service_users:
       if service_user.service_id == service['id']:
-        create(
-          Product,
-          {
-            'order_id': order.id,
-            'name': product_name,
-            'service_user_id': service_user.id,
-            'collection_point_id': data['collection_point']['id'],
-            'rae_product_id': rae_product.id if rae_product else None,
-          },
-          session=session,
-        )
+        product_data = {
+          'order_id': order.id,
+          'name': product_name,
+          'service_user_id': service_user.id,
+          'rae_product_id': rae_product.id if rae_product else None,
+        }
+        if cloned_order:
+          product_data = format_data_cloning_product(product_data, data)
+        else:
+          product_data['collection_point_id'] = data['collection_point']['id']
+        create(Product, product_data, session=session)
         break
 
 
