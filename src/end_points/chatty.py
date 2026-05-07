@@ -17,7 +17,7 @@ assistant_id = os.environ['ASSISTANT_ID']
 chatty_bp = Blueprint('chatty_bp', __name__)
 
 
-@chatty_bp.route('message', methods=['POST'])
+@chatty_bp.route('chat', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.DELIVERY])
 def send_message(user: User):
   if 'thread_id' in request.json and request.json['thread_id']:
