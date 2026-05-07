@@ -2,7 +2,7 @@
   stage: deploy
   when: manual
   tags:
-    - deploy-local-ralts
+    - "${SERVER_NAME}-deploy"
   script:
     - |
       cat <<-EOF > env_file
@@ -25,8 +25,7 @@
         TELEGRAM_TOKEN=$TELEGRAM_TOKEN
         RESTIC_PASSWORD=$RESTIC_PASSWORD
         BACKUP_FOLDER=$BACKUP_FOLDER
-        SFTP_USER=$SFTP_USER
-        SFTP_HOST=$SFTP_HOST
+        BACKUP_SSH_CONFIG=$BACKUP_SSH_CONFIG
         SERVER_NAME=$SERVER_NAME
       EOF
 
@@ -93,7 +92,7 @@ deploy_prod:
   image: postgres:17
   when: manual
   tags:
-    - deploy-local-ralts
+    - "${SERVER_NAME}-deploy"
   script:
     - export DB_URL="$DATABASE_URL_PIPELINE"
     - export DB_NAME=$(echo "$DB_URL" | awk -F/ '{print $NF}')
