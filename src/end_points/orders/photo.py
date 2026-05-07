@@ -17,20 +17,20 @@ def handle_photos(data: dict, order: Order, session: session_type):
         data['signature'] = uploaded_file.read()
       else:
         id = guess_next_id(session)
-        full_path = upload_file(
-          uploaded_file,
-          f'{id}{guess_extension(uploaded_file.mimetype)}',
-          os.path.join(STATIC_FOLDER, 'photos'),
-          'local',
-        )
-        protocol = f'http{"s" if not IS_DEV else ""}'
-        api_prefix = f'/{API_PREFIX}' if API_PREFIX else ''
         create(
           Photo,
           {
             'id': id,
             'order_id': order.id,
-            'link': f'{protocol}://{request.host}{api_prefix}/order/photos/{os.path.basename(full_path)}',
+            'link': f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/order/photos/'
+            + os.path.basename(
+              upload_file(
+                uploaded_file,
+                f'{id}{guess_extension(uploaded_file.mimetype)}',
+                os.path.join(STATIC_FOLDER, 'photos'),
+                'local',
+              )
+            ),
           },
           session=session,
         )
