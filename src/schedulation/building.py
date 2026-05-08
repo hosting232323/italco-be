@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 from typing import Any
 from collections import defaultdict
 
@@ -49,7 +47,6 @@ def find_matching_group_index(
   return None
 
 
->>>>>>> main
 def build_schedule_items(orders):
   schedule_orders = []
   collection_point_ids = []
@@ -57,12 +54,9 @@ def build_schedule_items(orders):
   for order in orders:
     schedule_orders.append(build_schedule_item(order, 'Order'))
     for product in order['products'].values():
-<<<<<<< HEAD
-=======
       if 'collection_point' not in product or not product['collection_point']:
         continue
 
->>>>>>> main
       if product['collection_point']['id'] not in collection_point_ids:
         schedule_collection_points.append(build_schedule_item(product['collection_point'], 'CollectionPoint'))
         collection_point_ids.append(product['collection_point']['id'])
@@ -94,8 +88,6 @@ def set_schedule_index(item, index):
   new_item = item.copy()
   new_item['index'] = index
   return new_item
-<<<<<<< HEAD
-=======
 
 
 def find_cap_groups(orders):
@@ -127,4 +119,3 @@ def build_cap_graph(orders):
 
 def get_order_caps(order: dict[str, Any]) -> set[str]:
   return {product['collection_point']['cap'] for product in order['products'].values() if 'collection_point' in product}
->>>>>>> main
