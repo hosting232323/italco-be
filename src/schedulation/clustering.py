@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from .building import ScheduleItemGroupBuilder
-from .clustering_rules import ClusteringRule, ClusteringContext, ScheduleItemGroup
-
+from .clustering_rules import ClusteringContext, ClusteringRule, ScheduleItemGroup
 from .clustering_rules.merge_small_group import MergeSmallGroupsRule
-from .clustering_rules.split_large_group import SplitLargeGroupsRule
 from .clustering_rules.professional_services_limit import ProfessionalServicesLimitRule
+from .clustering_rules.split_large_group import SplitLargeGroupsRule
 
 
 def build_clustered_schedule_item_groups(orders, min_size_group, max_size_group, max_distance_km):
@@ -32,6 +32,7 @@ class ClusteringRuleFactory:
 
   def build(self) -> list[ClusteringRule]:
     return [rule() for rule in self.rules]
+
 
 @dataclass(slots=True)
 class ScheduleClusteringPipeline:

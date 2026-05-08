@@ -18,6 +18,7 @@ pytestmark = pytest.mark.e2e
 
 MAX_PROFESSIONAL_ORDERS = 2
 
+
 def _extract_suggestions(payload):
   """Estrae ricorsivamente i gruppi/proposte dal payload JSON."""
   if isinstance(payload, list):
@@ -123,6 +124,5 @@ def test_schedule_proposals_professional_services_limit(pw_page: Page):
     orders = suggestion.get('orders') or suggestion.get('schedule_items') or []
     pro_count = _count_professional_orders(orders)
     assert pro_count <= MAX_PROFESSIONAL_ORDERS, (
-      f'Proposta Borderò {i + 1} ha {pro_count} ordini professionali '
-      f'(limite: {MAX_PROFESSIONAL_ORDERS})'
+      f'Proposta Borderò {i + 1} ha {pro_count} ordini professionali (limite: {MAX_PROFESSIONAL_ORDERS})'
     )
