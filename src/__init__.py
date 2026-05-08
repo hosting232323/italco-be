@@ -49,13 +49,7 @@ def index():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup():
-  threading.Thread(
-    target=db_backup,
-    args=(DATABASE_URL, BACKUP_FOLDER, 'server', 'postgres-backup'),
-    daemon=True,
-  ).start()
-
-  return {'status': 'ok', 'message': 'Operazione completata con successo!'}
+  return db_backup(DATABASE_URL, BACKUP_FOLDER, 'server', 'postgres-backup')
 
 
 @app.route('/folder-backup', methods=['GET'])
