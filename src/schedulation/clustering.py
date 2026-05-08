@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from typing import Any
+<<<<<<< HEAD
 from collections import defaultdict
 from dataclasses import dataclass, field
 
 from .building import build_schedule_items
+=======
+from dataclasses import dataclass, field
+
+from .building import ScheduleItemGroupBuilder
+>>>>>>> main
 from .clustering_rules import ClusteringRule, ClusteringContext, ScheduleItemGroup
 
 from .clustering_rules.merge_small_group import MergeSmallGroupsRule
@@ -36,6 +42,7 @@ class ClusteringRuleFactory:
     return [rule() for rule in self.rules]
 
 
+<<<<<<< HEAD
 class ScheduleItemGroupBuilder:
   def build(
     self,
@@ -48,6 +55,8 @@ class ScheduleItemGroupBuilder:
     return schedule_item_groups
 
 
+=======
+>>>>>>> main
 @dataclass(slots=True)
 class ScheduleClusteringPipeline:
   group_builder: ScheduleItemGroupBuilder = field(default_factory=ScheduleItemGroupBuilder)
@@ -62,6 +71,7 @@ class ScheduleClusteringPipeline:
     for rule in self.rule_factory.build():
       schedule_item_groups = rule.apply(schedule_item_groups, context)
     return schedule_item_groups
+<<<<<<< HEAD
 
 
 def find_cap_groups(orders):
@@ -93,3 +103,5 @@ def build_cap_graph(orders):
 
 def get_order_caps(order: dict[str, Any]) -> set[str]:
   return {product['collection_point']['cap'] for product in order['products'].values()}
+=======
+>>>>>>> main

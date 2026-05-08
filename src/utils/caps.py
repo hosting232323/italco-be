@@ -34,6 +34,8 @@ def get_lat_lon_by_cap(cap: str) -> tuple[float, float]:
   for province in CAPS_DATA.keys():
     if cap in CAPS_DATA[province]:
       cap_data = CAPS_DATA[province][cap]
+      if type(cap_data) is list:
+        cap_data = cap_data[0]
       return cap_data['lat'], cap_data['lon']
 
   raise ValueError(f'CAP {cap} not found')

@@ -4,9 +4,9 @@ from flask import request, send_from_directory
 from sqlalchemy.orm import Session as session_type
 
 from api.storage import upload_file
-from ... import STATIC_FOLDER, IS_DEV
 from database_api.operations import create
 from ...database.schema import Photo, Order
+from ... import STATIC_FOLDER, IS_DEV, API_PREFIX
 
 
 def handle_photos(data: dict, order: Order, session: session_type):
@@ -22,14 +22,16 @@ def handle_photos(data: dict, order: Order, session: session_type):
           {
             'id': id,
             'order_id': order.id,
-            'link': upload_file(
-              uploaded_file,
-              f'{id}{guess_extension(uploaded_file.mimetype)}',
-              os.path.join(STATIC_FOLDER, 'photos'),
-              'local',
-            )
-            .replace('/api/photos/prod/', '/api/order/photos/')
-            .replace('/api/photos/test/', '/api/order/photos/'),
+            'link': f'http{"s" if not IS_DEV else ""}://{request.host}'
+            + f'{f"/{API_PREFIX}" if API_PREFIX else ""}/order/photos/'
+            + os.path.basename(
+              upload_file(
+                uploaded_file,
+                f'{id}{guess_extension(uploaded_file.mimetype)}',
+                os.path.join(STATIC_FOLDER, 'photos'),
+                'local',
+              )
+            ),
           },
           session=session,
         )

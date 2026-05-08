@@ -19,20 +19,22 @@ from ...database.schema import (
   Motivation,
   ScheduleItem,
   ScheduleItemOrder,
+  Transport,
 )
 
 
 def query_orders(
   user: User, filters: list, limit: int = None
-) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint]]:
+) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Transport]]:
   with Session() as session:
     query = (
-      session.query(Order, Product, ServiceUser, Service, User, CollectionPoint)
-      .outerjoin(Product, Product.order_id == Order.id)
+      session.query(Order, Product, ServiceUser, Service, User, CollectionPoint, Transport)
+      .join(Product, Product.order_id == Order.id)
       .outerjoin(CollectionPoint, Product.collection_point_id == CollectionPoint.id)
-      .outerjoin(ServiceUser, Product.service_user_id == ServiceUser.id)
-      .outerjoin(Service, ServiceUser.service_id == Service.id)
-      .outerjoin(User, ServiceUser.user_id == User.id)
+      .outerjoin(Transport, Product.transport_id == Transport.id)
+      .join(ServiceUser, Product.service_user_id == ServiceUser.id)
+      .join(Service, ServiceUser.service_id == Service.id)
+      .join(User, ServiceUser.user_id == User.id)
     )
 
     if user.role == UserRole.CUSTOMER:
@@ -117,13 +119,13 @@ def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -
 
 
 def format_query_result(
-  tupla: tuple[Order, Product, ServiceUser, Service, User, CollectionPoint],
+  tupla: tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Transport],
   list: list[dict],
   user: User,
 ) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
-      add_service(element, tupla[3], tupla[1], tupla[5], tupla[2].price)
+      add_service(element, tupla[3], tupla[1], tupla[5], tupla[6], tupla[2].price)
       return list
 
   output = {
@@ -132,16 +134,29 @@ def format_query_result(
     'products': {},
     'user': tupla[4].format_user(user.role),
   }
-  add_service(output, tupla[3], tupla[1], tupla[5], tupla[2].price)
+  add_service(output, tupla[3], tupla[1], tupla[5], tupla[6], tupla[2].price)
   list.append(output)
   return list
 
 
 def add_service(
-  object: dict, service: Service, product: Product, collection_point: CollectionPoint, price: float
+  object: dict,
+  service: Service,
+  product: Product,
+  collection_point: CollectionPoint,
+  transport: Transport,
+  price: float,
 ) -> dict:
   if product.name not in object['products'].keys():
-    object['products'][product.name] = {'services': [], 'collection_point': collection_point.to_dict()}
+    object['products'][product.name] = {
+      'services': [],
+      'release_transport_id': product.release_transport_id,
+      'release_collection_point_id': product.release_collection_point_id,
+    }
+    if collection_point:
+      object['products'][product.name]['collection_point'] = collection_point.to_dict()
+    elif transport:
+      object['products'][product.name]['transport'] = transport.to_dict()
 
   if next(
     (service for service in object['products'][product.name]['services'] if service['product_id'] == product.id),
