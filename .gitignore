@@ -11,3 +11,5 @@ build
 seed_data.py
 *.log
 .playwright-mcp/
+.github/instructions/
+.gilab-ci-local/

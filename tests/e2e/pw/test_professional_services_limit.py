@@ -18,23 +18,34 @@ pytestmark = pytest.mark.e2e
 
 MAX_PROFESSIONAL_ORDERS = 2
 
-# JavaScript che recupera le `suggestions` dal setupState del componente
-# SchedulationForm risalendo la catena dei parent Vue a partire dalla prima
-# card "Proposta Borderò" nel DOM.
-_JS_GET_SUGGESTIONS = """
-() => {
-  const card = Array.from(document.querySelectorAll('.v-dialog .v-card'))
-    .find(c => c.querySelector('.v-card-title')?.textContent.includes('Proposta Borderò'));
-  if (!card) return null;
-  let comp = card.__vueParentComponent;
-  for (let i = 0; comp && i < 20; i++, comp = comp.parent) {
-    const state = comp.setupState || comp.data;
-    if (state?.suggestions && Array.isArray(state.suggestions))
-      return JSON.parse(JSON.stringify(state.suggestions));
-  }
-  return null;
-}
-"""
+def _extract_suggestions(payload):
+  """Estrae ricorsivamente i gruppi/proposte dal payload JSON."""
+  if isinstance(payload, list):
+    # candidato diretto: lista di proposte con chiave orders
+    if payload and all(isinstance(item, dict) for item in payload):
+      if any('orders' in item for item in payload):
+        return payload
+    for item in payload:
+      found = _extract_suggestions(item)
+      if found:
+        return found
+    return None
+
+  if isinstance(payload, dict):
+    groups = payload.get('groups')
+    if isinstance(groups, list):
+      return groups
+
+    direct = payload.get('suggestions')
+    if isinstance(direct, list):
+      return direct
+
+    for value in payload.values():
+      found = _extract_suggestions(value)
+      if found:
+        return found
+
+  return None
 
 
 def _count_professional_orders(orders: list) -> int:
@@ -52,6 +63,22 @@ def _count_professional_orders(orders: list) -> int:
 
 def test_schedule_proposals_professional_services_limit(pw_page: Page):
   page = pw_page
+  captured_suggestions = []
+
+  def _capture_suggestions(response):
+    try:
+      content_type = response.headers.get('content-type', '').lower()
+      if 'application/json' not in content_type:
+        return
+      payload = response.json()
+      suggestions = _extract_suggestions(payload)
+      if suggestions:
+        captured_suggestions.append(suggestions)
+    except Exception:
+      # Alcune risposte non sono JSON o non sono pertinenti.
+      return
+
+  page.on('response', _capture_suggestions)
 
   # ── Apri il dialog ────────────────────────────────────────────────────────
   page.get_by_role('button', name='Pianificazione Automatica').click()
@@ -78,20 +105,23 @@ def test_schedule_proposals_professional_services_limit(pw_page: Page):
   # ── Attendi le card delle proposte ────────────────────────────────────────
   expect(page.get_by_text('Proposta Borderò 1')).to_be_visible(timeout=30_000)
 
-  # ── Leggi le proposte dallo stato Vue ─────────────────────────────────────
-  suggestions = None
-  for _ in range(10):
-    suggestions = page.evaluate(_JS_GET_SUGGESTIONS)
-    if suggestions:
+  # ── Leggi le proposte dalla risposta API (robusto in build production) ───
+  for _ in range(20):
+    if captured_suggestions:
       break
     page.wait_for_timeout(500)
 
-  assert suggestions, 'Impossibile leggere le proposte dallo stato Vue'
+  page.remove_listener('response', _capture_suggestions)
+
+  suggestions = captured_suggestions[-1] if captured_suggestions else None
+
+  assert suggestions, 'Impossibile leggere le proposte dalla risposta API'
   assert len(suggestions) > 0, 'Nessuna proposta ricevuta dal backend'
 
   # ── Verifica il limite per ogni proposta ──────────────────────────────────
   for i, suggestion in enumerate(suggestions):
-    pro_count = _count_professional_orders(suggestion.get('orders', []))
+    orders = suggestion.get('orders') or suggestion.get('schedule_items') or []
+    pro_count = _count_professional_orders(orders)
     assert pro_count <= MAX_PROFESSIONAL_ORDERS, (
       f'Proposta Borderò {i + 1} ha {pro_count} ordini professionali '
       f'(limite: {MAX_PROFESSIONAL_ORDERS})'
