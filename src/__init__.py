@@ -9,11 +9,6 @@ from api.storage import folder_backup
 from database_api.backup import db_backup
 from api import swagger_decorator, error_catching_decorator, PrefixMiddleware
 
-try:
-  from api.storage.local import folder_backup
-except ImportError:
-  folder_backup = None
-
 
 allowed_origins = [
   'https://ares-logistics.it',
