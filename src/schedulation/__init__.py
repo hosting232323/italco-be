@@ -34,13 +34,17 @@ def execute_schedulation(
     'status': 'ok',
     'delivery_users': delivery_users,
     'transports': [transport.to_dict() for transport in get_transports_by_date(work_date)],
-    'groups': assign_delivery_users_to_schedule_items(
-      build_clustered_schedule_item_groups(
-        orders,
-        min_size_group,
-        max_size_group,
-        max_distance_km,
-      ),
-      delivery_users,
-    ),
+    'groups': assign_orders_to_groups(orders, delivery_users, min_size_group, max_size_group, max_distance_km),
   }
+
+
+def assign_orders_to_groups(orders, delivery_users, min_size_group, max_size_group, max_distance_km):
+  return assign_delivery_users_to_schedule_items(
+    build_clustered_schedule_item_groups(
+      orders,
+      min_size_group,
+      max_size_group,
+      max_distance_km,
+    ),
+    delivery_users,
+  )
