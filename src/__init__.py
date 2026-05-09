@@ -62,12 +62,6 @@ def trigger_backup():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  if folder_backup is None:
-    return {
-      'status': 'error',
-      'message': 'folder_backup is not available in the installed api.storage.local package.',
-    }, 503
-
   threading.Thread(
     target=folder_backup,
     args=(os.path.join(STATIC_FOLDER, 'photos', 'prod'), 'server'),
