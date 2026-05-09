@@ -35,12 +35,12 @@ def execute_schedulation(
     'delivery_users': delivery_users,
     'transports': [transport.to_dict() for transport in get_transports_by_date(work_date)],
     'groups': assign_delivery_users_to_schedule_items(
-    build_clustered_schedule_item_groups(
-      orders,
-      min_size_group,
-      max_size_group,
-      max_distance_km,
-    ),
-    delivery_users,
+      build_clustered_schedule_item_groups(
+        orders,
+        min_size_group,
+        max_size_group,
+        max_distance_km,
+      ),
+      delivery_users,
     ),
   }
