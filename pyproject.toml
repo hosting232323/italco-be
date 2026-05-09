@@ -24,6 +24,8 @@ dev = [
   "python-dotenv",
   "selenium",
   "ruff",
+  "playwright",
+  "pytest-playwright",
 ]
 
 [tool.ruff]

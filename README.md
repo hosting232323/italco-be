@@ -61,4 +61,17 @@ gitlab-ci-local --validate-dependency-chain
 
 # run main backend checks
 gitlab-ci-local lint_backend unit_tests --timestamps
+
+# run e2e pipeline job locally (includes Playwright install)
+# prefer local frontend checkout to avoid CI token dependency
+gitlab-ci-local e2e_tests --variable LOCAL_ITALCO_FE_DIR=/absolute/path/to/italco-fe --timestamps
+
+# run only Playwright e2e job locally (recommended while migrating from Selenium)
+gitlab-ci-local e2e_playwright_tests --variable LOCAL_ITALCO_FE_DIR=/absolute/path/to/italco-fe --timestamps
+
+# if using docker executor and local FE path, mount host path into container
+gitlab-ci-local e2e_playwright_tests --variable LOCAL_ITALCO_FE_DIR=/local-italco-fe --volume "$PWD/../italco-fe:/local-italco-fe" --timestamps
+
+# optional: use a public/private repo URL if no local checkout is available
+gitlab-ci-local e2e_tests --variable ITALCO_FE_REPO_URL=https://gitlab.com/generic-lab/italco/italco-fe.git --timestamps
 ```
