@@ -11,7 +11,13 @@ RUN apt-get update && apt-get install -y \
   restic \
   pkg-config \
   libcairo2-dev \
+  openssh-client \
+  curl \
   && rm -rf /var/lib/apt/lists/*
+
+RUN curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o /tmp/cloudflared.deb \
+  && dpkg -i /tmp/cloudflared.deb \
+  && rm /tmp/cloudflared.deb
 
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir .
