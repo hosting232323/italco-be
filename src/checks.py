@@ -15,9 +15,9 @@ with open(missing_photos_path, 'r', encoding='utf-8') as file:
   MISSING_PHOTOS = [int(id) for id in re.findall(r'id:\s*(\d+)', file.read())]
 
 
-def trigger_checks(folder):
+def trigger_checks(folder, base_photo_path):
   database_integrity_test()
-  check_mismatch(get_all_files(), os.path.join(folder, 'photos'), 'Photos', 'local')
+  check_mismatch(get_all_files(base_photo_path), os.path.join(folder, 'photos'), 'Photos', 'local')
 
   return {'status': 'ok', 'message': 'Check eseguiti con successo'}
 
@@ -41,10 +41,10 @@ def database_integrity_test():
   send_telegram_message('\n'.join(message_lines))
 
 
-def get_all_files() -> set[str]:
+def get_all_files(base_photo_path: str) -> set[str]:
   with Session() as session:
     return [
-      row.link.replace('https://ares-logistics.it/api/photos/prod/', '')
+      row.link.replace(base_photo_path, '')
       for row in session.query(Photo).filter(and_(Photo.id.not_in(MISSING_PHOTOS), Photo.id > PHOTO_START_ID)).all()
     ]
 

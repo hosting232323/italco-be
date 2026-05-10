@@ -1,7 +1,7 @@
 import os
 import threading
-from flask import Flask
 from flask_cors import CORS
+from flask import Flask, request
 
 from api.settings import IS_DEV
 from .checks import trigger_checks
@@ -75,4 +75,8 @@ def trigger_backup_folder():
 @error_catching_decorator
 @swagger_decorator
 def checks_endpoint():
-  return trigger_checks(STATIC_FOLDER)
+  return trigger_checks(STATIC_FOLDER, get_base_photo_path())
+
+
+def get_base_photo_path():
+  return f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/order/photos/'
