@@ -51,7 +51,8 @@
           -p ${FIRST_PORT}:8080 \
           -v $STATIC_FOLDER:$STATIC_FOLDER \
           -v $BACKUP_FOLDER:$BACKUP_FOLDER \
-          -v /opt/docker-ssh:/root/.ssh:ro \
+          -v $SSH_AUTH_SOCK:/ssh-agent \
+          -e SSH_AUTH_SOCK=/ssh-agent
           $PJ_NAME:latest
         docker rm -f ${CONTAINER_NEXT} 2>/dev/null || true
       else
