@@ -1,8 +1,4 @@
-## BUG BE: E' possibili assegnare servizi a utenti non customer (non dovrebbe essere possibile)
-
 ## BUG FE: Controlli campi selector possono essere negativi (solo positivi a seconda cifra decimale)
-
-## BUG FE: Form Delivery a disposizione per customer (rimuovere il selector dei form se customer)
 
 ## BUG FE O BE(?): Da utente customer non è possibile aprire i filtri nella dashboard
 
