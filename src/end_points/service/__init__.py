@@ -65,7 +65,11 @@ def delete_service(_, id):
 @flask_session_authentication([UserRole.ADMIN])
 def create_service_user(_):
   if query_service_user(request.json['service_id'], request.json['user_id']):
-    return {'status': 'ko', 'message': 'Utente già associato al servivizio'}
+    return {'status': 'ko', 'message': 'Utente già associato al servizio'}
+
+  customer = get_by_id(User, int(request.json['user_id']))
+  if not customer or customer.role != UserRole.CUSTOMER:
+    return {'status': 'ko', 'message': 'Il servizio si può associare solo a un utente customer'}
 
   service_user: ServiceUser = create(ServiceUser, request.json)
   return {
