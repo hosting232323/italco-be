@@ -51,7 +51,7 @@ def index():
 def trigger_backup():
   threading.Thread(
     target=db_backup,
-    args=(DATABASE_URL, BACKUP_FOLDER, 'server', 'postgres-backup'),
+    args=(DATABASE_URL, 'server'),
     daemon=True,
   ).start()
 
@@ -62,13 +62,8 @@ def trigger_backup():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  threading.Thread(
-    target=folder_backup,
-    args=(os.path.join(STATIC_FOLDER, 'photos', 'prod'), 'server'),
-    daemon=True,
-  ).start()
-
-  return {'status': 'ok', 'message': 'Operazione completata con successo!'}
+  folder_backup(os.path.join(STATIC_FOLDER, 'photos', 'prod'), 'server')
+  return {'status': 'ok', 'message': 'Backup avviato in background!'}
 
 
 @app.route('/checks', methods=['GET'])
