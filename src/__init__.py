@@ -22,8 +22,6 @@ EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 STATIC_FOLDER = os.environ.get(
   'STATIC_FOLDER', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
 )
-
-
 app = Flask(__name__, template_folder='../templates')
 
 
