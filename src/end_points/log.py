@@ -32,6 +32,7 @@ def get_log(user: User):
 
 
 def query_logs(filters: list) -> list[tuple[Log, User]]:
+  limit = 300
   with Session() as session:
     query = session.query(Log, User).join(User, Log.user_id == User.id).options(defer(Log.content))
 
@@ -39,6 +40,7 @@ def query_logs(filters: list) -> list[tuple[Log, User]]:
       model = globals()[filter['model']]
       field = getattr(model, filter['field'])
       value = filter['value']
+      limit = 3000
 
       if field == Log.created_at and type(value) is list:
         query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
@@ -48,4 +50,5 @@ def query_logs(filters: list) -> list[tuple[Log, User]]:
         query = query.filter(field == value)
 
     query = query.order_by(Log.created_at.desc())
+    query = query.limit(limit)
     return query.all()
