@@ -18,9 +18,7 @@ allowed_origins = [
 
 DATABASE_URL = os.environ['DATABASE_URL']
 LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
-BACKUP_FOLDER = os.environ.get('BACKUP_FOLDER', None)
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
-POSTGRES_BACKUP_DAYS = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
 STATIC_FOLDER = os.environ.get(
   'STATIC_FOLDER', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
 )
