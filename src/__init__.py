@@ -46,7 +46,7 @@ def index():
 @swagger_decorator
 def trigger_backup():
   db_backup(DATABASE_URL, 'server')
-  return {'status': 'ok', 'message': 'Operazione completata con successo!'}
+  return {'status': 'ok', 'message': 'Database backup avviato in background!'}
 
 
 @app.route('/folder-backup', methods=['GET'])
