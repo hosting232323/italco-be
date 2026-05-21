@@ -24,7 +24,7 @@ from ...database.schema import (
 
 
 def query_orders(
-  user: User, filters: list, limit: int = None
+  user, filters: list, limit: int = None
 ) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Transport]]:
   with Session() as session:
     query = (
@@ -37,7 +37,8 @@ def query_orders(
       .join(User, ServiceUser.user_id == User.id)
     )
 
-    if user.role == UserRole.CUSTOMER:
+    user_role = user.role if isinstance(user, User) else user
+    if user_role == UserRole.CUSTOMER:
       query = query.filter(User.id == user.id)
 
     for filter in filters:
@@ -121,7 +122,7 @@ def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -
 def format_query_result(
   tupla: tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Transport],
   list: list[dict],
-  user: User,
+  user,
 ) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
@@ -132,7 +133,7 @@ def format_query_result(
     **tupla[0].to_dict(),
     'price': 0,
     'products': {},
-    'user': tupla[4].format_user(user.role),
+    'user': tupla[4].format_user(user.role if isinstance(user, User) else user),
   }
   add_service(output, tupla[3], tupla[1], tupla[5], tupla[6], tupla[2].price)
   list.append(output)

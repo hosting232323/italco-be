@@ -48,7 +48,7 @@ def create_order(user: User, data: dict):
   return {'status': 'ok', 'order': order.to_dict()}
 
 
-def filter_orders(user: User, filters: dict):
+def filter_orders(user, filters: dict):
   orders = []
   for tupla in query_orders(user, filters, 500):
     orders = format_query_result(tupla, orders, user)

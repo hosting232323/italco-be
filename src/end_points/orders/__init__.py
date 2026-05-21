@@ -6,12 +6,12 @@ from .mailer import mailer_check
 from database_api import Session
 from .photo import handle_photos
 from ...database.enum import UserRole
-from api import error_catching_decorator
 from ...database.schema import User, Order
 from .utils import get_statuses_by_order_id
 from database_api.operations import get_by_id
 from .api import save_order_status_to_euronics
 from ..users.session import flask_session_authentication
+from api import error_catching_decorator, swagger_decorator
 from ..collection_point import query_collection_points_available
 from .queries import get_order_photos, get_motivations_by_order_id
 from .crud import create_order, update_order, filter_orders, get_order, delete_order, update_order_customer
@@ -30,6 +30,12 @@ def create_order_endpoint(user: User):
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.CUSTOMER])
 def filter_orders_endpoint(user: User):
   return filter_orders(user, request.json['filters'])
+
+
+@order_bp.route('ext-filter', methods=['POST'])
+@swagger_decorator
+def ext_filter_orders_endpoint():
+  return filter_orders(UserRole.OPERATOR, request.json['filters'])
 
 
 @order_bp.route('<id>', methods=['GET'])
