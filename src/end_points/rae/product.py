@@ -5,7 +5,7 @@ from database_api import Session
 from ...utils.date import handle_date
 from ...database.enum import RaeStatus
 from ..users.queries import format_user_with_info
-from database_api.operations import create, update, delete, get_by_id
+from database_api.operations import update, delete, get_by_id
 from ...database.schema import (
   Order,
   Product,
@@ -25,6 +25,11 @@ def get_rae_products(user: User, filters: list[dict]):
   return {'status': 'ok', 'rae_products': rae_products}
 
 
+def update_rae_product(id: int, data: dict):
+  update(get_by_id(RaeProduct, id), {'status': RaeStatus(data['status'])})
+  return {'status': 'ok', 'message': 'Operazione completata'}
+
+
 def delete_rae_product(id: int):
   if check_orders(id):
     return {'status': 'ko', 'message': 'Prodotto Rae ancora associato ad un Ordine'}
@@ -33,27 +38,23 @@ def delete_rae_product(id: int):
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
-def query_rae_products(filters: list[dict]) -> list[tuple[RaeProduct, RaeProductGroup, User, Order]]:
+def query_rae_products(filters: list[dict]) -> list[tuple[RaeProduct, RaeProductGroup, User, Order, Schedule]]:
   with Session() as session:
     query = (
-      session.query(RaeProduct, RaeProductGroup, User, Order)
+      session.query(RaeProduct, RaeProductGroup, User, Order, Schedule)
       .join(RaeProductGroup, RaeProduct.rae_product_group_id == RaeProductGroup.id)
       .join(User, RaeProduct.user_id == User.id)
       .outerjoin(Product, RaeProduct.id == Product.rae_product_id)
       .outerjoin(Order, Product.order_id == Order.id)
+      .outerjoin(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
+      .outerjoin(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+      .outerjoin(Schedule, Schedule.id == ScheduleItem.schedule_id)
     )
 
     for filter in filters:
       model = globals()[filter['model']]
       field = getattr(model, filter['field'])
       value = filter['value']
-
-      if model == Schedule:
-        query = (
-          query.join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
-          .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
-          .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
-        )
 
       if field in [Schedule.date, RaeProduct.created_at] and type(value) is list:
         query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
@@ -66,7 +67,7 @@ def query_rae_products(filters: list[dict]) -> list[tuple[RaeProduct, RaeProduct
     return query.order_by(desc(RaeProduct.created_at)).all()
 
 
-def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order], list: list[dict], user: User):
+def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, Schedule], list: list[dict], user: User):
   for element in list:
     if element['id'] == tupla[0].id:
       return list
@@ -75,10 +76,14 @@ def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order], 
     **tupla[0].to_dict(),
     'product_group': tupla[1].to_dict(),
     'user': format_user_with_info(tupla[2], user.role),
-    'rae_number': query_count_rae_products(tupla[0].id, tupla[2].id),
+    'rae_number': query_count_rae_products(tupla[0].id, tupla[2].id)
+    if tupla[0].status != RaeStatus.GENERATED
+    else None,
   }
   if tupla[3]:
     output['order'] = tupla[3].to_dict()
+  if tupla[4]:
+    output['schedule'] = tupla[4].to_dict()
   list.append(output)
   return list
 
@@ -95,6 +100,7 @@ def query_count_rae_products(rae_product_id: int, user_id: int) -> int:
       .filter(
         RaeProduct.id <= rae_product_id,
         RaeProduct.user_id == user_id,
+        RaeProduct.status != RaeStatus.GENERATED,
         extract('year', RaeProduct.created_at) == date.today().year,
       )
       .scalar()
@@ -130,23 +136,6 @@ def get_rae_products_by_order(order: Order) -> list[RaeProduct]:
 def emit_rae_products(order: Order, session):
   for rae_product in get_rae_products_by_order(order):
     update(rae_product, {'status': RaeStatus.EMITTED}, session=session)
-
-
-def recreate_rae_products(order: Order, session):
-  rae_product_ids = {}
-  for tupla in get_rae_product_tuples_by_order(order):
-    if tupla[0].id not in rae_product_ids:
-      rae_product_ids[tupla[0].id] = create(
-        RaeProduct,
-        {
-          'user_id': tupla[0].user_id,
-          'quantity': tupla[0].quantity,
-          'rae_product_group_id': tupla[0].rae_product_group_id,
-        },
-        session=session,
-      ).id
-      update(tupla[0], {'status': RaeStatus.ANNULLED})
-    update(tupla[1], {'rae_product_id': rae_product_ids[tupla[0].id]}, session=session)
 
 
 def get_rae_product_tuples_by_order(order: Order) -> list[tuple[RaeProduct, Product]]:

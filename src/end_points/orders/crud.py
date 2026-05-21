@@ -88,6 +88,7 @@ def delete_order(user: User, order_id: int):
 
 def update_order(user: User, order: Order, data: dict, session):
   is_delay = data['delay'] if 'delay' in data else False
+  schedule_item = get_schedule_item_by_order(order)
   if 'motivation' in data:
     motivation = create(
       Motivation,
@@ -108,7 +109,6 @@ def update_order(user: User, order: Order, data: dict, session):
     if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED] and not order.completion_date:
       data['completion_date'] = datetime.now()
     if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED, OrderStatus.TO_RESCHEDULE]:
-      schedule_item = get_schedule_item_by_order(order)
       if schedule_item:
         update(schedule_item, {'completed': True}, session=session)
   if order.status == OrderStatus.ACQUIRED and 'booking_date' in data and order.booking_date != data['booking_date']:
@@ -127,13 +127,13 @@ def update_order(user: User, order: Order, data: dict, session):
         order,
         data['products'],
         user.id if user.role == UserRole.CUSTOMER else data['user_id'],
+        schedule_item is not None,
         session,
       )
     elif 'status' in data and data['status'] == OrderStatus.TO_RESCHEDULE:
       reschedule_products(user.id, order, data['products'], session)
 
-  if is_delay and 'start_time_slot' in data and 'end_time_slot' in data:
-    schedule_item = get_schedule_item_by_order(order)
+  if schedule_item and 'start_time_slot' in data and 'end_time_slot' in data:
     if (
       parse_time(data['start_time_slot']) != schedule_item.start_time_slot
       or parse_time(data['end_time_slot']) != schedule_item.end_time_slot

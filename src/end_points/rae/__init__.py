@@ -4,7 +4,7 @@ from flask import Blueprint, request
 from ...database.schema import User
 from ...database.enum import UserRole
 from ..users.session import flask_session_authentication
-from .product import get_rae_products, delete_rae_product
+from .product import get_rae_products, delete_rae_product, update_rae_product
 from .product_group import (
   create_rae_product_group,
   delete_rae_product_group,
@@ -44,6 +44,12 @@ def update_product_group(_, id):
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def get_products(user: User):
   return get_rae_products(user, request.json['filters'])
+
+
+@rae_bp.route('product/<id>', methods=['PUT'])
+@flask_session_authentication([UserRole.ADMIN])
+def update_product(_, id):
+  return update_rae_product(int(id), request.json)
 
 
 @rae_bp.route('product/<id>', methods=['DELETE'])
