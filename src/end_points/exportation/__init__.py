@@ -40,5 +40,5 @@ def export_orders_rae(user: User, order_id):
 
 @export_bp.route('orders/excel', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-def export_selected_orders_excel(user: User):
-  return export_orders_excel(user, request.json['order_ids'])
+def export_selected_orders_excel(_: User):
+  return export_orders_excel(request.json['order_ids'])

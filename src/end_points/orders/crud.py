@@ -48,10 +48,10 @@ def create_order(user: User, data: dict):
   return {'status': 'ok', 'order': order.to_dict()}
 
 
-def filter_orders(user, filters: dict):
+def filter_orders(filters: dict, customer_id: int = None):
   orders = []
-  for tupla in query_orders(user, filters, 500):
-    orders = format_query_result(tupla, orders, user)
+  for tupla in query_orders(filters, 500, customer_id):
+    orders = format_query_result(tupla, orders)
   return {'status': 'ok', 'orders': orders}
 
 

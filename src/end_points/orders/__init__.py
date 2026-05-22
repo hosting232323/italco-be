@@ -29,13 +29,13 @@ def create_order_endpoint(user: User):
 @order_bp.route('filter', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.CUSTOMER])
 def filter_orders_endpoint(user: User):
-  return filter_orders(user, request.json['filters'])
+  return filter_orders(request.json['filters'], user.id if user.role == UserRole.CUSTOMER else None)
 
 
-@order_bp.route('ext-filter', methods=['POST'])
+@order_bp.route('external-filter', methods=['POST'])
 @swagger_decorator
-def ext_filter_orders_endpoint():
-  return filter_orders(UserRole.OPERATOR, request.json['filters'])
+def external_filter_orders_endpoint():
+  return filter_orders(request.json['filters'])
 
 
 @order_bp.route('<id>', methods=['GET'])
