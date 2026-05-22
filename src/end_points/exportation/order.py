@@ -2,7 +2,7 @@ from io import BytesIO
 from xhtml2pdf import pisa
 from flask import render_template
 
-from ...database.schema import User, Order
+from ...database.schema import Order
 from .utils import get_signature, export_pdf
 from database_api.operations import get_by_id
 from ..orders.queries import query_orders, format_query_result

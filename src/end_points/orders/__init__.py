@@ -72,7 +72,7 @@ def update_order_customer_endpoint(user: User):
 @order_bp.route('delivery-details/<order_id>', methods=['GET'])
 @error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.ADMIN])
-def get_delivery_details(user: User, order_id: int):
+def get_delivery_details(_, order_id: int):
   return {
     'status': 'ok',
     'motivations': [m.to_dict() for m in get_motivations_by_order_id(order_id)],
@@ -90,7 +90,7 @@ def delete_order_endpoint(user: User, id):
 @order_bp.route('statuses/<id>', methods=['GET'])
 @error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-def get_statuses(user: User, id):
+def get_statuses(_, id):
   return get_statuses_by_order_id(int(id))
 
 
@@ -103,7 +103,7 @@ def serve_image_endpoint(filename):
 @order_bp.route('collection-points/<id>', methods=['GET'])
 @error_catching_decorator
 @flask_session_authentication([UserRole.DELIVERY])
-def get_collection_points_available(user: User, id):
+def get_collection_points_available(_, id):
   return {
     'status': 'ok',
     'collection_points': [

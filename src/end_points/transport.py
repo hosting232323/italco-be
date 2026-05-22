@@ -4,8 +4,8 @@ from flask import Blueprint, request
 from database_api import Session
 from ..database.enum import UserRole
 from .users.session import flask_session_authentication
+from ..database.schema import Transport, Schedule, DeliveryGroup
 from database_api.operations import create, delete, get_by_id, update
-from ..database.schema import Transport, User, Schedule, DeliveryGroup
 
 
 transport_bp = Blueprint('transport_bp', __name__)
@@ -13,26 +13,26 @@ transport_bp = Blueprint('transport_bp', __name__)
 
 @transport_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def create_transport(user: User):
+def create_transport(_):
   return {'status': 'ok', 'transport': create(Transport, request.json).to_dict()}
 
 
 @transport_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-def delete_transport(user: User, id):
+def delete_transport(_, id):
   delete(get_by_id(Transport, int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @transport_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
-def get_transports(user: User):
+def get_transports(_):
   return {'status': 'ok', 'transports': [transport.to_dict() for transport in query_transports()]}
 
 
 @transport_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
-def update_transport(user: User, id):
+def update_transport(_, id):
   transport: Transport = get_by_id(Transport, int(id))
   return {'status': 'ok', 'order': update(transport, request.json).to_dict()}
 
