@@ -2,17 +2,16 @@ import pandas as pd
 from io import BytesIO
 
 from .utils import export_excel
-from ...database.schema import User
 from ..orders.queries import query_orders, format_query_result
 
 
-def export_orders_excel(user: User, order_ids: list):
+def export_orders_excel(order_ids: list):
   if not order_ids:
     return {'status': 'ko', 'error': 'Nessun ordine selezionato'}
 
   orders = []
-  for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': order_ids}]):
-    orders = format_query_result(tupla, orders, user)
+  for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': order_ids}]):
+    orders = format_query_result(tupla, orders)
   if not orders:
     return {'status': 'ko', 'error': 'Nessun ordine trovato'}
 
