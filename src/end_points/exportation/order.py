@@ -14,6 +14,7 @@ def export_order(id, customer_id: int = None):
     orders = format_query_result(tupla, orders)
   if len(orders) != 1:
     return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
+
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
     src=render_template(
