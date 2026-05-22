@@ -129,13 +129,12 @@ def get_schedule_suggestions(user: User):
 
 @schedule_bp.route('pianification', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
-def pianification(user: User):
+def pianification(_: User):
   orders = []
   for tupla in query_orders(
-    user,
     [{'model': 'Order', 'field': 'id', 'value': request.json['orders_id']}],
   ):
-    orders = format_query_orders_result(tupla, orders, user)
+    orders = format_query_orders_result(tupla, orders)
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Ordini non identificati'}
 

@@ -8,10 +8,10 @@ from database_api.operations import get_by_id
 from ..orders.queries import query_orders, format_query_result
 
 
-def export_order(user: User, id):
+def export_order(id, customer_id: int = None):
   orders = []
-  for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(id)}]):
-    orders = format_query_result(tupla, orders, user)
+  for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': int(id)}], customer_id=customer_id):
+    orders = format_query_result(tupla, orders)
   if len(orders) != 1:
     return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
   result = BytesIO()

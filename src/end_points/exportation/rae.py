@@ -13,8 +13,8 @@ from ..rae.product import query_count_rae_products, get_product_and_group
 
 def export_rae(user: User, order_id):
   orders = []
-  for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(order_id)}]):
-    orders = format_query_result(tupla, orders, user)
+  for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': int(order_id)}]):
+    orders = format_query_result(tupla, orders)
   if len(orders) != 1:
     return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
 

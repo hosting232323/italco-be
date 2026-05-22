@@ -17,13 +17,13 @@ export_bp = Blueprint('export_bp', __name__)
 @export_bp.route('order/<id>', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER])
 def export_order_report(user: User, id):
-  return export_order(user, id)
+  return export_order(id, user.id if user.role == UserRole.CUSTOMER else None)
 
 
 @export_bp.route('invoice', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def export_orders_invoice(user: User):
-  return export_order_invoice(user, request.json['filters'])
+def export_orders_invoice(_: User):
+  return export_order_invoice(request.json['filters'])
 
 
 @export_bp.route('schedule/<id>', methods=['GET'])

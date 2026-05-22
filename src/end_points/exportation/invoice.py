@@ -8,13 +8,12 @@ from ...database.schema import User
 from ..orders.queries import query_orders, format_query_result
 
 
-def export_order_invoice(user: User, filters: list[dict]):
+def export_order_invoice(filters: list[dict]):
   orders = []
   for tupla in query_orders(
-    user,
     filters + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.DELIVERED}],
   ):
-    orders = format_query_result(tupla, orders, user)
+    orders = format_query_result(tupla, orders)
   if not orders:
     return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
 

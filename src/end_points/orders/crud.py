@@ -56,10 +56,9 @@ def filter_orders(filters: dict, customer_id: int = None):
 
 
 def get_order(order_id: int):
-  user = User(role=UserRole.DELIVERY)
   orders = []
-  for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': order_id}]):
-    orders = format_query_result(tupla, orders, user)
+  for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': order_id}]):
+    orders = format_query_result(tupla, orders)
   if len(orders) != 1:
     raise Exception('Numero di ordini trovati non valido')
 

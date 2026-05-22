@@ -20,7 +20,6 @@ def export_schedule(user: User, id):
 
   orders = []
   for tupla in query_orders(
-    user,
     [
       {
         'field': 'id',
@@ -29,7 +28,7 @@ def export_schedule(user: User, id):
       }
     ],
   ):
-    orders = format_order_query_result(tupla, orders, user)
+    orders = format_order_query_result(tupla, orders)
   for order in orders:
     order['rae_products'] = get_rae_export_info_by_order(order)
     order['customer'] = format_user_with_info(get_by_id(User, order['user']['id']), user.role)
