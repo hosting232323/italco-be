@@ -13,7 +13,7 @@ service_bp = Blueprint('service_bp', __name__)
 
 @service_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def create_service(user: User):
+def create_service(_):
   request.json['type'] = OrderType(request.json['type'])
   return {'status': 'ok', 'service': create(Service, request.json).to_dict()}
 
@@ -29,7 +29,7 @@ def get_services(user: User):
 
 @service_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
-def update_service(user: User, id):
+def update_service(_, id):
   service: Service = get_by_id(Service, int(id))
   request.json['type'] = OrderType(request.json['type'])
   return {'status': 'ok', 'order': update(service, request.json).to_dict()}
@@ -37,14 +37,14 @@ def update_service(user: User, id):
 
 @service_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-def delete_service(user: User, id):
+def delete_service(_, id):
   delete(get_by_id(Service, int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @service_bp.route('customer', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def create_service_user(user: User):
+def create_service_user(_):
   if query_service_user(request.json['service_id'], request.json['user_id']):
     return {'status': 'ko', 'error': 'Utente già associato al servivizio'}
 
@@ -57,7 +57,7 @@ def create_service_user(user: User):
 
 @service_bp.route('customer/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
-def update_service_user(user: User, id):
+def update_service_user(_, id):
   service_user: ServiceUser = update(get_by_id(ServiceUser, int(id)), request.json)
   return {
     'status': 'ok',
@@ -67,7 +67,7 @@ def update_service_user(user: User, id):
 
 @service_bp.route('customer/<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-def delete_service_user(user: User, id):
+def delete_service_user(_, id):
   delete(get_by_id(ServiceUser, int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
 

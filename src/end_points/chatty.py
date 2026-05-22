@@ -66,7 +66,6 @@ def get_order_for_chatty(user: User, start_date: str = None, end_date: str = Non
   orders = []
   start_dt = datetime.strptime(start_date, '%Y-%m-%d')
   for tupla in query_orders(
-    user,
     [
       {
         'model': 'Order',
@@ -74,8 +73,9 @@ def get_order_for_chatty(user: User, start_date: str = None, end_date: str = Non
         'value': [start_dt, (datetime.strptime(end_date, '%Y-%m-%d') if end_date else start_dt) + timedelta(days=1)],
       }
     ],
+    customer_id=user.id if user.role == UserRole.CUSTOMER else None,
   ):
-    orders = format_query_result(tupla, orders, user)
+    orders = format_query_result(tupla, orders)
   return orders
 
 
