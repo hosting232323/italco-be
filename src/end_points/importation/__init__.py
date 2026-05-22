@@ -1,6 +1,5 @@
 from flask import Blueprint, request
 
-from ...database.schema import User
 from ...database.enum import UserRole
 from ..users.session import flask_session_authentication
 from api import swagger_decorator, error_catching_decorator
@@ -15,7 +14,7 @@ import_bp = Blueprint('import_bp', __name__)
 
 @import_bp.route('excel', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def excel_order_import(user: User):
+def excel_order_import(_):
   if 'file' not in request.files:
     return {'status': 'ko', 'error': 'Nessun file caricato'}
 
@@ -24,13 +23,13 @@ def excel_order_import(user: User):
 
 @import_bp.route('excel/conflict', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def handle_conflict(user: User):
+def handle_conflict(_):
   return handle_excel_conflict(request.json['orders'])
 
 
 @import_bp.route('pdf', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def pdf_order_import(user: User):
+def pdf_order_import(_):
   if not request.files:
     return {'status': 'ko', 'error': 'Nessun file caricato'}
 

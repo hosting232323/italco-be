@@ -6,9 +6,9 @@ from .sms_sender import delay_sms_check
 from ..users.queries import get_user_info
 from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
-from .queries import query_orders, format_query_result
 from .services import create_products, update_products
 from database_api.operations import create, update, get_by_id, delete
+from .queries import query_orders, format_query_result, get_delivery_user
 from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus
 from ...database.schema import User, Order, Motivation, DeliveryUserInfo, ServiceUser
 from ..schedule.queries import get_delivery_groups_by_order_id, get_schedule_item_by_order
@@ -48,18 +48,17 @@ def create_order(user: User, data: dict):
   return {'status': 'ok', 'order': order.to_dict()}
 
 
-def filter_orders(user: User, filters: dict):
+def filter_orders(filters: dict, customer_id: int = None):
   orders = []
-  for tupla in query_orders(user, filters, 500):
-    orders = format_query_result(tupla, orders, user)
+  for tupla in query_orders(filters, 500, customer_id):
+    orders = format_query_result(tupla, orders)
   return {'status': 'ok', 'orders': orders}
 
 
 def get_order(order_id: int):
-  user = User(role=UserRole.DELIVERY)
   orders = []
-  for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': order_id}]):
-    orders = format_query_result(tupla, orders, user)
+  for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': order_id}]):
+    orders = format_query_result(tupla, orders)
   if len(orders) != 1:
     raise Exception('Numero di ordini trovati non valido')
 
@@ -89,6 +88,7 @@ def delete_order(user: User, order_id: int):
 
 def update_order(user: User, order: Order, data: dict, session):
   is_delay = data['delay'] if 'delay' in data else False
+  schedule_item = get_schedule_item_by_order(order)
   if 'motivation' in data:
     motivation = create(
       Motivation,
@@ -109,7 +109,6 @@ def update_order(user: User, order: Order, data: dict, session):
     if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED] and not order.completion_date:
       data['completion_date'] = datetime.now()
     if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED, OrderStatus.TO_RESCHEDULE]:
-      schedule_item = get_schedule_item_by_order(order)
       if schedule_item:
         update(schedule_item, {'completed': True}, session=session)
   if order.status == OrderStatus.ACQUIRED and 'booking_date' in data and order.booking_date != data['booking_date']:
@@ -128,13 +127,18 @@ def update_order(user: User, order: Order, data: dict, session):
         order,
         data['products'],
         user.id if user.role == UserRole.CUSTOMER else data['user_id'],
+        schedule_item is not None,
         session,
       )
-    elif 'status' in data and data['status'] == OrderStatus.TO_RESCHEDULE:
-      reschedule_products(user.id, order, data['products'], session)
+    if 'status' in data and data['status'] == OrderStatus.TO_RESCHEDULE and order.status != OrderStatus.TO_RESCHEDULE:
+      reschedule_products(
+        get_delivery_user(order).id if user.role != UserRole.DELIVERY else user.id,
+        order,
+        data['products'],
+        session,
+      )
 
-  if is_delay and 'start_time_slot' in data and 'end_time_slot' in data:
-    schedule_item = get_schedule_item_by_order(order)
+  if schedule_item and 'start_time_slot' in data and 'end_time_slot' in data:
     if (
       parse_time(data['start_time_slot']) != schedule_item.start_time_slot
       or parse_time(data['end_time_slot']) != schedule_item.end_time_slot

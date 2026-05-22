@@ -2,8 +2,8 @@ from sqlalchemy import and_, desc, or_, cast, Date
 
 from database_api import Session
 from ...utils.date import handle_date
+from ...database.enum import OrderType
 from ..rae.product import get_product_and_group
-from ...database.enum import UserRole, OrderType
 from ...database.schema import (
   Order,
   History,
@@ -24,7 +24,7 @@ from ...database.schema import (
 
 
 def query_orders(
-  user: User, filters: list, limit: int = None
+  filters: list, limit: int = None, customer_id: int = None
 ) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Transport]]:
   with Session() as session:
     query = (
@@ -37,8 +37,8 @@ def query_orders(
       .join(User, ServiceUser.user_id == User.id)
     )
 
-    if user.role == UserRole.CUSTOMER:
-      query = query.filter(User.id == user.id)
+    if customer_id:
+      query = query.filter(User.id == customer_id)
 
     for filter in filters:
       value = filter['value']
@@ -121,7 +121,6 @@ def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -
 def format_query_result(
   tupla: tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Transport],
   list: list[dict],
-  user: User,
 ) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
@@ -132,7 +131,7 @@ def format_query_result(
     **tupla[0].to_dict(),
     'price': 0,
     'products': {},
-    'user': tupla[4].format_user(user.role),
+    'user': tupla[4].format_user(),
   }
   add_service(output, tupla[3], tupla[1], tupla[5], tupla[6], tupla[2].price)
   list.append(output)
@@ -148,11 +147,11 @@ def add_service(
   price: float,
 ) -> dict:
   if product.name not in object['products'].keys():
-    object['products'][product.name] = {
-      'services': [],
-      'release_transport_id': product.release_transport_id,
-      'release_collection_point_id': product.release_collection_point_id,
-    }
+    object['products'][product.name] = {'services': []}
+    if product.release_transport_id:
+      object['products'][product.name]['release_transport_id'] = product.release_transport_id
+    if product.release_collection_point_id:
+      object['products'][product.name]['release_collection_point_id'] = product.release_collection_point_id
     if collection_point:
       object['products'][product.name]['collection_point'] = collection_point.to_dict()
     elif transport:
@@ -187,6 +186,18 @@ def get_selling_point(order: Order) -> User:
       session.query(User)
       .join(ServiceUser, User.id == ServiceUser.user_id)
       .join(Product, and_(ServiceUser.id == Product.service_user_id, Product.order_id == order.id))
+      .first()
+    )
+
+
+def get_delivery_user(order: Order) -> User:
+  with Session() as session:
+    return (
+      session.query(User)
+      .join(ScheduleItemOrder, ScheduleItemOrder.order_id == order.id)
+      .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+      .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
+      .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == User.id))
       .first()
     )
 

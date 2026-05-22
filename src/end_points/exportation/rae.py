@@ -3,8 +3,8 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from .utils import export_pdf
-from ...database.schema import User
 from database_api.operations import get_by_id
+from ...database.schema import User, RaeProduct
 from ..users.queries import format_user_with_info
 from ..schedule.queries import get_schedule_by_order
 from ..orders.queries import query_orders, format_query_result
@@ -13,8 +13,8 @@ from ..rae.product import query_count_rae_products, get_product_and_group
 
 def export_rae(user: User, order_id):
   orders = []
-  for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(order_id)}]):
-    orders = format_query_result(tupla, orders, user)
+  for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': int(order_id)}]):
+    orders = format_query_result(tupla, orders)
   if len(orders) != 1:
     return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
 
@@ -44,12 +44,13 @@ def get_rae_export_info_by_order(order: dict) -> list[dict]:
   rae_products = []
   for product_data in order['products'].values():
     if 'rae_product' in product_data and product_data['rae_product']:
-      schedule = get_schedule_by_order(order['id'])
+      schedule_date = get_schedule_by_order(order['id']).date
+      rae_product: RaeProduct = get_by_id(RaeProduct, product_data['rae_product']['id'])
       rae_products.append(
         {
+          'date': schedule_date.strftime('%d/%m/%Y'),
           'data': get_product_and_group(product_data['rae_product']['id']),
-          'date': schedule.date.strftime('%d/%m/%Y') if schedule else 'N/D',
-          'index': query_count_rae_products(product_data['rae_product']['id'], order['user']['id']),
+          'index': query_count_rae_products(schedule_date, rae_product.emission_date, order['user']['id']),
         }
       )
   return rae_products

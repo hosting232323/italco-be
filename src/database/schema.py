@@ -12,6 +12,7 @@ from sqlalchemy import (
   Numeric,
   Time,
   JSON,
+  DateTime,
 )
 
 from database_api import BaseEntity
@@ -36,7 +37,7 @@ class User(BaseEntity):
   customer_rule = relationship('CustomerRule', back_populates='user', cascade='all, delete-orphan')
   collection_point = relationship('CollectionPoint', back_populates='user', cascade='all, delete-orphan')
 
-  def format_user(self, role: UserRole):
+  def format_user(self, role: UserRole = None):
     if role == UserRole.ADMIN:
       return self.to_dict()
     else:
@@ -130,6 +131,7 @@ class Order(BaseEntity):
   external_id = Column(String)
   external_status = Column(Enum(EuronicsStatus))
 
+  rae_product = relationship('RaeProduct', back_populates='order')
   schedule_item_order = relationship('ScheduleItemOrder', back_populates='order')
   photo = relationship('Photo', back_populates='order', cascade='all, delete-orphan')
   product = relationship('Product', back_populates='order', cascade='all, delete-orphan')
@@ -283,12 +285,17 @@ class Product(BaseEntity):
 class RaeProduct(BaseEntity):
   __tablename__ = 'rae_product'
 
+  link = Column(String)
+  emission_date = Column(DateTime)
   quantity = Column(Integer, default=1)
+  number = Column(Integer, nullable=True)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+  order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
   status = Column(Enum(RaeStatus), nullable=False, default=RaeStatus.GENERATED)
   rae_product_group_id = Column(Integer, ForeignKey('rae_product_group.id'), nullable=False)
 
   user = relationship('User', back_populates='rae_product')
+  order = relationship('Order', back_populates='rae_product')
   product = relationship('Product', back_populates='rae_product')
   rae_product_group = relationship('RaeProductGroup', back_populates='rae_product')
 

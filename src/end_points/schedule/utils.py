@@ -2,7 +2,7 @@ from .sms_sender import schedule_sms_check
 from ..orders.queries import query_products
 from ..orders.api import save_order_status_to_euronics
 from ...database.enum import OrderStatus, ScheduleType
-from ..rae.product import recreate_rae_products, emit_rae_products
+from ..rae.product import emit_rae_products, recreate_rae_products
 from database_api.operations import create, delete, get_by_id, update, get_by_ids
 from ...database.schema import (
   CollectionPoint,
@@ -49,6 +49,7 @@ def format_schedule_data(schedule_data: dict, session=None):
         if order.id == item['order_id']:
           item['order'] = order
           break
+
     elif item['operation_type'] == 'CollectionPoint':
       for collection_point in collection_points:
         if collection_point.id == item['collection_point_id']:
