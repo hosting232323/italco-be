@@ -36,7 +36,7 @@ class User(BaseEntity):
   customer_rule = relationship('CustomerRule', back_populates='user', cascade='all, delete-orphan')
   collection_point = relationship('CollectionPoint', back_populates='user', cascade='all, delete-orphan')
 
-  def format_user(self, role: UserRole):
+  def format_user(self, role: UserRole = None):
     if role == UserRole.ADMIN:
       return self.to_dict()
     else:
