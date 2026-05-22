@@ -3,10 +3,11 @@ import re
 from sqlalchemy import or_, and_, cast, String
 
 from database_api import Session
+from .database.enum import RaeStatus
 from api.storage import check_mismatch
 from api.telegram import send_telegram_message
 from sqlalchemy.orm import Session as session_type
-from .database.schema import Order, Product, ServiceUser, Schedule, Photo, History
+from .database.schema import Order, Product, ServiceUser, Schedule, Photo, History, RaeProduct
 
 
 PHOTO_START_ID = 15000
@@ -15,9 +16,10 @@ with open(missing_photos_path, 'r', encoding='utf-8') as file:
   MISSING_PHOTOS = [int(id) for id in re.findall(r'id:\s*(\d+)', file.read())]
 
 
-def trigger_checks(folder, base_photo_path):
+def trigger_checks(folder, base_photo_path, base_document_path):
   database_integrity_test()
-  check_mismatch(get_all_files(base_photo_path), folder, 'Photos', 'local', 'photos')
+  check_mismatch(get_all_photos(base_photo_path), os.path.join(folder, 'photos'), 'Photos', 'local')
+  check_mismatch(get_all_documents(base_document_path), os.path.join(folder, 'documents'), 'Documents', 'local')
 
   return {'status': 'ok', 'message': 'Check eseguiti con successo'}
 
@@ -41,11 +43,21 @@ def database_integrity_test():
   send_telegram_message('\n'.join(message_lines))
 
 
-def get_all_files(base_photo_path: str) -> set[str]:
+def get_all_photos(base_photo_path: str) -> set[str]:
   with Session() as session:
     return [
       row.link.replace(base_photo_path, '')
       for row in session.query(Photo).filter(and_(Photo.id.not_in(MISSING_PHOTOS), Photo.id > PHOTO_START_ID)).all()
+    ]
+
+
+def get_all_documents(base_document_path: str) -> set[str]:
+  with Session() as session:
+    return [
+      row.link.replace(base_document_path, '')
+      for row in session.query(RaeProduct)
+      .filter(RaeProduct.status.in_([RaeStatus.LDR, RaeStatus.ANNULLED, RaeStatus.DISPOSED_OFF]))
+      .all()
     ]
 
 
