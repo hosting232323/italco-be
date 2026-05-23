@@ -55,7 +55,7 @@ def create_schedule(user: User):
 
 @schedule_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-def delete_schedule(_, id):
+def delete_schedule(user: User, id):
   schedule: Schedule = get_by_id(Schedule, int(id))
   with Session() as session:
     for delivery_group in get_delivery_groups(schedule, session=session):
@@ -69,10 +69,10 @@ def delete_schedule(_, id):
 
 @schedule_bp.route('filter', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY])
-def get_schedules(_):
+def get_schedules(user: User):
   schedules = []
   for tupla in query_schedules(request.json['filters'], 100):
-    schedules = format_query_result(tupla, schedules)
+    schedules = format_query_result(tupla, schedules, user)
 
   if any(filter['model'] == 'Order' and filter['field'] == 'id' for filter in request.json['filters']):
     for schedule in schedules:
@@ -129,10 +129,13 @@ def get_schedule_suggestions(user: User):
 
 @schedule_bp.route('pianification', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
-def pianification(_):
+def pianification(user: User):
   orders = []
-  for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': request.json['orders_id']}]):
-    orders = format_query_orders_result(tupla, orders)
+  for tupla in query_orders(
+    user,
+    [{'model': 'Order', 'field': 'id', 'value': request.json['orders_id']}],
+  ):
+    orders = format_query_orders_result(tupla, orders, user)
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Ordini non identificati'}
 

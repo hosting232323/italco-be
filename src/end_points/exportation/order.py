@@ -2,19 +2,18 @@ from io import BytesIO
 from xhtml2pdf import pisa
 from flask import render_template
 
-from ...database.schema import Order
+from ...database.schema import User, Order
 from .utils import get_signature, export_pdf
 from database_api.operations import get_by_id
 from ..orders.queries import query_orders, format_query_result
 
 
-def export_order(id, customer_id: int = None):
+def export_order(user: User, id):
   orders = []
-  for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': int(id)}], customer_id=customer_id):
-    orders = format_query_result(tupla, orders)
+  for tupla in query_orders(user, [{'model': 'Order', 'field': 'id', 'value': int(id)}]):
+    orders = format_query_result(tupla, orders, user)
   if len(orders) != 1:
     return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
-
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
     src=render_template(

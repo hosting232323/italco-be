@@ -14,12 +14,13 @@ from ..schedule.queries import query_schedules, format_query_result as format_sc
 def export_schedule(user: User, id):
   schedules = []
   for tupla in query_schedules([{'model': 'Schedule', 'field': 'id', 'value': int(id)}]):
-    schedules = format_schedule_query_result(tupla, schedules)
+    schedules = format_schedule_query_result(tupla, schedules, user)
   if len(schedules) != 1:
     return {'status': 'ko', 'error': 'Numero di borderò trovati non valido'}
 
   orders = []
   for tupla in query_orders(
+    user,
     [
       {
         'field': 'id',
@@ -28,7 +29,7 @@ def export_schedule(user: User, id):
       }
     ],
   ):
-    orders = format_order_query_result(tupla, orders)
+    orders = format_order_query_result(tupla, orders, user)
   for order in orders:
     order['rae_products'] = get_rae_export_info_by_order(order)
     order['customer'] = format_user_with_info(get_by_id(User, order['user']['id']), user.role)

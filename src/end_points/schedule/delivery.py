@@ -15,7 +15,7 @@ def get_items_for_delivery(delivery_user: User):
     ],
     get_services=True,
   ):
-    schedules = format_query_result(tupla, schedules)
+    schedules = format_query_result(tupla, schedules, delivery_user)
   if len(schedules) != 1:
     return {'status': 'ko', 'message': 'Numero di bordero trovati non valido'}
 

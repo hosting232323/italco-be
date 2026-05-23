@@ -15,7 +15,7 @@ log_bp = Blueprint('log_bp', __name__)
 
 @log_bp.route('filter', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def get_logs(_):
+def get_logs(user: User):
   return {
     'status': 'ok',
     'logs': [{'logs': log.to_dict(), 'user': user.to_dict()} for log, user in query_logs(request.json['filters'])],
@@ -24,7 +24,7 @@ def get_logs(_):
 
 @log_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
-def get_log(_):
+def get_log(user: User):
   return {
     'status': 'ok',
     'log': get_by_id(Log, request.args.get('log_id')).to_dict(),

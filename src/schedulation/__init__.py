@@ -17,12 +17,13 @@ def execute_schedulation(
   work_date = work_date
   for status in [OrderStatus.BOOKED, OrderStatus.ACQUIRED]:
     for tupla in query_orders(
+      user,
       [
         {'model': 'Order', 'field': 'work_date', 'value': work_date},
         {'model': 'Order', 'field': 'status', 'value': status},
       ],
     ):
-      orders = format_query_result(tupla, orders)
+      orders = format_query_result(tupla, orders, user)
   if len(orders) == 0:
     return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
 

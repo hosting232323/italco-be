@@ -39,7 +39,7 @@ def get_users(user: User):
 
 @user_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def create_user(_):
+def create_user(user: User):
   role = UserRole(request.json['role'])
   if not role or role == UserRole.ADMIN:
     return {'status': 'error', 'message': 'Role not valid'}
@@ -82,7 +82,7 @@ def update_position(user: User):
 
 @user_bp.route('info', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def save_user_info_endpoint(_):
+def save_user_info_endpoint(user: User):
   save_user_info(
     request.json['user_id'],
     request.json['data'],
