@@ -11,6 +11,17 @@ from .queries import query_services, query_service_user, format_query_result, fo
 service_bp = Blueprint('service_bp', __name__)
 
 
+def validate_service_user_target(user_id: int) -> tuple[User | None, dict | None]:
+  target_user: User = get_by_id(User, int(user_id))
+  if not target_user:
+    return None, {'status': 'ko', 'error': 'Utente non trovato'}
+
+  if target_user.role != UserRole.CUSTOMER:
+    return None, {'status': 'ko', 'error': 'È possibile associare un servizio solo a utenti customer'}
+
+  return target_user, None
+
+
 @service_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def create_service(user: User):
@@ -45,23 +56,34 @@ def delete_service(user: User, id):
 @service_bp.route('customer', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def create_service_user(user: User):
+  target_user, error = validate_service_user_target(request.json['user_id'])
+  if error:
+    return error
+
   if query_service_user(request.json['service_id'], request.json['user_id']):
     return {'status': 'ko', 'error': 'Utente già associato al servivizio'}
 
   service_user: ServiceUser = create(ServiceUser, request.json)
   return {
     'status': 'ok',
-    'service_user': format_service_user(service_user, get_by_id(User, service_user.user_id)),
+    'service_user': format_service_user(service_user, target_user),
   }
 
 
 @service_bp.route('customer/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_service_user(user: User, id):
+  target_user = None
+  if 'user_id' in request.json:
+    target_user, error = validate_service_user_target(request.json['user_id'])
+    if error:
+      return error
+
   service_user: ServiceUser = update(get_by_id(ServiceUser, int(id)), request.json)
+  target_user = target_user or get_by_id(User, service_user.user_id)
   return {
     'status': 'ok',
-    'service_user': format_service_user(service_user, get_by_id(User, service_user.user_id)),
+    'service_user': format_service_user(service_user, target_user),
   }
 
 

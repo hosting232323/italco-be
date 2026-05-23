@@ -12,6 +12,7 @@ import database_api
 import src.database.schema  # noqa: F401
 from src.database.seed import seed_data
 from src.end_points.orders import order_bp
+from src.end_points.service import service_bp
 from src.end_points.users import user_bp
 
 
@@ -75,6 +76,7 @@ def app(seeded_db):
   app = Flask(__name__)
   app.register_blueprint(user_bp, url_prefix='/users/')
   app.register_blueprint(order_bp, url_prefix='/order/')
+  app.register_blueprint(service_bp, url_prefix='/service')
   return app
 
 

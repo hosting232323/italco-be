@@ -8,6 +8,11 @@
 
 ## BUG FE: Selezione piano passa stringa vuota se non è stato selezionato nessun piano (invece di mostrare un messaggio di errore o disabilitare il pulsante di conferma) dà errore in db
 
+## DOCUMENTAZIONE CORRELATA
+
+- [Flussi ordine emersi dal walkthrough](./flussi-ordine-explain.md)
+- [Matrice di test dei flussi ordine](./flussi-ordine-test-matrix.md)
+
 # COSE VISTE
 
 - Admin ha la possibilità di vedere nella pagina log tutte le richieste effettuate al be
