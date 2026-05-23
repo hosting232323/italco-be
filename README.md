@@ -69,7 +69,7 @@ gitlab-ci-local e2e_tests --variable LOCAL_ITALCO_FE_DIR=/absolute/path/to/italc
 # run only Playwright e2e job locally (recommended while migrating from Selenium)
 gitlab-ci-local e2e_playwright_tests --variable LOCAL_ITALCO_FE_DIR=/absolute/path/to/italco-fe --timestamps
 
-# if using docker executor and local FE path, mount host path into container
+# if using docker executor and local FE path, mount host path into container 
 gitlab-ci-local e2e_playwright_tests --variable LOCAL_ITALCO_FE_DIR=/local-italco-fe --volume "$PWD/../italco-fe:/local-italco-fe" --timestamps
 
 # optional: use a public/private repo URL if no local checkout is available

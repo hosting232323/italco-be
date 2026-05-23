@@ -18,14 +18,10 @@ allowed_origins = [
 
 DATABASE_URL = os.environ['DATABASE_URL']
 LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
-BACKUP_FOLDER = os.environ.get('BACKUP_FOLDER', None)
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
-POSTGRES_BACKUP_DAYS = int(os.environ.get('POSTGRES_BACKUP_DAYS', 14))
 STATIC_FOLDER = os.environ.get(
   'STATIC_FOLDER', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
 )
-
-
 app = Flask(__name__, template_folder='../templates')
 
 
@@ -51,7 +47,7 @@ def index():
 def trigger_backup():
   threading.Thread(
     target=db_backup,
-    args=(DATABASE_URL, BACKUP_FOLDER, 'server', 'postgres-backup'),
+    args=(DATABASE_URL, 'server'),
     daemon=True,
   ).start()
 
@@ -62,13 +58,8 @@ def trigger_backup():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  threading.Thread(
-    target=folder_backup,
-    args=(os.path.join(STATIC_FOLDER, 'photos', 'prod'), 'server'),
-    daemon=True,
-  ).start()
-
-  return {'status': 'ok', 'message': 'Operazione completata con successo!'}
+  folder_backup(os.path.join(STATIC_FOLDER, 'photos', 'prod'), 'server')
+  return {'status': 'ok', 'message': 'Backup avviato in background!'}
 
 
 @app.route('/checks', methods=['GET'])
