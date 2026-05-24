@@ -284,6 +284,7 @@ class RaeProduct(BaseEntity):
   __tablename__ = 'rae_product'
 
   quantity = Column(Integer, default=1)
+  link = Column(String, nullable=False)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   status = Column(Enum(RaeStatus), nullable=False, default=RaeStatus.GENERATED)
   rae_product_group_id = Column(Integer, ForeignKey('rae_product_group.id'), nullable=False)

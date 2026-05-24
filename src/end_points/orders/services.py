@@ -1,5 +1,12 @@
+import os
+from sqlalchemy import text
+from flask import send_from_directory
+from sqlalchemy.orm import Session as session_type
+
+from api.storage import upload_file
 from .clone import format_data_cloning_product
 from database_api.operations import create, delete
+from ... import STATIC_FOLDER, IS_DEV, get_base_path
 from .queries import query_service_users, query_products
 from ...database.schema import Order, Product, RaeProduct, ServiceUser
 
@@ -30,12 +37,22 @@ def create_product(
 ):
   rae_product = None
   if 'rae_product' in data:
+    id = guess_next_id(session)
     rae_product: RaeProduct = create(
       RaeProduct,
       {
         'user_id': service_users[0].user_id,
         'quantity': data['rae_product']['quantity'],
         'rae_product_group_id': data['rae_product']['rae_product_group_id'],
+        'link': get_base_path('rae-product/document')
+          + os.path.basename(
+          upload_file(
+            'uploaded_file',
+            f'{id}.pdf',
+            os.path.join(STATIC_FOLDER, 'rae-product'),
+            'local',
+          )
+        )
       },
       session=session,
     )
@@ -57,7 +74,18 @@ def create_product(
         break
 
 
+def serve_document(filename: str):
+  return send_from_directory(
+    os.path.join(STATIC_FOLDER, 'rae-product', 'test' if IS_DEV else 'prod'),
+    filename,
+  )
+
+
 def get_service_users(order: Order, products: dict, user_id: int):
   return query_service_users(
     list(set(service['id'] for product in products.values() for service in product['services'])), user_id, order.type
   )
+
+
+def guess_next_id(session: session_type) -> int:
+  return session.execute(text("SELECT nextval('rae_product_id_seq')")).scalar()

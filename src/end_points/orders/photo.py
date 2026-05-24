@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session as session_type
 from api.storage import upload_file
 from database_api.operations import create
 from ...database.schema import Photo, Order
-from ... import STATIC_FOLDER, IS_DEV, get_base_photo_path
+from ... import STATIC_FOLDER, IS_DEV, get_base_path
 
 
 def handle_photos(data: dict, order: Order, session: session_type):
@@ -22,7 +22,7 @@ def handle_photos(data: dict, order: Order, session: session_type):
           {
             'id': id,
             'order_id': order.id,
-            'link': get_base_photo_path()
+            'link': get_base_path('order/photos')
             + os.path.basename(
               upload_file(
                 uploaded_file,
