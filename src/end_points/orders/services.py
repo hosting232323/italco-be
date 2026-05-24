@@ -45,14 +45,14 @@ def create_product(
         'quantity': data['rae_product']['quantity'],
         'rae_product_group_id': data['rae_product']['rae_product_group_id'],
         'link': get_base_path('rae-product/document')
-          + os.path.basename(
+        + os.path.basename(
           upload_file(
             'uploaded_file',
             f'{id}.pdf',
             os.path.join(STATIC_FOLDER, 'rae-product'),
             'local',
           )
-        )
+        ),
       },
       session=session,
     )
