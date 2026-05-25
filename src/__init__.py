@@ -1,5 +1,4 @@
 import os
-import threading
 from flask_cors import CORS
 from flask import Flask, request
 
