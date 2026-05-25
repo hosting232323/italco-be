@@ -67,7 +67,7 @@ deploy_test:
     CONTAINER_NEXT: "${PROJECT_NAME}-test-next"
     DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
     EURONICS_API_PASSWORD_PIPELINE: 0
-    IS_DEV: 0
+    IS_DEV: 1
   before_script:
     - export FIRST_PORT="${PORT_TEST%%-*}"
     - export SECOND_PORT="${PORT_TEST#*-}"
