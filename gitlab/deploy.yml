@@ -163,7 +163,7 @@ setup_nominatim:
         echo "✅ Nominatim già in esecuzione, nessuna azione."
       else
         echo "🚀 Avvio Nominatim..."
-        cd /opt/nominatim && docker compose up -d
+        cd /home/gitlab-runner/nominatim && docker compose up -d
         echo "⏳ Primo avvio: import dati in corso, può richiedere ore."
         echo "👉 Monitora con: docker logs -f nominatim"
       fi
