@@ -27,8 +27,9 @@ def handle_photos(data: dict, order: Order, session: session_type):
               upload_file(
                 uploaded_file,
                 f'{id}{guess_extension(uploaded_file.mimetype)}',
-                os.path.join(STATIC_FOLDER, 'photos'),
+                STATIC_FOLDER,
                 'local',
+                'photos'
               )
             ),
           },
@@ -39,7 +40,7 @@ def handle_photos(data: dict, order: Order, session: session_type):
 
 def serve_image(filename: str):
   return send_from_directory(
-    os.path.join(STATIC_FOLDER, 'photos', 'test' if IS_DEV else 'prod'),
+    os.path.join(STATIC_FOLDER, 'test' if IS_DEV else 'prod', 'photos'),
     filename,
   )
 

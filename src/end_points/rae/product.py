@@ -26,7 +26,10 @@ def get_rae_products(user: User, filters: list[dict]):
 
 
 def update_rae_product(id: int, data: dict):
-  update(get_by_id(RaeProduct, id), {'status': RaeStatus(data['status'])})
+  update(
+    get_by_id(RaeProduct, id),
+    {'status': RaeStatus(data['status']), **({'link': data['link']} if 'link' in data else {})},
+  )
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 

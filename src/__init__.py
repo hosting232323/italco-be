@@ -1,5 +1,4 @@
 import os
-import threading
 from flask_cors import CORS
 from flask import Flask, request
 
@@ -45,12 +44,7 @@ def index():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup():
-  threading.Thread(
-    target=db_backup,
-    args=(DATABASE_URL, 'server'),
-    daemon=True,
-  ).start()
-
+  db_backup(DATABASE_URL, 'local')
   return {'status': 'ok', 'message': 'Operazione completata con successo!'}
 
 
@@ -58,7 +52,7 @@ def trigger_backup():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  folder_backup(os.path.join(STATIC_FOLDER, 'photos', 'prod'), 'server')
+  folder_backup(os.path.join(STATIC_FOLDER, 'prod'), 'server')
   return {'status': 'ok', 'message': 'Backup avviato in background!'}
 
 
@@ -66,7 +60,7 @@ def trigger_backup_folder():
 @error_catching_decorator
 @swagger_decorator
 def checks_endpoint():
-  return trigger_checks(STATIC_FOLDER, get_base_file_path('order/photos'))
+  return trigger_checks(STATIC_FOLDER, get_base_file_path('order/photos'), get_base_file_path('rae/documents'))
 
 
 def get_base_file_path(path):
