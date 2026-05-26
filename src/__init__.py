@@ -1,5 +1,4 @@
 import os
-import threading
 from flask_cors import CORS
 from flask import Flask, request
 
@@ -45,12 +44,7 @@ def index():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup():
-  threading.Thread(
-    target=db_backup,
-    args=(DATABASE_URL, 'server'),
-    daemon=True,
-  ).start()
-
+  db_backup(DATABASE_URL, 'server')
   return {'status': 'ok', 'message': 'Operazione completata con successo!'}
 
 
