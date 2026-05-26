@@ -76,4 +76,3 @@ gitlab-ci-local e2e_playwright_tests --variable LOCAL_ITALCO_FE_DIR=/local-italc
 
 gitlab-ci-local e2e_tests --variable ITALCO_FE_REPO_URL=https://gitlab.com/generic-lab/italco/italco-fe.git --timestamps
 ```
-
