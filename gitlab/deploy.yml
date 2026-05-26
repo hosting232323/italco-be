@@ -129,11 +129,11 @@ setup_nominatim:
     - "${SERVER_NAME}-deploy"
   script:
     - |
-      mkdir -p /opt/nominatim/data
+      mkdir -p /home/gitlab-runner/nominatim
 
-      if [ ! -f /opt/nominatim/data/sud-latest.osm.pbf ]; then
+      if [ ! -f /home/gitlab-runner/nominatim/sud-latest.osm.pbf ]; then
         echo "📥 Download dati OSM..."
-        wget -O /opt/nominatim/data/sud-latest.osm.pbf https://download.geofabrik.de/europe/italy/sud-latest.osm.pbf
+        wget -O /home/gitlab-runner/nominatim/sud-latest.osm.pbf https://download.geofabrik.de/europe/italy/sud-latest.osm.pbf
       else
         echo "✅ Dati OSM già presenti, skip download."
       fi
