@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from ...database.schema import Order
 from ...database.enum import OrderStatus
 from .queries import get_all_histories_by_order_id
 
@@ -32,12 +31,3 @@ def parse_time(value: str) -> datetime.time:
       continue
 
   raise ValueError(f'Formato orario non riconosciuto: {value}')
-
-
-def is_terminated_order(order: Order) -> bool:
-  return order.status in {
-    OrderStatus.DELIVERED,
-    OrderStatus.NOT_DELIVERED,
-    OrderStatus.TO_RESCHEDULE,
-    OrderStatus.RESCHEDULED,
-  }

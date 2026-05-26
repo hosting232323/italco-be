@@ -102,7 +102,7 @@ def serve_image_endpoint(filename):
 
 @order_bp.route('collection-points/<id>', methods=['GET'])
 @error_catching_decorator
-@flask_session_authentication([UserRole.DELIVERY])
+@flask_session_authentication([UserRole.DELIVERY, UserRole.OPERATOR, UserRole.ADMIN])
 def get_collection_points_available(_, id):
   return {
     'status': 'ok',
