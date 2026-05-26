@@ -120,3 +120,50 @@ setup_database_prod:
     - main
   variables:
     DATABASE_URL_PIPELINE: "${DATABASE_URL}"
+
+
+setup_nominatim:
+  stage: deploy
+  when: manual
+  tags:
+    - "${SERVER_NAME}-deploy"
+  script:
+    - |
+      mkdir -p /opt/nominatim/data
+
+      if [ ! -f /opt/nominatim/data/sud-latest.osm.pbf ]; then
+        echo "📥 Download dati OSM..."
+        wget -O /opt/nominatim/data/sud-latest.osm.pbf https://download.geofabrik.de/europe/italy/sud-latest.osm.pbf
+      else
+        echo "✅ Dati OSM già presenti, skip download."
+      fi
+
+      cat > /opt/nominatim/docker-compose.yml <<EOF
+      version: "3.8"
+      services:
+        nominatim:
+          image: mediagis/nominatim:4.3
+          container_name: nominatim
+          ports:
+            - "${NOMINATIM_PORT}:8080"
+          environment:
+            - PBF_PATH=/data/sud-latest.osm.pbf
+            - NOMINATIM_PASSWORD=nominatim
+            - THREADS=2
+          volumes:
+            - ./data:/data
+            - nominatim-data:/var/lib/postgresql/14/main
+          shm_size: 1gb
+          restart: unless-stopped
+      volumes:
+        nominatim-data:
+      EOF
+
+      if [ "$(docker inspect -f '{{.State.Running}}' nominatim 2>/dev/null)" = "true" ]; then
+        echo "✅ Nominatim già in esecuzione, nessuna azione."
+      else
+        echo "🚀 Avvio Nominatim..."
+        cd /opt/nominatim && docker compose up -d
+        echo "⏳ Primo avvio: import dati in corso, può richiedere ore."
+        echo "👉 Monitora con: docker logs -f nominatim"
+      fi
