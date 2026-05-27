@@ -185,6 +185,7 @@ def format_schedule_item(
     schedule_item_order = next(
       (item for item in schedule_items if 'order_id' in item and item['order_id'] == order.id), None
     )
+    product_dict = {}
     if product.collection_point_id:
       product_dict = {'collection_point': {'id': product.collection_point_id}}
     elif product.transport_id:
