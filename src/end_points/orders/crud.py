@@ -6,9 +6,9 @@ from .sms_sender import delay_sms_check
 from ..users.queries import get_user_info
 from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
-from .queries import query_orders, format_query_result
 from .services import create_products, update_products
 from database_api.operations import create, update, get_by_id, delete
+from .queries import query_orders, format_query_result, get_delivery_user
 from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus
 from ...database.schema import User, Order, Motivation, DeliveryUserInfo, ServiceUser
 from ..schedule.queries import get_delivery_groups_by_order_id, get_schedule_item_by_order
@@ -130,8 +130,13 @@ def update_order(user: User, order: Order, data: dict, session):
         schedule_item is not None,
         session,
       )
-    elif 'status' in data and data['status'] == OrderStatus.TO_RESCHEDULE:
-      reschedule_products(user.id, order, data['products'], session)
+    if 'status' in data and data['status'] == OrderStatus.TO_RESCHEDULE and order.status != OrderStatus.TO_RESCHEDULE:
+      reschedule_products(
+        get_delivery_user(order).id if user.role != UserRole.DELIVERY else user.id,
+        order,
+        data['products'],
+        session,
+      )
 
   if schedule_item and 'start_time_slot' in data and 'end_time_slot' in data:
     if (

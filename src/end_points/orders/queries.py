@@ -147,11 +147,11 @@ def add_service(
   price: float,
 ) -> dict:
   if product.name not in object['products'].keys():
-    object['products'][product.name] = {
-      'services': [],
-      'release_transport_id': product.release_transport_id,
-      'release_collection_point_id': product.release_collection_point_id,
-    }
+    object['products'][product.name] = {'services': []}
+    if product.release_transport_id:
+      object['products'][product.name]['release_transport_id'] = product.release_transport_id
+    if product.release_collection_point_id:
+      object['products'][product.name]['release_collection_point_id'] = product.release_collection_point_id
     if collection_point:
       object['products'][product.name]['collection_point'] = collection_point.to_dict()
     elif transport:
@@ -186,6 +186,18 @@ def get_selling_point(order: Order) -> User:
       session.query(User)
       .join(ServiceUser, User.id == ServiceUser.user_id)
       .join(Product, and_(ServiceUser.id == Product.service_user_id, Product.order_id == order.id))
+      .first()
+    )
+
+
+def get_delivery_user(order: Order) -> User:
+  with Session() as session:
+    return (
+      session.query(User)
+      .join(ScheduleItemOrder, ScheduleItemOrder.order_id == order.id)
+      .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+      .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
+      .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == User.id))
       .first()
     )
 
