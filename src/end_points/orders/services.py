@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from ...database.enum import RaeStatus
 from .clone import format_data_cloning_product
 from database_api.operations import create, delete
@@ -42,6 +44,7 @@ def create_product(
       {
         'user_id': service_users[0].user_id,
         'quantity': data['rae_product']['quantity'],
+        'emission_date': datetime.now() if is_scheduled else None,
         'rae_product_group_id': data['rae_product']['rae_product_group_id'],
         'status': RaeStatus.EMITTED if is_scheduled else RaeStatus.GENERATED,
       },

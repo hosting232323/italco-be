@@ -1,11 +1,11 @@
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy import extract, func, and_, exists, cast, Date, desc
 
 from database_api import Session
 from ...utils.date import handle_date
 from ...database.enum import RaeStatus
 from ..users.queries import format_user_with_info
-from database_api.operations import update, delete, get_by_id
+from database_api.operations import update, get_by_id
 from ...database.schema import (
   Order,
   Product,
@@ -27,14 +27,6 @@ def get_rae_products(user: User, filters: list[dict]):
 
 def update_rae_product(id: int, data: dict):
   update(get_by_id(RaeProduct, id), {'status': RaeStatus(data['status'])})
-  return {'status': 'ok', 'message': 'Operazione completata'}
-
-
-def delete_rae_product(id: int):
-  if check_orders(id):
-    return {'status': 'ko', 'message': 'Prodotto Rae ancora associato ad un Ordine'}
-
-  delete(get_by_id(RaeProduct, id))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
@@ -76,7 +68,7 @@ def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, S
     **tupla[0].to_dict(),
     'product_group': tupla[1].to_dict(),
     'user': format_user_with_info(tupla[2], user.role),
-    'rae_number': query_count_rae_products(tupla[0].id, tupla[2].id)
+    'rae_number': query_count_rae_products(tupla[0].emission_date, tupla[2].id)
     if tupla[0].status != RaeStatus.GENERATED
     else None,
   }
@@ -93,15 +85,15 @@ def check_orders(rae_product_id) -> bool:
     return session.query(exists().where(Product.rae_product_id == rae_product_id)).scalar()
 
 
-def query_count_rae_products(rae_product_id: int, user_id: int) -> int:
+def query_count_rae_products(emission_date: datetime, user_id: int) -> int:
   with Session() as session:
     return (
       session.query(func.count(RaeProduct.id))
       .filter(
-        RaeProduct.id <= rae_product_id,
-        RaeProduct.user_id == user_id,
         RaeProduct.status != RaeStatus.GENERATED,
-        extract('year', RaeProduct.created_at) == date.today().year,
+        RaeProduct.user_id == user_id,
+        extract('year', RaeProduct.emission_date) == date.today().year,
+        RaeProduct.emission_date <= emission_date,
       )
       .scalar()
     )
@@ -135,7 +127,7 @@ def get_rae_products_by_order(order: Order) -> list[RaeProduct]:
 
 def emit_rae_products(order: Order, session):
   for rae_product in get_rae_products_by_order(order):
-    update(rae_product, {'status': RaeStatus.EMITTED}, session=session)
+    update(rae_product, {'status': RaeStatus.EMITTED, 'emission_date': datetime.now()}, session=session)
 
 
 def get_rae_product_tuples_by_order(order: Order) -> list[tuple[RaeProduct, Product]]:

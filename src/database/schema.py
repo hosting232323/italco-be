@@ -12,6 +12,7 @@ from sqlalchemy import (
   Numeric,
   Time,
   JSON,
+  DateTime,
 )
 
 from database_api import BaseEntity
@@ -285,6 +286,7 @@ class RaeProduct(BaseEntity):
 
   link = Column(String)
   quantity = Column(Integer, default=1)
+  emission_date = Column(DateTime)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   status = Column(Enum(RaeStatus), nullable=False, default=RaeStatus.GENERATED)
   rae_product_group_id = Column(Integer, ForeignKey('rae_product_group.id'), nullable=False)
