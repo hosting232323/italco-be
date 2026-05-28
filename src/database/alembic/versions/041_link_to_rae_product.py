@@ -20,7 +20,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
   op.add_column('rae_product', sa.Column('link', sa.String(), nullable=True))
+  op.add_column('rae_product', sa.Column('emission_date', sa.DateTime(), nullable=True))
 
 
 def downgrade() -> None:
   op.drop_column('rae_product', 'link')
+  op.drop_column('rae_product', 'emission_date')

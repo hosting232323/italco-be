@@ -48,15 +48,15 @@ def query_rae_products(filters: list[dict]) -> list[tuple[RaeProduct, RaeProduct
       field = getattr(model, filter['field'])
       value = filter['value']
 
-      if field in [Schedule.date, RaeProduct.created_at] and type(value) is list:
+      if field in [Schedule.date, RaeProduct.created_at, RaeProduct.emission_date] and type(value) is list:
         query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
-      elif field == RaeProduct.created_at:
+      elif field in [RaeProduct.created_at, RaeProduct.emission_date]:
         query = query.filter(cast(field, Date) == value)
       elif field == RaeProduct.status:
         query = query.filter(field == RaeStatus(value))
       else:
         query = query.filter(field == value)
-    return query.order_by(desc(RaeProduct.created_at)).all()
+    return query.order_by(desc(Schedule.date)).all()
 
 
 def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, Schedule], list: list[dict], user: User):
@@ -69,7 +69,7 @@ def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, S
     'product_group': tupla[1].to_dict(),
     'user': format_user_with_info(tupla[2], user.role),
     'rae_number': query_count_rae_products(tupla[0].emission_date, tupla[2].id)
-    if tupla[0].status != RaeStatus.GENERATED
+    if tupla[0].status != RaeStatus.GENERATED and tupla[0].emission_date
     else None,
   }
   if tupla[3]:
