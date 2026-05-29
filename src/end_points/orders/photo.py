@@ -25,9 +25,7 @@ def handle_photos(data: dict, order: Order, session: session_type):
             'link': get_base_photo_path()
             + os.path.basename(
               upload_file(
-                uploaded_file,
-                f'{id}{guess_extension(uploaded_file.mimetype)}',
-                STATIC_FOLDER, 'local', 'photos'
+                uploaded_file, f'{id}{guess_extension(uploaded_file.mimetype)}', STATIC_FOLDER, 'local', 'photos'
               )
             ),
           },
