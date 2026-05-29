@@ -5,7 +5,7 @@ from database_api import Session
 from ...utils.date import handle_date
 from ...database.enum import RaeStatus
 from ..users.queries import format_user_with_info
-from database_api.operations import update, get_by_id
+from database_api.operations import update, delete, get_by_id
 from ...database.schema import (
   Order,
   Product,
@@ -30,6 +30,14 @@ def update_rae_product(id: int, data: dict):
     get_by_id(RaeProduct, id),
     {'status': RaeStatus(data['status']), **({'link': data['link']} if 'link' in data else {})},
   )
+  return {'status': 'ok', 'message': 'Operazione completata'}
+
+
+def delete_rae_product(id: int):
+  if check_orders(id):
+    return {'status': 'ko', 'message': 'Prodotto Rae ancora associato ad un Ordine'}
+
+  delete(get_by_id(RaeProduct, id))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
