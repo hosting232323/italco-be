@@ -131,6 +131,7 @@ class Order(BaseEntity):
   external_id = Column(String)
   external_status = Column(Enum(EuronicsStatus))
 
+  rae_product = relationship('RaeProduct', back_populates='order')
   schedule_item_order = relationship('ScheduleItemOrder', back_populates='order')
   photo = relationship('Photo', back_populates='order', cascade='all, delete-orphan')
   product = relationship('Product', back_populates='order', cascade='all, delete-orphan')
@@ -289,10 +290,12 @@ class RaeProduct(BaseEntity):
   quantity = Column(Integer, default=1)
   number = Column(Integer, nullable=True)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+  order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
   status = Column(Enum(RaeStatus), nullable=False, default=RaeStatus.GENERATED)
   rae_product_group_id = Column(Integer, ForeignKey('rae_product_group.id'), nullable=False)
 
   user = relationship('User', back_populates='rae_product')
+  order = relationship('Order', back_populates='rae_product')
   product = relationship('Product', back_populates='rae_product')
   rae_product_group = relationship('RaeProductGroup', back_populates='rae_product')
 

@@ -1,10 +1,8 @@
-from datetime import datetime
-
-from ...database.enum import RaeStatus
+from ..rae.product import create_rae_product
 from .clone import format_data_cloning_product
 from database_api.operations import create, delete
 from .queries import query_service_users, query_products
-from ...database.schema import Order, Product, RaeProduct, ServiceUser
+from ...database.schema import Order, Product, ServiceUser
 
 
 def create_products(order: Order, products: dict, customer_user_id: int, cloned_order: bool, session):
@@ -39,16 +37,13 @@ def create_product(
 ):
   rae_product = None
   if 'rae_product' in data:
-    rae_product: RaeProduct = create(
-      RaeProduct,
-      {
-        'user_id': service_users[0].user_id,
-        'quantity': data['rae_product']['quantity'],
-        'emission_date': datetime.now() if is_scheduled else None,
-        'rae_product_group_id': data['rae_product']['rae_product_group_id'],
-        'status': RaeStatus.EMITTED if is_scheduled else RaeStatus.GENERATED,
-      },
+    rae_product = create_rae_product(
+      data['rae_product']['quantity'],
+      data['rae_product']['rae_product_group_id'],
+      order.id,
+      service_users[0].user_id,
       session=session,
+      is_scheduled=is_scheduled,
     )
 
   for service in data['services']:

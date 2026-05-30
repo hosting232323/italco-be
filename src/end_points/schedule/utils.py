@@ -1,8 +1,8 @@
 from .sms_sender import schedule_sms_check
 from ..orders.queries import query_products
 from ..orders.api import save_order_status_to_euronics
-from ...database.enum import OrderStatus, ScheduleType, RaeStatus
-from ..rae.product import emit_rae_products, get_rae_product_tuples_by_order
+from ...database.enum import OrderStatus, ScheduleType
+from ..rae.product import emit_rae_products, recreate_rae_products
 from database_api.operations import create, delete, get_by_id, update, get_by_ids
 from ...database.schema import (
   CollectionPoint,
@@ -49,6 +49,7 @@ def format_schedule_data(schedule_data: dict, session=None):
         if order.id == item['order_id']:
           item['order'] = order
           break
+
     elif item['operation_type'] == 'CollectionPoint':
       for collection_point in collection_points:
         if collection_point.id == item['collection_point_id']:
@@ -119,8 +120,7 @@ def delete_schedule_items(
       delete(schedule_item[2], session=session)
       order = get_by_id(Order, schedule_item[2].order_id, session=session)
       update(order, {'status': OrderStatus.BOOKED}, session=session)
-      for tupla in get_rae_product_tuples_by_order(order):
-        update(tupla[0], {'status': RaeStatus.GENERATED})
+      recreate_rae_products(order, session=session)
     if schedule_item[1]:
       delete(schedule_item[1], session=session)
     delete(schedule_item[0], session=session)
