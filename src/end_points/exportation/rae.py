@@ -44,13 +44,13 @@ def get_rae_export_info_by_order(order: dict) -> list[dict]:
   rae_products = []
   for product_data in order['products'].values():
     if 'rae_product' in product_data and product_data['rae_product']:
-      schedule = get_schedule_by_order(order['id'])
+      schedule_date = get_schedule_by_order(order['id']).date
       rae_product: RaeProduct = get_by_id(RaeProduct, product_data['rae_product']['id'])
       rae_products.append(
         {
+          'date': schedule_date.strftime('%d/%m/%Y'),
           'data': get_product_and_group(product_data['rae_product']['id']),
-          'date': schedule.date.strftime('%d/%m/%Y') if schedule else 'N/D',
-          'index': query_count_rae_products(rae_product.emission_date, order['user']['id']),
+          'index': query_count_rae_products(schedule_date, rae_product.emission_date, order['user']['id']),
         }
       )
   return rae_products

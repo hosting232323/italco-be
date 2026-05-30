@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from sqlalchemy import extract, func, and_, exists, cast, Date, desc
+from sqlalchemy import extract, func, and_, or_, exists, cast, Date, desc
 
 from database_api import Session
 from ...utils.date import handle_date
@@ -26,7 +26,7 @@ def get_rae_products(user: User, filters: list[dict]):
 
 
 def create_rae_product(
-  quantity: int, rae_product_group_id: int, order_id: int, user_id: int, session, is_scheduled = False
+  quantity: int, rae_product_group_id: int, order_id: int, user_id: int, session, is_scheduled=False
 ) -> RaeProduct:
   return create(
     RaeProduct,
@@ -73,7 +73,7 @@ def query_rae_products(filters: list[dict]) -> list[tuple[RaeProduct, RaeProduct
         query = query.filter(field == RaeStatus(value))
       else:
         query = query.filter(field == value)
-    return query.order_by(desc(Schedule.date), desc(RaeProduct.created_at)).all()
+    return query.order_by(desc(Schedule.date), desc(RaeProduct.emission_date)).all()
 
 
 def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, Schedule], list: list[dict], user: User):
@@ -86,8 +86,8 @@ def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, S
     'order': tupla[3].to_dict(),
     'product_group': tupla[1].to_dict(),
     'user': format_user_with_info(tupla[2], user.role),
-    'rae_number': query_count_rae_products(tupla[0].emission_date, tupla[2].id)
-    if tupla[0].status != RaeStatus.GENERATED and tupla[0].emission_date
+    'rae_number': query_count_rae_products(tupla[4].date, tupla[0].emission_date, tupla[2].id)
+    if tupla[0].status != RaeStatus.GENERATED and tupla[0].emission_date and tupla[4]
     else None,
   }
   if tupla[4]:
@@ -101,15 +101,34 @@ def check_orders(rae_product_id) -> bool:
     return session.query(exists().where(Product.rae_product_id == rae_product_id)).scalar()
 
 
-def query_count_rae_products(emission_date: datetime, user_id: int) -> int:
+def query_count_rae_products(schedule_date: datetime, emitted_date: datetime, user_id: int) -> int:
   with Session() as session:
     return (
       session.query(func.count(RaeProduct.id))
-      .filter(
-        RaeProduct.status != RaeStatus.GENERATED,
-        RaeProduct.user_id == user_id,
-        extract('year', RaeProduct.emission_date) == date.today().year,
-        RaeProduct.emission_date <= emission_date,
+      .join(
+        Order,
+        and_(
+          RaeProduct.status != RaeStatus.GENERATED,
+          RaeProduct.user_id == user_id,
+          RaeProduct.order_id == Order.id,
+        ),
+      )
+      .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
+      .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+      .join(
+        Schedule,
+        and_(
+          or_(
+            Schedule.date < schedule_date,
+            and_(
+              Schedule.date == schedule_date,
+              RaeProduct.emission_date <= emitted_date,
+            )
+          ),
+          extract('year', Schedule.date) == date.today().year,
+          Schedule.date <= schedule_date,
+          Schedule.id == ScheduleItem.schedule_id,
+        ),
       )
       .scalar()
     )
@@ -151,11 +170,7 @@ def recreate_rae_products(order: Order, session):
   for tupla in get_rae_product_tuples_by_order(order):
     if tupla[0].id not in rae_product_ids:
       rae_product_ids[tupla[0].id] = create_rae_product(
-        tupla[0].quantity,
-        tupla[0].rae_product_group_id,
-        order.id,
-        tupla[0].user_id,
-        session=session
+        tupla[0].quantity, tupla[0].rae_product_group_id, order.id, tupla[0].user_id, session=session
       ).id
       update(tupla[0], {'status': RaeStatus.ANNULLED}, session=session)
     update(tupla[1], {'rae_product_id': rae_product_ids[tupla[0].id]}, session=session)
