@@ -123,7 +123,7 @@ def query_count_rae_products(schedule_date: datetime, emitted_date: datetime, us
             and_(
               Schedule.date == schedule_date,
               RaeProduct.emission_date <= emitted_date,
-            )
+            ),
           ),
           extract('year', Schedule.date) == date.today().year,
           Schedule.date <= schedule_date,
