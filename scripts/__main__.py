@@ -1,5 +1,6 @@
 import os
 from tqdm import tqdm
+from datetime import timedelta
 
 from src.database.enum import RaeStatus
 from database_api.operations import update
@@ -21,16 +22,23 @@ def get_service_users() -> list[tuple[RaeProduct, Schedule]]:
       ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id
     ).outerjoin(
       Schedule, Schedule.id == ScheduleItem.schedule_id
-    ).filter(
-      RaeProduct.status != RaeStatus.GENERATED
     ).all()
 
 
 if __name__ == '__main__':
   set_database(os.environ['DATABASE_URL'])
+  already_scheduled = {}
   for rae_product, schedule in tqdm(get_service_users()):
     if not schedule:
       print(f'RaeProduct {rae_product.id} non ha schedule associato')
       continue
 
-    update(rae_product, {'emission_date': schedule.created_at})
+    if schedule.id in already_scheduled:
+      already_scheduled[schedule.id] += 1
+    else:
+      already_scheduled[schedule.id] = 0
+
+    update(rae_product, {
+      'emission_date': schedule.created_at + timedelta(minutes=already_scheduled[schedule.id]),
+      'status': RaeStatus.EMITTED,
+    })
