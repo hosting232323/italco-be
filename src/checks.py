@@ -17,7 +17,7 @@ with open(missing_photos_path, 'r', encoding='utf-8') as file:
 
 def trigger_checks(folder, base_photo_path):
   database_integrity_test()
-  check_mismatch(get_all_files(base_photo_path), os.path.join(folder, 'photos'), 'Photos', 'local')
+  check_mismatch(get_all_files(base_photo_path), folder, 'Photos', 'local', 'photos')
 
   return {'status': 'ok', 'message': 'Check eseguiti con successo'}
 

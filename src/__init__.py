@@ -52,7 +52,7 @@ def trigger_backup():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  folder_backup(os.path.join(STATIC_FOLDER, 'photos', 'prod'), 'server')
+  folder_backup(os.path.join(STATIC_FOLDER, 'prod', 'photos'), 'server')
   return {'status': 'ok', 'message': 'Backup avviato in background!'}
 
 
