@@ -127,7 +127,7 @@ def update_order(user: User, order: Order, data: dict, session):
         order,
         data['products'],
         user.id if user.role == UserRole.CUSTOMER else data['user_id'],
-        schedule_item is not None,
+        schedule_item,
         session,
       )
     if 'status' in data and data['status'] == OrderStatus.TO_RESCHEDULE and order.status != OrderStatus.TO_RESCHEDULE:

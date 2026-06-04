@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from sqlalchemy import extract, func, and_, or_, exists, cast, Date, desc
+from sqlalchemy import extract, func, and_, exists, cast, Date, desc
 
 from database_api import Session
 from ...utils.date import handle_date
@@ -26,21 +26,23 @@ def get_rae_products(user: User, filters: list[dict]):
 
 
 def create_rae_product(
-  quantity: int, rae_product_group_id: int, order_id: int, user_id: int, session, is_scheduled=False
+  quantity: int, rae_product_group_id: int, order_id: int, user_id: int, session, schedule_item: ScheduleItem = None
 ) -> RaeProduct:
-  return create(
-    RaeProduct,
-    {
-      'number': 0,
-      'user_id': user_id,
-      'order_id': order_id,
-      'quantity': quantity,
-      'rae_product_group_id': rae_product_group_id,
-      'emission_date': datetime.now() if is_scheduled else None,
-      'status': RaeStatus.EMITTED if is_scheduled else RaeStatus.GENERATED,
-    },
-    session=session,
-  )
+  body = {
+    'number': 0,
+    'user_id': user_id,
+    'order_id': order_id,
+    'quantity': quantity,
+    'status': RaeStatus.GENERATED,
+    'rae_product_group_id': rae_product_group_id,
+  }
+
+  if schedule_item:
+    body['emission_date'] = datetime.now()
+    body['status'] = RaeStatus.EMITTED
+    body['number'] = query_count_rae_products(user_id) + 1
+
+  return create(RaeProduct, body, session=session)
 
 
 def update_rae_product(id: int, data: dict):
@@ -89,9 +91,6 @@ def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, S
     'order': tupla[3].to_dict(),
     'product_group': tupla[1].to_dict(),
     'user': format_user_with_info(tupla[2], user.role),
-    'rae_number': query_count_rae_products(tupla[4].date, tupla[0].emission_date, tupla[2].id)
-    if tupla[0].status != RaeStatus.GENERATED and tupla[0].emission_date and tupla[4]
-    else None,
   }
   if tupla[4]:
     output['schedule'] = tupla[4].to_dict()
@@ -104,7 +103,7 @@ def check_orders(rae_product_id) -> bool:
     return session.query(exists().where(Product.rae_product_id == rae_product_id)).scalar()
 
 
-def query_count_rae_products(schedule_date: datetime, emitted_date: datetime, user_id: int) -> int:
+def query_count_rae_products(user_id: int) -> int:
   with Session() as session:
     return (
       session.query(func.count(RaeProduct.id))
@@ -121,15 +120,7 @@ def query_count_rae_products(schedule_date: datetime, emitted_date: datetime, us
       .join(
         Schedule,
         and_(
-          or_(
-            Schedule.date < schedule_date,
-            and_(
-              Schedule.date == schedule_date,
-              RaeProduct.emission_date <= emitted_date,
-            ),
-          ),
           extract('year', Schedule.date) == date.today().year,
-          Schedule.date <= schedule_date,
           Schedule.id == ScheduleItem.schedule_id,
         ),
       )
@@ -165,7 +156,15 @@ def get_rae_products_by_order(order: Order) -> list[RaeProduct]:
 
 def emit_rae_products(order: Order, session):
   for rae_product in get_rae_products_by_order(order):
-    update(rae_product, {'status': RaeStatus.EMITTED, 'emission_date': datetime.now()}, session=session)
+    update(
+      rae_product,
+      {
+        'status': RaeStatus.EMITTED,
+        'emission_date': datetime.now(),
+        'number': query_count_rae_products(rae_product.user_id) + 1,
+      },
+      session=session,
+    )
 
 
 def recreate_rae_products(order: Order, session):

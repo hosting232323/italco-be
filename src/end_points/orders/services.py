@@ -2,7 +2,7 @@ from ..rae.product import create_rae_product
 from .clone import format_data_cloning_product
 from database_api.operations import create, delete
 from .queries import query_service_users, query_products
-from ...database.schema import Order, Product, ServiceUser
+from ...database.schema import Order, Product, ServiceUser, ScheduleItem
 
 
 def create_products(order: Order, products: dict, customer_user_id: int, cloned_order: bool, session):
@@ -11,7 +11,7 @@ def create_products(order: Order, products: dict, customer_user_id: int, cloned_
     create_product(product, products[product], order, service_users, session=session, cloned_order=cloned_order)
 
 
-def update_products(order: Order, products: dict, customer_user_id: int, is_scheduled=None, session=None):
+def update_products(order: Order, products: dict, customer_user_id: int, schedule_item: ScheduleItem, session=None):
   service_users = get_service_users(order, products, customer_user_id)
   old_products = query_products(order)
 
@@ -19,7 +19,7 @@ def update_products(order: Order, products: dict, customer_user_id: int, is_sche
     if len([old_product for old_product in old_products if old_product.name == product]) > 0:
       continue
 
-    create_product(product, products[product], order, service_users, session=session, is_scheduled=is_scheduled)
+    create_product(product, products[product], order, service_users, session=session, schedule_item=schedule_item)
 
   for old_product in old_products:
     if old_product.name not in products:
@@ -32,7 +32,7 @@ def create_product(
   order: Order,
   service_users: list[ServiceUser],
   session,
-  is_scheduled=None,
+  schedule_item: ScheduleItem = None,
   cloned_order=False,
 ):
   rae_product = None
@@ -43,7 +43,7 @@ def create_product(
       order.id,
       service_users[0].user_id,
       session=session,
-      is_scheduled=is_scheduled,
+      schedule_item=schedule_item,
     )
 
   for service in data['services']:

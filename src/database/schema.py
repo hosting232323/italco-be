@@ -286,9 +286,9 @@ class RaeProduct(BaseEntity):
   __tablename__ = 'rae_product'
 
   link = Column(String)
+  number = Column(Integer)
   emission_date = Column(DateTime)
   quantity = Column(Integer, default=1)
-  number = Column(Integer, nullable=True)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
   status = Column(Enum(RaeStatus), nullable=False, default=RaeStatus.GENERATED)
