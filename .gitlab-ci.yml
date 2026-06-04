@@ -1,9 +1,11 @@
 stages:
   - deploy
+  - operations
   - lint
   - test
 
 include:
   - local: 'gitlab/deploy.yml'
+  - local: 'gitlab/operations.yml'
   - local: 'gitlab/lint.yml'
   - local: 'gitlab/test.yml'
