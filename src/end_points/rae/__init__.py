@@ -1,8 +1,11 @@
+import json
 from flask import Blueprint, request
 
-
 from ...database.schema import User
+from ...utils.file import serve_file
 from ...database.enum import UserRole
+from .document import handle_document
+from api import error_catching_decorator
 from ..users.session import flask_session_authentication
 from .product import get_rae_products, update_rae_product
 from .product_group import (
@@ -49,4 +52,10 @@ def get_products(user: User):
 @rae_bp.route('product/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_product(_, id):
-  return update_rae_product(int(id), request.json)
+  return update_rae_product(int(id), handle_document(json.loads(request.form.get('data'))))
+
+
+@rae_bp.route('documents/<filename>', methods=['GET'])
+@error_catching_decorator
+def serve_image_endpoint(filename):
+  return serve_file(filename, 'documents')

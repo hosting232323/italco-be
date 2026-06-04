@@ -15,6 +15,16 @@
         "name": "Casamassima",
         "lat": 40.9581,
         "lon": 16.921
+      },
+      {
+        "name": "VALENZANO",
+        "lat": 41.046,
+        "lon": 16.886
+      },
+      {
+        "name": "TURI",
+        "lat": 40.917,
+        "lon": 17.017
       }
     ],
     "70011": {
