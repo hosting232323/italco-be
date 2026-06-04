@@ -1,10 +1,10 @@
 import json
 from flask import Blueprint, request
 
-from .photo import serve_image
 from .mailer import mailer_check
 from database_api import Session
 from .photo import handle_photos
+from ...utils.file import serve_file
 from ...database.enum import UserRole
 from ...database.schema import User, Order
 from .utils import get_statuses_by_order_id
@@ -97,7 +97,7 @@ def get_statuses(_, id):
 @order_bp.route('photos/<filename>', methods=['GET'])
 @error_catching_decorator
 def serve_image_endpoint(filename):
-  return serve_image(filename)
+  return serve_file(filename, 'photos')
 
 
 @order_bp.route('collection-points/<id>', methods=['GET'])
