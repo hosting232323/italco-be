@@ -2,7 +2,7 @@ import json
 from flask import Blueprint, request
 
 from ...database.schema import User
-from .document import serve_document
+from ...utils.file import serve_file
 from ...database.enum import UserRole
 from .document import handle_document
 from api import error_catching_decorator
@@ -52,14 +52,10 @@ def get_products(user: User):
 @rae_bp.route('product/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_product(_, id):
-  if isinstance(request.form.get('data'), str):
-    data = handle_document(json.loads(request.form.get('data')))
-  else:
-    data = request.json
-  return update_rae_product(int(id), data)
+  return update_rae_product(int(id), handle_document(json.loads(request.form.get('data'))))
 
 
 @rae_bp.route('documents/<filename>', methods=['GET'])
 @error_catching_decorator
 def serve_image_endpoint(filename):
-  return serve_document(filename)
+  return serve_file(filename, 'documents')
