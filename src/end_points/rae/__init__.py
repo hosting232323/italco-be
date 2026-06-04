@@ -1,7 +1,6 @@
 import json
 from flask import Blueprint, request
 
-
 from ...database.schema import User
 from ...utils.file import serve_file
 from ...database.enum import UserRole
