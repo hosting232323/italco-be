@@ -46,7 +46,7 @@ def create_rae_product(
 def update_rae_product(id: int, data: dict):
   update(
     get_by_id(RaeProduct, id),
-    {'status': RaeStatus(data['status']), **({'link': data['link']} if 'link' in data else {})},
+    {'status': RaeStatus(data['status']), 'link': data['link']},
   )
   return {'status': 'ok', 'message': 'Operazione completata'}
 
@@ -54,11 +54,6 @@ def update_rae_product(id: int, data: dict):
 def delete_rae_product(id: int):
   if check_orders(id):
     return {'status': 'ko', 'message': 'Prodotto Rae ancora associato ad un Ordine'}
-
-
-def update_rae_product(id: int, data: dict):
-  update(get_by_id(RaeProduct, id), {'status': RaeStatus(data['status'])})
-  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 def query_rae_products(filters: list[dict]) -> list[tuple[RaeProduct, RaeProductGroup, User, Order, Schedule]]:
