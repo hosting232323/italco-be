@@ -1,5 +1,5 @@
 .setup_database:
-  stage: deploy
+  stage: operations
   image: postgres:17
   when: manual
   tags:
@@ -33,7 +33,7 @@ setup_database_prod:
     DATABASE_URL_PIPELINE: "${DATABASE_URL}"
 
 setup_nominatim:
-  stage: deploy
+  stage: operations
   when: manual
   tags:
     - "${SERVER_NAME}-deploy"
