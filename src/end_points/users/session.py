@@ -4,18 +4,21 @@ import pytz
 import json
 import decimal
 import traceback
+from pathlib import Path
 from flask import request
 from functools import wraps
 from datetime import datetime, timedelta
 
 from api import send_telegram_error
 from ...database.enum import UserRole
-from ...database.schema import User, Log
+from ...database.schema import User
 from .queries import get_user_by_nickname
-from database_api.operations import create
 from api.telegram import extract_request_data
+from ... import STATIC_FOLDER, IS_DEV
 
 
+LOG_DIR = Path(STATIC_FOLDER) / ('test' if IS_DEV else 'prod') / 'logs'
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
 SESSION_HOURS = int(os.environ.get('SESSION_HOURS', 5))
 
@@ -73,18 +76,20 @@ def create_jwt_token(user: User):
 
 def save_log(user: User, response=None):
   request_info = extract_request_data(False)
-  if 'headers' in request_info:
-    del request_info['headers']
+  request_info.pop('headers', None)
 
-  create(
-    Log,
+  log_file = LOG_DIR / f'{datetime.utcnow().strftime("%Y-%m-%d")}.jsonl'
+  line = json.dumps(
     {
+      'ts': datetime.utcnow().isoformat(),
       'user_id': user.id,
-      'content': json.dumps(
-        {'request': request_info, 'response': response},
-        indent=2,
-        ensure_ascii=False,
-        default=lambda o: float(o) if isinstance(o, decimal.Decimal) else str(o),
-      ),
+      'nickname': user.nickname,
+      'request': request_info,
+      'response': response,
     },
+    ensure_ascii=False,
+    default=lambda o: float(o) if isinstance(o, decimal.Decimal) else str(o),
   )
+
+  with open(log_file, 'a', encoding='utf-8') as f:
+    f.write(line + '\n')
