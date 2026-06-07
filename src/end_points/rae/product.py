@@ -107,22 +107,10 @@ def query_count_rae_products(user_id: int) -> int:
   with Session() as session:
     return (
       session.query(func.count(RaeProduct.id))
-      .join(
-        Order,
-        and_(
-          RaeProduct.status != RaeStatus.GENERATED,
-          RaeProduct.user_id == user_id,
-          RaeProduct.order_id == Order.id,
-        ),
-      )
-      .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
-      .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
-      .join(
-        Schedule,
-        and_(
-          extract('year', Schedule.date) == date.today().year,
-          Schedule.id == ScheduleItem.schedule_id,
-        ),
+      .filter(
+        RaeProduct.status != RaeStatus.GENERATED,
+        RaeProduct.user_id == user_id,
+        extract('year', RaeProduct.emission_date) == date.today().year
       )
       .scalar()
     )

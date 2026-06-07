@@ -32,18 +32,11 @@ def upgrade() -> None:
   """)
 
   # Rae di Euronics Santa Caterina
-  op.execute("""
-    UPDATE rae_product
-    SET order_id = 12038
-    WHERE id IN (124, 118)
-  """)
+  op.execute('UPDATE rae_product SET order_id = 12504 WHERE id IN (118, 124)')
 
   # Rae di Idea Monopoli
-  op.execute("""
-    UPDATE rae_product
-    SET order_id = 18003
-    WHERE id IN (169, 191)
-  """)
+  op.execute('UPDATE rae_product SET order_id = 17288 WHERE id = 169')
+  op.execute('UPDATE rae_product SET order_id = 17829 WHERE id = 191')
 
   op.execute("""
     WITH base AS (
@@ -55,17 +48,21 @@ def upgrade() -> None:
           ORDER BY rp.id
         ) - 1 AS offset
       FROM rae_product rp
-      JOIN product p ON p.rae_product_id = rp.id
-      JOIN "order" o ON o.id = p.order_id
+      JOIN "order" o ON o.id = rp.order_id
       JOIN schedule_item_order sio ON sio.order_id = o.id
       JOIN schedule_item si ON si.id = sio.schedule_item_id
       JOIN schedule s ON s.id = si.schedule_id
     )
     UPDATE rae_product rp
-    SET emission_date = base.schedule_created_at + (base.offset || ' minutes')::interval,
-        status = 'EMITTED'
+    SET emission_date = base.schedule_created_at + (base.offset || ' minutes')::interval
     FROM base
     WHERE rp.id = base.rae_product_id
+  """)
+
+  op.execute("""
+    UPDATE rae_product
+    SET status = 'EMITTED'
+    WHERE status = 'GENERATED' AND emission_date IS NOT NULL
   """)
 
   op.execute("""
@@ -77,46 +74,11 @@ def upgrade() -> None:
           ORDER BY created_at, id
         ) AS number
       FROM rae_product
-      WHERE user_id IN (42, 43, 44, 45)
     )
     UPDATE rae_product rp
     SET number = numbered.number
     FROM numbered
     WHERE rp.id = numbered.id
-  """)
-
-  op.execute("""
-    WITH ranked AS (
-      SELECT
-        rp.id AS rae_product_id,
-        (
-          SELECT COUNT(rp2.id)
-          FROM rae_product rp2
-          JOIN "order" o2 ON rp2.order_id = o2.id
-          JOIN schedule_item_order sio2 ON sio2.order_id = o2.id
-          JOIN schedule_item si2 ON si2.id = sio2.schedule_item_id
-          JOIN schedule s2 ON s2.id = si2.schedule_id
-          WHERE rp2.status != 'GENERATED'
-            AND rp2.user_id = rp.user_id
-            AND EXTRACT(YEAR FROM s2.date) = EXTRACT(YEAR FROM CURRENT_DATE)
-            AND s2.date <= s.date
-            AND (
-              s2.date < s.date
-              OR (s2.date = s.date AND rp2.emission_date <= rp.emission_date)
-            )
-        ) AS preceding_count
-      FROM rae_product rp
-      JOIN "order" o ON o.id = rp.order_id
-      JOIN schedule_item_order sio ON sio.order_id = o.id
-      JOIN schedule_item si ON si.id = sio.schedule_item_id
-      JOIN schedule s ON s.id = si.schedule_id
-      WHERE rp.user_id NOT IN (42, 43, 44, 45)
-        AND rp.status != 'GENERATED'
-    )
-    UPDATE rae_product rp
-    SET number = ranked.preceding_count + 1
-    FROM ranked
-    WHERE rp.id = ranked.rae_product_id
   """)
 
   op.alter_column('rae_product', 'order_id', nullable=False, existing_type=sa.Integer())
