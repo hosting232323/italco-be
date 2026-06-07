@@ -52,7 +52,12 @@ def get_products(user: User):
 @rae_bp.route('product/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_product(_, id):
-  return update_rae_product(int(id), handle_document(json.loads(request.form.get('data'))))
+  return update_rae_product(
+    int(id),
+    handle_document(json.loads(request.form.get('data')))
+    if isinstance(request.form.get('data'), str)
+    else request.json,
+  )
 
 
 @rae_bp.route('documents/<filename>', methods=['GET'])
