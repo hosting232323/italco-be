@@ -1,6 +1,6 @@
 import os
 import re
-from sqlalchemy import or_, and_, cast, String
+from sqlalchemy import or_, cast, String
 
 from database_api import Session
 from api.storage import check_mismatch
@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session as session_type
 from .database.schema import Order, Product, ServiceUser, Schedule, Photo, History
 
 
-PHOTO_START_ID = 15000
 missing_photos_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'missing_photos.txt')
 with open(missing_photos_path, 'r', encoding='utf-8') as file:
   MISSING_PHOTOS = [int(id) for id in re.findall(r'id:\s*(\d+)', file.read())]
@@ -45,7 +44,7 @@ def get_all_files(base_photo_path: str) -> set[str]:
   with Session() as session:
     return [
       row.link.replace(base_photo_path, '')
-      for row in session.query(Photo).filter(and_(Photo.id.not_in(MISSING_PHOTOS), Photo.id > PHOTO_START_ID)).all()
+      for row in session.query(Photo).filter(Photo.id.not_in(MISSING_PHOTOS)).all()
     ]
 
 
