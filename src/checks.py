@@ -1,6 +1,6 @@
 import os
 import re
-from sqlalchemy import or_, and_, cast, String
+from sqlalchemy import or_, cast, String
 
 from database_api import Session
 from api.storage import check_mismatch
@@ -44,7 +44,7 @@ def get_all_files(base_photo_path: str) -> set[str]:
   with Session() as session:
     return [
       row.link.replace(base_photo_path, '')
-      for row in session.query(Photo).filter(and_(Photo.id.not_in(MISSING_PHOTOS))).all()
+      for row in session.query(Photo).filter(Photo.id.not_in(MISSING_PHOTOS)).all()
     ]
 
 
