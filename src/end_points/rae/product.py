@@ -110,7 +110,7 @@ def query_count_rae_products(user_id: int) -> int:
       .filter(
         RaeProduct.status != RaeStatus.GENERATED,
         RaeProduct.user_id == user_id,
-        extract('year', RaeProduct.emission_date) == date.today().year
+        extract('year', RaeProduct.emission_date) == date.today().year,
       )
       .scalar()
     )
