@@ -4,7 +4,6 @@ from pathlib import Path
 from sqlalchemy import or_, cast, String
 
 from database_api import Session
-from api.storage import format_mismatch_message
 from api.storage.local import list_files_local
 from api.telegram import send_telegram_message
 from sqlalchemy.orm import Session as session_type
@@ -38,6 +37,17 @@ def check_mismatch(db_files, folder, label, storage_type, subfolder=None):
     '\n*❌ File presenti solo in storage ' + storage_type + ' ({}):*',
     '\n✔️ Nessun file solo in storage',
   )
+
+
+def format_mismatch_message(first_list: list, second_list: list, success_text: str, failure_text: str):
+  mismatch_lines = list(map(lambda mismatch: f'- {mismatch}', sorted(set(first_list) - set(second_list))))
+
+  print(len(mismatch_lines))
+  # return (
+  #   [failure_text]
+  #   if len(mismatch_lines) == 0
+  #   else ([success_text.format(len(mismatch_lines)), '```'] + mismatch_lines + ['```'])
+  # )
 
 
 def database_integrity_test():
