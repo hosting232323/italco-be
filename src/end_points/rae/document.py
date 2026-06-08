@@ -17,7 +17,9 @@ def handle_document(data: dict):
       return data
 
     data['link'] = get_base_file_path('rae/dtr-documents') + os.path.basename(
-      upload_file(uploaded_file, f'{guess_next_id(session, "rae_product")}.pdf', STATIC_FOLDER, 'local', 'dtr-documents')
+      upload_file(
+        uploaded_file, f'{guess_next_id(session, "rae_product")}.pdf', STATIC_FOLDER, 'local', 'dtr-documents'
+      )
     )
 
     return data
