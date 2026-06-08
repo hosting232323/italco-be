@@ -27,9 +27,11 @@ def check_mismatch(db_files, folder, label, storage_type, subfolder=None):
   files = [Path(path).name for path in list_files_local(folder, subfolder)]
   
 
+  print('solo in db')
   format_mismatch_message(
     db_files, files, '\n*❌ File presenti solo nel DB ({}):*', '\n✔️ Nessun file solo nel DB'
   )
+  print('solo in storage')
   format_mismatch_message(
     files,
     db_files,
