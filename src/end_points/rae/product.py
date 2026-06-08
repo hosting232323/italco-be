@@ -46,10 +46,10 @@ def create_rae_product(
 
 
 def update_rae_product(id: int, data: dict):
-  body = {'status': RaeStatus(data['status'])}
-  if 'link' in data:
-    body['link'] = data['link']
-  update(get_by_id(RaeProduct, id), body)
+  update(
+    get_by_id(RaeProduct, id),
+    {'status': RaeStatus(data['status']), 'link': data['link']},
+  )
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
