@@ -25,22 +25,17 @@ def trigger_checks(folder, base_photo_path):
 
 def check_mismatch(db_files, folder, label, storage_type, subfolder=None):
   files = [Path(path).name for path in list_files_local(folder, subfolder)]
+  
 
-  print(
-    '\n'.join(
-      [f'*📊 Report Check Mismatch*\n▶️ {label}\n']
-      + format_mismatch_message(
-        db_files, files, '\n*❌ File presenti solo nel DB ({}):*', '\n✔️ Nessun file solo nel DB'
-      )
-      + format_mismatch_message(
-        files,
-        db_files,
-        '\n*❌ File presenti solo in storage ' + storage_type + ' ({}):*',
-        '\n✔️ Nessun file solo in storage',
-      )
-    )
+  format_mismatch_message(
+    db_files, files, '\n*❌ File presenti solo nel DB ({}):*', '\n✔️ Nessun file solo nel DB'
   )
-
+  format_mismatch_message(
+    files,
+    db_files,
+    '\n*❌ File presenti solo in storage ' + storage_type + ' ({}):*',
+    '\n✔️ Nessun file solo in storage',
+  )
 
 
 def database_integrity_test():
