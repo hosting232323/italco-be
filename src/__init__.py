@@ -57,8 +57,8 @@ def trigger_backup_folder():
 
 
 @app.route('/checks', methods=['GET'])
-@error_catching_decorator
-@swagger_decorator
+# @error_catching_decorator
+# @swagger_decorator
 def checks_endpoint():
   return trigger_checks(STATIC_FOLDER, get_base_photo_path())
 
