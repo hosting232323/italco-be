@@ -1,7 +1,7 @@
 from flask import Blueprint, request
 
-from ...database.enum import UserRole
 from ...database.schema import User
+from ...database.enum import UserRole
 from ..users.session import flask_session_authentication
 
 from .rae import export_rae
@@ -17,13 +17,13 @@ export_bp = Blueprint('export_bp', __name__)
 @export_bp.route('order/<id>', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER])
 def export_order_report(user: User, id):
-  return export_order(user, id)
+  return export_order(id, user.id if user.role == UserRole.CUSTOMER else None)
 
 
 @export_bp.route('invoice', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-def export_orders_invoice(user: User):
-  return export_order_invoice(user, request.json['filters'])
+def export_orders_invoice(_):
+  return export_order_invoice(request.json['filters'])
 
 
 @export_bp.route('schedule/<id>', methods=['GET'])
@@ -40,5 +40,5 @@ def export_orders_rae(user: User, order_id):
 
 @export_bp.route('orders/excel', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-def export_selected_orders_excel(user: User):
-  return export_orders_excel(user, request.json['order_ids'])
+def export_selected_orders_excel(_):
+  return export_orders_excel(request.json['order_ids'])

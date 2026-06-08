@@ -1,7 +1,8 @@
+from ..rae.product import create_rae_product
 from .clone import format_data_cloning_product
 from database_api.operations import create, delete
 from .queries import query_service_users, query_products
-from ...database.schema import Order, Product, RaeProduct, ServiceUser
+from ...database.schema import Order, Product, ServiceUser, ScheduleItem
 
 
 def create_products(order: Order, products: dict, customer_user_id: int, cloned_order: bool, session):
@@ -10,7 +11,7 @@ def create_products(order: Order, products: dict, customer_user_id: int, cloned_
     create_product(product, products[product], order, service_users, session=session, cloned_order=cloned_order)
 
 
-def update_products(order: Order, products: dict, customer_user_id: int, session=None):
+def update_products(order: Order, products: dict, customer_user_id: int, schedule_item: ScheduleItem, session=None):
   service_users = get_service_users(order, products, customer_user_id)
   old_products = query_products(order)
 
@@ -18,7 +19,7 @@ def update_products(order: Order, products: dict, customer_user_id: int, session
     if len([old_product for old_product in old_products if old_product.name == product]) > 0:
       continue
 
-    create_product(product, products[product], order, service_users, session=session)
+    create_product(product, products[product], order, service_users, session=session, schedule_item=schedule_item)
 
   for old_product in old_products:
     if old_product.name not in products:
@@ -26,18 +27,23 @@ def update_products(order: Order, products: dict, customer_user_id: int, session
 
 
 def create_product(
-  product_name: str, data: dict, order: Order, service_users: list[ServiceUser], session, cloned_order=False
+  product_name: str,
+  data: dict,
+  order: Order,
+  service_users: list[ServiceUser],
+  session,
+  schedule_item: ScheduleItem = None,
+  cloned_order=False,
 ):
   rae_product = None
   if 'rae_product' in data:
-    rae_product: RaeProduct = create(
-      RaeProduct,
-      {
-        'user_id': service_users[0].user_id,
-        'quantity': data['rae_product']['quantity'],
-        'rae_product_group_id': data['rae_product']['rae_product_group_id'],
-      },
+    rae_product = create_rae_product(
+      data['rae_product']['quantity'],
+      data['rae_product']['rae_product_group_id'],
+      order.id,
+      service_users[0].user_id,
       session=session,
+      schedule_item=schedule_item,
     )
 
   for service in data['services']:
