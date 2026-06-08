@@ -58,4 +58,4 @@ def update_product(_, id):
 @rae_bp.route('documents/<filename>', methods=['GET'])
 @error_catching_decorator
 def serve_image_endpoint(filename):
-  return serve_file(filename, 'documents')
+  return serve_file(filename, 'dtr-documents')

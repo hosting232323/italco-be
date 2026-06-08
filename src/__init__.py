@@ -60,7 +60,7 @@ def trigger_backup_folder():
 @error_catching_decorator
 @swagger_decorator
 def checks_endpoint():
-  return trigger_checks(STATIC_FOLDER, get_base_file_path('order/photos'), get_base_file_path('rae/documents'))
+  return trigger_checks(STATIC_FOLDER, get_base_file_path('order/photos'), get_base_file_path('rae/dtr-documents'))
 
 
 def get_base_file_path(path):
