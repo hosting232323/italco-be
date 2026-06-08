@@ -124,7 +124,6 @@ def get_schedule_by_order(order_id: int) -> Schedule:
 def format_query_result(
   tupla: tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User, Service],
   list: list[dict],
-  user: User,
 ) -> list[dict]:
   for element in list:
     if element['id'] == tupla[0].id:
@@ -132,13 +131,13 @@ def format_query_result(
         element['schedule_items'], tupla[2], tupla[3], tupla[4], tupla[5], tupla[7] if len(tupla) == 8 else None
       )
       if tupla[6] and tupla[6].id not in [user['id'] for user in element['users']]:
-        element['users'].append(tupla[6].format_user(user.role))
+        element['users'].append(tupla[6].format_user())
       return list
 
   schedule = {
     **tupla[0].to_dict(),
     'transport': tupla[1].to_dict(),
-    'users': [tupla[6].format_user(user.role)] if tupla[6] else [],
+    'users': [tupla[6].format_user()] if tupla[6] else [],
     'schedule_items': [],
   }
   format_schedule_item(

@@ -1,12 +1,12 @@
 import os
-from sqlalchemy import text
-from flask import request, send_from_directory
+from flask import request
 from sqlalchemy.orm import Session as session_type
 
 from api.storage import upload_file
 from database_api.operations import create
 from ...database.schema import Photo, Order
-from ... import STATIC_FOLDER, IS_DEV, get_base_photo_path
+from ... import STATIC_FOLDER, get_base_file_path
+from ...utils.file import guess_next_id, guess_extension
 
 
 def handle_photos(data: dict, order: Order, session: session_type):
@@ -16,13 +16,13 @@ def handle_photos(data: dict, order: Order, session: session_type):
       if file_key == 'signature':
         data['signature'] = uploaded_file.read()
       else:
-        id = guess_next_id(session)
+        id = guess_next_id(session, 'photo')
         create(
           Photo,
           {
             'id': id,
             'order_id': order.id,
-            'link': get_base_photo_path()
+            'link': get_base_file_path('order/photos')
             + os.path.basename(
               upload_file(
                 uploaded_file, f'{id}{guess_extension(uploaded_file.mimetype)}', STATIC_FOLDER, 'local', 'photos'
@@ -32,25 +32,3 @@ def handle_photos(data: dict, order: Order, session: session_type):
           session=session,
         )
   return data
-
-
-def serve_image(filename: str):
-  return send_from_directory(
-    os.path.join(STATIC_FOLDER, 'test' if IS_DEV else 'prod', 'photos'),
-    filename,
-  )
-
-
-def guess_extension(mime_type: str) -> str:
-  if mime_type == 'image/jpeg':
-    return '.jpg'
-  if mime_type == 'image/png':
-    return '.png'
-  if mime_type == 'image/webp':
-    return '.webp'
-
-  raise ValueError('Mime type non supportato')
-
-
-def guess_next_id(session: session_type) -> int:
-  return session.execute(text("SELECT nextval('photo_id_seq')")).scalar()

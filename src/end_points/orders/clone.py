@@ -28,9 +28,9 @@ def format_data_cloning_order(data: dict, cloned_order_id: int):
 
 
 def format_data_cloning_product(product_data: dict, input_data: dict):
-  if input_data['release_collection_point_id']:
+  if 'release_collection_point_id' in input_data and input_data['release_collection_point_id']:
     product_data['collection_point_id'] = input_data['release_collection_point_id']
-  elif input_data['release_transport_id']:
+  elif 'release_transport_id' in input_data and input_data['release_transport_id']:
     product_data['collection_point_id'] = None
     product_data['transport_id'] = input_data['release_transport_id']
   return product_data

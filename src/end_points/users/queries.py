@@ -45,12 +45,10 @@ def format_user_with_info(user: User, role: UserRole) -> dict:
   user_dict = user.format_user(role)
   if role == UserRole.ADMIN and user.role == UserRole.DELIVERY:
     delivery_user_info = get_user_info(user.id, DeliveryUserInfo)
-    if delivery_user_info:
-      user_dict['delivery_user_info'] = delivery_user_info.to_dict()
+    user_dict['delivery_user_info'] = delivery_user_info.to_dict() if delivery_user_info else {}
   elif role in [UserRole.ADMIN, UserRole.OPERATOR] and user.role == UserRole.CUSTOMER:
     customer_user_info = get_user_info(user.id, CustomerUserInfo)
-    if customer_user_info:
-      user_dict['customer_user_info'] = customer_user_info.to_dict()
+    user_dict['customer_user_info'] = customer_user_info.to_dict() if customer_user_info else {}
   return user_dict
 
 
