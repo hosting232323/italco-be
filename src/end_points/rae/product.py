@@ -5,7 +5,7 @@ from database_api import Session
 from ...utils.date import handle_date
 from ...database.enum import RaeStatus
 from ..users.queries import format_user_with_info
-from database_api.operations import update, get_by_id, create
+from database_api.operations import update, get_by_id, create, db_session_decorator
 from ...database.schema import (
   Order,
   Product,
@@ -40,7 +40,7 @@ def create_rae_product(
   if schedule_item:
     body['emission_date'] = datetime.now()
     body['status'] = RaeStatus.EMITTED
-    body['number'] = query_count_rae_products(user_id) + 1
+    body['number'] = query_count_rae_products(user_id, session=session) + 1
 
   return create(RaeProduct, body, session=session)
 
@@ -53,32 +53,34 @@ def update_rae_product(id: int, data: dict):
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
-def query_rae_products(filters: list[dict]) -> list[tuple[RaeProduct, RaeProductGroup, User, Order, Schedule]]:
-  with Session() as session:
-    query = (
-      session.query(RaeProduct, RaeProductGroup, User, Order, Schedule)
-      .join(RaeProductGroup, RaeProduct.rae_product_group_id == RaeProductGroup.id)
-      .join(User, RaeProduct.user_id == User.id)
-      .join(Order, RaeProduct.order_id == Order.id)
-      .outerjoin(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
-      .outerjoin(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
-      .outerjoin(Schedule, Schedule.id == ScheduleItem.schedule_id)
-    )
+@db_session_decorator()
+def query_rae_products(
+  filters: list[dict], session: Session = None
+) -> list[tuple[RaeProduct, RaeProductGroup, User, Order, Schedule]]:
+  query = (
+    session.query(RaeProduct, RaeProductGroup, User, Order, Schedule)
+    .join(RaeProductGroup, RaeProduct.rae_product_group_id == RaeProductGroup.id)
+    .join(User, RaeProduct.user_id == User.id)
+    .join(Order, RaeProduct.order_id == Order.id)
+    .outerjoin(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
+    .outerjoin(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+    .outerjoin(Schedule, Schedule.id == ScheduleItem.schedule_id)
+  )
 
-    for filter in filters:
-      model = globals()[filter['model']]
-      field = getattr(model, filter['field'])
-      value = filter['value']
+  for filter in filters:
+    model = globals()[filter['model']]
+    field = getattr(model, filter['field'])
+    value = filter['value']
 
-      if field in [Schedule.date, RaeProduct.created_at, RaeProduct.emission_date] and type(value) is list:
-        query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
-      elif field in [RaeProduct.created_at, RaeProduct.emission_date]:
-        query = query.filter(cast(field, Date) == value)
-      elif field == RaeProduct.status:
-        query = query.filter(field == RaeStatus(value))
-      else:
-        query = query.filter(field == value)
-    return query.order_by(desc(Schedule.date), desc(RaeProduct.emission_date)).all()
+    if field in [Schedule.date, RaeProduct.created_at, RaeProduct.emission_date] and type(value) is list:
+      query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
+    elif field in [RaeProduct.created_at, RaeProduct.emission_date]:
+      query = query.filter(cast(field, Date) == value)
+    elif field == RaeProduct.status:
+      query = query.filter(field == RaeStatus(value))
+    else:
+      query = query.filter(field == value)
+  return query.order_by(desc(Schedule.date), desc(RaeProduct.emission_date)).all()
 
 
 def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, Schedule], list: list[dict], user: User):
@@ -98,58 +100,56 @@ def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, S
   return list
 
 
-def check_orders(rae_product_id) -> bool:
-  with Session() as session:
-    return session.query(exists().where(Product.rae_product_id == rae_product_id)).scalar()
+@db_session_decorator()
+def check_orders(rae_product_id: int, session: Session = None) -> bool:
+  return session.query(exists().where(Product.rae_product_id == rae_product_id)).scalar()
 
 
-def query_count_rae_products(user_id: int) -> int:
-  with Session() as session:
-    return (
-      session.query(func.count(RaeProduct.id))
-      .filter(
-        RaeProduct.status != RaeStatus.GENERATED,
-        RaeProduct.user_id == user_id,
-        extract('year', RaeProduct.emission_date) == date.today().year,
-      )
-      .scalar()
+@db_session_decorator()
+def query_count_rae_products(user_id: int, session: Session = None) -> int:
+  return (
+    session.query(func.count(RaeProduct.id))
+    .filter(
+      RaeProduct.status != RaeStatus.GENERATED,
+      RaeProduct.user_id == user_id,
+      extract('year', RaeProduct.emission_date) == date.today().year,
     )
+    .scalar()
+  )
 
 
-def get_product_and_group(rae_product_id: int) -> dict:
-  with Session() as session:
-    result: tuple[RaeProduct, RaeProductGroup] = (
-      session.query(RaeProduct, RaeProductGroup)
-      .join(
-        RaeProductGroup, and_(RaeProduct.rae_product_group_id == RaeProductGroup.id, RaeProduct.id == rae_product_id)
-      )
-      .first()
-    )
+@db_session_decorator()
+def get_product_and_group(rae_product_id: int, session: Session = None) -> dict:
+  result: tuple[RaeProduct, RaeProductGroup] = (
+    session.query(RaeProduct, RaeProductGroup)
+    .join(RaeProductGroup, and_(RaeProduct.rae_product_group_id == RaeProductGroup.id, RaeProduct.id == rae_product_id))
+    .first()
+  )
 
-    rae_product = result[0].to_dict()
-    rae_product['name'] = result[1].name
-    rae_product['cer_code'] = result[1].cer_code
-    rae_product['group_code'] = result[1].group_code
-    return rae_product
+  rae_product = result[0].to_dict()
+  rae_product['name'] = result[1].name
+  rae_product['cer_code'] = result[1].cer_code
+  rae_product['group_code'] = result[1].group_code
+  return rae_product
 
 
-def get_rae_products_by_order(order: Order) -> list[RaeProduct]:
-  with Session() as session:
-    return (
-      session.query(RaeProduct)
-      .join(Product, and_(Product.rae_product_id == RaeProduct.id, Product.order_id == order.id))
-      .all()
-    )
+@db_session_decorator()
+def get_rae_products_by_order(order: Order, session: Session = None) -> list[RaeProduct]:
+  return (
+    session.query(RaeProduct)
+    .join(Product, and_(Product.rae_product_id == RaeProduct.id, Product.order_id == order.id))
+    .all()
+  )
 
 
 def emit_rae_products(order: Order, session):
-  for rae_product in get_rae_products_by_order(order):
+  for rae_product in get_rae_products_by_order(order, session=session):
     update(
       rae_product,
       {
         'status': RaeStatus.EMITTED,
         'emission_date': datetime.now(),
-        'number': query_count_rae_products(rae_product.user_id) + 1,
+        'number': query_count_rae_products(rae_product.user_id, session=session) + 1,
       },
       session=session,
     )
@@ -157,7 +157,7 @@ def emit_rae_products(order: Order, session):
 
 def recreate_rae_products(order: Order, session):
   rae_product_ids = {}
-  for tupla in get_rae_product_tuples_by_order(order):
+  for tupla in get_rae_product_tuples_by_order(order, session=session):
     if tupla[0].id not in rae_product_ids:
       rae_product_ids[tupla[0].id] = create_rae_product(
         tupla[0].quantity, tupla[0].rae_product_group_id, order.id, tupla[0].user_id, session=session
@@ -166,10 +166,10 @@ def recreate_rae_products(order: Order, session):
     update(tupla[1], {'rae_product_id': rae_product_ids[tupla[0].id]}, session=session)
 
 
-def get_rae_product_tuples_by_order(order: Order) -> list[tuple[RaeProduct, Product]]:
-  with Session() as session:
-    return (
-      session.query(RaeProduct, Product)
-      .join(Product, and_(Product.rae_product_id == RaeProduct.id, Product.order_id == order.id))
-      .all()
-    )
+@db_session_decorator()
+def get_rae_product_tuples_by_order(order: Order, session: Session = None) -> list[tuple[RaeProduct, Product]]:
+  return (
+    session.query(RaeProduct, Product)
+    .join(Product, and_(Product.rae_product_id == RaeProduct.id, Product.order_id == order.id))
+    .all()
+  )
