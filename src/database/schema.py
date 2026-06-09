@@ -292,12 +292,14 @@ class RaeProduct(BaseEntity):
   quantity = Column(Integer, default=1)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
+  disposal_id = Column(Integer, ForeignKey('disposal.id'), nullable=True)
   status = Column(Enum(RaeStatus), nullable=False, default=RaeStatus.GENERATED)
   rae_product_group_id = Column(Integer, ForeignKey('rae_product_group.id'), nullable=False)
 
   user = relationship('User', back_populates='rae_product')
   order = relationship('Order', back_populates='rae_product')
   product = relationship('Product', back_populates='rae_product')
+  disposal = relationship('Disposal', back_populates='rae_products')
   rae_product_group = relationship('RaeProductGroup', back_populates='rae_product')
 
 
@@ -363,3 +365,44 @@ class Log(BaseEntity):
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='log')
+
+
+class Carrier(BaseEntity):
+  __tablename__ = 'carrier'
+
+  company_name = Column(String)
+  address = Column(String)
+  fiscal_code = Column(String)
+  vat_number = Column(String)
+  authorization_code = Column(String)
+  authorization_date = Column(String)
+
+  disposals = relationship('Disposal', back_populates='carrier')
+
+
+class CollectionCenter(BaseEntity):
+  __tablename__ = 'collection_center'
+
+  company_name = Column(String)
+  address = Column(String)
+  fiscal_code = Column(String)
+  vat_number = Column(String)
+  authorization_code = Column(String)
+  authorization_date = Column(String)
+
+  disposals = relationship('Disposal', back_populates='collection_center')
+
+
+class Disposal(BaseEntity):
+  __tablename__ = 'disposal'
+
+  date = Column(DateTime)
+  code = Column(String)
+  document_ldr = Column(String)
+
+  carrier_id = Column(Integer, ForeignKey('carrier.id'), nullable=False)
+  collection_center_id = Column(Integer, ForeignKey('collection_center.id'), nullable=False)
+
+  carrier = relationship('Carrier', back_populates='disposals')
+  rae_products = relationship('RaeProduct', back_populates='disposal')
+  collection_center = relationship('CollectionCenter', back_populates='disposals')
