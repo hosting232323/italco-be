@@ -4,7 +4,7 @@ from sqlalchemy import and_
 from database_api import Session
 from ... import EURONICS_API_PASSWORD
 from database_api.operations import get_by_id
-from ..rae.product import get_rae_products_by_order
+from ..rae.queries import get_rae_products_by_order
 from ...database.schema import (
   Order,
   Schedule,
