@@ -43,6 +43,8 @@ def query_rae_products(
       query = query.filter(cast(field, Date) == value)
     elif field == RaeProduct.status:
       query = query.filter(field == RaeStatus(value))
+    elif isinstance(value, list):
+      query = query.filter(field.in_(value))
     else:
       query = query.filter(field == value)
 
