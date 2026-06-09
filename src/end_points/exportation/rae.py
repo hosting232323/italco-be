@@ -5,7 +5,7 @@ from flask import render_template
 from .utils import export_pdf
 from ...database.schema import User
 from database_api.operations import get_by_id
-from ..rae.product import get_product_and_group
+from ..rae.queries import get_product_and_group
 from ..users.queries import format_user_with_info
 from ..schedule.queries import get_schedule_by_order
 from ..orders.queries import query_orders, format_query_result
