@@ -15,7 +15,7 @@ def export_order_invoice(filters: list[dict]):
     return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
 
   for filter in filters:
-    if filter['field'] == 'dpc' and filter['model'] == 'Order':
+    if filter['field'] == 'booking_date' and filter['model'] == 'Order':
       start_date = filter['value'][0]
       end_date = filter['value'][1]
       break
