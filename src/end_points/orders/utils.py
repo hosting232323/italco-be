@@ -8,12 +8,10 @@ def get_statuses_by_order_id(order_id: int):
   status_map = {status.name: status.value for status in OrderStatus}
   statuses = []
   for history in get_all_histories_by_order_id(order_id):
-    record = {
-      'id': history.id,
-      'order_id': history.order_id,
-      'created_at': history.created_at.strftime('%d/%m/%Y %H:%M'),
-      'updated_at': history.updated_at.strftime('%d/%m/%Y %H:%M'),
-    }
+    record = history.to_dict()
+    if 'status' in record:
+      del record['status']
+
     if history.status.get('type') == 'status':
       record['status'] = status_map.get(history.status['value'], history.status['value'])
     else:
