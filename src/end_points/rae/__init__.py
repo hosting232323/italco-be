@@ -16,7 +16,12 @@ from .product_group import (
 )
 from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal, delete_rae_disposal
 from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
-from .collection_center import create_rae_collection_center, update_rae_collection_center, delete_rae_collection_center, get_rae_collection_centers
+from .collection_center import (
+  create_rae_collection_center,
+  update_rae_collection_center,
+  delete_rae_collection_center,
+  get_rae_collection_centers,
+)
 
 
 rae_bp = Blueprint('rae_bp', __name__)
@@ -61,7 +66,9 @@ def get_products(user: User):
 @flask_session_authentication([UserRole.ADMIN])
 @error_catching_decorator
 def update_product(_, id):
-  return update_rae_product(int(id), handle_document(json.loads(request.form.get('data')), 'rae/dtr-documents', 'rae_product', 'link'))
+  return update_rae_product(
+    int(id), handle_document(json.loads(request.form.get('data')), 'rae/dtr-documents', 'rae_product', 'link')
+  )
 
 
 @rae_bp.route('dtr-documents/<filename>', methods=['GET'])
@@ -98,7 +105,6 @@ def delete_carrier(_, id):
   return delete_rae_carrier(int(id))
 
 
-
 @rae_bp.route('collection-center', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 @error_catching_decorator
@@ -127,12 +133,13 @@ def delete_collection_center(_, id):
   return delete_rae_collection_center(int(id))
 
 
-
 @rae_bp.route('disposal', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 @error_catching_decorator
 def create_disposal(_):
-  return create_rae_disposal(handle_document(json.loads(request.form.get('data')), 'rae/ldr-documents', 'disposal', 'document_ldr'))
+  return create_rae_disposal(
+    handle_document(json.loads(request.form.get('data')), 'rae/ldr-documents', 'disposal', 'document_ldr')
+  )
 
 
 @rae_bp.route('disposal', methods=['GET'])
@@ -146,7 +153,9 @@ def get_disposal(_):
 @flask_session_authentication([UserRole.ADMIN])
 @error_catching_decorator
 def update_disposal(_, id):
-  return update_rae_disposal(int(id), handle_document(json.loads(request.form.get('data')), 'rae/ldr-documents', 'disposal', 'document_ldr'))
+  return update_rae_disposal(
+    int(id), handle_document(json.loads(request.form.get('data')), 'rae/ldr-documents', 'disposal', 'document_ldr')
+  )
 
 
 @rae_bp.route('disposal/<id>', methods=['DELETE'])

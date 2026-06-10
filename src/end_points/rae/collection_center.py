@@ -21,7 +21,9 @@ def delete_rae_collection_center(id: int):
 def get_rae_collection_centers():
   return {
     'status': 'ok',
-    'rae_collection_centers': [rae_collection_center.to_dict() for rae_collection_center in query_rae_collection_centers()],
+    'rae_collection_centers': [
+      rae_collection_center.to_dict() for rae_collection_center in query_rae_collection_centers()
+    ],
   }
 
 

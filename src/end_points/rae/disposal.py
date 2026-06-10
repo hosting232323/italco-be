@@ -47,4 +47,3 @@ def query_rae_disposals() -> list[tuple[Disposal, Carrier, CollectionCenter]]:
       .join(CollectionCenter, Disposal.collection_center_id == CollectionCenter.id)
       .all()
     )
-

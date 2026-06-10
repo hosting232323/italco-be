@@ -41,7 +41,7 @@ def query_rae_products(
     elif field in [RaeProduct.created_at, RaeProduct.emission_date]:
       query = query.filter(cast(field, Date) == value)
     elif isinstance(value, list):
-        query = query.filter(field.in_(value))
+      query = query.filter(field.in_(value))
     else:
       query = query.filter(field == value)
   return query.order_by(desc(Schedule.date), desc(RaeProduct.emission_date)).all()

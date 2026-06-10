@@ -17,9 +17,7 @@ def handle_document(data: dict, folder: str, model: str, field_name: str):
       return data
 
     data[field_name] = get_base_file_path(folder) + os.path.basename(
-      upload_file(
-        uploaded_file, f'{guess_next_id(session, model)}.pdf', STATIC_FOLDER, 'local', folder.split('/')[-1]
-      )
+      upload_file(uploaded_file, f'{guess_next_id(session, model)}.pdf', STATIC_FOLDER, 'local', folder.split('/')[-1])
     )
 
     return data
