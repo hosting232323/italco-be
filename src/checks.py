@@ -55,7 +55,7 @@ def get_all_documents(base_document_path: str) -> set[str]:
     return [
       row.link.replace(base_document_path, '')
       for row in session.query(RaeProduct)
-      .filter(RaeProduct.status.in_([RaeStatus.LDR, RaeStatus.ANNULLED, RaeStatus.DISPOSED_OFF]))
+      .filter(RaeProduct.status.in_([RaeStatus.LDR, RaeStatus.ANNULLED, RaeStatus.DISPOSED_OFF]), RaeProduct.link.is_not(None))
       .all()
     ]
 
