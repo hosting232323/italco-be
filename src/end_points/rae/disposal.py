@@ -1,6 +1,6 @@
 from database_api import Session
+from database_api.operations import create, get_by_id, update
 from ...database.schema import Disposal, Carrier, CollectionCenter
-from database_api.operations import create, delete, get_by_id, update
 
 
 def create_rae_disposal(data: dict):
