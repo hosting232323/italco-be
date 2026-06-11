@@ -8,14 +8,14 @@ from .document import handle_document
 from api import error_catching_decorator
 from ..users.session import flask_session_authentication
 from .product import get_rae_products, update_rae_product
+from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
+from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
 from .product_group import (
   create_rae_product_group,
   delete_rae_product_group,
   update_rae_product_group,
   get_rae_product_groups,
 )
-from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
-from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
 from .collection_center import (
   create_rae_collection_center,
   update_rae_collection_center,
@@ -85,7 +85,7 @@ def create_carrier(_):
 
 
 @rae_bp.route('carrier', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 @error_catching_decorator
 def get_carriers(_):
   return get_rae_carriers()
@@ -113,7 +113,7 @@ def create_collection_center(_):
 
 
 @rae_bp.route('collection-center', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 @error_catching_decorator
 def get_collection_center(_):
   return get_rae_collection_centers()
@@ -134,7 +134,7 @@ def delete_collection_center(_, id):
 
 
 @rae_bp.route('disposal', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 @error_catching_decorator
 def create_disposal(_):
   return create_rae_disposal(
@@ -143,14 +143,14 @@ def create_disposal(_):
 
 
 @rae_bp.route('disposal', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 @error_catching_decorator
 def get_disposal(_):
   return get_rae_disposals()
 
 
 @rae_bp.route('disposal/<id>', methods=['PUT'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 @error_catching_decorator
 def update_disposal(_, id):
   return update_rae_disposal(
