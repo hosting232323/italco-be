@@ -18,8 +18,7 @@ def track_order_history(session: Session, flush_context, instances):
       state = inspect(obj)
       for field in ['status', 'anomaly', 'delay', 'confirmed']:
         if state.attrs[field].history.has_changes():
-          value = getattr(obj, field)
-          create_history(session, obj, field, value)
+          create_history(session, obj, field, getattr(obj, field))
 
 
 def create_history(session: Session, obj, field, value):
