@@ -1,23 +1,17 @@
 from datetime import datetime
 
-from ...database.enum import OrderStatus
 from .queries import get_all_histories_by_order_id
 
 
 def get_statuses_by_order_id(order_id: int):
-  status_map = {status.name: status.value for status in OrderStatus}
   statuses = []
   for history in get_all_histories_by_order_id(order_id):
-    record = {
-      'id': history.id,
-      'order_id': history.order_id,
-      'created_at': history.created_at.strftime('%d/%m/%Y %H:%M'),
-      'updated_at': history.updated_at.strftime('%d/%m/%Y %H:%M'),
-    }
-    if history.status.get('type') == 'status':
-      record['status'] = status_map.get(history.status['value'], history.status['value'])
+    record = history.to_dict()
+    if history.status['type'] == 'status':
+      record['status'] = history.status['value']
     else:
       record[history.status['type']] = history.status.get('value')
+      del record['status']
     statuses.append(record)
 
   return {'status': 'ok', 'statuses': statuses}
