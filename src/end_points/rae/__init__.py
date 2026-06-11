@@ -14,7 +14,7 @@ from .product_group import (
   update_rae_product_group,
   get_rae_product_groups,
 )
-from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal, delete_rae_disposal
+from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
 from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
 from .collection_center import (
   create_rae_collection_center,
@@ -156,10 +156,3 @@ def update_disposal(_, id):
   return update_rae_disposal(
     int(id), handle_document(json.loads(request.form.get('data')), 'rae/ldr-documents', 'disposal', 'document_ldr')
   )
-
-
-@rae_bp.route('disposal/<id>', methods=['DELETE'])
-@flask_session_authentication([UserRole.ADMIN])
-@error_catching_decorator
-def delete_disposal(_, id):
-  return delete_rae_disposal(int(id))

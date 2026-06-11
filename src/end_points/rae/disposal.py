@@ -13,11 +13,6 @@ def update_rae_disposal(id: int, data: dict):
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 
-def delete_rae_disposal(id: int):
-  delete(get_by_id(Disposal, id))
-  return {'status': 'ok', 'message': 'Operazione completata'}
-
-
 def get_rae_disposals():
   rae_disposals = []
   for tupla in query_rae_disposals():
