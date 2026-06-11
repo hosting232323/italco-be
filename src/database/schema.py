@@ -396,7 +396,7 @@ class CollectionCenter(BaseEntity):
 class Disposal(BaseEntity):
   __tablename__ = 'disposal'
 
-  date = Column(DateTime)
+  date = Column(Date)
   code = Column(String)
   document_ldr = Column(String)
 

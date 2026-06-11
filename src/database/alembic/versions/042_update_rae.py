@@ -54,7 +54,7 @@ def upgrade() -> None:
     sa.Column('collection_center_id', sa.Integer(), nullable=False),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.Date(), nullable=True),
     sa.ForeignKeyConstraint(
       ['carrier_id'],
       ['carrier.id'],
