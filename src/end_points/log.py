@@ -47,6 +47,4 @@ def query_logs(filters: list) -> list[tuple[Log, User]]:
       else:
         query = query.filter(field == value)
 
-    query = query.order_by(Log.created_at.desc())
-    query = query.limit(300)
-    return query.all()
+    return query.order_by(Log.created_at.desc()).limit(300).all()

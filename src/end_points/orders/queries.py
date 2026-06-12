@@ -98,10 +98,7 @@ def query_orders(
       else:
         query = query.filter(field == value)
 
-    query = query.order_by(desc(Order.created_at))
-    if limit:
-      query = limit_per_entity(query, Order.id, limit)
-    return query.all()
+    return limit_per_entity(query.order_by(desc(Order.created_at)), Order.id, limit).all()
 
 
 def query_products(order: Order) -> list[Product]:

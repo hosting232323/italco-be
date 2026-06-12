@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session as session_type
 from sqlalchemy import extract, func, and_, cast, Date, desc
 
 from ...utils.date import handle_date
+from ...utils.query import limit_per_entity
 from ...database.enum import RaeStatus
 from database_api.operations import db_session_decorator
 from ...database.schema import (
@@ -19,7 +20,7 @@ from ...database.schema import (
 
 @db_session_decorator(commit=False)
 def query_rae_products(
-  filters: list[dict], session: session_type = None
+  filters: list[dict], limit: int = None, session: session_type = None
 ) -> list[tuple[RaeProduct, RaeProductGroup, User, Order, Schedule]]:
   query = (
     session.query(RaeProduct, RaeProductGroup, User, Order, Schedule)
@@ -44,7 +45,13 @@ def query_rae_products(
       query = query.filter(field == RaeStatus(value))
     else:
       query = query.filter(field == value)
-  return query.order_by(desc(Schedule.date), desc(RaeProduct.emission_date)).all()
+
+  return limit_per_entity(
+    query.order_by(desc(Schedule.date), desc(RaeProduct.emission_date)),
+    RaeProduct.id,
+    limit,
+    subquery_order_by=(desc(func.max(Schedule.date)), desc(RaeProduct.emission_date)),
+  ).all()
 
 
 @db_session_decorator(commit=False)

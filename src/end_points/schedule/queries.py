@@ -69,10 +69,7 @@ def query_schedules(
       else:
         query = query.filter(field == value)
 
-    query = query.order_by(desc(Schedule.created_at))
-    if limit:
-      query = limit_per_entity(query, Schedule.id, limit)
-    return query.all()
+    return limit_per_entity(query.order_by(desc(Schedule.created_at)), Schedule.id, limit).all()
 
 
 def query_schedules_count(user_id, schedule_date) -> int:
