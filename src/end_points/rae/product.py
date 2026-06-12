@@ -21,7 +21,7 @@ from ...database.schema import (
 
 def get_rae_products(user: User, filters: list[dict]):
   rae_products = []
-  for tupla in query_rae_products(filters):
+  for tupla in query_rae_products(filters, 500):
     rae_products = format_query_result(tupla, rae_products, user)
   return {'status': 'ok', 'rae_products': rae_products}
 
