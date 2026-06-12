@@ -13,3 +13,4 @@ seed_data.py
 .playwright-mcp/
 .github/instructions/
 .gilab-ci-local/
+static/
