@@ -55,7 +55,7 @@ def seed_data():
 
   today = date.today()
 
-  admin_user = create(
+  create(
     User,
     {
       'nickname': 'admin',
@@ -63,7 +63,7 @@ def seed_data():
       'role': UserRole.ADMIN,
     },
   )
-  operator_user = create(
+  create(
     User,
     {
       'nickname': 'operator',
