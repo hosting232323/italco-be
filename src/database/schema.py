@@ -115,6 +115,7 @@ class Order(BaseEntity):
   anomaly = Column(Boolean, default=False)
   delay = Column(Boolean, default=False)
   confirmed = Column(Boolean, default=False)
+  version = Column(Integer, nullable=False, default=0, server_default='0')
 
   floor = Column(Integer)
   elevator = Column(Boolean)

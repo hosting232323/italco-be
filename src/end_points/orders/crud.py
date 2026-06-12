@@ -155,7 +155,7 @@ def update_order(user: User, order: Order, data: dict, session):
     {
       key: value
       for key, value in data.items()
-      if key not in ['products', 'user_id', 'motivation', 'start_time_slot', 'end_time_slot']
+      if key not in ['products', 'user_id', 'motivation', 'start_time_slot', 'end_time_slot', 'version']
     },
     session=session,
   )

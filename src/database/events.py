@@ -34,3 +34,8 @@ def create_history(session: Session, obj, field, value):
       },
     )
   )
+
+
+@event.listens_for(Order, 'before_update')
+def increment_order_version(_mapper, _connection, order: Order):
+  order.version = (order.version or 0) + 1

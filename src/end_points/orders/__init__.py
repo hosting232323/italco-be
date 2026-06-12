@@ -54,6 +54,9 @@ def update_order_endpoint(user: User, id):
     else:
       data = request.json
 
+    if data.get('version') is not None and data['version'] != order.version:
+      return {'status': 'ko', 'error': "L'ordine è stato modificato nel frattempo. Ricarica la pagina e riprova."}
+
     motivation = update_order(user, order, data, session)
     session.commit()
 
