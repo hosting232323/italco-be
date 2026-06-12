@@ -27,7 +27,6 @@ class User(BaseEntity):
   nickname = Column(String, unique=True, nullable=False)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
 
-  log = relationship('Log', back_populates='user')
   rae_product = relationship('RaeProduct', back_populates='user')
   customer_group = relationship('CustomerGroup', back_populates='user')
   delivery_group = relationship('DeliveryGroup', back_populates='user')

@@ -17,7 +17,6 @@ from .schema import (
   DeliveryUserInfo,
   GeographicCode,
   GeographicZone,
-  Log,
   Motivation,
   Order,
   Photo,
@@ -407,13 +406,6 @@ def seed_data():
         'order_id': orders[index].id,
       },
     )
-    create(
-      Log,
-      {
-        'content': f'Log operativo seed {index + 1}',
-        'user_id': operator_user.id if index % 2 == 0 else admin_user.id,
-      },
-    )
 
 
 def can_create() -> bool:
@@ -440,7 +432,6 @@ def can_create() -> bool:
     GeographicZone,
     GeographicCode,
     Constraint,
-    Log,
   ]
   with Session() as session:
     return all(session.query(model).count() == 0 for model in tracked_models)
