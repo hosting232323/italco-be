@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
 from ...utils.date import handle_date
+from ...utils.query import limit_per_entity
 from ...database.enum import ScheduleType, UserRole
 from database_api.operations import db_session_decorator
 from ...database.schema import (
@@ -68,10 +69,7 @@ def query_schedules(
       else:
         query = query.filter(field == value)
 
-    query = query.order_by(desc(Schedule.created_at))
-    if limit:
-      query = query.limit(limit)
-    return query.all()
+    return limit_per_entity(query.order_by(desc(Schedule.created_at)), Schedule.id, limit).all()
 
 
 def query_schedules_count(user_id, schedule_date) -> int:
