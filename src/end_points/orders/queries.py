@@ -2,6 +2,7 @@ from sqlalchemy import and_, desc, or_, cast, Date
 
 from database_api import Session
 from ...utils.date import handle_date
+from ...utils.query import limit_per_entity
 from ...database.enum import OrderType
 from ..rae.queries import get_product_and_group
 from ...database.schema import (
@@ -99,7 +100,7 @@ def query_orders(
 
     query = query.order_by(desc(Order.created_at))
     if limit:
-      query = query.limit(limit)
+      query = limit_per_entity(query, Order.id, limit)
     return query.all()
 
 
