@@ -40,6 +40,8 @@ def query_rae_products(
       query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
     elif field in [RaeProduct.created_at, RaeProduct.emission_date]:
       query = query.filter(cast(field, Date) == value)
+    elif field == RaeProduct.status:
+      query = query.filter(field == RaeStatus(value))
     elif isinstance(value, list):
       query = query.filter(field.in_(value))
     else:
