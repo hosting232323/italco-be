@@ -17,8 +17,10 @@ from api.telegram import extract_request_data
 from ... import STATIC_FOLDER, IS_DEV
 
 
+LOG_MAX_FIELD_CHARS = 50_000
 LOG_DIR = Path(STATIC_FOLDER) / ('test' if IS_DEV else 'prod') / 'logs'
 LOG_DIR.mkdir(parents=True, exist_ok=True)
+ROME_TZ = pytz.timezone('Europe/Rome')
 DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
 SESSION_HOURS = int(os.environ.get('SESSION_HOURS', 5))
 
@@ -65,9 +67,7 @@ def create_jwt_token(user: User):
   return jwt.encode(
     {
       'nickname': user.nickname,
-      'exp': (datetime.now(pytz.timezone('Europe/Rome')) + timedelta(hours=SESSION_HOURS))
-      .astimezone(pytz.utc)
-      .timestamp(),
+      'exp': (datetime.now(ROME_TZ) + timedelta(hours=SESSION_HOURS)).astimezone(pytz.utc).timestamp(),
     },
     DECODE_JWT_TOKEN,
     algorithm='HS256',
@@ -78,18 +78,41 @@ def save_log(user: User, response=None):
   request_info = extract_request_data(False)
   request_info.pop('headers', None)
 
-  log_file = LOG_DIR / f'{datetime.utcnow().strftime("%Y-%m-%d")}.jsonl'
+  now = datetime.now(ROME_TZ)
+  month_dir = LOG_DIR / now.strftime('%Y-%m')
+  month_dir.mkdir(parents=True, exist_ok=True)
+  log_file = month_dir / f'{now.strftime("%Y-%m-%d")}.jsonl'
   line = json.dumps(
     {
-      'ts': datetime.utcnow().isoformat(),
+      'ts': now.isoformat(),
       'user_id': user.id,
       'nickname': user.nickname,
-      'request': request_info,
-      'response': response,
+      'request': _cap_field(request_info),
+      'response': _cap_field(response),
     },
     ensure_ascii=False,
-    default=lambda o: float(o) if isinstance(o, decimal.Decimal) else str(o),
+    default=_log_default,
   )
 
-  with open(log_file, 'a', encoding='utf-8') as f:
-    f.write(line + '\n')
+  with open(log_file, 'a', encoding='utf-8') as file:
+    file.write(line)
+    file.write('\n')
+
+
+def _log_default(o):
+  return float(o) if isinstance(o, decimal.Decimal) else str(o)
+
+
+def _cap_field(value):
+  if value is None:
+    return None
+
+  try:
+    dumped = json.dumps(value, ensure_ascii=False, default=_log_default)
+  except Exception:
+    return {'_truncated': True, 'error': 'non serializzabile'}
+
+  if len(dumped) <= LOG_MAX_FIELD_CHARS:
+    return value
+
+  return {'_truncated': True, 'chars': len(dumped), 'preview': dumped[:2000]}
