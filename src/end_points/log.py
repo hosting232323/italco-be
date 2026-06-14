@@ -1,8 +1,8 @@
 from flask import Blueprint, request
 
-from ...database.enum import UserRole
-from .queries import query_logs, find_log, format_log
-from ..users.session import flask_session_authentication
+from ..database.enum import UserRole
+from .users.session import flask_session_authentication
+from ..utils.log import query_logs, find_log, format_log
 
 
 log_bp = Blueprint('log_bp', __name__)

@@ -6,10 +6,11 @@ from flask import request
 from functools import wraps
 from datetime import datetime, timedelta
 
-from api import send_telegram_error
 from ...utils.date import ROME_TZ
-from ...database.enum import UserRole
+from ...utils.log import write_log
 from ...database.schema import User
+from api import send_telegram_error
+from ...database.enum import UserRole
 from .queries import get_user_by_nickname
 
 
@@ -21,9 +22,6 @@ def flask_session_authentication(roles: list[UserRole] = None):
   def decorator(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-      # Import lazy: rompe il ciclo session <-> log (a request-time è già caricato).
-      from ..log.storage import write_log
-
       try:
         if 'Authorization' not in request.headers or request.headers['Authorization'] == 'null':
           return {'status': 'session', 'error': 'Token assente'}
