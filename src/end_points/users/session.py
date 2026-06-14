@@ -1,19 +1,17 @@
 import os
 import jwt
 import pytz
-import json
-import decimal
 import traceback
 from flask import request
 from functools import wraps
 from datetime import datetime, timedelta
 
+from ...utils.date import ROME_TZ
+from ...utils.log import write_log
+from ...database.schema import User
 from api import send_telegram_error
 from ...database.enum import UserRole
-from ...database.schema import User, Log
 from .queries import get_user_by_nickname
-from database_api.operations import create
-from api.telegram import extract_request_data
 
 
 DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
@@ -40,7 +38,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
         result = func(user, *args, **kwargs)
         if isinstance(result, dict):
           result['new_token'] = create_jwt_token(user)
-        save_log(user, result)
+        write_log(user, result)
         return result
 
       except jwt.ExpiredSignatureError:
@@ -62,29 +60,8 @@ def create_jwt_token(user: User):
   return jwt.encode(
     {
       'nickname': user.nickname,
-      'exp': (datetime.now(pytz.timezone('Europe/Rome')) + timedelta(hours=SESSION_HOURS))
-      .astimezone(pytz.utc)
-      .timestamp(),
+      'exp': (datetime.now(ROME_TZ) + timedelta(hours=SESSION_HOURS)).astimezone(pytz.utc).timestamp(),
     },
     DECODE_JWT_TOKEN,
     algorithm='HS256',
-  )
-
-
-def save_log(user: User, response=None):
-  request_info = extract_request_data(False)
-  if 'headers' in request_info:
-    del request_info['headers']
-
-  create(
-    Log,
-    {
-      'user_id': user.id,
-      'content': json.dumps(
-        {'request': request_info, 'response': response},
-        indent=2,
-        ensure_ascii=False,
-        default=lambda o: float(o) if isinstance(o, decimal.Decimal) else str(o),
-      ),
-    },
   )
