@@ -1,13 +1,8 @@
-from sqlalchemy import cast, Date
 from flask import Blueprint, request
 
-from sqlalchemy.orm import defer
-from database_api import Session
-from ..utils.date import handle_date
 from ..database.enum import UserRole
-from ..database.schema import User, Log
-from database_api.operations import get_by_id
 from .users.session import flask_session_authentication
+from ..utils.log import query_logs, find_log, format_log
 
 
 log_bp = Blueprint('log_bp', __name__)
@@ -18,33 +13,18 @@ log_bp = Blueprint('log_bp', __name__)
 def get_logs(_):
   return {
     'status': 'ok',
-    'logs': [{'logs': log.to_dict(), 'user': user.to_dict()} for log, user in query_logs(request.json['filters'])],
+    'logs': [
+      {'logs': entry, 'user': {'id': entry['user_id'], 'nickname': entry['nickname']}}
+      for entry in query_logs(request.json['filters'])
+    ],
   }
 
 
-@log_bp.route('', methods=['GET'])
+@log_bp.route('<log_id>', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
-def get_log(_):
-  return {
-    'status': 'ok',
-    'log': get_by_id(Log, request.args.get('log_id')).to_dict(),
-  }
+def get_log(_, log_id):
+  entry = find_log(log_id)
+  if not entry:
+    return {'status': 'ko', 'error': 'Log non trovato'}
 
-
-def query_logs(filters: list) -> list[tuple[Log, User]]:
-  with Session() as session:
-    query = session.query(Log, User).join(User, Log.user_id == User.id).options(defer(Log.content))
-
-    for filter in filters:
-      model = globals()[filter['model']]
-      field = getattr(model, filter['field'])
-      value = filter['value']
-
-      if field == Log.created_at and type(value) is list:
-        query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
-      elif field == Log.created_at:
-        query = query.filter(cast(field, Date) == value)
-      else:
-        query = query.filter(field == value)
-
-    return query.order_by(Log.created_at.desc()).limit(300).all()
+  return {'status': 'ok', 'log': format_log(entry)}

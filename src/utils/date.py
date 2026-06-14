@@ -1,4 +1,8 @@
+import pytz
 from datetime import datetime, date
+
+
+ROME_TZ = pytz.timezone('Europe/Rome')
 
 
 def handle_date(date_str: str | date) -> datetime:
