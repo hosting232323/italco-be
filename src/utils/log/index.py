@@ -62,15 +62,18 @@ def read_index(idx: Path) -> list:
   records = []
   if not idx.exists():
     return records
+
   with open(idx, 'rb') as f:
     for line in f:
       line = line.strip()
       if not line:
         continue
+
       try:
         records.append(json.loads(line))
       except ValueError:
         continue
+
   return records
 
 
@@ -91,4 +94,5 @@ def _last_index_record(idx: Path):
           last = json.loads(line)
         except ValueError:
           pass
+
   return last

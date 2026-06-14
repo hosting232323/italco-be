@@ -19,8 +19,10 @@ def in_range(ts: str, start, end) -> bool:
   dt = datetime.fromisoformat(ts)
   if start and dt < start:
     return False
+
   if end and dt > end:
     return False
+
   return True
 
 
