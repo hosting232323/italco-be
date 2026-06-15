@@ -4,9 +4,10 @@ from flask import Blueprint, request
 from database_api import Session
 from ...database.schema import User
 from ...database.enum import UserRole
-from ...utils.file import serve_file
+from .document import handle_document
+from api.storage.utils import serve_file
 from .product import get_rae_products, update_rae_product
-from .document import handle_document, handle_document_by_name
+from .document import handle_document_by_name
 from .. import flask_session_authentication
 from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
 from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
