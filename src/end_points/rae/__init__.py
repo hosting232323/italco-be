@@ -2,9 +2,9 @@ import json
 from flask import Blueprint, request
 
 from ...database.schema import User
-from ...utils.file import serve_file
 from ...database.enum import UserRole
 from .document import handle_document
+from api.storage.utils import serve_file
 from api import error_catching_decorator
 from ..users.session import flask_session_authentication
 from .product import get_rae_products, update_rae_product

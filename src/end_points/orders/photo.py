@@ -6,7 +6,7 @@ from api.storage import upload_file
 from database_api.operations import create
 from ...database.schema import Photo, Order
 from ... import STATIC_FOLDER, get_base_file_path
-from ...utils.file import guess_next_id, guess_extension
+from api.storage.utils import guess_next_id, guess_extension, get_base_file_path
 
 
 def handle_photos(data: dict, order: Order, session: session_type):
@@ -25,7 +25,7 @@ def handle_photos(data: dict, order: Order, session: session_type):
             'link': get_base_file_path('order/photos')
             + os.path.basename(
               upload_file(
-                uploaded_file, f'{id}{guess_extension(uploaded_file.mimetype)}', STATIC_FOLDER, 'local', 'photos'
+                uploaded_file, f'{id}{guess_extension(uploaded_file.mimetype)}', STATIC_FOLDER, subfolder='photos'
               )
             ),
           },

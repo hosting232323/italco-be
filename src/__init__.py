@@ -6,6 +6,7 @@ from api.settings import IS_DEV
 from .checks import trigger_checks
 from api.storage import folder_backup
 from database_api.backup import db_backup
+from api.storage.utils import get_base_file_path
 from api import swagger_decorator, error_catching_decorator, PrefixMiddleware
 
 
@@ -44,7 +45,7 @@ def index():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup():
-  db_backup(DATABASE_URL, 'server')
+  db_backup(DATABASE_URL, server=True)
   return {'status': 'ok', 'message': 'Operazione completata con successo!'}
 
 
@@ -52,7 +53,7 @@ def trigger_backup():
 @error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  folder_backup(os.path.join(STATIC_FOLDER, 'prod'), 'server')
+  folder_backup(os.path.join(STATIC_FOLDER, 'prod'), server=True)
   return {'status': 'ok', 'message': 'Backup avviato in background!'}
 
 
@@ -61,7 +62,3 @@ def trigger_backup_folder():
 @swagger_decorator
 def checks_endpoint():
   return trigger_checks(STATIC_FOLDER, get_base_file_path('order/photos'), get_base_file_path('rae/dtr-documents'))
-
-
-def get_base_file_path(path):
-  return f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/{path}/'

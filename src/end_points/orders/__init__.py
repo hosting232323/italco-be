@@ -4,8 +4,8 @@ from flask import Blueprint, request
 from .mailer import mailer_check
 from database_api import Session
 from .photo import handle_photos
-from ...utils.file import serve_file
 from ...database.enum import UserRole
+from api.storage.utils import serve_file
 from ...database.schema import User, Order
 from .utils import get_statuses_by_order_id
 from database_api.operations import get_by_id
