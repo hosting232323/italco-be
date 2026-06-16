@@ -2,10 +2,10 @@ import os
 from flask import request
 from sqlalchemy.orm import Session as session_type
 
+from ... import STATIC_FOLDER
 from api.storage import upload_file
 from database_api.operations import create
 from ...database.schema import Photo, Order
-from ... import STATIC_FOLDER, get_base_file_path
 from api.storage.utils import guess_next_id, guess_extension, get_base_file_path
 
 
