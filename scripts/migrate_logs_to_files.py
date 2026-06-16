@@ -81,13 +81,19 @@ def load_log_rows(dump_path: str) -> list[tuple]:
 # Parsing del content
 # ---------------------------------------------------------------------------
 
+def _unescape_copy(value: str) -> str:
+  # PostgreSQL COPY text scrive i newline embedded come \n (due char), non newline reali.
+  # json.loads non li accetta come whitespace valido → vanno decodificati prima.
+  return value.replace('\\n', '\n').replace('\\r', '\r').replace('\\t', '\t').replace('\\\\', '\\')
+
+
 def _parse_content(content: str) -> tuple[dict | None, dict | None]:
   """Restituisce (request, response) gestendo i due formati storici."""
   if not content or content == '\\N':
     return None, None
 
   try:
-    payload = json.loads(content)
+    payload = json.loads(_unescape_copy(content))
   except (json.JSONDecodeError, TypeError):
     return None, None
 
