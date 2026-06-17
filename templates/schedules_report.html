@@ -149,7 +149,8 @@
           <td>
             {% for product_name, product in order.products.items() %}
               <strong>{{ product_name }}</strong>
-              [{{ product.collection_point.name }}]<br>
+              {% if product.collection_point %}[{{ product.collection_point.name }}]
+              {% elif product.transport %}[{{ product.transport.name }}]{% endif %}<br>
 
               {% set counter = {} %}
               {% for service in product.services %}
