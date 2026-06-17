@@ -26,7 +26,9 @@
       {% for product_name, product in products.items() %}
       <tr>
         <td>
-          {{ product_name }} [{{ product.collection_point.name }}]
+          {{ product_name }}
+          {% if product.collection_point %}[{{ product.collection_point.name }}]
+          {% elif product.transport %}[{{ product.transport.name }}]{% endif %}
         </td>
         <td>
           <ul style="margin: 0; padding-left: 16px;">
