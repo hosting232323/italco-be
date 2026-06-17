@@ -16,6 +16,7 @@ dependencies = [
   "scipy",
   "pdfplumber",
   "camelot-py[cv]",
+  "xlrd",
 ]
 
 [project.optional-dependencies]
