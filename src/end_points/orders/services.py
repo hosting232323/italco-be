@@ -1,8 +1,13 @@
+from ...database.enum import RaeStatus
 from ..rae.product import create_rae_product
 from .clone import format_data_cloning_product
-from database_api.operations import create, delete
 from .queries import query_service_users, query_products
-from ...database.schema import Order, Product, ServiceUser, ScheduleItem
+from database_api.operations import create, delete, get_by_id
+from ...database.schema import Order, Product, RaeProduct, ServiceUser, ScheduleItem
+
+
+class RaeProductDeletionError(Exception):
+  pass
 
 
 def create_products(order: Order, products: dict, customer_user_id: int, cloned_order: bool, session):
@@ -23,6 +28,12 @@ def update_products(order: Order, products: dict, customer_user_id: int, schedul
 
   for old_product in old_products:
     if old_product.name not in products:
+      if old_product.rae_product_id:
+        rae_product: RaeProduct = get_by_id(RaeProduct, old_product.rae_product_id, session=session)
+        if rae_product and rae_product.status != RaeStatus.GENERATED:
+          raise RaeProductDeletionError(
+            f"Impossibile eliminare il prodotto RAE '{old_product.name}': è eliminabile solo se in stato Generato."
+          )
       delete(old_product, session=session)
 
 

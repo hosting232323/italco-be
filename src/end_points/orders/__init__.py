@@ -8,6 +8,7 @@ from ...utils.file import serve_file
 from ...database.enum import UserRole
 from ...database.schema import User, Order
 from .utils import get_statuses_by_order_id
+from .services import RaeProductDeletionError
 from database_api.operations import get_by_id
 from .api import save_order_status_to_euronics
 from ..users.session import flask_session_authentication
@@ -57,8 +58,11 @@ def update_order_endpoint(user: User, id):
     if data.get('version') is not None and data['version'] != order.version:
       return {'status': 'ko', 'error': "L'ordine è stato modificato nel frattempo. Ricarica la pagina e riprova."}
 
-    motivation = update_order(user, order, data, session)
-    session.commit()
+    try:
+      motivation = update_order(user, order, data, session)
+      session.commit()
+    except RaeProductDeletionError as error:
+      return {'status': 'ko', 'error': str(error)}
 
   save_order_status_to_euronics(order)
   mailer_check(order, data, motivation)
