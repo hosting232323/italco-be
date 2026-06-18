@@ -7,7 +7,7 @@ from .database.enum import RaeStatus
 from api.storage import check_mismatch
 from api.telegram import send_telegram_message
 from sqlalchemy.orm import Session as session_type
-from .database.schema import Order, Product, ServiceUser, Schedule, Photo, History, RaeProduct
+from .database.schema import Order, Product, ServiceUser, Schedule, Photo, History, RaeProduct, Disposal
 
 
 missing_photos_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'missing_photos.txt')
@@ -15,10 +15,11 @@ with open(missing_photos_path, 'r', encoding='utf-8') as file:
   MISSING_PHOTOS = [int(id) for id in re.findall(r'id:\s*(\d+)', file.read())]
 
 
-def trigger_checks(folder, base_photo_path, base_document_path):
+def trigger_checks(folder, base_photo_path, base_dtr_document_path, base_fir_document_path):
   database_integrity_test()
   check_mismatch(get_all_photos(base_photo_path), folder, 'Photos', 'local', 'photos')
-  check_mismatch(get_all_documents(base_document_path), folder, 'Documents', 'local', 'dtr-documents')
+  check_mismatch(get_all_dtr_documents(base_dtr_document_path), folder, 'DTR Documents', 'local', 'dtr-documents')
+  check_mismatch(get_all_fir_documents(base_fir_document_path), folder, 'FIR Documents', 'local', 'fir-documents')
 
   return {'status': 'ok', 'message': 'Check eseguiti con successo'}
 
@@ -50,7 +51,7 @@ def get_all_photos(base_photo_path: str) -> set[str]:
     ]
 
 
-def get_all_documents(base_document_path: str) -> set[str]:
+def get_all_dtr_documents(base_document_path: str) -> set[str]:
   with Session() as session:
     return [
       row.link.replace(base_document_path, '')
@@ -59,6 +60,14 @@ def get_all_documents(base_document_path: str) -> set[str]:
         RaeProduct.status.in_([RaeStatus.LDR, RaeStatus.ANNULLED, RaeStatus.DISPOSED_OFF]), RaeProduct.link.is_not(None)
       )
       .all()
+    ]
+
+
+def get_all_fir_documents(base_document_path: str) -> set[str]:
+  with Session() as session:
+    return [
+      row.link.replace(base_document_path, '')
+      for row in session.query(Disposal).filter(Disposal.document_fir.is_not(None)).all()
     ]
 
 

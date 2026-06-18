@@ -49,7 +49,7 @@ def upgrade() -> None:
     'disposal',
     sa.Column('date', sa.DateTime(), nullable=True),
     sa.Column('code', sa.String(), nullable=True),
-    sa.Column('document_ldr', sa.String(), nullable=True),
+    sa.Column('document_fir', sa.String(), nullable=True),
     sa.Column('carrier_id', sa.Integer(), nullable=False),
     sa.Column('collection_center_id', sa.Integer(), nullable=False),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),

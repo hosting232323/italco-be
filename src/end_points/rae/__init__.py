@@ -152,11 +152,11 @@ def get_disposal(_):
 @error_catching_decorator
 def update_disposal(_, id):
   return update_rae_disposal(
-    int(id), handle_document(json.loads(request.form.get('data')), 'rae/ldr-documents', 'disposal', 'document_ldr')
+    int(id), handle_document(json.loads(request.form.get('data')), 'rae/fir-documents', 'disposal', 'document_fir')
   )
 
 
-@rae_bp.route('ldr-documents/<filename>', methods=['GET'])
+@rae_bp.route('fir-documents/<filename>', methods=['GET'])
 @error_catching_decorator
-def serve_ldr_endpoint(filename):
-  return serve_file(filename, 'ldr-documents')
+def serve_fir_endpoint(filename):
+  return serve_file(filename, 'fir-documents')

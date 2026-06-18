@@ -9,7 +9,7 @@ def create_rae_disposal(data: dict):
 
 
 def update_rae_disposal(id: int, data: dict):
-  update(get_by_id(Disposal, id), {'document_ldr': data['document_ldr']})
+  update(get_by_id(Disposal, id), {'document_fir': data['document_fir']})
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 
