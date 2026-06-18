@@ -17,10 +17,12 @@ dependencies = [
   "pdfplumber",
   "camelot-py[cv]",
   "xlrd",
+  "flask-cors",
 ]
 
 [project.optional-dependencies]
 dev = [
+  "tqdm",
   "pytest",
   "python-dotenv",
   "selenium",
