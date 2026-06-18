@@ -46,7 +46,7 @@
   image: python:3.11
   interruptible: true
   tags:
-    - rattata-lint
+    - ralts-test
   services:
     - name: postgres:15
       alias: postgres
