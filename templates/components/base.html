@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: Helvetica, sans-serif;
+      font-size: 13px;
+      margin: 0;
+      color: #333;
+    }
+
+    h1 { font-size: 20px; margin-bottom: 10px; }
+
+    h2 {
+      font-size: 16px;
+      margin-top: 30px;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 5px;
+    }
+
+    .section { margin-bottom: 20px; }
+
+    .info-table,
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .info-table td,
+    .data-table td,
+    .data-table th {
+      border: 1px solid #ccc;
+      padding: 8px;
+      vertical-align: top;
+    }
+
+    .info-table td.label {
+      font-weight: bold;
+      background: #f2f2f2;
+      width: 30%;
+    }
+
+    .data-table th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+      text-align: left;
+    }
+
+    .flex-row {
+      display: flex;
+      gap: 20px;
+      justify-content: space-between;
+    }
+
+    .half-section { flex: 1; }
+
+    .half-section h2 {
+      font-size: 15px;
+      margin-top: 0;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #ccc;
+    }
+
+    .total {
+      text-align: right;
+      font-size: 16px;
+      margin-top: 40px;
+    }
+
+    /* RAE */
+    .rae-h1 { font-size: 20px; margin-bottom: 8px; }
+
+    .rae-h2 {
+      font-size: 15px;
+      margin-top: 10px;
+      margin-bottom: -7px;
+      padding-bottom: 0 !important;
+    }
+
+    .rae-info-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .rae-info-table td,
+    .rae-data-table td,
+    .rae-data-table th {
+      border: 1px solid #ccc;
+      padding: 2px;
+      vertical-align: top;
+    }
+
+    .rae-info-table td.long-label {
+      font-weight: bold;
+      background: #f2f2f2;
+      width: 55%;
+    }
+
+    .rae-info-table td.label {
+      font-weight: bold;
+      background: #f2f2f2;
+      width: 30%;
+    }
+
+    .rae-info-table td.short-label {
+      font-weight: bold;
+      background: #f2f2f2;
+      width: 20%;
+    }
+
+    .rae-data-table th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+{% block content %}{% endblock %}
+</body>
+</html>

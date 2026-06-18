@@ -9,6 +9,7 @@ from .schedule import export_schedule
 from .excel import export_orders_excel
 from .invoice import export_order_invoice
 from .rae import export_rae, export_rae_by_product
+from .disposal import export_disposal_pickup_list, export_disposal_group_summary, export_disposal_by_sale_point
 
 
 export_bp = Blueprint('export_bp', __name__)
@@ -48,3 +49,21 @@ def export_rae_product(user: User, rae_product_id):
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_selected_orders_excel(_):
   return export_orders_excel(request.json['order_ids'])
+
+
+@export_bp.route('disposal/<id>/pickup-list', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+def export_disposal_pickup_list_route(_, id):
+  return export_disposal_pickup_list(id)
+
+
+@export_bp.route('disposal/<id>/group-summary', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+def export_disposal_group_summary_route(_, id):
+  return export_disposal_group_summary(id)
+
+
+@export_bp.route('disposal/<id>/by-sale-point', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+def export_disposal_by_sale_point_route(_, id):
+  return export_disposal_by_sale_point(id)

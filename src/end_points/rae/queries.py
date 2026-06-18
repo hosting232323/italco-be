@@ -7,6 +7,9 @@ from ...utils.query import limit_per_entity
 from ...database.enum import RaeStatus
 from database_api.operations import db_session_decorator
 from ...database.schema import (
+  Carrier,
+  CollectionCenter,
+  Disposal,
   Order,
   Product,
   RaeProduct,
@@ -100,3 +103,36 @@ def get_rae_product_tuples_by_order(order: Order, session: session_type = None) 
     .join(Product, and_(Product.rae_product_id == RaeProduct.id, Product.order_id == order.id))
     .all()
   )
+
+
+@db_session_decorator(commit=False)
+def get_disposal_rae_products(
+  disposal_id: int, session: session_type = None
+) -> list[tuple[RaeProduct, RaeProductGroup, User, Order]]:
+  return (
+    session.query(RaeProduct, RaeProductGroup, User, Order)
+    .join(RaeProductGroup, RaeProduct.rae_product_group_id == RaeProductGroup.id)
+    .join(User, RaeProduct.user_id == User.id)
+    .join(Order, RaeProduct.order_id == Order.id)
+    .filter(RaeProduct.disposal_id == disposal_id)
+    .all()
+  )
+
+
+@db_session_decorator(commit=False)
+def get_disposal_for_export(disposal_id: int, session: session_type = None) -> dict | None:
+  result = (
+    session.query(Disposal, Carrier, CollectionCenter)
+    .join(Carrier, Disposal.carrier_id == Carrier.id)
+    .join(CollectionCenter, Disposal.collection_center_id == CollectionCenter.id)
+    .filter(Disposal.id == disposal_id)
+    .first()
+  )
+  if not result:
+    return None
+  disposal, carrier, collection_center = result
+  return {
+    **disposal.to_dict(),
+    'carrier': carrier.to_dict(),
+    'collection_center': collection_center.to_dict(),
+  }

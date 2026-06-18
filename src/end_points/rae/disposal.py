@@ -1,6 +1,7 @@
 from database_api import Session
-from database_api.operations import create, get_by_id, update
-from ...database.schema import Disposal, Carrier, CollectionCenter
+from database_api.operations import create, get_by_id, get_by_ids, update
+from ...database.enum import RaeStatus
+from ...database.schema import Disposal, Carrier, CollectionCenter, RaeProduct
 
 
 def create_rae_disposal(data: dict):
@@ -10,6 +11,8 @@ def create_rae_disposal(data: dict):
 
 def update_rae_disposal(id: int, data: dict):
   update(get_by_id(Disposal, id), {'document_fir': data['document_fir']})
+  for rp in get_by_ids(RaeProduct, data['rae_product_ids']):
+    update(rp, {'disposal_id': id, 'status': RaeStatus.DISPOSED_OFF})
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 
