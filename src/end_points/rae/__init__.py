@@ -137,9 +137,7 @@ def delete_collection_center(_, id):
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 @error_catching_decorator
 def create_disposal(_):
-  return create_rae_disposal(
-    handle_document(json.loads(request.form.get('data')), 'rae/ldr-documents', 'disposal', 'document_ldr')
-  )
+  return create_rae_disposal(request.json)
 
 
 @rae_bp.route('disposal', methods=['GET'])
