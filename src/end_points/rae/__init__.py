@@ -73,7 +73,7 @@ def update_product(_, id):
 
 @rae_bp.route('dtr-documents/<filename>', methods=['GET'])
 @error_catching_decorator
-def serve_image_endpoint(filename):
+def serve_dtr_endpoint(filename):
   return serve_file(filename, 'dtr-documents')
 
 
@@ -154,3 +154,9 @@ def update_disposal(_, id):
   return update_rae_disposal(
     int(id), handle_document(json.loads(request.form.get('data')), 'rae/ldr-documents', 'disposal', 'document_ldr')
   )
+
+
+@rae_bp.route('ldr-documents/<filename>', methods=['GET'])
+@error_catching_decorator
+def serve_ldr_endpoint(filename):
+  return serve_file(filename, 'ldr-documents')
