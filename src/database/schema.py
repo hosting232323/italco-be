@@ -288,6 +288,7 @@ class RaeProduct(BaseEntity):
   link = Column(String)
   number = Column(Integer)
   emission_date = Column(DateTime)
+  dtr_date = Column(Date)
   quantity = Column(Integer, default=1)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)

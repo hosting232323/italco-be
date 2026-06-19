@@ -5,10 +5,10 @@
 <table width="100%">
   <tr>
     <td>
-      Tipologia: Domestici DDT RAEE N. {{ rae_product.data.number }}
-      del {{ rae_product.date }}
+      Tipologia: Domestici DDT RAEE N. {{ rae_product.number }}
+      del {{ '/'.join(rae_product.dtr_date.split('-')[::-1]) }}
     </td>
-    <td align="right">Progressivo: {{ rae_product.data.number }}</td>
+    <td align="right">Progressivo: {{ rae_product.number }}</td>
   </tr>
 </table>
 
@@ -77,10 +77,10 @@
 </div>
 
 {{ info_table("Caratteristiche del rifiuto", [
-  ("Descrizione", rae_product.data.name),
-  ("Codice CER", rae_product.data.cer_code),
-  ("Codice Raggruppamento", rae_product.data.group_code),
-  ("Quantità", rae_product.data.quantity)
+  ("Descrizione", rae_product.name),
+  ("Codice CER", rae_product.cer_code),
+  ("Codice Raggruppamento", rae_product.group_code),
+  ("Quantità", rae_product.quantity)
 ]) }}
 
 <div class="section">

@@ -11,8 +11,8 @@ from database_api.operations import create, update, get_by_id, delete
 from .queries import query_orders, format_query_result, get_delivery_user
 from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus
 from ...database.schema import User, Order, Motivation, DeliveryUserInfo, ServiceUser
-from ..schedule.queries import get_delivery_groups_by_order_id, get_schedule_item_by_order
 from .clone import format_data_cloning_order, update_cloned_order, query_products, reschedule_products
+from ..schedule.queries import get_delivery_groups_by_order_id, get_schedule_item_by_order, get_schedule_by_order
 
 
 def create_order(user: User, data: dict):
@@ -127,7 +127,7 @@ def update_order(user: User, order: Order, data: dict, session):
         order,
         data['products'],
         user.id if user.role == UserRole.CUSTOMER else data['user_id'],
-        schedule_item,
+        get_schedule_by_order(order.id) if schedule_item else None,
         session,
       )
     if 'status' in data and data['status'] == OrderStatus.TO_RESCHEDULE and order.status != OrderStatus.TO_RESCHEDULE:

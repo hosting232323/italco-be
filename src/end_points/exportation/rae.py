@@ -3,10 +3,10 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from .utils import export_pdf
+from ...database.enum import RaeStatus
 from database_api.operations import get_by_id
 from ..rae.queries import get_product_and_group
 from ..users.queries import format_user_with_info
-from ..schedule.queries import get_schedule_by_order
 from ...database.schema import User, RaeProduct, Order
 from ..orders.queries import query_orders, format_query_result
 
@@ -32,16 +32,15 @@ def export_rae_by_product(user: User, rae_product_id: int):
   if not order:
     return {'status': 'ko', 'error': 'Ordine non trovato'}
 
-  schedule = get_schedule_by_order(order.id)
-  if not schedule:
-    return {'status': 'ko', 'error': 'Nessuna schedulazione trovata per questo ordine'}
+  if rae_product.status == RaeStatus.GENERATED:
+    return {'status': 'ko', 'error': 'Prodotto rae non ancora emesso'}
 
   order_dict = _get_order_dict(order.id)
   if not order_dict:
     return {'status': 'ko', 'error': 'Errore nel recupero dati ordine'}
 
   return _render_rae_pdf(
-    [_build_rae_export_entry(schedule.date, rae_product.id)],
+    [get_product_and_group(rae_product.id)],
     order_dict,
     get_by_id(User, rae_product.user_id),
     user.role,
@@ -49,13 +48,11 @@ def export_rae_by_product(user: User, rae_product_id: int):
 
 
 def get_rae_export_info_by_order(order: dict) -> list[dict]:
-  rae_products = []
-  for product_data in order['products'].values():
-    if 'rae_product' in product_data and product_data['rae_product']:
-      schedule = get_schedule_by_order(order['id'])
-      rae_products.append(_build_rae_export_entry(schedule.date, product_data['rae_product']['id']))
-
-  return rae_products
+  return [
+    product_data['rae_product']
+    for product_data in order['products'].values()
+    if product_data.get('rae_product') and product_data['rae_product'].get('dtr_date')
+  ]
 
 
 def _get_order_dict(order_id: int) -> dict | None:
@@ -64,13 +61,6 @@ def _get_order_dict(order_id: int) -> dict | None:
     orders = format_query_result(tupla, orders)
 
   return orders[0] if len(orders) == 1 else None
-
-
-def _build_rae_export_entry(schedule_date, rae_product_id: int) -> dict:
-  return {
-    'date': schedule_date.strftime('%d/%m/%Y'),
-    'data': get_product_and_group(rae_product_id),
-  }
 
 
 def _render_rae_pdf(rae_products: list[dict], order: dict, customer: User, role) -> dict:

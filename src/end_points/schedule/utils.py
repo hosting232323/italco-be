@@ -98,7 +98,7 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
       },
       session=session,
     )
-    emit_rae_products(order, session=session)
+    emit_rae_products(order, schedule, session=session)
     schedule_sms_check(order, new_item)
 
   elif operation_type == ScheduleType.COLLECTIONPOINT:

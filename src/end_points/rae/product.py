@@ -15,7 +15,6 @@ from ...database.schema import (
   RaeProductGroup,
   User,
   Schedule,
-  ScheduleItem,
 )
 
 
@@ -27,7 +26,7 @@ def get_rae_products(user: User, filters: list[dict]):
 
 
 def create_rae_product(
-  quantity: int, rae_product_group_id: int, order_id: int, user_id: int, session, schedule_item: ScheduleItem = None
+  quantity: int, rae_product_group_id: int, order_id: int, user_id: int, session, schedule: Schedule = None
 ) -> RaeProduct:
   body = {
     'number': 0,
@@ -38,8 +37,9 @@ def create_rae_product(
     'rae_product_group_id': rae_product_group_id,
   }
 
-  if schedule_item:
+  if schedule:
     body['emission_date'] = datetime.now()
+    body['dtr_date'] = schedule.date
     body['status'] = RaeStatus.EMITTED
     body['number'] = query_count_rae_products(user_id, session=session) + 1
 
@@ -71,13 +71,14 @@ def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, S
   return list
 
 
-def emit_rae_products(order: Order, session):
+def emit_rae_products(order: Order, schedule: Schedule, session):
   for rae_product in get_rae_products_by_order(order, session=session):
     update(
       rae_product,
       {
         'status': RaeStatus.EMITTED,
         'emission_date': datetime.now(),
+        'dtr_date': schedule.date,
         'number': query_count_rae_products(rae_product.user_id, session=session) + 1,
       },
       session=session,
