@@ -388,7 +388,7 @@ class Disposal(BaseEntity):
 
   date = Column(Date)
   code = Column(String)
-  document_ldr = Column(String)
+  document_fir = Column(String)
 
   carrier_id = Column(Integer, ForeignKey('carrier.id'), nullable=False)
   collection_center_id = Column(Integer, ForeignKey('collection_center.id'), nullable=False)

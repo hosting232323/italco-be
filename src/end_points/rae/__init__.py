@@ -71,12 +71,6 @@ def update_product(_, id):
   )
 
 
-@rae_bp.route('dtr-documents/<filename>', methods=['GET'])
-@error_catching_decorator
-def serve_image_endpoint(filename):
-  return serve_file(filename, 'dtr-documents')
-
-
 @rae_bp.route('carrier', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 @error_catching_decorator
@@ -137,9 +131,7 @@ def delete_collection_center(_, id):
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 @error_catching_decorator
 def create_disposal(_):
-  return create_rae_disposal(
-    handle_document(json.loads(request.form.get('data')), 'rae/ldr-documents', 'disposal', 'document_ldr')
-  )
+  return create_rae_disposal(request.json)
 
 
 @rae_bp.route('disposal', methods=['GET'])
@@ -154,5 +146,14 @@ def get_disposal(_):
 @error_catching_decorator
 def update_disposal(_, id):
   return update_rae_disposal(
-    int(id), handle_document(json.loads(request.form.get('data')), 'rae/ldr-documents', 'disposal', 'document_ldr')
+    int(id), handle_document(json.loads(request.form.get('data')), 'rae/fir-documents', 'disposal', 'document_fir')
   )
+
+
+@rae_bp.route('<folder>/<filename>', methods=['GET'])
+@error_catching_decorator
+def serve_rae_document(folder, filename):
+  if folder not in ['dtr-documents', 'fir-documents']:
+    return {'status': 'ok', 'error': 'Invalid folder'}
+
+  return serve_file(filename, folder)
