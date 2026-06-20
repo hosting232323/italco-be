@@ -1,0 +1,33 @@
+lint_backend:
+  stage: housekeeping
+  image: python:3.11
+  allow_failure: true
+  interruptible: true
+  tags:
+    - test
+  rules:
+    - if: '$CI_COMMIT_BRANCH != "main"'
+  script:
+    - pip install ruff
+    - ruff check ./src ./tests --exit-non-zero-on-fix
+    - ruff format ./src ./tests --exit-non-zero-on-fix
+
+deps_check:
+  stage: housekeeping
+  image: python:3.11
+  interruptible: true
+  allow_failure: true
+  tags:
+    - test
+  script:
+    - pip install --upgrade pip wheel --quiet
+    - pip install pip-audit --quiet
+    - pip install . --quiet
+    - pip-audit --format columns || AUDIT_EXIT=$?
+    - pip-audit --format json --output pip-audit-report.json || true
+    - exit ${AUDIT_EXIT:-0}
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - pip-audit-report.json
