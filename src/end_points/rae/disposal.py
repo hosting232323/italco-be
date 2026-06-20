@@ -5,10 +5,10 @@ from ...database.schema import Disposal, Carrier, CollectionCenter, RaeProduct
 
 
 def create_rae_disposal(data: dict):
-  for rp in get_by_ids(RaeProduct, data['rae_product_ids']):
-    update(rp, {'disposal_id': id, 'status': RaeStatus.DISPOSED_OFF})
-  data.pop('rae_product_ids', None)
-  create(Disposal, data)
+  rae_product_ids = data.pop('rae_product_ids', [])
+  disposal = create(Disposal, data)
+  for rp in get_by_ids(RaeProduct, rae_product_ids):
+    update(rp, {'disposal_id': disposal.id, 'status': RaeStatus.DISPOSED_OFF})
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 
