@@ -14,35 +14,35 @@
 </div>
 
 <div class="section">
-  <h2>Ritiri RAEE ({{ rows|length }})</h2>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th style="width: 12%;">Data DTR</th>
-        <th style="width: 8%;">N° DDT</th>
-        <th style="width: 25%;">Prodotto</th>
-        <th style="width: 8%;">CER</th>
-        <th style="width: 10%;">Raggrupp.</th>
-        <th style="width: 7%;">Q.tà</th>
-        <th style="width: 15%;">Punto Vendita</th>
-        <th style="width: 15%;">Destinatario</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in rows %}
-      <tr>
-        <td>{{ row.dtr }}</td>
-        <td>{{ row.n_ddt }}</td>
-        <td>{{ row.nome_prodotto }}</td>
-        <td>{{ row.codice_cer }}</td>
-        <td>{{ row.raggruppamento }}</td>
-        <td>{{ row.quantita }}</td>
-        <td>{{ row.cliente }}</td>
-        <td>{{ row.destinatario }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
+  <h2>Ritiri RAEE</h2>
+  {% for row in rows %}
+  <table class="info-table" style="margin-bottom: 8px;">
+    <tr>
+      <td class="label" style="width: 15%;">Data DTR</td>
+      <td style="width: 35%;">{{ row.dtr }}</td>
+      <td class="label" style="width: 15%;">N° DDT</td>
+      <td style="width: 35%;">{{ row.n_ddt }}</td>
+    </tr>
+    <tr>
+      <td class="label">Prodotto</td>
+      <td>{{ row.nome_prodotto }}</td>
+      <td class="label">CER</td>
+      <td>{{ row.codice_cer }}</td>
+    </tr>
+    <tr>
+      <td class="label">Raggrupp.</td>
+      <td>{{ row.raggruppamento }}</td>
+      <td class="label">Q.tà</td>
+      <td>{{ row.quantita }}</td>
+    </tr>
+    <tr>
+      <td class="label">Punto Vendita</td>
+      <td>{{ row.cliente }}</td>
+      <td class="label">Destinatario</td>
+      <td>{{ row.destinatario }}</td>
+    </tr>
   </table>
+  {% endfor %}
 </div>
 
 <div class="total">
