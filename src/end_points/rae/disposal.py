@@ -1,6 +1,7 @@
 from database_api import Session
-from database_api.operations import create, get_by_id, get_by_ids, update
 from ...database.enum import RaeStatus
+from sqlalchemy.orm import Session as session_type
+from database_api.operations import create, get_by_id, get_by_ids, update
 from ...database.schema import Disposal, Carrier, CollectionCenter, RaeProduct
 
 
@@ -12,8 +13,8 @@ def create_rae_disposal(data: dict):
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 
-def update_rae_disposal(id: int, data: dict):
-  update(get_by_id(Disposal, id), {'document_fir': data['document_fir']})
+def update_rae_disposal(id: int, data: dict, session: session_type):
+  update(get_by_id(Disposal, id), {'document_fir': data['document_fir']}, session=session)
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 

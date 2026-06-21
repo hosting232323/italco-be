@@ -1,13 +1,14 @@
 import json
 from flask import Blueprint, request
 
+from database_api import Session
 from ...database.schema import User
-from ...utils.file import serve_file
 from ...database.enum import UserRole
+from ...utils.file import serve_file
+from .product import get_rae_products, update_rae_product
 from .document import handle_document
 from api import error_catching_decorator
 from ..users.session import flask_session_authentication
-from .product import get_rae_products, update_rae_product
 from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
 from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
 from .product_group import (
@@ -66,9 +67,16 @@ def get_products(user: User):
 @flask_session_authentication([UserRole.ADMIN])
 @error_catching_decorator
 def update_product(_, id):
-  return update_rae_product(
-    int(id), handle_document(json.loads(request.form.get('data')), 'rae/dtr-documents', 'rae_product', 'link')
-  )
+  with Session() as session:
+    update_rae_product(
+      int(id),
+      handle_document(
+        json.loads(request.form.get('data')), 'rae/dtr-documents', 'rae_product', 'link', session=session
+      ),
+      session=session,
+    )
+    session.commit()
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @rae_bp.route('carrier', methods=['POST'])
@@ -145,9 +153,16 @@ def get_disposal(_):
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 @error_catching_decorator
 def update_disposal(_, id):
-  return update_rae_disposal(
-    int(id), handle_document(json.loads(request.form.get('data')), 'rae/fir-documents', 'disposal', 'document_fir')
-  )
+  with Session() as session:
+    update_rae_disposal(
+      int(id),
+      handle_document(
+        json.loads(request.form.get('data')), 'rae/fir-documents', 'disposal', 'document_fir', session=session
+      ),
+      session=session,
+    )
+    session.commit()
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 @rae_bp.route('<folder>/<filename>', methods=['GET'])
