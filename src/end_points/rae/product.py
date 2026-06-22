@@ -2,6 +2,7 @@ from datetime import datetime
 
 from ...database.enum import RaeStatus
 from ..users.queries import format_user_with_info
+from sqlalchemy.orm import Session as session_type
 from database_api.operations import update, get_by_id, create
 from .queries import (
   query_rae_products,
@@ -46,11 +47,8 @@ def create_rae_product(
   return create(RaeProduct, body, session=session)
 
 
-def update_rae_product(id: int, data: dict):
-  update(
-    get_by_id(RaeProduct, id),
-    {'status': RaeStatus(data['status']), 'link': data['link']},
-  )
+def update_rae_product(id: int, data: dict, session: session_type):
+  update(get_by_id(RaeProduct, id), {'status': RaeStatus(data['status']), 'link': data['link']}, session=session)
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
