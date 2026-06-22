@@ -22,7 +22,7 @@ def format_row(rae_product, rae_product_group, user, order) -> dict:
   }
 
 
-def export_disposal_pickup_list(disposal_id: int):
+def export_disposal_attached_a(disposal_id: int):
   disposal = get_disposal_for_export(int(disposal_id))
   if not disposal:
     return {'status': 'ko', 'error': 'Smaltimento non trovato'}
@@ -38,7 +38,7 @@ def export_disposal_pickup_list(disposal_id: int):
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
-    src=render_template('disposal_pickup_list.html', disposal=disposal, rows=rows, total=total),
+    src=render_template('disposal_attached_a.html', disposal=disposal, rows=rows, total=total),
     dest=result,
   )
   if pisa_status.err:
@@ -46,7 +46,7 @@ def export_disposal_pickup_list(disposal_id: int):
   return export_pdf(result.getvalue())
 
 
-def export_disposal_group_summary(disposal_id: int):
+def export_disposal_attached_b(disposal_id: int):
   disposal = get_disposal_for_export(int(disposal_id))
   if not disposal:
     return {'status': 'ko', 'error': 'Smaltimento non trovato'}
@@ -63,7 +63,7 @@ def export_disposal_group_summary(disposal_id: int):
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
-    src=render_template('disposal_group_summary.html', disposal=disposal, rows=rows, total=total),
+    src=render_template('disposal_attached_b.html', disposal=disposal, rows=rows, total=total),
     dest=result,
   )
   if pisa_status.err:
@@ -71,7 +71,7 @@ def export_disposal_group_summary(disposal_id: int):
   return export_pdf(result.getvalue())
 
 
-def export_disposal_by_sale_point(disposal_id: int):
+def export_disposal_card_index(disposal_id: int):
   disposal = get_disposal_for_export(int(disposal_id))
   if not disposal:
     return {'status': 'ko', 'error': 'Smaltimento non trovato'}
@@ -95,7 +95,7 @@ def export_disposal_by_sale_point(disposal_id: int):
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
-    src=render_template('disposal_by_sale_point.html', disposal=disposal, customers=customers, total=total),
+    src=render_template('disposal_card_index.html', disposal=disposal, customers=customers, total=total),
     dest=result,
   )
   if pisa_status.err:

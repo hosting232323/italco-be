@@ -9,7 +9,7 @@ from .schedule import export_schedule
 from .excel import export_orders_excel
 from .invoice import export_order_invoice
 from .rae import export_rae, export_rae_by_product
-from .disposal import export_disposal_pickup_list, export_disposal_group_summary, export_disposal_by_sale_point
+from .disposal import export_disposal_attached_a, export_disposal_attached_b, export_disposal_card_index
 
 
 export_bp = Blueprint('export_bp', __name__)
@@ -51,19 +51,19 @@ def export_selected_orders_excel(_):
   return export_orders_excel(request.json['order_ids'])
 
 
-@export_bp.route('disposal/<id>/pickup-list', methods=['GET'])
+@export_bp.route('disposal/<id>/attached-a', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-def export_disposal_pickup_list_route(_, id):
-  return export_disposal_pickup_list(id)
+def export_disposal_attached_a_route(_, id):
+  return export_disposal_attached_a(id)
 
 
-@export_bp.route('disposal/<id>/group-summary', methods=['GET'])
+@export_bp.route('disposal/<id>/attached-b', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-def export_disposal_group_summary_route(_, id):
-  return export_disposal_group_summary(id)
+def export_disposal_attached_b_route(_, id):
+  return export_disposal_attached_b(id)
 
 
-@export_bp.route('disposal/<id>/by-sale-point', methods=['GET'])
+@export_bp.route('disposal/<id>/card-index', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-def export_disposal_by_sale_point_route(_, id):
-  return export_disposal_by_sale_point(id)
+def export_disposal_card_index_route(_, id):
+  return export_disposal_card_index(id)
