@@ -1,146 +1,50 @@
-<!DOCTYPE html>
-<html lang="it">
-<head>
-  <meta charset="utf-8">
-  <style>
-    body {
-      font-family: Helvetica, sans-serif;
-      font-size: 13px;
-      margin: 0;
-      color: #333;
-    }
+{% extends "components/base.html" %}
+{% from "components/order.html" import service_list %}
 
-    h1 {
-      font-size: 20px;
-      margin-bottom: 10px;
-    }
+{% block content %}
+<h1>Riepilogo Ordinazioni</h1>
 
-    h2 {
-      font-size: 16px;
-      margin-top: 30px;
-      border-bottom: 1px solid #ccc;
-      padding-bottom: 5px;
-    }
+<div class="section">
+  <h2>Dettagli Consegna</h2>
+  <table class="info-table">
+    <tr><td class="label">Punto Vendita</td><td>{{ customer }}</td></tr>
+    <tr><td class="label">Data di Inizio</td><td>{{ start_date }}</td></tr>
+    <tr><td class="label">Data di Fine</td><td>{{ end_date }}</td></tr>
+  </table>
+</div>
 
-    .section {
-      margin-bottom: 20px;
-    }
+<div class="section">
+  <h2>Ordini ({{ orders|length }})</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width: 10%;">Id</th>
+        <th style="width: 20%;">Tipo</th>
+        <th style="width: 22%;">Anagrafica</th>
+        <th style="width: 35%;">Servizi</th>
+        <th style="width: 12%;">Prezzo</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in orders %}
+      <tr>
+        <td>{{ order['id'] }}</td>
+        <td>{{ order['type'] }}</td>
+        <td>{{ order['addressee'] }}</td>
+        <td>
+          {% for product_name, product_data in order['products'].items() %}
+            <strong>{{ product_name }}</strong><br>
+            {{ service_list(product_data['services'], inline=True) }}
+          {% endfor %}
+        </td>
+        <td>{{ '%.2f' % order['price'] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 
-    .info-table, .data-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .info-table td,
-    .data-table td,
-    .data-table th {
-      border: 1px solid #ccc;
-      padding: 8px;
-      vertical-align: top;
-    }
-
-    .info-table td.label {
-      font-weight: bold;
-      background: #f2f2f2;
-      width: 30%;
-    }
-
-    .data-table th {
-      background-color: #f0f0f0;
-      font-weight: bold;
-      text-align: left;
-    }
-
-    .info-table.inner {
-      border-collapse: separate;
-      border-spacing: 0;
-    }
-
-    .flex-row {
-      display: flex;
-      gap: 20px;
-      justify-content: space-between;
-    }
-
-    .half-section {
-      flex: 1;
-    }
-
-    .half-section h2 {
-      font-size: 15px;
-      margin-top: 0;
-      padding-bottom: 5px;
-      border-bottom: 1px solid #ccc;
-    }
-
-    .total {
-      text-align: right;
-      font-size: 16px;
-      margin-top: 40px;
-    }
-  </style>
-</head>
-<body>
-  <h1>Riepilogo Ordinazioni</h1>
-
-  <div class="section">
-    <h2>Dettagli Consegna</h2>
-    <table class="info-table">
-      <tr><td class="label">Punto Vendita</td><td>{{ customer }}</td></tr>
-      <tr><td class="label">Data di Inizio</td><td>{{ start_date }}</td></tr>
-      <tr><td class="label">Data di Fine</td><td>{{ end_date }}</td></tr>
-    </table>
-  </div>
-
-  <div class="section">
-    <h2>Ordini ({{ orders|length }})</h2>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th style="width: 10%;">Id</th>
-          <th style="width: 20%;">Tipo</th>
-          <th style="width: 22%;">Anagrafica</th>
-          <th style="width: 35%;">Servizi</th>
-          <th style="width: 12%;">Prezzo</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for order in orders %}
-        <tr>
-          <td>{{ order['id'] }}</td>
-          <td>{{ order['type'] }}</td>
-          <td>{{ order['addressee'] }}</td>
-          <td>
-            {% for product_name, product_data in order['products'].items() %}
-              <strong>{{ product_name }}</strong><br>
-
-              {% set counter = {} %}
-              {% for service in product_data['services'] %}
-                {% set _ = counter.update({
-                  service['name']: (counter.get(service['name'], 0) + 1)
-                }) %}
-              {% endfor %}
-
-              {% for name, count in counter.items() %}
-                {% if count > 3 %}
-                  {{ name }} x{{ count }}<br>
-                {% else %}
-                  {% for i in range(count) %}
-                    {{ name }}<br>
-                  {% endfor %}
-                {% endif %}
-              {% endfor %}
-            {% endfor %}
-          </td>
-          <td>{{ '%.2f' % order['price'] }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="total">
-    <b>Totale:</b> {{ '%.2f' % total }} €
-  </div>
-</body>
-</html>
+<div class="total">
+  <b>Totale:</b> {{ '%.2f' % total }} €
+</div>
+{% endblock %}

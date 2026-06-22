@@ -1,97 +1,24 @@
-<!DOCTYPE html>
-<html lang="it">
-  <head>
-    <meta charset="utf-8">
-    <style>
-      body {
-        font-family: Helvetica, sans-serif;
-        font-size: 13px;
-        margin: 0;
-        color: #333;
-      }
+{% extends "components/base.html" %}
+{% from "components/order.html" import info_table, products_table, signatures %}
 
-      h1 {
-        font-size: 20px;
-        margin-bottom: 10px;
-      }
+{% block content %}
+<h1>N° Bolla: {{ id }}</h1>
 
-      h2 {
-        font-size: 16px;
-        margin-top: 30px;
-        border-bottom: 1px solid #ccc;
-        padding-bottom: 5px;
-      }
+{{ info_table("Informazioni Destinatario", [
+  ("Nome", addressee),
+  ("Indirizzo", address),
+  ("Recapito", addressee_contact)
+]) }}
 
-      .section {
-        margin-bottom: 20px;
-      }
+{{ info_table("Dettagli Consegna", [
+  ("Committente", customer.nickname),
+  ("Data prevista consegna", dpc),
+  ("Data richiesta consegna", drc),
+  ("Data consegna effettiva", booking_date),
+  ("Note aggiuntive", note)
+]) }}
 
-      .info-table, .data-table {
-        width: 100%;
-        border-collapse: collapse;
-      }
+{{ products_table(products) }}
 
-      .info-table td,
-      .data-table td,
-      .data-table th {
-        border: 1px solid #ccc;
-        padding: 8px;
-        vertical-align: top;
-      }
-
-      .info-table td.label {
-        font-weight: bold;
-        background: #f2f2f2;
-        width: 30%;
-      }
-
-      .data-table th {
-        background-color: #f0f0f0;
-        font-weight: bold;
-        text-align: left;
-      }
-
-      .flex-row {
-        display: flex;
-        gap: 20px;
-        justify-content: space-between;
-      }
-
-      .half-section {
-        flex: 1;
-      }
-
-      .half-section h2 {
-        font-size: 15px;
-        margin-top: 0;
-        padding-bottom: 5px;
-        border-bottom: 1px solid #ccc;
-      }
-    </style>
-  </head>
-  <body>
-    {% from "components/order.html" import info_table, products_table, signatures %}
-
-    <h1>N° Bolla: {{ id }}</h1>
-
-    {{ info_table("Informazioni Destinatario", [
-      ("Nome", addressee),
-      ("Indirizzo", address),
-      ("Recapito", addressee_contact)
-    ]) }}
-
-    {{ info_table("Dettagli Consegna", [
-      ("Committente", customer.nickname),
-      ("Data prevista consegna", dpc),
-      ("Data richiesta consegna", drc),
-      ("Data consegna effettiva", booking_date),
-      ("Note aggiuntive", note)
-    ]) }}
-
-
-    {{ products_table(products) }}
-
-    {{ signatures(signature) }}
-
-  </body>
-</html>
+{{ signatures(signature) }}
+{% endblock %}

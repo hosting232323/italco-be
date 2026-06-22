@@ -1,15 +1,20 @@
 from database_api import Session
-from database_api.operations import create, get_by_id, update
-from ...database.schema import Disposal, Carrier, CollectionCenter
+from ...database.enum import RaeStatus
+from sqlalchemy.orm import Session as session_type
+from database_api.operations import create, get_by_id, get_by_ids, update
+from ...database.schema import Disposal, Carrier, CollectionCenter, RaeProduct
 
 
 def create_rae_disposal(data: dict):
-  create(Disposal, data)
+  rae_product_ids = data.pop('rae_product_ids', [])
+  disposal = create(Disposal, data)
+  for rp in get_by_ids(RaeProduct, rae_product_ids):
+    update(rp, {'disposal_id': disposal.id, 'status': RaeStatus.DISPOSED_OFF})
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 
-def update_rae_disposal(id: int, data: dict):
-  update(get_by_id(Disposal, id), {'document_fir': data['document_fir']})
+def update_rae_disposal(id: int, data: dict, session: session_type):
+  update(get_by_id(Disposal, id), {'document_fir': data['document_fir']}, session=session)
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 

@@ -1,3 +1,23 @@
+{% macro service_list(services, inline=False) %}
+  {%- set counter = {} -%}
+  {%- for service in services -%}
+    {%- set _ = counter.update({ service.name: (counter.get(service.name, 0) + 1) }) -%}
+  {%- endfor -%}
+  {%- for name, count in counter.items() -%}
+    {%- if count > 3 -%}
+      {%- if inline -%}{{ name }} x{{ count }}<br>
+      {%- else -%}<li>{{ name }} x{{ count }}</li>
+      {%- endif -%}
+    {%- else -%}
+      {%- for i in range(count) -%}
+        {%- if inline -%}{{ name }}<br>
+        {%- else -%}<li>{{ name }}</li>
+        {%- endif -%}
+      {%- endfor -%}
+    {%- endif -%}
+  {%- endfor -%}
+{% endmacro %}
+
 {% macro info_table(title, rows) %}
 <div class="section">
   <h2>{{ title }}</h2>
@@ -25,27 +45,10 @@
     <tbody>
       {% for product_name, product in products.items() %}
       <tr>
-        <td>
-          {{ product_name }}
-          {% if product.collection_point %}[{{ product.collection_point.name }}]
-          {% elif product.transport %}[{{ product.transport.name }}]{% endif %}
-        </td>
+        <td>{{ product_name }} [{{ product.collection_point.name }}]</td>
         <td>
           <ul style="margin: 0; padding-left: 16px;">
-            {% set counter = {} %}
-            {% for service in product.services %}
-              {% set _ = counter.update({ service.name: (counter.get(service.name, 0) + 1) }) %}
-            {% endfor %}
-
-            {% for name, count in counter.items() %}
-              {% if count > 3 %}
-                <li>{{ name }} x{{ count }}</li>
-              {% else %}
-                {% for i in range(count) %}
-                  <li>{{ name }}</li>
-                {% endfor %}
-              {% endif %}
-            {% endfor %}
+            {{ service_list(product.services) }}
           </ul>
         </td>
       </tr>

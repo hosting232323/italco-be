@@ -1,0 +1,39 @@
+{% extends "components/base.html" %}
+
+{% block content %}
+<h1>Riepilogo Quantità per Raggruppamento RAEE</h1>
+
+<div class="section">
+  <h2>Smaltimento</h2>
+  <table class="info-table">
+    <tr><td class="label">Codice</td><td>{{ disposal.code }}</td></tr>
+    <tr><td class="label">Data</td><td>{{ disposal.date }}</td></tr>
+    <tr><td class="label">Trasportatore</td><td>{{ disposal.carrier.company_name }}</td></tr>
+    <tr><td class="label">Centro di raccolta</td><td>{{ disposal.collection_center.company_name }}</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>Riepilogo per Raggruppamento</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width: 50%;">Raggruppamento</th>
+        <th style="width: 50%;">Quantità totale</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.raggruppamento }}</td>
+        <td>{{ row.quantita }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="total">
+  <b>Totale pezzi:</b> {{ total }}
+</div>
+{% endblock %}
