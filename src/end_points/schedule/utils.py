@@ -142,7 +142,7 @@ def schedule_items_updating(
           'start_time_slot': schedule_item['start_time_slot'],
         },
         session=session,
-        )
+      )
     else:
       handle_schedule_item(schedule_item, schedule, session=session)
 
