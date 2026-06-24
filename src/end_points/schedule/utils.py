@@ -132,17 +132,23 @@ def schedule_items_updating(
   schedule: Schedule,
   session,
 ):
+
   for schedule_item in schedule_items:
     if 'id' in schedule_item:
-      update(
-        next(actual_item[0] for actual_item in actual_schedule_items if actual_item[0].id == schedule_item['id']),
-        {
-          'index': schedule_item['index'],
-          'end_time_slot': schedule_item['end_time_slot'],
-          'start_time_slot': schedule_item['start_time_slot'],
-        },
-        session=session,
-      )
+      matched = next((actual_item[0] for actual_item in actual_schedule_items if actual_item[0].id == schedule_item['id']), None)
+      if matched is None:
+        del schedule_item['id']
+        handle_schedule_item(schedule_item, schedule, session=session)
+      else:
+        update(
+          matched,
+          {
+            'index': schedule_item['index'],
+            'end_time_slot': schedule_item['end_time_slot'],
+            'start_time_slot': schedule_item['start_time_slot'],
+          },
+          session=session,
+        )
     else:
       handle_schedule_item(schedule_item, schedule, session=session)
 

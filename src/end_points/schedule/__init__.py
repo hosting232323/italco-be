@@ -90,16 +90,17 @@ def update_schedule(user: User, id):
     actual_schedule_items = get_schedule_items(schedule, session=session)
     delivery_groups = get_delivery_groups(schedule, session=session)
     deleted_users = []
-    if 'deleted_users' in request.json:
-      deleted_users = request.json['deleted_users']
+    body = dict(request.json)
+    if 'deleted_users' in body:
+      deleted_users = body['deleted_users']
       for user_id in deleted_users:
         for delivery_group in delivery_groups:
           if delivery_group.user_id == user_id:
             delete(delivery_group, session=session)
             break
-      del request.json['deleted_users']
+      del body['deleted_users']
 
-    schedule_items, schedule_data, users, response = format_schedule_data(request.json, session=session)
+    schedule_items, schedule_data, users, response = format_schedule_data(body, session=session)
     if response:
       return response
 
