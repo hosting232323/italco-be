@@ -89,6 +89,7 @@ def update_schedule(user: User, id):
     schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     actual_schedule_items = get_schedule_items(schedule, session=session)
     delivery_groups = get_delivery_groups(schedule, session=session)
+    deleted_users = []
     if 'deleted_users' in request.json:
       deleted_users = request.json['deleted_users']
       for user_id in deleted_users:
