@@ -96,9 +96,9 @@ def update_schedule(user: User, id):
           if delivery_group.user_id == user_id:
             delete(delivery_group, session=session)
             break
-      del body['deleted_users']
+      del request.json['deleted_users']
 
-    schedule_items, schedule_data, users, response = format_schedule_data(body, session=session)
+    schedule_items, schedule_data, users, response = format_schedule_data(request.json, session=session)
     if response:
       return response
 
