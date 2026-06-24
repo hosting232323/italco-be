@@ -132,10 +132,11 @@ def schedule_items_updating(
   schedule: Schedule,
   session,
 ):
-
   for schedule_item in schedule_items:
     if 'id' in schedule_item:
-      matched = next((actual_item[0] for actual_item in actual_schedule_items if actual_item[0].id == schedule_item['id']), None)
+      matched = next(
+        (actual_item[0] for actual_item in actual_schedule_items if actual_item[0].id == schedule_item['id']), None
+      )
       if matched is None:
         del schedule_item['id']
         handle_schedule_item(schedule_item, schedule, session=session)

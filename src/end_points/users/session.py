@@ -50,7 +50,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
         traceback.print_exc()
         tb = traceback.format_exc()
         send_telegram_error(tb)
-        write_log(user, {'status': 'ko', 'error': 'Errore generico', 'traceback': tb })
+        write_log(user, {'status': 'ko', 'error': 'Errore generico', 'traceback': tb})
         return {'status': 'ko', 'error': 'Errore generico'}
 
     return wrapper
