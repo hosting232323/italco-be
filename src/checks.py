@@ -5,7 +5,7 @@ from sqlalchemy import or_, cast, String
 from database_api import Session
 from .database.enum import RaeStatus
 from api.storage import check_mismatch
-from api.telegram import send_telegram_message
+from api.telegram import send_telegram_message, escape_md
 from sqlalchemy.orm import Session as session_type
 from .database.schema import Order, Product, ServiceUser, Schedule, Photo, History, RaeProduct, Disposal
 
@@ -77,25 +77,25 @@ def get_checks():
       'name': '⚠️ Schedules con problemi',
       'query_fn': check_schedules,
       'formatter': format_schedule_issue,
-      'empty_msg': '✔️ Nessun problema trovato.',
+      'empty_msg': '✔️ Nessun problema trovato\\.',
     },
     {
       'name': '❌ Ordini senza utente',
       'query_fn': check_orders_no_user,
       'formatter': format_order,
-      'empty_msg': '✔️ Nessun ordine senza utente.',
+      'empty_msg': '✔️ Nessun ordine senza utente\\.',
     },
     {
       'name': '❌ Ordini senza prodotti',
       'query_fn': check_orders_no_product,
       'formatter': format_order,
-      'empty_msg': '✔️ Nessun ordine senza prodotti.',
+      'empty_msg': '✔️ Nessun ordine senza prodotti\\.',
     },
     {
       'name': '❌ Storico non valido',
       'query_fn': check_history_invalid_status,
       'formatter': format_history_invalid,
-      'empty_msg': '✔️ Nessun ordine con storico non valido.',
+      'empty_msg': '✔️ Nessun ordine con storico non valido\\.',
     },
   ]
 
@@ -146,15 +146,21 @@ def check_history_invalid_status(session: session_type):
 
 
 def format_schedule_issue(s):
-  missing_str = ', '.join(s['missing'])
   return (
-    f'- Schedule ID {s["schedule_id"]} | Data: {s["date"]} | Trasporto: {s["transport_id"]} | Mancano: {missing_str}'
+    f'\\- Schedule ID {s["schedule_id"]} '
+    f'\\| Data: {escape_md(s["date"])} '
+    f'\\| Trasporto: {s["transport_id"]} '
+    f'\\| Mancano: {escape_md(", ".join(s["missing"]))}'
   )
 
 
 def format_order(o):
-  return f'- Order ID {o["order_id"]} | Destinatario: {o["addressee"]} | Stato: {o["status"]}'
+  return (
+    f'\\- Order ID {o["order_id"]} '
+    f'\\| Destinatario: {escape_md(str(o["addressee"]))} '
+    f'\\| Stato: {escape_md(str(o["status"]))}'
+  )
 
 
 def format_history_invalid(h):
-  return f'- History ID {h.id} | Order ID: {h.order_id} | Status: {h.status}'
+  return f'\\- History ID {h.id} \\| Order ID: {h.order_id} \\| Status: {escape_md(str(h.status))}'
