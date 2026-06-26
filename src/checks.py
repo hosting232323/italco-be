@@ -14,6 +14,10 @@ missing_photos_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '
 with open(missing_photos_path, 'r', encoding='utf-8') as file:
   MISSING_PHOTOS = [int(id) for id in re.findall(r'id:\s*(\d+)', file.read())]
 
+missing_dtr_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'missing_dtr_files.txt')
+with open(missing_dtr_path, 'r', encoding='utf-8') as file:
+  MISSING_DTR_FILES = [line.strip() for line in file if line.strip()]
+
 
 def trigger_checks(folder, base_photo_path, base_dtr_document_path, base_fir_document_path):
   database_integrity_test()
@@ -57,7 +61,9 @@ def get_all_dtr_documents(base_document_path: str) -> set[str]:
       row.link.replace(base_document_path, '')
       for row in session.query(RaeProduct)
       .filter(
-        RaeProduct.status.in_([RaeStatus.LDR, RaeStatus.ANNULLED, RaeStatus.DISPOSED_OFF]), RaeProduct.link.is_not(None)
+        RaeProduct.status.in_([RaeStatus.LDR, RaeStatus.ANNULLED, RaeStatus.DISPOSED_OFF]),
+        RaeProduct.link.is_not(None),
+        RaeProduct.link.not_in(MISSING_DTR_FILES),
       )
       .all()
     ]
