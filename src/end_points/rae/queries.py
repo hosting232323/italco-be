@@ -40,7 +40,7 @@ def query_rae_products(
     field = getattr(model, filter['field'])
     value = filter['value']
 
-    if field in [Schedule.date, RaeProduct.created_at, RaeProduct.emission_date] and type(value) is list:
+    if field in [RaeProduct.dtr_date, RaeProduct.created_at, RaeProduct.emission_date] and type(value) is list:
       query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
     elif field in [RaeProduct.created_at, RaeProduct.emission_date]:
       query = query.filter(cast(field, Date) == value)
@@ -52,10 +52,10 @@ def query_rae_products(
       query = query.filter(field == value)
 
   return limit_per_entity(
-    query.order_by(desc(Schedule.date), desc(RaeProduct.emission_date)),
+    query.order_by(desc(RaeProduct.dtr_date), desc(RaeProduct.emission_date)),
     RaeProduct.id,
     limit,
-    subquery_order_by=(desc(func.max(Schedule.date)), desc(RaeProduct.emission_date)),
+    subquery_order_by=(desc(RaeProduct.dtr_date), desc(RaeProduct.emission_date)),
   ).all()
 
 
