@@ -2,7 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ENV TZ=Europe/Rome
+
 RUN apt-get update && apt-get install -y \
+  tzdata \
   git \
   gcc \
   libpq-dev \
@@ -13,6 +16,8 @@ RUN apt-get update && apt-get install -y \
   libcairo2-dev \
   openssh-client \
   curl \
+  && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+  && echo $TZ > /etc/timezone \
   && rm -rf /var/lib/apt/lists/*
 
 RUN curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o /tmp/cloudflared.deb \
