@@ -1,62 +1,24 @@
 import os
 import jwt
 import pytz
-import traceback
-from flask import request
-from functools import wraps
 from datetime import datetime, timedelta
 
-from api.log import write_log
 from ... import STATIC_FOLDER
 from ...utils.date import ROME_TZ
 from ...database.schema import User
-from api import send_telegram_error
-from ...database.enum import UserRole
 from .queries import get_user_by_nickname
+from api.users import build_session_authentication
 
 
 DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
 SESSION_HOURS = int(os.environ.get('SESSION_HOURS', 5))
 
 
-def flask_session_authentication(roles: list[UserRole] = None):
-  def decorator(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-      try:
-        if 'Authorization' not in request.headers or request.headers['Authorization'] == 'null':
-          return {'status': 'session', 'error': 'Token assente'}
-
-        user: User = get_user_by_nickname(
-          jwt.decode(request.headers['Authorization'], os.environ['DECODE_JWT_TOKEN'], algorithms=['HS256'])['nickname']
-        )
-        if not user:
-          return {'status': 'session', 'error': 'Utente non trovato'}
-
-        if roles and user.role not in roles:
-          return {'status': 'session', 'error': 'Ruolo non autorizzato'}
-
-        result = func(user, *args, **kwargs)
-        if isinstance(result, dict):
-          result['new_token'] = create_jwt_token(user)
-        write_log(user, STATIC_FOLDER, result)
-        return result
-
-      except jwt.ExpiredSignatureError:
-        return {'status': 'session', 'error': 'Token scaduto'}
-      except jwt.InvalidTokenError:
-        return {'status': 'session', 'error': 'Token non valido'}
-
-      except Exception:
-        traceback.print_exc()
-        tb = traceback.format_exc()
-        send_telegram_error(tb)
-        write_log(user, STATIC_FOLDER, {'status': 'ko', 'error': 'Errore generico', 'traceback': tb})
-        return {'status': 'ko', 'error': 'Errore generico'}
-
-    return wrapper
-
-  return decorator
+flask_session_authentication = build_session_authentication(
+  get_user_by_nickname,
+  token_field='nickname',
+  static_folder=STATIC_FOLDER,
+)
 
 
 def create_jwt_token(user: User):
