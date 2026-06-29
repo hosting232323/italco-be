@@ -6,8 +6,9 @@ from flask import request
 from functools import wraps
 from datetime import datetime, timedelta
 
+from api.log import write_log
+from ... import STATIC_FOLDER
 from ...utils.date import ROME_TZ
-from ...utils.log import write_log
 from ...database.schema import User
 from api import send_telegram_error
 from ...database.enum import UserRole
@@ -38,7 +39,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
         result = func(user, *args, **kwargs)
         if isinstance(result, dict):
           result['new_token'] = create_jwt_token(user)
-        write_log(user, result)
+        write_log(user, STATIC_FOLDER, result)
         return result
 
       except jwt.ExpiredSignatureError:
@@ -50,7 +51,7 @@ def flask_session_authentication(roles: list[UserRole] = None):
         traceback.print_exc()
         tb = traceback.format_exc()
         send_telegram_error(tb)
-        write_log(user, {'status': 'ko', 'error': 'Errore generico', 'traceback': tb})
+        write_log(user, STATIC_FOLDER, {'status': 'ko', 'error': 'Errore generico', 'traceback': tb})
         return {'status': 'ko', 'error': 'Errore generico'}
 
     return wrapper

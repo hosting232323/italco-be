@@ -1,8 +1,9 @@
 from flask import Blueprint, request
 
+from .. import STATIC_FOLDER
 from ..database.enum import UserRole
+from api.log import query_logs, find_log, format_log
 from .users.session import flask_session_authentication
-from ..utils.log import query_logs, find_log, format_log
 
 
 log_bp = Blueprint('log_bp', __name__)
@@ -15,7 +16,7 @@ def get_logs(_):
     'status': 'ok',
     'logs': [
       {'logs': entry, 'user': {'id': entry['user_id'], 'nickname': entry['nickname']}}
-      for entry in query_logs(request.json['filters'])
+      for entry in query_logs(request.json['filters'], STATIC_FOLDER)
     ],
   }
 
@@ -23,7 +24,7 @@ def get_logs(_):
 @log_bp.route('<log_id>', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN])
 def get_log(_, log_id):
-  entry = find_log(log_id)
+  entry = find_log(log_id, STATIC_FOLDER)
   if not entry:
     return {'status': 'ko', 'error': 'Log non trovato'}
 
