@@ -1,5 +1,4 @@
 from sqlalchemy import and_, desc, or_, cast, Date
-from sqlalchemy.orm import joinedload
 
 from database_api import Session
 from ...utils.date import handle_date
@@ -31,10 +30,6 @@ def query_orders(
   with Session() as session:
     query = (
       session.query(Order, Product, ServiceUser, Service, User, CollectionPoint, Transport)
-      .options(
-        joinedload(Product.release_collection_point),
-        joinedload(Product.release_transport),
-      )
       .join(Product, Product.order_id == Order.id)
       .outerjoin(CollectionPoint, Product.collection_point_id == CollectionPoint.id)
       .outerjoin(Transport, Product.transport_id == Transport.id)
@@ -155,10 +150,6 @@ def add_service(
       object['products'][product.name]['release_transport_id'] = product.release_transport_id
     if product.release_collection_point_id:
       object['products'][product.name]['release_collection_point_id'] = product.release_collection_point_id
-    if product.release_transport:
-      object['products'][product.name]['release_transport'] = product.release_transport.to_dict()
-    if product.release_collection_point:
-      object['products'][product.name]['release_collection_point'] = product.release_collection_point.to_dict()
     if collection_point:
       object['products'][product.name]['collection_point'] = collection_point.to_dict()
     elif transport:
