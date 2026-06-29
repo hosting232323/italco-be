@@ -24,6 +24,8 @@ def get_mails(order: Order):
 
 
 def mailer_check(order: Order, data: dict, motivation: Motivation):
+  if IS_DEV:
+    return
   if (
     ('status' in data and data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.TO_RESCHEDULE])
     or ('anomaly' in data and data['anomaly'] is True)
