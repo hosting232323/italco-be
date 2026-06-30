@@ -158,12 +158,22 @@ def update_disposal(_, id):
 
     if 'first_copy_document_fir' in request.files:
       data = handle_document_by_name(
-        data, 'rae/first-copy-fir-documents', 'disposal', 'first_copy_document_fir', 'first_copy_document_fir', session=session
+        data,
+        'rae/first-copy-fir-documents',
+        'disposal',
+        'first_copy_document_fir',
+        'first_copy_document_fir',
+        session=session,
       )
 
     if 'fourth_copy_document_fir' in request.files:
       data = handle_document_by_name(
-        data, 'rae/fourth-copy-fir-documents', 'disposal', 'fourth_copy_document_fir', 'fourth_copy_document_fir', session=session
+        data,
+        'rae/fourth-copy-fir-documents',
+        'disposal',
+        'fourth_copy_document_fir',
+        'fourth_copy_document_fir',
+        session=session,
       )
 
     update_rae_disposal(int(id), data, session=session)

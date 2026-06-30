@@ -19,12 +19,26 @@ with open(missing_dtr_path, 'r', encoding='utf-8') as file:
   MISSING_DTR_FILES = [line.strip() for line in file if line.strip()]
 
 
-def trigger_checks(folder, base_photo_path, base_dtr_document_path, base_first_copy_fir_document_path, base_fourth_copy_document_fir_path):
+def trigger_checks(
+  folder, base_photo_path, base_dtr_document_path, base_first_copy_fir_document_path, base_fourth_copy_document_fir_path
+):
   database_integrity_test()
   check_mismatch(get_all_photos(base_photo_path), folder, 'Photos', 'local', 'photos')
   check_mismatch(get_all_dtr_documents(base_dtr_document_path), folder, 'DTR Documents', 'local', 'dtr-documents')
-  check_mismatch(get_all_first_copy_fir_documents(base_first_copy_fir_document_path), folder, 'First Copy FIR Documents', 'local', 'first-copy-fir-documents')
-  check_mismatch(get_all_fourth_copy_fir_documents(base_fourth_copy_document_fir_path), folder, 'Fourth FIR Copy Documents', 'local', 'fourth-copy-fir-documents')
+  check_mismatch(
+    get_all_first_copy_fir_documents(base_first_copy_fir_document_path),
+    folder,
+    'First Copy FIR Documents',
+    'local',
+    'first-copy-fir-documents',
+  )
+  check_mismatch(
+    get_all_fourth_copy_fir_documents(base_fourth_copy_document_fir_path),
+    folder,
+    'Fourth FIR Copy Documents',
+    'local',
+    'fourth-copy-fir-documents',
+  )
 
   return {'status': 'ok', 'message': 'Check eseguiti con successo'}
 
