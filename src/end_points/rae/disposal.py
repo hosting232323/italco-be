@@ -14,7 +14,13 @@ def create_rae_disposal(data: dict):
 
 
 def update_rae_disposal(id: int, data: dict, session: session_type):
-  update(get_by_id(Disposal, id), {'document_fir': data['document_fir']}, session=session)
+  update_data = {}
+  if 'first_copy_document_fir' in data:
+    update_data['first_copy_document_fir'] = data['first_copy_document_fir']
+  if 'fourth_copy_document_fir' in data:
+    update_data['fourth_copy_document_fir'] = data['fourth_copy_document_fir']
+  if update_data:
+    update(get_by_id(Disposal, id), update_data, session=session)
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 
