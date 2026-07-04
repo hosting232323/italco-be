@@ -1,7 +1,7 @@
 from database_api.operations import create
 from src.database.enum import UserRole
 from src.database.schema import User
-from src.end_points.users.queries import get_user_by_nickname
+from src.database.queries import get_user_by_nickname
 from src.end_points.users.session import create_jwt_token
 
 

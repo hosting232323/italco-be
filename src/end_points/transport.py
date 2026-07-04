@@ -3,7 +3,7 @@ from flask import Blueprint, request
 
 from database_api import Session
 from ..database.enum import UserRole
-from .users.session import flask_session_authentication
+from . import flask_session_authentication
 from ..database.schema import Transport, Schedule, DeliveryGroup
 from database_api.operations import create, delete, get_by_id, update
 

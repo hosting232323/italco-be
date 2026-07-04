@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 
 from database_api import Session
 from ..database.enum import UserRole
-from .users.session import flask_session_authentication
+from . import flask_session_authentication
 from database_api.operations import create, delete, get_by_id
 from ..database.schema import CustomerRule, User, Order, Product, ServiceUser
 

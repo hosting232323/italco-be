@@ -2,7 +2,7 @@ from flask import Blueprint, request
 
 from ...database.schema import User
 from ...database.enum import UserRole
-from ..users.session import flask_session_authentication
+from .. import flask_session_authentication
 
 from .order import export_order
 from .schedule import export_schedule

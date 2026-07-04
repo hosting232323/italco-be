@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from ..database.enum import UserRole
 from ..database.schema import User, Chatty
 from database_api.operations import create
-from .users.session import flask_session_authentication
+from . import flask_session_authentication
 from .orders.queries import query_orders, format_query_result
 
 

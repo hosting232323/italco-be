@@ -7,13 +7,13 @@ from ..orders.queries import query_orders, format_query_result
 
 def export_orders_excel(order_ids: list):
   if not order_ids:
-    return {'status': 'ko', 'error': 'Nessun ordine selezionato'}
+    return {'status': 'ko', 'message': 'Nessun ordine selezionato'}
 
   orders = []
   for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': order_ids}]):
     orders = format_query_result(tupla, orders)
   if not orders:
-    return {'status': 'ko', 'error': 'Nessun ordine trovato'}
+    return {'status': 'ko', 'message': 'Nessun ordine trovato'}
 
   rows = []
   for o in orders:
