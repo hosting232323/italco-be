@@ -4,13 +4,13 @@ from ...database.enum import UserRole
 from api import error_catching_decorator
 from .. import flask_session_authentication
 from .session import create_jwt_token
+from ...database.queries import get_user_by_nickname
 from database_api.operations import delete, get_by_id, create, update
 from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo
 from .queries import (
   query_users,
   format_user_with_info,
   count_user_dependencies,
-  get_user_by_nickname,
   get_user_info,
 )
 
