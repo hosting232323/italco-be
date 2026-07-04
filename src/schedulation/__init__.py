@@ -24,7 +24,7 @@ def execute_schedulation(
     ):
       orders = format_query_result(tupla, orders)
   if len(orders) == 0:
-    return {'status': 'ko', 'error': 'Ordini non trovati in questa data'}
+    return {'status': 'ko', 'message': 'Ordini non trovati in questa data'}
 
   delivery_users = [
     format_user_with_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(work_date)

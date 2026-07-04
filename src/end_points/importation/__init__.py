@@ -1,7 +1,7 @@
 from flask import Blueprint, request
 
 from ...database.enum import UserRole
-from ..users.session import flask_session_authentication
+from .. import flask_session_authentication
 from api import swagger_decorator, error_catching_decorator
 
 from .pdf import order_import_by_pdf
@@ -16,7 +16,7 @@ import_bp = Blueprint('import_bp', __name__)
 @flask_session_authentication([UserRole.ADMIN])
 def excel_order_import(_):
   if 'file' not in request.files:
-    return {'status': 'ko', 'error': 'Nessun file caricato'}
+    return {'status': 'ko', 'message': 'Nessun file caricato'}
 
   return order_import_by_excel(request.files['file'], request.form['customer_id'])
 
@@ -31,7 +31,7 @@ def handle_conflict(_):
 @flask_session_authentication([UserRole.ADMIN])
 def pdf_order_import(_):
   if not request.files:
-    return {'status': 'ko', 'error': 'Nessun file caricato'}
+    return {'status': 'ko', 'message': 'Nessun file caricato'}
 
   return order_import_by_pdf(request.files, request.form['customer_id'])
 

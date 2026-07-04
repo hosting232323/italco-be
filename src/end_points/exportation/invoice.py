@@ -12,7 +12,7 @@ def export_order_invoice(filters: list[dict]):
   for tupla in query_orders(filters + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.DELIVERED}]):
     orders = format_query_result(tupla, orders)
   if not orders:
-    return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
+    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
 
   for filter in filters:
     if filter['field'] == 'booking_date' and filter['model'] == 'Order':
@@ -33,6 +33,6 @@ def export_order_invoice(filters: list[dict]):
     dest=result,
   )
   if pisa_status.err:
-    return {'status': 'ko', 'error': 'Errore nella creazione del PDF'}
+    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
 
   return export_pdf(result.getvalue())

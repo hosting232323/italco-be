@@ -52,11 +52,6 @@ def format_user_with_info(user: User, role: UserRole) -> dict:
   return user_dict
 
 
-def get_user_by_nickname(nickname: str) -> User | None:
-  with Session() as session:
-    return session.query(User).filter(User.nickname == nickname).first()
-
-
 def get_user_info(user_id: int, klass) -> DeliveryUserInfo | CustomerUserInfo:
   if not hasattr(klass, 'user_id'):
     raise AttributeError(f"{klass.__name__} non ha l'attributo user_id")

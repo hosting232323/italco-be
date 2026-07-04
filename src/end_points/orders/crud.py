@@ -79,7 +79,7 @@ def delete_order(user: User, order_id: int):
   if not order or item or order.status not in [OrderStatus.ACQUIRED, OrderStatus.BOOKED]:
     return {
       'status': 'ko',
-      'error': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",
+      'message': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",
     }
 
   delete(order)
@@ -174,7 +174,7 @@ def update_order_customer(user: User, user_id: int, order_id: int):
     if service_user:
       updates.append((product, service_user))
   if len(updates) != len(products):
-    return {'status': 'ko', 'error': "Il nuovo utente non possiete gli stessi servizi dell'utente precedente"}
+    return {'status': 'ko', 'message': "Il nuovo utente non possiete gli stessi servizi dell'utente precedente"}
 
   for product, service_user in updates:
     update(product, {'service_user_id': service_user.id})

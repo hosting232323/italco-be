@@ -2,14 +2,15 @@ from flask import Blueprint, request
 
 from ...database.enum import UserRole
 from api import error_catching_decorator
-from .session import flask_session_authentication, create_jwt_token
+from .. import flask_session_authentication
+from .session import create_jwt_token
+from ...database.queries import get_user_by_nickname
 from database_api.operations import delete, get_by_id, create, update
 from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo
 from .queries import (
   query_users,
   format_user_with_info,
   count_user_dependencies,
-  get_user_by_nickname,
   get_user_info,
 )
 
@@ -22,7 +23,7 @@ user_bp = Blueprint('user_bp', __name__)
 def cancell_user(user: User, id):
   user: User = get_by_id(User, int(id))
   if not user:
-    return {'status': 'ko', 'error': 'Utente non trovato'}
+    return {'status': 'ko', 'message': 'Utente non trovato'}
 
   if request.args.get('force'):
     delete(user)
@@ -45,7 +46,7 @@ def create_user(_):
     return {'status': 'error', 'message': 'Role not valid'}
 
   if get_user_by_nickname(request.json['nickname']):
-    return {'status': 'ko', 'error': 'Nickname già in uso'}
+    return {'status': 'ko', 'message': 'Nickname già in uso'}
 
   create(
     User,
@@ -63,7 +64,7 @@ def create_user(_):
 def login():
   user: User = get_user_by_nickname(request.json['email'])
   if not user or user.nickname != request.json['email'] or user.password != request.json['password']:
-    return {'status': 'ko', 'error': 'Credenziali errate'}
+    return {'status': 'ko', 'message': 'Credenziali errate'}
 
   return {
     'status': 'ok',

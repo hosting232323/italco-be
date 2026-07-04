@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 
 from database_api import Session
 from ..database.enum import UserRole
-from .users.session import flask_session_authentication
+from . import flask_session_authentication
 from database_api.operations import create, delete, get_by_id
 from ..utils.caps import get_cap_data_by_province, get_province_by_cap
 from ..database.schema import GeographicZone, Constraint, GeographicCode, Order
