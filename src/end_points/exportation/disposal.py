@@ -25,14 +25,14 @@ def format_row(rae_product, rae_product_group, user, order) -> dict:
 def export_disposal_attached_a(disposal_id: int):
   disposal = get_disposal_for_export(int(disposal_id))
   if not disposal:
-    return {'status': 'ko', 'error': 'Smaltimento non trovato'}
+    return {'status': 'ko', 'message': 'Smaltimento non trovato'}
 
   rows = sorted(
     [format_row(rp, rpg, u, o) for rp, rpg, u, o in get_disposal_rae_products(int(disposal_id))],
     key=lambda r: r['dtr'],
   )
   if not rows:
-    return {'status': 'ko', 'error': 'Nessun prodotto RAE associato a questo smaltimento'}
+    return {'status': 'ko', 'message': 'Nessun prodotto RAE associato a questo smaltimento'}
 
   total = sum(r['quantita'] for r in rows)
 
@@ -42,21 +42,21 @@ def export_disposal_attached_a(disposal_id: int):
     dest=result,
   )
   if pisa_status.err:
-    return {'status': 'ko', 'error': 'Errore nella creazione del PDF'}
+    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
   return export_pdf(result.getvalue())
 
 
 def export_disposal_attached_b(disposal_id: int):
   disposal = get_disposal_for_export(int(disposal_id))
   if not disposal:
-    return {'status': 'ko', 'error': 'Smaltimento non trovato'}
+    return {'status': 'ko', 'message': 'Smaltimento non trovato'}
 
   groups: dict[str, int] = defaultdict(int)
   for rp, rpg, _u, _o in get_disposal_rae_products(int(disposal_id)):
     groups[rpg.group_code] += rp.quantity or 0
 
   if not groups:
-    return {'status': 'ko', 'error': 'Nessun prodotto RAE associato a questo smaltimento'}
+    return {'status': 'ko', 'message': 'Nessun prodotto RAE associato a questo smaltimento'}
 
   rows = [{'raggruppamento': group_code, 'quantita': qty} for group_code, qty in sorted(groups.items())]
   total = sum(r['quantita'] for r in rows)
@@ -67,21 +67,21 @@ def export_disposal_attached_b(disposal_id: int):
     dest=result,
   )
   if pisa_status.err:
-    return {'status': 'ko', 'error': 'Errore nella creazione del PDF'}
+    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
   return export_pdf(result.getvalue())
 
 
 def export_disposal_card_index(disposal_id: int):
   disposal = get_disposal_for_export(int(disposal_id))
   if not disposal:
-    return {'status': 'ko', 'error': 'Smaltimento non trovato'}
+    return {'status': 'ko', 'message': 'Smaltimento non trovato'}
 
   by_customer: dict[str, list[dict]] = defaultdict(list)
   for rp, rpg, u, o in get_disposal_rae_products(int(disposal_id)):
     by_customer[u.nickname].append(format_row(rp, rpg, u, o))
 
   if not by_customer:
-    return {'status': 'ko', 'error': 'Nessun prodotto RAE associato a questo smaltimento'}
+    return {'status': 'ko', 'message': 'Nessun prodotto RAE associato a questo smaltimento'}
 
   customers = [
     {
@@ -99,5 +99,5 @@ def export_disposal_card_index(disposal_id: int):
     dest=result,
   )
   if pisa_status.err:
-    return {'status': 'ko', 'error': 'Errore nella creazione del PDF'}
+    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
   return export_pdf(result.getvalue())

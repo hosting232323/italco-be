@@ -169,6 +169,6 @@ def update_disposal(_, id):
 @error_catching_decorator
 def serve_rae_document(folder, filename):
   if folder not in ['dtr-documents', 'fir-documents']:
-    return {'status': 'ok', 'error': 'Invalid folder'}
+    return {'status': 'ok', 'message': 'Invalid folder'}
 
   return serve_file(filename, folder)

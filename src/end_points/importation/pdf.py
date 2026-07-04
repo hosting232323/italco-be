@@ -20,7 +20,7 @@ CITY_FIXES = {
 def order_import_by_pdf(files, customer_id):
   collection_point = get_collection_point(customer_id)
   if not collection_point:
-    return {'status': 'ko', 'error': 'Punto di ritiro non identificato'}
+    return {'status': 'ko', 'message': 'Punto di ritiro non identificato'}
 
   orders_count = 0
   with Session() as session:

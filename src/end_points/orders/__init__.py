@@ -56,13 +56,13 @@ def update_order_endpoint(user: User, id):
       data = request.json
 
     if data.get('version') is not None and data['version'] != order.version:
-      return {'status': 'ko', 'error': "L'ordine è stato modificato nel frattempo. Ricarica la pagina e riprova."}
+      return {'status': 'ko', 'message': "L'ordine è stato modificato nel frattempo. Ricarica la pagina e riprova."}
 
     try:
       motivation = update_order(user, order, data, session)
       session.commit()
     except RaeProductDeletionError as error:
-      return {'status': 'ko', 'error': str(error)}
+      return {'status': 'ko', 'message': str(error)}
 
   save_order_status_to_euronics(order)
   mailer_check(order, data, motivation)

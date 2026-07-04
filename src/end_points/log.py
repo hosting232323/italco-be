@@ -26,6 +26,6 @@ def get_logs(_):
 def get_log(_, log_id):
   entry = find_log(log_id, STATIC_FOLDER)
   if not entry:
-    return {'status': 'ko', 'error': 'Log non trovato'}
+    return {'status': 'ko', 'message': 'Log non trovato'}
 
   return {'status': 'ok', 'log': format_log(entry)}

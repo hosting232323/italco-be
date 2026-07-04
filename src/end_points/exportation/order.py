@@ -13,7 +13,7 @@ def export_order(id, customer_id: int = None):
   for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': int(id)}], customer_id=customer_id):
     orders = format_query_result(tupla, orders)
   if len(orders) != 1:
-    return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
+    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
@@ -34,6 +34,6 @@ def export_order(id, customer_id: int = None):
     dest=result,
   )
   if pisa_status.err:
-    return {'status': 'ko', 'error': 'Errore nella creazione del PDF'}
+    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
 
   return export_pdf(result.getvalue())

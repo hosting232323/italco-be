@@ -40,7 +40,7 @@ def create_schedule(user: User):
       return response
 
     if any(query_schedules_count(user['id'], schedule_data['date']) > 0 for user in users):
-      return {'status': 'ko', 'error': 'Uno di questi utenti delivery è già assegnato'}
+      return {'status': 'ko', 'message': 'Uno di questi utenti delivery è già assegnato'}
 
     schedule: Schedule = create(Schedule, schedule_data, session=session)
     for user in users:
@@ -134,11 +134,11 @@ def pianification(_):
   for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': request.json['orders_id']}]):
     orders = format_query_orders_result(tupla, orders)
   if len(orders) == 0:
-    return {'status': 'ko', 'error': 'Ordini non identificati'}
+    return {'status': 'ko', 'message': 'Ordini non identificati'}
 
   for order in orders:
     if order['status'] != 'Booked':
-      return {'status': 'ko', 'error': 'Hai selezionato degli ordini che non sono in stato Booked'}
+      return {'status': 'ko', 'message': 'Hai selezionato degli ordini che non sono in stato Booked'}
 
   return {'status': 'ok', 'schedule_items': build_schedule_items(orders)}
 

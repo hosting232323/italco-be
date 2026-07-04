@@ -14,11 +14,11 @@ from ..orders.queries import query_orders, format_query_result
 def export_rae(user: User, order_id):
   order = _get_order_dict(int(order_id))
   if not order:
-    return {'status': 'ko', 'error': 'Numero di ordini trovati non valido'}
+    return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
 
   rae_products = get_rae_export_info_by_order(order)
   if len(rae_products) == 0:
-    return {'status': 'ko', 'error': 'Nessun prodotto rae identificato'}
+    return {'status': 'ko', 'message': 'Nessun prodotto rae identificato'}
 
   return _render_rae_pdf(rae_products, order, get_by_id(User, order['user']['id']), user.role)
 
@@ -26,18 +26,18 @@ def export_rae(user: User, order_id):
 def export_rae_by_product(user: User, rae_product_id: int):
   rae_product: RaeProduct = get_by_id(RaeProduct, rae_product_id)
   if not rae_product:
-    return {'status': 'ko', 'error': 'Prodotto rae non trovato'}
+    return {'status': 'ko', 'message': 'Prodotto rae non trovato'}
 
   order: Order = get_by_id(Order, rae_product.order_id)
   if not order:
-    return {'status': 'ko', 'error': 'Ordine non trovato'}
+    return {'status': 'ko', 'message': 'Ordine non trovato'}
 
   if rae_product.status == RaeStatus.GENERATED:
-    return {'status': 'ko', 'error': 'Prodotto rae non ancora emesso'}
+    return {'status': 'ko', 'message': 'Prodotto rae non ancora emesso'}
 
   order_dict = _get_order_dict(order.id)
   if not order_dict:
-    return {'status': 'ko', 'error': 'Errore nel recupero dati ordine'}
+    return {'status': 'ko', 'message': 'Errore nel recupero dati ordine'}
 
   return _render_rae_pdf(
     [get_product_and_group(rae_product.id)],
@@ -77,6 +77,6 @@ def _render_rae_pdf(rae_products: list[dict], order: dict, customer: User, role)
     dest=result,
   )
   if pisa_status.err:
-    return {'status': 'ko', 'error': 'Errore nella creazione del PDF'}
+    return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
 
   return export_pdf(result.getvalue())
