@@ -3,22 +3,12 @@ import jwt
 import pytz
 from datetime import datetime, timedelta
 
-from ... import STATIC_FOLDER
 from ...utils.date import ROME_TZ
 from ...database.schema import User
-from .queries import get_user_by_nickname
-from api.users import build_session_authentication
 
 
 DECODE_JWT_TOKEN = os.environ['DECODE_JWT_TOKEN']
 SESSION_HOURS = int(os.environ.get('SESSION_HOURS', 5))
-
-
-flask_session_authentication = build_session_authentication(
-  STATIC_FOLDER,
-  get_user_by_nickname,
-  token_field='nickname',
-)
 
 
 def create_jwt_token(user: User):

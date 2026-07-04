@@ -3,7 +3,7 @@ from .database.enum import UserRole
 from .database.seed import seed_data
 from database_api import set_database
 from . import app, DATABASE_URL, LOCAL_PORT
-from .end_points.users.session import flask_session_authentication
+from .end_points import flask_session_authentication
 
 from .end_points.log import log_bp
 from .end_points.rae import rae_bp

@@ -1,7 +1,7 @@
 from flask import Blueprint, request
 
 from ...database.enum import UserRole
-from ..users.session import flask_session_authentication
+from .. import flask_session_authentication
 from api import swagger_decorator, error_catching_decorator
 
 from .pdf import order_import_by_pdf

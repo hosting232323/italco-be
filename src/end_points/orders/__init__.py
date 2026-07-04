@@ -11,7 +11,7 @@ from .utils import get_statuses_by_order_id
 from .services import RaeProductDeletionError
 from database_api.operations import get_by_id
 from .api import save_order_status_to_euronics
-from ..users.session import flask_session_authentication
+from .. import flask_session_authentication
 from api import error_catching_decorator, swagger_decorator
 from ..collection_point import query_collection_points_available
 from .queries import get_order_photos, get_motivations_by_order_id

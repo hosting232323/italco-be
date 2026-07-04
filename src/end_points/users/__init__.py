@@ -2,7 +2,8 @@ from flask import Blueprint, request
 
 from ...database.enum import UserRole
 from api import error_catching_decorator
-from .session import flask_session_authentication, create_jwt_token
+from .. import flask_session_authentication
+from .session import create_jwt_token
 from database_api.operations import delete, get_by_id, create, update
 from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo
 from .queries import (

@@ -3,7 +3,7 @@ from flask import Blueprint, request
 from .. import STATIC_FOLDER
 from ..database.enum import UserRole
 from api.log import query_logs, find_log, format_log
-from .users.session import flask_session_authentication
+from . import flask_session_authentication
 
 
 log_bp = Blueprint('log_bp', __name__)

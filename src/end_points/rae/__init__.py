@@ -8,7 +8,7 @@ from ...utils.file import serve_file
 from .product import get_rae_products, update_rae_product
 from .document import handle_document
 from api import error_catching_decorator
-from ..users.session import flask_session_authentication
+from .. import flask_session_authentication
 from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
 from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
 from .product_group import (

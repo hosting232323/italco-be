@@ -4,7 +4,7 @@ from flask import Blueprint, request
 from database_api import Session
 from ...database.enum import UserRole
 from ...schedulation import execute_schedulation
-from ..users.session import flask_session_authentication
+from .. import flask_session_authentication
 from ...schedulation.building import build_schedule_items
 from ...database.schema import Schedule, User, DeliveryGroup
 from .delivery import get_items_for_delivery, update_schedule_item

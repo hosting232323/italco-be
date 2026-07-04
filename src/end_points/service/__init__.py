@@ -2,7 +2,7 @@ from flask import Blueprint, request
 
 from ..users import query_users
 from ...database.enum import UserRole, OrderType
-from ..users.session import flask_session_authentication
+from .. import flask_session_authentication
 from ...database.schema import Service, ServiceUser, User
 from database_api.operations import create, update, get_by_id, delete
 from .queries import query_services, query_service_user, format_query_result, format_service_user
