@@ -1,8 +1,7 @@
-import traceback
 from functools import wraps
 
 import jwt
-from flask import request
+from flask import g, request
 from api.users import DECODE_JWT_TOKEN, create_jwt_token
 
 try:
@@ -27,7 +26,6 @@ def build_local_session_authentication(log_folder, get_user, token_field='email'
       if not auth_header or auth_header == 'null':
         return {'status': 'session', 'error': 'Token assente'}
 
-      user = None
       try:
         user = get_user(jwt.decode(auth_header, DECODE_JWT_TOKEN, algorithms=['HS256'])[token_field])
         if not user:
@@ -36,6 +34,8 @@ def build_local_session_authentication(log_folder, get_user, token_field='email'
         if roles and user.role not in roles:
           return {'status': 'session', 'error': 'Ruolo non autorizzato'}
 
+        # identità per il log centralizzato in register_flask_hooks: qui non si scrive
+        g.log_user = user
         result = func(user, *args, **kwargs)
         if refresh and isinstance(result, dict):
           result['new_token'] = create_jwt_token(getattr(user, token_field), token_field)
@@ -45,9 +45,6 @@ def build_local_session_authentication(log_folder, get_user, token_field='email'
         return {'status': 'session', 'error': 'Token scaduto'}
       except jwt.InvalidTokenError:
         return {'status': 'session', 'error': 'Token non valido'}
-      except Exception:
-        traceback.print_exc()
-        return {'status': 'ko', 'message': 'Errore generico'}
 
     return wrapper
 

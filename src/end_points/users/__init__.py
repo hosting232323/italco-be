@@ -1,7 +1,6 @@
 from flask import Blueprint, request
 
 from ...database.enum import UserRole
-from api import error_catching_decorator
 from .. import flask_session_authentication
 from .session import create_jwt_token
 from ...database.queries import get_user_by_nickname
@@ -60,7 +59,6 @@ def create_user(_):
 
 
 @user_bp.route('login', methods=['POST'])
-@error_catching_decorator
 def login():
   user: User = get_user_by_nickname(request.json['email'])
   if not user or user.nickname != request.json['email'] or user.password != request.json['password']:

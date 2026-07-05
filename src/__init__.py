@@ -6,7 +6,7 @@ from api.settings import IS_DEV
 from .checks import trigger_checks
 from api.storage import folder_backup
 from database_api.backup import db_backup
-from api import swagger_decorator, error_catching_decorator, PrefixMiddleware
+from api import swagger_decorator, register_flask_hooks, PrefixMiddleware
 
 
 allowed_origins = [
@@ -35,13 +35,15 @@ else:
   CORS(app, origins=allowed_origins)
 
 
+register_flask_hooks(app, STATIC_FOLDER)
+
+
 @app.route('/', methods=['GET'])
 def index():
   return 'Hello World', 200
 
 
 @app.route('/internal-backup', methods=['GET'])
-@error_catching_decorator
 @swagger_decorator
 def trigger_backup():
   db_backup(DATABASE_URL, 'server')
@@ -49,7 +51,6 @@ def trigger_backup():
 
 
 @app.route('/folder-backup', methods=['GET'])
-@error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
   folder_backup(os.path.join(STATIC_FOLDER, 'prod'), 'server')
@@ -57,7 +58,6 @@ def trigger_backup_folder():
 
 
 @app.route('/checks', methods=['GET'])
-@error_catching_decorator
 @swagger_decorator
 def checks_endpoint():
   return trigger_checks(
