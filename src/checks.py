@@ -72,7 +72,7 @@ def get_all_dtr_documents(base_document_path: str) -> set[str]:
 def get_all_fir_documents(base_document_path: str) -> set[str]:
   with Session() as session:
     return [
-      row.link.replace(base_document_path, '')
+      row.document_fir.replace(base_document_path, '')
       for row in session.query(Disposal).filter(Disposal.document_fir.is_not(None)).all()
     ]
 
