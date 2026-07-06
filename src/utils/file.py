@@ -14,6 +14,9 @@ def serve_file(filename: str, folder: str):
 
 
 def guess_next_id(session: session_type, model: str) -> int:
+  seq_name = session.execute(text(f"SELECT pg_get_serial_sequence('{model}', 'id')")).scalar()
+  if seq_name:
+    return session.execute(text(f"SELECT nextval('{seq_name}')")).scalar()
   return session.execute(text(f"SELECT nextval('{model}_id_seq')")).scalar()
 
 
