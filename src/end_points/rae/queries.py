@@ -2,6 +2,7 @@ from datetime import date
 from sqlalchemy.orm import Session as session_type
 from sqlalchemy import extract, func, and_, cast, Date, desc
 
+from database_api import Session
 from ...utils.date import handle_date
 from ...utils.query import limit_per_entity
 from ...database.enum import RaeStatus
@@ -13,6 +14,7 @@ from ...database.schema import (
   Order,
   Product,
   RaeProduct,
+  RaeDocument,
   RaeProductGroup,
   User,
   Schedule,
@@ -85,6 +87,16 @@ def get_product_and_group(rae_product_id: int, session: session_type = None) -> 
   rae_product['cer_code'] = result[1].cer_code
   rae_product['group_code'] = result[1].group_code
   return rae_product
+
+
+def get_rae_document(rae_product_id: int) -> RaeDocument:
+  with Session() as session:
+    return (
+      session.query(RaeDocument)
+      .filter(RaeDocument.rae_product_id == rae_product_id)
+      .order_by(desc(RaeDocument.created_at))
+      .first()
+    )
 
 
 @db_session_decorator()

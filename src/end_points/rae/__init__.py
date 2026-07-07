@@ -2,11 +2,11 @@ import json
 from flask import Blueprint, request
 
 from database_api import Session
-from ...database.schema import User
+from ...database.schema import User, RaeDocument
 from ...database.enum import UserRole
 from ...utils.file import serve_file
 from .product import get_rae_products, update_rae_product
-from .document import handle_document, handle_document_by_name
+from .document import store_document, handle_document_by_name
 from api import error_catching_decorator
 from .. import flask_session_authentication
 from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
@@ -68,13 +68,8 @@ def get_products(user: User):
 @error_catching_decorator
 def update_product(_, id):
   with Session() as session:
-    update_rae_product(
-      int(id),
-      handle_document(
-        json.loads(request.form.get('data')), 'rae/dtr-documents', 'rae_product', 'link', session=session
-      ),
-      session=session,
-    )
+    update_rae_product(int(id), json.loads(request.form.get('data')), session=session)
+    store_document(RaeDocument, 'rae_product_id', int(id), 'rae/dtr-documents', session=session)
     session.commit()
   return {'status': 'ok', 'message': 'Operazione completata'}
 
@@ -162,7 +157,6 @@ def update_disposal(_, id):
         'rae/first-copy-fir-documents',
         'disposal',
         'first_copy_document_fir',
-        'first_copy_document_fir',
         session=session,
       )
 
@@ -172,10 +166,8 @@ def update_disposal(_, id):
         'rae/fourth-copy-fir-documents',
         'disposal',
         'fourth_copy_document_fir',
-        'fourth_copy_document_fir',
         session=session,
       )
-
     update_rae_disposal(int(id), data, session=session)
     session.commit()
   return {'status': 'ok', 'message': 'Operazione completata'}

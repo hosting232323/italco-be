@@ -1,8 +1,20 @@
+from sqlalchemy import desc
+
 from database_api import Session
 from ...database.enum import RaeStatus
 from sqlalchemy.orm import Session as session_type
-from database_api.operations import create, get_by_id, get_by_ids, update
-from ...database.schema import Disposal, Carrier, CollectionCenter, RaeProduct
+from database_api.operations import create, get_by_ids, update, get_by_id
+from ...database.schema import Disposal, Carrier, CollectionCenter, RaeProduct, DisposalDocument
+
+
+def get_disposal_document(disposal_id: int) -> DisposalDocument:
+  with Session() as session:
+    return (
+      session.query(DisposalDocument)
+      .filter(DisposalDocument.disposal_id == disposal_id)
+      .order_by(desc(DisposalDocument.created_at))
+      .first()
+    )
 
 
 def create_rae_disposal(data: dict):
@@ -38,8 +50,10 @@ def format_query_result(tupla: tuple[Disposal, Carrier, CollectionCenter], list:
     if element['id'] == tupla[0].id:
       return list
 
+  document = get_disposal_document(tupla[0].id)
   output = {
     **tupla[0].to_dict(),
+    'document_fir': document.link if document else None,
     'carrier': tupla[1].to_dict(),
     'collection_center': tupla[2].to_dict(),
   }
