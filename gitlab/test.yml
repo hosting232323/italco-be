@@ -165,7 +165,11 @@ e2e_tests:
       else: raise SystemExit('Frontend did not become ready at http://${CONTAINER_IP}:3000/')
       "
 
-      pytest -m "e2e" ./tests/e2e -vv
+      # Chromium 150 headless exits when DBUS_SESSION_BUS_ADDRESS is set but
+      # empty/malformed ("Could not parse server address"). Clear it and run the
+      # suite inside a real session bus provided by dbus-run-session.
+      unset DBUS_SESSION_BUS_ADDRESS
+      dbus-run-session -- pytest -m "e2e" ./tests/e2e -vv
       cat frontend.log || true
 
 e2e_playwright_tests:
