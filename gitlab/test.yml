@@ -102,6 +102,9 @@ e2e_tests:
   before_script:
     - apt-get update
     - apt-get install -y --no-install-recommends curl git ca-certificates gnupg chromium chromium-driver
+    # Chromium 150 (Debian trixie) headless exits at startup without a system
+    # D-Bus daemon ("Failed to connect to /run/dbus/system_bus_socket").
+    - dbus-uuidgen --ensure && mkdir -p /run/dbus && dbus-daemon --system --fork
     - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     - apt-get install -y --no-install-recommends nodejs
     - pip install --upgrade pip
@@ -189,6 +192,9 @@ e2e_playwright_tests:
   before_script:
     - apt-get update
     - apt-get install -y --no-install-recommends curl git ca-certificates gnupg chromium
+    # Chromium 150 (Debian trixie) headless exits at startup without a system
+    # D-Bus daemon ("Failed to connect to /run/dbus/system_bus_socket").
+    - dbus-uuidgen --ensure && mkdir -p /run/dbus && dbus-daemon --system --fork
     - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     - apt-get install -y --no-install-recommends nodejs
     - pip install --upgrade pip

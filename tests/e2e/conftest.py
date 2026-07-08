@@ -257,6 +257,7 @@ def driver(selenium_remote_url: str | None):
   options.add_argument('--disable-gpu')
   options.add_argument('--disable-software-rasterizer')
   options.add_argument('--window-size=1440,1000')
+
   debug_port = os.environ.get('E2E_CHROME_DEBUG_PORT')
   if debug_port:
     options.add_argument(f'--remote-debugging-port={debug_port}')
