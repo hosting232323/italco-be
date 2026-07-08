@@ -43,7 +43,7 @@
 
 .python_test_template: &python_test_template
   stage: test
-  image: python:3.11
+  image: python:3.11-bookworm
   interruptible: true
   tags:
     - test
@@ -90,6 +90,7 @@ e2e_tests:
       - browser_performance.log
       - backend_stdout.log
       - backend_stderr.log
+      - chromedriver.log
   variables:
     POSTGRES_DB: test_${CI_JOB_ID}
     POSTGRES_USER: postgres
