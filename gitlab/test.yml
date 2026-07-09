@@ -43,7 +43,7 @@
 
 .python_test_template: &python_test_template
   stage: test
-  image: python:3.11-bookworm
+  image: python:3.11
   interruptible: true
   tags:
     - test
@@ -90,33 +90,22 @@ e2e_tests:
       - browser_performance.log
       - backend_stdout.log
       - backend_stderr.log
-      - chromedriver.log
-      - chrome_smoke.txt
   variables:
     POSTGRES_DB: test_${CI_JOB_ID}
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: postgres
     DATABASE_URL_TEST: postgresql://postgres:postgres@postgres:5432/test_${CI_JOB_ID}
     DECODE_JWT_TOKEN: dummy
+    CHROME_BIN: /usr/bin/chromium
     ITALCO_FE_DIR: $CI_PROJECT_DIR/.e2e/italco-fe
   before_script:
     - apt-get update
     - apt-get install -y --no-install-recommends curl git ca-certificates gnupg chromium chromium-driver
-    # Chromium 150 (Debian trixie) headless exits at startup without a system
-    # D-Bus daemon ("Failed to connect to /run/dbus/system_bus_socket").
-    - dbus-uuidgen --ensure && mkdir -p /run/dbus && dbus-daemon --system --fork
     - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     - apt-get install -y --no-install-recommends nodejs
     - pip install --upgrade pip
     - pip install --retries 10 --timeout 120 ".[dev]"
     - python -m playwright install chromium
-    # The Debian system Chromium 150 exits at startup in this container (no real
-    # error printed), while Playwright's bundled Chromium launches fine here.
-    # Point Selenium at Playwright's Chromium; Selenium Manager fetches a matching driver.
-    - export CHROME_BIN="$(python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')"
-    # Smoke test: prove the chosen browser starts headless; capture its real
-    # stderr/exit code as an artifact for diagnosis if the suite still fails.
-    - echo "CHROME_BIN=$CHROME_BIN" > "$CI_PROJECT_DIR/chrome_smoke.txt"; "$CHROME_BIN" --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --dump-dom about:blank >> "$CI_PROJECT_DIR/chrome_smoke.txt" 2>&1; echo "chrome_exit=$?" >> "$CI_PROJECT_DIR/chrome_smoke.txt"
     - *rewrite_test_env
     - mkdir -p "$(dirname "$ITALCO_FE_DIR")"
     - |
@@ -171,12 +160,7 @@ e2e_tests:
         except Exception: sleep(0.5)
       else: raise SystemExit('Frontend did not become ready at http://${CONTAINER_IP}:3000/')
       "
-
-      # Chromium 150 headless exits when DBUS_SESSION_BUS_ADDRESS is set but
-      # empty/malformed ("Could not parse server address"). Clear it and run the
-      # suite inside a real session bus provided by dbus-run-session.
-      unset DBUS_SESSION_BUS_ADDRESS
-      dbus-run-session -- pytest -m "e2e" ./tests/e2e -vv
+      pytest -m "e2e" ./tests/e2e -vv
       cat frontend.log || true
 
 e2e_playwright_tests:
@@ -203,9 +187,6 @@ e2e_playwright_tests:
   before_script:
     - apt-get update
     - apt-get install -y --no-install-recommends curl git ca-certificates gnupg chromium
-    # Chromium 150 (Debian trixie) headless exits at startup without a system
-    # D-Bus daemon ("Failed to connect to /run/dbus/system_bus_socket").
-    - dbus-uuidgen --ensure && mkdir -p /run/dbus && dbus-daemon --system --fork
     - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     - apt-get install -y --no-install-recommends nodejs
     - pip install --upgrade pip

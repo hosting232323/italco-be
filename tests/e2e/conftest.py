@@ -15,7 +15,6 @@ import database_api
 import pytest
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
@@ -254,14 +253,11 @@ def driver(selenium_remote_url: str | None):
   options.add_argument('--headless=new')
   options.add_argument('--no-sandbox')
   options.add_argument('--disable-dev-shm-usage')
-  options.add_argument('--disable-gpu')
-  options.add_argument('--disable-software-rasterizer')
   options.add_argument('--window-size=1440,1000')
 
-  debug_port = os.environ.get('E2E_CHROME_DEBUG_PORT')
-  if debug_port:
-    options.add_argument(f'--remote-debugging-port={debug_port}')
-
+  # Snap-packaged Chromium in this environment fails to create a session
+  # unless Chrome exposes a fixed DevTools port.
+  options.add_argument(f'--remote-debugging-port={os.environ.get("E2E_CHROME_DEBUG_PORT", "9222")}')
   # Enable browser logging (console / performance) so CI can collect diagnostics
   # Selenium 4 removed `desired_capabilities`; use set_capability on the options object instead.
   options.set_capability('goog:loggingPrefs', {'browser': 'ALL', 'performance': 'ALL'})
