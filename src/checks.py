@@ -14,8 +14,8 @@ from .database.schema import (
   Photo,
   History,
   RaeDocument,
-  FirstCopyDocument,
-  FourthCopyDocument,
+  DisposalFirstCopyDocument,
+  DisposalFourthCopyDocument,
 )
 
 
@@ -29,6 +29,7 @@ def trigger_checks(
 ):
   database_integrity_test()
   check_mismatch(get_all_photos(base_photo_path), folder, 'Photos', 'local', 'photos')
+  check_mismatch(get_all_documents(base_dtr_document_path), folder, 'DTR Documents', 'local', 'dtr-documents')
   check_mismatch(
     get_all_first_copy_fir_documents(base_first_copy_fir_document_path),
     folder,
@@ -74,14 +75,19 @@ def get_all_photos(base_photo_path: str) -> set[str]:
     ]
 
 
+def get_all_documents(base_document_path: str) -> set[str]:
+  with Session() as session:
+    return [row.link.replace(base_document_path, '') for row in session.query(RaeDocument).all()]
+
+
 def get_all_first_copy_fir_documents(base_document_path: str) -> set[str]:
   with Session() as session:
-    return [row.link.replace(base_document_path, '') for row in session.query(FirstCopyDocument).all()]
+    return [row.link.replace(base_document_path, '') for row in session.query(DisposalFirstCopyDocument).all()]
 
 
 def get_all_fourth_copy_fir_documents(base_document_path: str) -> set[str]:
   with Session() as session:
-    return [row.link.replace(base_document_path, '') for row in session.query(FourthCopyDocument).all()]
+    return [row.link.replace(base_document_path, '') for row in session.query(DisposalFourthCopyDocument).all()]
 
 
 def get_checks():
