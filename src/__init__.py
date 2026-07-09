@@ -64,7 +64,8 @@ def checks_endpoint():
     STATIC_FOLDER,
     get_base_file_path('order/photos'),
     get_base_file_path('rae/dtr-documents'),
-    get_base_file_path('rae/fir-documents'),
+    get_base_file_path('rae/first-copy-fir-documents'),
+    get_base_file_path('rae/fourth-copy-fir-documents'),
   )
 
 

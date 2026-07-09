@@ -4,17 +4,14 @@ from database_api import Session
 from ...database.enum import RaeStatus
 from sqlalchemy.orm import Session as session_type
 from database_api.operations import create, get_by_ids, update, get_by_id
-from ...database.schema import Disposal, Carrier, CollectionCenter, RaeProduct, DisposalDocument
-
-
-def get_disposal_document(disposal_id: int) -> DisposalDocument:
-  with Session() as session:
-    return (
-      session.query(DisposalDocument)
-      .filter(DisposalDocument.disposal_id == disposal_id)
-      .order_by(desc(DisposalDocument.created_at))
-      .first()
-    )
+from ...database.schema import (
+  Disposal,
+  Carrier,
+  CollectionCenter,
+  RaeProduct,
+  DisposalFirstCopyDocument,
+  DisposalFourthCopyDocument,
+)
 
 
 def create_rae_disposal(data: dict):
@@ -29,43 +26,55 @@ def update_rae_disposal(id: int, data: dict, session: session_type):
   update_data = {}
   if 'weight' in data:
     update_data['weight'] = data['weight']
-  if 'first_copy_document_fir' in data:
-    update_data['first_copy_document_fir'] = data['first_copy_document_fir']
-  if 'fourth_copy_document_fir' in data:
-    update_data['fourth_copy_document_fir'] = data['fourth_copy_document_fir']
   if update_data:
     update(get_by_id(Disposal, id), update_data, session=session)
+
+  if 'first_copy_document_fir' in data:
+    create(
+      DisposalFirstCopyDocument,
+      {'disposal_id': id, 'link': data['first_copy_document_fir']},
+      session=session,
+    )
+  if 'fourth_copy_document_fir' in data:
+    create(
+      DisposalFourthCopyDocument,
+      {'disposal_id': id, 'link': data['fourth_copy_document_fir']},
+      session=session,
+    )
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 
 def get_rae_disposals():
-  rae_disposals = []
-  for tupla in query_rae_disposals():
-    rae_disposals = format_query_result(tupla, rae_disposals)
-  return {'status': 'ok', 'rae_disposals': rae_disposals}
-
-
-def format_query_result(tupla: tuple[Disposal, Carrier, CollectionCenter], list: list[dict]):
-  for element in list:
-    if element['id'] == tupla[0].id:
-      return list
-
-  document = get_disposal_document(tupla[0].id)
-  output = {
-    **tupla[0].to_dict(),
-    'document_fir': document.link if document else None,
-    'carrier': tupla[1].to_dict(),
-    'collection_center': tupla[2].to_dict(),
-  }
-  list.append(output)
-  return list
-
-
-def query_rae_disposals() -> list[tuple[Disposal, Carrier, CollectionCenter]]:
   with Session() as session:
-    return (
+    results = (
       session.query(Disposal, Carrier, CollectionCenter)
       .join(Carrier, Disposal.carrier_id == Carrier.id)
       .join(CollectionCenter, Disposal.collection_center_id == CollectionCenter.id)
       .all()
     )
+
+    rae_disposals = []
+    for disposal, carrier, collection_center in results:
+      first_copy = (
+        session.query(DisposalFirstCopyDocument)
+        .filter(DisposalFirstCopyDocument.disposal_id == disposal.id)
+        .order_by(desc(DisposalFirstCopyDocument.created_at))
+        .first()
+      )
+      fourth_copy = (
+        session.query(DisposalFourthCopyDocument)
+        .filter(DisposalFourthCopyDocument.disposal_id == disposal.id)
+        .order_by(desc(DisposalFourthCopyDocument.created_at))
+        .first()
+      )
+
+      output = {
+        **disposal.to_dict(),
+        'first_copy_document_fir': first_copy.link if first_copy else None,
+        'fourth_copy_document_fir': fourth_copy.link if fourth_copy else None,
+        'carrier': carrier.to_dict(),
+        'collection_center': collection_center.to_dict(),
+      }
+      rae_disposals.append(output)
+
+    return {'status': 'ok', 'rae_disposals': rae_disposals}
