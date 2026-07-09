@@ -89,15 +89,12 @@ def update_schedule(user: User, id):
     schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     actual_schedule_items = get_schedule_items(schedule, session=session)
     delivery_groups = get_delivery_groups(schedule, session=session)
-    deleted_users = []
-    if 'deleted_users' in request.json:
-      deleted_users = request.json['deleted_users']
-      for user_id in deleted_users:
-        for delivery_group in delivery_groups:
-          if delivery_group.user_id == user_id:
-            delete(delivery_group, session=session)
-            break
-      del request.json['deleted_users']
+    deleted_users = request.json.get('deleted_users', [])
+    for user_id in deleted_users:
+      for delivery_group in delivery_groups:
+        if delivery_group.user_id == user_id:
+          delete(delivery_group, session=session)
+          break
 
     schedule_items, schedule_data, users, response = format_schedule_data(request.json, session=session)
     if response:
@@ -106,8 +103,11 @@ def update_schedule(user: User, id):
     schedule = update(schedule, schedule_data, session=session)
     actual_user_ids = list(set([delivery_group.user_id for delivery_group in delivery_groups]) - set(deleted_users))
     for user in users:
-      if user['id'] not in actual_user_ids and query_schedules_count(user['id'], schedule.date) == 0:
-        create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']}, session=session)
+      if user['id'] in actual_user_ids:
+        continue
+      if query_schedules_count(user['id'], schedule.date) > 0:
+        return {'status': 'ko', 'message': 'Uno di questi utenti delivery è già assegnato'}
+      create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']}, session=session)
 
     schedule_items_updating(schedule_items, actual_schedule_items, schedule, session=session)
     session.commit()
