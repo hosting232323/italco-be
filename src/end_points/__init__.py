@@ -1,8 +1,7 @@
-import traceback
 from functools import wraps
 
 import jwt
-from flask import request
+from flask import g, request
 from api.users import DECODE_JWT_TOKEN, create_jwt_token
 
 try:
@@ -25,29 +24,26 @@ def build_local_session_authentication(log_folder, get_user, token_field='email'
     def wrapper(*args, **kwargs):
       auth_header = request.headers.get('Authorization')
       if not auth_header or auth_header == 'null':
-        return {'status': 'session', 'error': 'Token assente'}
+        return {'status': 'session', 'message': 'Token assente'}
 
-      user = None
       try:
         user = get_user(jwt.decode(auth_header, DECODE_JWT_TOKEN, algorithms=['HS256'])[token_field])
         if not user:
-          return {'status': 'session', 'error': 'Utente non trovato'}
+          return {'status': 'session', 'message': 'Utente non trovato'}
 
         if roles and user.role not in roles:
-          return {'status': 'session', 'error': 'Ruolo non autorizzato'}
+          return {'status': 'session', 'message': 'Ruolo non autorizzato'}
 
+        g.log_user = user
         result = func(user, *args, **kwargs)
         if refresh and isinstance(result, dict):
           result['new_token'] = create_jwt_token(getattr(user, token_field), token_field)
         return result
 
       except jwt.ExpiredSignatureError:
-        return {'status': 'session', 'error': 'Token scaduto'}
+        return {'status': 'session', 'message': 'Token scaduto'}
       except jwt.InvalidTokenError:
-        return {'status': 'session', 'error': 'Token non valido'}
-      except Exception:
-        traceback.print_exc()
-        return {'status': 'ko', 'message': 'Errore generico'}
+        return {'status': 'session', 'message': 'Token non valido'}
 
     return wrapper
 
