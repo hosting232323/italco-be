@@ -1,5 +1,4 @@
 import os
-import sys
 from datetime import datetime
 
 from api.storage import get_all_filenames
@@ -45,7 +44,7 @@ def link_prefix(rows) -> str | None:
   return None
 
 
-def reconcile(config: dict, apply: bool):
+def reconcile(config: dict):
   model, owner_field, subfolder, label = config['model'], config['owner_field'], config['subfolder'], config['label']
 
   paths = {os.path.basename(path): path for path in get_all_filenames(STATIC_FOLDER, 'local', subfolder)}
@@ -73,19 +72,12 @@ def reconcile(config: dict, apply: bool):
   for name in orphans:
     owner = known.get(name)
     created_at = datetime.fromtimestamp(os.path.getmtime(paths[name]))
-    if apply:
-      create(model, {'link': prefix + name, owner_field: owner, 'created_at': created_at})
-      print(f'  + importato {name} ({owner_field}={owner}, created_at={created_at})')
-    else:
-      print(f'  [dry-run] importerei {name} ({owner_field}={owner}, created_at={created_at}) come {prefix + name}')
+    create(model, {'link': prefix + name, owner_field: owner, 'created_at': created_at})
+    print(f'  + importato {name} ({owner_field}={owner}, created_at={created_at})')
 
 
 if __name__ == '__main__':
-  apply = '--apply' in sys.argv
   set_database(os.environ['DATABASE_URL'])
 
   for config in CONFIG:
-    reconcile(config, apply)
-
-  if not apply:
-    print('\nDry run. Rilancia con --apply per inserire le righe.')
+    reconcile(config)
