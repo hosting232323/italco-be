@@ -5,7 +5,7 @@ from datetime import datetime
 from api.storage import get_all_filenames
 from database_api import Session, set_database
 from database_api.operations import create
-from src.database.schema import RaeDocument, DisposalDocument
+from src.database.schema import RaeDocument, DisposalFirstCopyDocument, DisposalFourthCopyDocument
 
 
 STATIC_FOLDER = os.environ.get(
@@ -14,15 +14,27 @@ STATIC_FOLDER = os.environ.get(
 )
 
 # 233.pdf: DTR 39 di Idea Monopoli (rae_product 191), sostituito da 257.pdf il 02/07 dopo la bonifica.
-# 14.pdf: owner da identificare aprendo il PDF, poi aggiungerlo qui.
+# 14.pdf: primo tentativo fallito dell'upload del DTR di rae_product 153 (identico a 15.pdf).
 KNOWN_OWNERS = {
-  'rae_document': {'233.pdf': 191},
-  'disposal_document': {},
+  'rae_document': {'233.pdf': 191, '14.pdf': 153},
+  'disposal_first_copy_document': {},
+  'disposal_fourth_copy_document': {},
 }
 
 CONFIG = [
   {'model': RaeDocument, 'owner_field': 'rae_product_id', 'subfolder': 'dtr-documents', 'label': 'DTR'},
-  {'model': DisposalDocument, 'owner_field': 'disposal_id', 'subfolder': 'fir-documents', 'label': 'FIR'},
+  {
+    'model': DisposalFirstCopyDocument,
+    'owner_field': 'disposal_id',
+    'subfolder': 'first-copy-fir-documents',
+    'label': 'First Copy FIR',
+  },
+  {
+    'model': DisposalFourthCopyDocument,
+    'owner_field': 'disposal_id',
+    'subfolder': 'fourth-copy-fir-documents',
+    'label': 'Fourth Copy FIR',
+  },
 ]
 
 
