@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 from api.storage import get_all_filenames
+from api.storage.utils import get_full_path
 from database_api import Session, set_database
 from database_api.operations import create
 from src.database.schema import RaeDocument, DisposalFirstCopyDocument, DisposalFourthCopyDocument
@@ -47,6 +48,7 @@ def link_prefix(rows) -> str | None:
 def reconcile(config: dict):
   model, owner_field, subfolder, label = config['model'], config['owner_field'], config['subfolder'], config['label']
 
+  os.makedirs(get_full_path(STATIC_FOLDER, subfolder, False), exist_ok=True)
   paths = {os.path.basename(path): path for path in get_all_filenames(STATIC_FOLDER, 'local', subfolder)}
 
   with Session() as session:
