@@ -166,6 +166,6 @@ def update_disposal(_, id):
 @rae_bp.route('<folder>/<filename>', methods=['GET'])
 def serve_rae_document(folder, filename):
   if folder not in ['dtr-documents', 'first-copy-fir-documents', 'fourth-copy-fir-documents']:
-    return {'status': 'ok', 'error': 'Invalid folder'}
+    return {'status': 'ko', 'message': 'Invalid folder'}
 
   return serve_file(filename, folder)
