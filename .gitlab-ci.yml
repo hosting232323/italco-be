@@ -1,5 +1,6 @@
 stages:
   - deploy
+  - operations
   - lint
   - test
 
