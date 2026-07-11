@@ -1,11 +1,12 @@
 import json
-from flask import Blueprint, request
+from flask import Blueprint, request, send_from_directory
 
+from ... import STATIC_FOLDER
 from database_api import Session
 from ...database.schema import User
+from api.storage import get_full_path
 from ...database.enum import UserRole
 from .document import handle_document
-from api.storage.utils import serve_file
 from .product import get_rae_products, update_rae_product
 from .document import handle_document_by_name
 from .. import flask_session_authentication
@@ -169,4 +170,4 @@ def serve_rae_document(folder, filename):
   if folder not in ['dtr-documents', 'first-copy-fir-documents', 'fourth-copy-fir-documents']:
     return {'status': 'ko', 'message': 'Invalid folder'}
 
-  return serve_file(filename, folder)
+  return send_from_directory(get_full_path(STATIC_FOLDER, folder, False, filename))
