@@ -15,7 +15,7 @@ def get_logs(_):
   return {
     'status': 'ok',
     'logs': [
-      {'logs': entry, 'user': {'id': entry['user_id'], 'nickname': entry['nickname']}}
+      {'logs': entry, 'user': {'id': entry['user_id'], 'identifier': entry['identifier']}}
       for entry in query_logs(request.json['filters'], STATIC_FOLDER)
     ],
   }

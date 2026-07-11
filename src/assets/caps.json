@@ -17,14 +17,29 @@
         "lon": 16.921
       },
       {
-        "name": "VALENZANO",
+        "name": "Valenzano",
         "lat": 41.046,
         "lon": 16.886
       },
       {
-        "name": "TURI",
+        "name": "Turi",
         "lat": 40.917,
         "lon": 17.017
+      },
+      {
+        "name": "Sammichele di Bari",
+        "lat": 40.887,
+        "lon": 16.949
+      },
+      {
+        "name": "Adelfia",
+        "lat": 41.0,
+        "lon": 16.866666666
+      },
+      {
+        "name": "Locorotondo",
+        "lat": 40.75,
+        "lon": 17.316666666
       }
     ],
     "70011": {
@@ -67,11 +82,43 @@
       "lat": 41.067345,
       "lon": 16.9417632
     },
-    "70020": {
-      "name": "Città Metropolitana di Bari",
-      "lat": 40.9735386,
-      "lon": 16.6173415
-    },
+    "70020": [
+      {
+        "name": "Città Metropolitana di Bari",
+        "lat": 40.9735386,
+        "lon": 16.6173415
+      },
+      {
+        "name": "Binetto",
+        "lat": 41.024166666,
+        "lon": 16.710555555
+      },
+      {
+        "name": "Bitetto",
+        "lat": 41.033333333,
+        "lon": 16.75
+      },
+      {
+        "name": "Bitritto",
+        "lat": 41.05,
+        "lon": 16.833333333
+      },
+      {
+        "name": "Cassano delle Murge",
+        "lat": 40.883333333,
+        "lon": 16.766666666
+      },
+      {
+        "name": "Poggiorsini",
+        "lat": 40.916666666,
+        "lon": 16.25
+      },
+      {
+        "name": "Toritto",
+        "lat": 41.0,
+        "lon": 16.683333333
+      }
+    ],
     "70021": {
       "name": "Acquaviva delle Fonti",
       "lat": 40.9303721,
@@ -224,11 +271,63 @@
     }
   },
   "Foggia": {
-    "71010": {
-      "name": "Provincia di Foggia",
-      "lat": 41.8128435,
-      "lon": 15.1726816
-    },
+    "71010": [
+      {
+        "name": "Provincia di Foggia",
+        "lat": 41.8128435,
+        "lon": 15.1726816
+      },
+      {
+        "name": "Cagnano Varano",
+        "lat": 41.8128435,
+        "lon": 15.1726816
+      },
+      {
+        "name": "Carpino",
+        "lat": 41.8128435,
+        "lon": 15.1726816
+      },
+      {
+        "name": "Chieuti",
+        "lat": 41.8128435,
+        "lon": 15.1726816
+      },
+      {
+        "name": "Ischitella",
+        "lat": 41.8128435,
+        "lon": 15.1726816
+      },
+      {
+        "name": "Lesina",
+        "lat": 41.8128435,
+        "lon": 15.1726816
+      },
+      {
+        "name": "Peschici",
+        "lat": 41.8128435,
+        "lon": 15.1726816
+      },
+      {
+        "name": "Poggio Imperiale",
+        "lat": 41.8128435,
+        "lon": 15.1726816
+      },
+      {
+        "name": "Rignano Garganico",
+        "lat": 41.8128435,
+        "lon": 15.1726816
+      },
+      {
+        "name": "San Paolo di Civitate",
+        "lat": 41.8128435,
+        "lon": 15.1726816
+      },
+      {
+        "name": "Serracapriola",
+        "lat": 41.8128435,
+        "lon": 15.1726816
+      }
+    ],
     "71011": {
       "name": "Apricena",
       "lat": 41.7908288,
@@ -274,11 +373,48 @@
       "lat": 41.8824006,
       "lon": 16.1766915
     },
-    "71020": {
-      "name": "Provincia di Foggia",
-      "lat": 41.2189033,
-      "lon": 15.3014109
-    },
+    "71020": [
+      {
+        "name": "Provincia di Foggia",
+        "lat": 41.2189033,
+        "lon": 15.3014109
+      },
+      {
+        "name": "Anzano di Puglia",
+        "lat": 41.2189033,
+        "lon": 15.3014109
+      },
+      {
+        "name": "Castelluccio Valmaggiore",
+        "lat": 41.2189033,
+        "lon": 15.3014109
+      },
+      {
+        "name": "Celle di San Vito",
+        "lat": 41.2189033,
+        "lon": 15.3014109
+      },
+      {
+        "name": "Faeto",
+        "lat": 41.2189033,
+        "lon": 15.3014109
+      },
+      {
+        "name": "Monteleone di Puglia",
+        "lat": 41.2189033,
+        "lon": 15.3014109
+      },
+      {
+        "name": "Panni",
+        "lat": 41.2189033,
+        "lon": 15.3014109
+      },
+      {
+        "name": "Rocchetta Sant'Antonio",
+        "lat": 41.2189033,
+        "lon": 15.3014109
+      }
+    ],
     "71021": {
       "name": "Accadia",
       "lat": 41.1764241,
@@ -324,11 +460,53 @@
       "lat": 41.374476,
       "lon": 15.3833808
     },
-    "71030": {
-      "name": "Provincia di Foggia",
-      "lat": 41.4907402,
-      "lon": 15.1025075
-    },
+    "71030": [
+      {
+        "name": "Provincia di Foggia",
+        "lat": 41.4907402,
+        "lon": 15.1025075
+      },
+      {
+        "name": "Carlantino",
+        "lat": 41.4907402,
+        "lon": 15.1025075
+      },
+      {
+        "name": "Casalvecchio di Puglia",
+        "lat": 41.4907402,
+        "lon": 15.1025075
+      },
+      {
+        "name": "Mattinata",
+        "lat": 41.4907402,
+        "lon": 15.1025075
+      },
+      {
+        "name": "Motta Montecorvino",
+        "lat": 41.4907402,
+        "lon": 15.1025075
+      },
+      {
+        "name": "San Marco la Catola",
+        "lat": 41.4907402,
+        "lon": 15.1025075
+      },
+      {
+        "name": "Volturara Appula",
+        "lat": 41.4907402,
+        "lon": 15.1025075
+      },
+      {
+        "name": "Volturino",
+        "lat": 41.4907402,
+        "lon": 15.1025075
+      },
+      {
+        "name": "Zapponeta",
+        "lat": 41.4907402,
+        "lon": 15.1025075
+      }
+    ],
     "71031": {
       "name": "Alberona",
       "lat": 41.4371136,
@@ -374,11 +552,23 @@
       "lat": 41.3618842,
       "lon": 15.1142011
     },
-    "71040": {
-      "name": "Borgo Mezzanone",
-      "lat": 41.4205881,
-      "lon": 15.7094462
-    },
+    "71040": [
+      {
+        "name": "Borgo Mezzanone",
+        "lat": 41.4205881,
+        "lon": 15.7094462
+      },
+      {
+        "name": "Isole Tremiti",
+        "lat": 41.4205881,
+        "lon": 15.7094462
+      },
+      {
+        "name": "Ordona",
+        "lat": 41.4205881,
+        "lon": 15.7094462
+      }
+    ],
     "71041": {
       "name": "Carapelle",
       "lat": 41.3577405,
@@ -466,11 +656,28 @@
       "lat": 40.6501563,
       "lon": 17.7044085
     },
-    "72020": {
-      "name": "Provincia di Brindisi",
-      "lat": 40.4943162,
-      "lon": 17.9413323
-    },
+    "72020": [
+      {
+        "name": "Provincia di Brindisi",
+        "lat": 40.4943162,
+        "lon": 17.9413323
+      },
+      {
+        "name": "Cellino San Marco",
+        "lat": 40.4943162,
+        "lon": 17.9413323
+      },
+      {
+        "name": "Erchie",
+        "lat": 40.4943162,
+        "lon": 17.9413323
+      },
+      {
+        "name": "Torchiarolo",
+        "lat": 40.4943162,
+        "lon": 17.9413323
+      }
+    ],
     "72021": {
       "name": "Francavilla Fontana",
       "lat": 40.5462268,
@@ -523,11 +730,78 @@
     }
   },
   "Lecce": {
-    "73010": {
-      "name": "Provincia di Lecce",
-      "lat": 40.2861119,
-      "lon": 18.1310083
-    },
+    "73010": [
+      {
+        "name": "Provincia di Lecce",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "Arnesano",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "Caprarica di Lecce",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "Guagnano",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "Lequile",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "Porto Cesareo",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "San Donato di Lecce",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "San Pietro in Lama",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "Sogliano Cavour",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "Soleto",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "Sternatia",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "Surbo",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "Veglie",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      },
+      {
+        "name": "Zollino",
+        "lat": 40.2861119,
+        "lon": 18.1310083
+      }
+    ],
     "73011": {
       "name": "Alezio",
       "lat": 40.0399393,
@@ -573,11 +847,103 @@
       "lat": 40.4200963,
       "lon": 18.0657939
     },
-    "73020": {
-      "name": "Provincia di Lecce",
-      "lat": 40.1802336,
-      "lon": 18.3563972
-    },
+    "73020": [
+      {
+        "name": "Provincia di Lecce",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Bagnolo del Salento",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Botrugno",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Cannole",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Carpignano Salentino",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Castri di Lecce",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Castrignano de' Greci",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Cavallino",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Cursi",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Cutrofiano",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Giurdignano",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Martignano",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Melpignano",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Nociglia",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Palmariggi",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "San Cassiano",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Santa Cesarea Terme",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Scorrano",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      },
+      {
+        "name": "Uggiano la Chiesa",
+        "lat": 40.1802336,
+        "lon": 18.3563972
+      }
+    ],
     "73021": {
       "name": "Calimera",
       "lat": 40.245298,
@@ -623,11 +989,53 @@
       "lat": 40.3184468,
       "lon": 18.2970692
     },
-    "73030": {
-      "name": "Provincia di Lecce",
-      "lat": 40.0198454,
-      "lon": 18.3979331
-    },
+    "73030": [
+      {
+        "name": "Provincia di Lecce",
+        "lat": 40.0198454,
+        "lon": 18.3979331
+      },
+      {
+        "name": "Castro",
+        "lat": 40.0198454,
+        "lon": 18.3979331
+      },
+      {
+        "name": "Diso",
+        "lat": 40.0198454,
+        "lon": 18.3979331
+      },
+      {
+        "name": "Giuggianello",
+        "lat": 40.0198454,
+        "lon": 18.3979331
+      },
+      {
+        "name": "Montesano Salentino",
+        "lat": 40.0198454,
+        "lon": 18.3979331
+      },
+      {
+        "name": "Ortelle",
+        "lat": 40.0198454,
+        "lon": 18.3979331
+      },
+      {
+        "name": "Sanarica",
+        "lat": 40.0198454,
+        "lon": 18.3979331
+      },
+      {
+        "name": "Surano",
+        "lat": 40.0198454,
+        "lon": 18.3979331
+      },
+      {
+        "name": "Tiggiano",
+        "lat": 40.0198454,
+        "lon": 18.3979331
+      }
+    ],
     "73031": {
       "name": "Alessano",
       "lat": 39.8983561,
@@ -673,11 +1081,58 @@
       "lat": 39.9502433,
       "lon": 18.3682641
     },
-    "73040": {
-      "name": "Provincia di Lecce",
-      "lat": 39.9458433,
-      "lon": 18.273341
-    },
+    "73040": [
+      {
+        "name": "Provincia di Lecce",
+        "lat": 39.9458433,
+        "lon": 18.273341
+      },
+      {
+        "name": "Alliste",
+        "lat": 39.9458433,
+        "lon": 18.273341
+      },
+      {
+        "name": "Aradeo",
+        "lat": 39.9458433,
+        "lon": 18.273341
+      },
+      {
+        "name": "Castrignano del Capo",
+        "lat": 39.9458433,
+        "lon": 18.273341
+      },
+      {
+        "name": "Collepasso",
+        "lat": 39.9458433,
+        "lon": 18.273341
+      },
+      {
+        "name": "Melissano",
+        "lat": 39.9458433,
+        "lon": 18.273341
+      },
+      {
+        "name": "Morciano di Leuca",
+        "lat": 39.9458433,
+        "lon": 18.273341
+      },
+      {
+        "name": "Neviano",
+        "lat": 39.9458433,
+        "lon": 18.273341
+      },
+      {
+        "name": "Specchia",
+        "lat": 39.9458433,
+        "lon": 18.273341
+      },
+      {
+        "name": "Supersano",
+        "lat": 39.9458433,
+        "lon": 18.273341
+      }
+    ],
     "73041": {
       "name": "Carmiano",
       "lat": 40.3461633,
@@ -723,11 +1178,23 @@
       "lat": 39.9932862,
       "lon": 18.2258897
     },
-    "73050": {
-      "name": "Provincia di Lecce",
-      "lat": 39.8502343,
-      "lon": 18.2496145
-    },
+    "73050": [
+      {
+        "name": "Provincia di Lecce",
+        "lat": 39.8502343,
+        "lon": 18.2496145
+      },
+      {
+        "name": "Salve",
+        "lat": 39.8502343,
+        "lon": 18.2496145
+      },
+      {
+        "name": "Seclì",
+        "lat": 39.8502343,
+        "lon": 18.2496145
+      }
+    ],
     "73051": {
       "name": "Novoli",
       "lat": 40.38252120000001,
@@ -743,11 +1210,18 @@
       "lat": 39.8246972,
       "lon": 18.3148665
     },
-    "73054": {
-      "name": "Presicce",
-      "lat": 39.8841021,
-      "lon": 18.255546
-    },
+    "73054": [
+      {
+        "name": "Presicce",
+        "lat": 39.8841021,
+        "lon": 18.255546
+      },
+      {
+        "name": "Presicce-Acquarica",
+        "lat": 39.8841021,
+        "lon": 18.255546
+      }
+    ],
     "73055": {
       "name": "Racale",
       "lat": 39.9604445,
@@ -830,11 +1304,68 @@
       "lat": 40.55889560000001,
       "lon": 17.0185123
     },
-    "74020": {
-      "name": "Provincia di Taranto",
-      "lat": 40.358449,
-      "lon": 17.7399345
-    },
+    "74020": [
+      {
+        "name": "Provincia di Taranto",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      },
+      {
+        "name": "Avetrana",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      },
+      {
+        "name": "Faggiano",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      },
+      {
+        "name": "Leporano",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      },
+      {
+        "name": "Lizzano",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      },
+      {
+        "name": "Maruggio",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      },
+      {
+        "name": "Monteiasi",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      },
+      {
+        "name": "Montemesola",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      },
+      {
+        "name": "Monteparano",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      },
+      {
+        "name": "Roccaforzata",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      },
+      {
+        "name": "San Marzano di San Giuseppe",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      },
+      {
+        "name": "Torricella",
+        "lat": 40.358449,
+        "lon": 17.7399345
+      }
+    ],
     "74021": {
       "name": "Carosino",
       "lat": 40.4735984,

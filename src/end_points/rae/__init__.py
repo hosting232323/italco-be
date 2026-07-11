@@ -1,13 +1,14 @@
 import json
-from flask import Blueprint, request
+from flask import Blueprint, request, send_from_directory
 
+from api.storage.utils import get_full_path
 from database_api import Session
+
+from ... import STATIC_FOLDER
 from ...database.schema import User, RaeDocument
 from ...database.enum import UserRole
-from ...utils.file import serve_file
 from .product import get_rae_products, update_rae_product
 from .document import store_document, handle_document_by_name
-from api import error_catching_decorator
 from .. import flask_session_authentication
 from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
 from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
@@ -30,42 +31,36 @@ rae_bp = Blueprint('rae_bp', __name__)
 
 @rae_bp.route('product-group', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-@error_catching_decorator
 def create_product_group(_):
   return create_rae_product_group(request.json)
 
 
 @rae_bp.route('product-group/<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-@error_catching_decorator
 def delete_product_group(_, id):
   return delete_rae_product_group(int(id))
 
 
 @rae_bp.route('product-group', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-@error_catching_decorator
 def get_product_groups(_):
   return get_rae_product_groups()
 
 
 @rae_bp.route('product-group/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
-@error_catching_decorator
 def update_product_group(_, id):
   return update_rae_product_group(int(id), request.json)
 
 
 @rae_bp.route('product/filter', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-@error_catching_decorator
 def get_products(user: User):
   return get_rae_products(user, request.json['filters'])
 
 
 @rae_bp.route('product/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
-@error_catching_decorator
 def update_product(_, id):
   with Session() as session:
     update_rae_product(int(id), json.loads(request.form.get('data')), session=session)
@@ -76,77 +71,66 @@ def update_product(_, id):
 
 @rae_bp.route('carrier', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-@error_catching_decorator
 def create_carrier(_):
   return create_rae_carrier(request.json)
 
 
 @rae_bp.route('carrier', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-@error_catching_decorator
 def get_carriers(_):
   return get_rae_carriers()
 
 
 @rae_bp.route('carrier/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
-@error_catching_decorator
 def update_carrier(_, id):
   return update_rae_carrier(int(id), request.json)
 
 
 @rae_bp.route('carrier/<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-@error_catching_decorator
 def delete_carrier(_, id):
   return delete_rae_carrier(int(id))
 
 
 @rae_bp.route('collection-center', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
-@error_catching_decorator
 def create_collection_center(_):
   return create_rae_collection_center(request.json)
 
 
 @rae_bp.route('collection-center', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-@error_catching_decorator
 def get_collection_center(_):
   return get_rae_collection_centers()
 
 
 @rae_bp.route('collection-center/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
-@error_catching_decorator
 def update_collection_center(_, id):
   return update_rae_collection_center(int(id), request.json)
 
 
 @rae_bp.route('collection-center/<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
-@error_catching_decorator
 def delete_collection_center(_, id):
   return delete_rae_collection_center(int(id))
 
 
 @rae_bp.route('disposal', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-@error_catching_decorator
 def create_disposal(_):
   return create_rae_disposal(request.json)
 
 
 @rae_bp.route('disposal', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-@error_catching_decorator
 def get_disposal(_):
   return get_rae_disposals()
 
 
 @rae_bp.route('disposal/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-@error_catching_decorator
 def update_disposal(_, id):
   with Session() as session:
     data = json.loads(request.form.get('data'))
@@ -155,7 +139,7 @@ def update_disposal(_, id):
       data = handle_document_by_name(
         data,
         'rae/first-copy-fir-documents',
-        'disposal',
+        'disposal_first_copy_document',
         'first_copy_document_fir',
         session=session,
       )
@@ -164,7 +148,7 @@ def update_disposal(_, id):
       data = handle_document_by_name(
         data,
         'rae/fourth-copy-fir-documents',
-        'disposal',
+        'disposal_fourth_copy_document',
         'fourth_copy_document_fir',
         session=session,
       )
@@ -174,9 +158,8 @@ def update_disposal(_, id):
 
 
 @rae_bp.route('<folder>/<filename>', methods=['GET'])
-@error_catching_decorator
 def serve_rae_document(folder, filename):
   if folder not in ['dtr-documents', 'first-copy-fir-documents', 'fourth-copy-fir-documents']:
-    return {'status': 'ok', 'error': 'Invalid folder'}
+    return {'status': 'ko', 'message': 'Invalid folder'}
 
-  return serve_file(filename, folder)
+  return send_from_directory(get_full_path(STATIC_FOLDER, folder, False), filename)

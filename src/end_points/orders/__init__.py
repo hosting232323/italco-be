@@ -1,18 +1,19 @@
 import json
-from flask import Blueprint, request
+from flask import Blueprint, request, send_from_directory
 
+from ... import STATIC_FOLDER
 from .mailer import mailer_check
 from database_api import Session
 from .photo import handle_photos
-from ...utils.file import serve_file
 from ...database.enum import UserRole
+from api.storage.utils import get_full_path
 from ...database.schema import User, Order
 from .utils import get_statuses_by_order_id
 from .services import RaeProductDeletionError
 from database_api.operations import get_by_id
 from .api import save_order_status_to_euronics
 from .. import flask_session_authentication
-from api import error_catching_decorator, swagger_decorator
+from api import swagger_decorator
 from ..collection_point import query_collection_points_available
 from .queries import get_order_photos, get_motivations_by_order_id
 from .crud import create_order, update_order, filter_orders, get_order, delete_order, update_order_customer
@@ -40,7 +41,6 @@ def external_filter_orders_endpoint():
 
 
 @order_bp.route('<id>', methods=['GET'])
-@error_catching_decorator
 def get_order_endpoint(id):
   return get_order(int(id))
 
@@ -70,14 +70,12 @@ def update_order_endpoint(user: User, id):
 
 
 @order_bp.route('customer', methods=['POST'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def update_order_customer_endpoint(user: User):
   return update_order_customer(user, request.json['user_id'], request.json['order_id'])
 
 
 @order_bp.route('delivery-details/<order_id>', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.ADMIN])
 def get_delivery_details(_, order_id: int):
   return {
@@ -88,27 +86,23 @@ def get_delivery_details(_, order_id: int):
 
 
 @order_bp.route('<id>', methods=['DELETE'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN])
 def delete_order_endpoint(user: User, id):
   return delete_order(user, int(id))
 
 
 @order_bp.route('statuses/<id>', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def get_statuses(_, id):
   return get_statuses_by_order_id(int(id))
 
 
 @order_bp.route('photos/<filename>', methods=['GET'])
-@error_catching_decorator
 def serve_image_endpoint(filename):
-  return serve_file(filename, 'photos')
+  return send_from_directory(get_full_path(STATIC_FOLDER, 'photos', False), filename)
 
 
 @order_bp.route('collection-points/<id>', methods=['GET'])
-@error_catching_decorator
 @flask_session_authentication([UserRole.DELIVERY, UserRole.OPERATOR, UserRole.ADMIN])
 def get_collection_points_available(_, id):
   return {

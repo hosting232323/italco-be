@@ -1,12 +1,12 @@
 import os
-from flask_cors import CORS
 from flask import Flask, request
+from flask_cors import CORS
 
 from api.settings import IS_DEV
 from .checks import trigger_checks
 from api.storage import folder_backup
 from database_api.backup import db_backup
-from api import swagger_decorator, error_catching_decorator, PrefixMiddleware
+from api import swagger_decorator, register_flask_hooks, PrefixMiddleware
 
 
 allowed_origins = [
@@ -35,29 +35,34 @@ else:
   CORS(app, origins=allowed_origins)
 
 
+try:
+  register_flask_hooks(app, STATIC_FOLDER, user_log_field='nickname')
+except TypeError as error:
+  if 'user_log_field' not in str(error):
+    raise
+  register_flask_hooks(app, STATIC_FOLDER)
+
+
 @app.route('/', methods=['GET'])
 def index():
   return 'Hello World', 200
 
 
 @app.route('/internal-backup', methods=['GET'])
-@error_catching_decorator
 @swagger_decorator
 def trigger_backup():
-  db_backup(DATABASE_URL, 'server')
+  db_backup(DATABASE_URL, server=True)
   return {'status': 'ok', 'message': 'Operazione completata con successo!'}
 
 
 @app.route('/folder-backup', methods=['GET'])
-@error_catching_decorator
 @swagger_decorator
 def trigger_backup_folder():
-  folder_backup(os.path.join(STATIC_FOLDER, 'prod'), 'server')
+  folder_backup(os.path.join(STATIC_FOLDER, 'prod'), server=True)
   return {'status': 'ok', 'message': 'Backup avviato in background!'}
 
 
 @app.route('/checks', methods=['GET'])
-@error_catching_decorator
 @swagger_decorator
 def checks_endpoint():
   return trigger_checks(
@@ -67,7 +72,6 @@ def checks_endpoint():
     get_base_file_path('rae/first-copy-fir-documents'),
     get_base_file_path('rae/fourth-copy-fir-documents'),
   )
-
 
 def get_base_file_path(path):
   return f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/{path}/'

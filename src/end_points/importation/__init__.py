@@ -2,7 +2,7 @@ from flask import Blueprint, request
 
 from ...database.enum import UserRole
 from .. import flask_session_authentication
-from api import swagger_decorator, error_catching_decorator
+from api import swagger_decorator
 
 from .pdf import order_import_by_pdf
 from .excel import order_import_by_excel, handle_excel_conflict
@@ -37,14 +37,12 @@ def pdf_order_import(_):
 
 
 @import_bp.route('euronics/list', methods=['POST'])
-@error_catching_decorator
 @swagger_decorator
 def api_order_import():
   return save_orders_by_euronics()
 
 
 @import_bp.route('euronics/status', methods=['POST'])
-@error_catching_decorator
 @swagger_decorator
 def api_order_status_update():
   return update_order_status_by_euronics(request.json['status'])

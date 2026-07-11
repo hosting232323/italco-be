@@ -66,6 +66,18 @@ def upgrade() -> None:
     WHERE link IS NOT NULL
   """)
 
+  op.execute("""
+    INSERT INTO disposal_first_copy_document (link, disposal_id, created_at, updated_at)
+    SELECT first_copy_document_fir, id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    FROM disposal
+    WHERE first_copy_document_fir IS NOT NULL
+  """)
+  op.execute("""
+    INSERT INTO disposal_fourth_copy_document (link, disposal_id, created_at, updated_at)
+    SELECT fourth_copy_document_fir, id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    FROM disposal
+    WHERE fourth_copy_document_fir IS NOT NULL
+  """)
   op.drop_column('disposal', 'first_copy_document_fir')
   op.drop_column('disposal', 'fourth_copy_document_fir')
   op.drop_column('rae_product', 'link')
@@ -86,6 +98,21 @@ def downgrade() -> None:
     )
   """)
 
+  op.execute("""
+    UPDATE disposal
+    SET first_copy_document_fir = (
+      SELECT link FROM disposal_first_copy_document
+      WHERE disposal_first_copy_document.disposal_id = disposal.id
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    ),
+    fourth_copy_document_fir = (
+      SELECT link FROM disposal_fourth_copy_document
+      WHERE disposal_fourth_copy_document.disposal_id = disposal.id
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    )
+  """)
   op.drop_table('rae_document')
   op.drop_table('disposal_fourth_copy_document')
   op.drop_table('disposal_first_copy_document')
