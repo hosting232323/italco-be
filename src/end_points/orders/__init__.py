@@ -1,11 +1,12 @@
 import json
-from flask import Blueprint, request
+from flask import Blueprint, request, send_from_directory
 
+from ... import STATIC_FOLDER
 from .mailer import mailer_check
 from database_api import Session
 from .photo import handle_photos
-from ...utils.file import serve_file
 from ...database.enum import UserRole
+from api.storage import get_full_path
 from ...database.schema import User, Order
 from .utils import get_statuses_by_order_id
 from .services import RaeProductDeletionError
@@ -98,7 +99,7 @@ def get_statuses(_, id):
 
 @order_bp.route('photos/<filename>', methods=['GET'])
 def serve_image_endpoint(filename):
-  return serve_file(filename, 'photos')
+  return send_from_directory(get_full_path(STATIC_FOLDER, 'photos', False), filename)
 
 
 @order_bp.route('collection-points/<id>', methods=['GET'])

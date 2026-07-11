@@ -1,11 +1,12 @@
 import os
+from flask import Flask
 from flask_cors import CORS
-from flask import Flask, request
 
 from api.settings import IS_DEV
 from .checks import trigger_checks
 from api.storage import folder_backup
 from database_api.backup import db_backup
+from api.storage.utils import get_base_file_path
 from api import swagger_decorator, register_flask_hooks, PrefixMiddleware
 
 
@@ -46,14 +47,14 @@ def index():
 @app.route('/internal-backup', methods=['GET'])
 @swagger_decorator
 def trigger_backup():
-  db_backup(DATABASE_URL, 'server')
+  db_backup(DATABASE_URL, server=True)
   return {'status': 'ok', 'message': 'Operazione completata con successo!'}
 
 
 @app.route('/folder-backup', methods=['GET'])
 @swagger_decorator
 def trigger_backup_folder():
-  folder_backup(os.path.join(STATIC_FOLDER, 'prod'), 'server')
+  folder_backup(os.path.join(STATIC_FOLDER, 'prod'), server=True)
   return {'status': 'ok', 'message': 'Backup avviato in background!'}
 
 
@@ -66,7 +67,3 @@ def checks_endpoint():
     get_base_file_path('rae/dtr-documents'),
     get_base_file_path('rae/fir-documents'),
   )
-
-
-def get_base_file_path(path):
-  return f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/{path}/'

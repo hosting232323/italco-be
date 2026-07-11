@@ -1,12 +1,14 @@
 import json
-from flask import Blueprint, request
+from flask import Blueprint, request, send_from_directory
 
+from ... import STATIC_FOLDER
 from database_api import Session
 from ...database.schema import User
+from api.storage import get_full_path
 from ...database.enum import UserRole
-from ...utils.file import serve_file
+from .document import handle_document
 from .product import get_rae_products, update_rae_product
-from .document import handle_document, handle_document_by_name
+from .document import handle_document_by_name
 from .. import flask_session_authentication
 from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
 from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
@@ -63,9 +65,7 @@ def update_product(_, id):
   with Session() as session:
     update_rae_product(
       int(id),
-      handle_document(
-        json.loads(request.form.get('data')), 'rae/dtr-documents', 'rae_product', 'link', session=session
-      ),
+      handle_document(json.loads(request.form.get('data')), 'rae/dtr-documents', 'rae_product', 'link'),
       session=session,
     )
     session.commit()
@@ -140,22 +140,12 @@ def update_disposal(_, id):
 
     if 'first_copy_document_fir' in request.files:
       data = handle_document_by_name(
-        data,
-        'rae/first-copy-fir-documents',
-        'disposal',
-        'first_copy_document_fir',
-        'first_copy_document_fir',
-        session=session,
+        data, 'rae/first-copy-fir-documents', 'disposal', 'first_copy_document_fir', 'first_copy_document_fir'
       )
 
     if 'fourth_copy_document_fir' in request.files:
       data = handle_document_by_name(
-        data,
-        'rae/fourth-copy-fir-documents',
-        'disposal',
-        'fourth_copy_document_fir',
-        'fourth_copy_document_fir',
-        session=session,
+        data, 'rae/fourth-copy-fir-documents', 'disposal', 'fourth_copy_document_fir', 'fourth_copy_document_fir'
       )
 
     update_rae_disposal(int(id), data, session=session)
@@ -168,4 +158,4 @@ def serve_rae_document(folder, filename):
   if folder not in ['dtr-documents', 'first-copy-fir-documents', 'fourth-copy-fir-documents']:
     return {'status': 'ko', 'message': 'Invalid folder'}
 
-  return serve_file(filename, folder)
+  return send_from_directory(get_full_path(STATIC_FOLDER, folder, False), filename)
