@@ -1,0 +1,126 @@
+.setup_database:
+  stage: operations
+  image: postgres:17
+  when: manual
+  tags:
+    - "${SERVER_NAME}-deploy"
+  script:
+    - export DB_URL="$DATABASE_URL_PIPELINE"
+    - export DB_NAME=$(echo "$DB_URL" | awk -F/ '{print $NF}')
+    - export BASE_URL="${DB_URL%/*}/postgres"
+
+    - |
+      EXISTS=$(psql "$BASE_URL" -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'")
+      if [ "$EXISTS" = "1" ]; then
+        echo "❌ Database '$DB_NAME' already exists. Failing job."
+        exit 1
+      fi
+
+    - echo "Database does not exist. Creating..."
+    - psql "$BASE_URL" -c "CREATE DATABASE ${DB_NAME};"
+    - echo "✅ Database '$DB_NAME' created successfully."
+
+setup_database_test:
+  extends: .setup_database
+  variables:
+    DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
+
+setup_database_prod:
+  extends: .setup_database
+  only:
+    - main
+  variables:
+    DATABASE_URL_PIPELINE: "${DATABASE_URL}"
+
+.restore_backup:
+  stage: operations
+  when: manual
+  tags:
+    - "${SERVER_NAME}-deploy"
+  script:
+    - export DB_URL="$DATABASE_URL_PIPELINE"
+    - export DB_NAME=$(echo "$DB_URL" | awk -F/ '{print $NF}' | cut -d'?' -f1)
+    - export BASE_URL="${DB_URL%/*}/postgres"
+
+    - echo "⏹ Stopping ${CONTAINER_ACTIVE}..."
+    - docker stop "${CONTAINER_ACTIVE}" 2>/dev/null || true
+
+    - |
+      REMOTE_BACKUP_DIR="${BACKUP_FOLDER}postgres-backup"
+      LATEST_REMOTE=$(ssh \
+        -o StrictHostKeyChecking=no \
+        -o BatchMode=yes \
+        -o ConnectTimeout=10 \
+        "$BACKUP_SSH_CONFIG" \
+        "find \"$REMOTE_BACKUP_DIR\" -maxdepth 2 -type f -name '*.dump' | sort | tail -n 1")
+      if [ -z "$LATEST_REMOTE" ]; then
+        echo "❌ Nessun backup trovato in $REMOTE_BACKUP_DIR"
+        docker start "${CONTAINER_ACTIVE}" || true
+        exit 1
+      fi
+      echo "📦 Ultimo backup: $LATEST_REMOTE"
+      echo "LATEST_REMOTE=$LATEST_REMOTE" >> restore.env
+
+    - |
+      source restore.env
+      LOCAL_DUMP="/tmp/restore_$(date +%s).dump"
+      scp \
+        -o StrictHostKeyChecking=no \
+        -o BatchMode=yes \
+        -o ConnectTimeout=10 \
+        "${BACKUP_SSH_CONFIG}:${LATEST_REMOTE}" \
+        "$LOCAL_DUMP"
+      echo "✅ Dump scaricato in $LOCAL_DUMP"
+      echo "LOCAL_DUMP=$LOCAL_DUMP" >> restore.env
+
+    - |
+      psql "$BASE_URL" -c \
+        "SELECT pg_terminate_backend(pid)
+         FROM pg_stat_activity
+         WHERE datname = '${DB_NAME}' AND pid <> pg_backend_pid();"
+      psql "$BASE_URL" -c "DROP DATABASE IF EXISTS ${DB_NAME};"
+      psql "$BASE_URL" -c "CREATE DATABASE ${DB_NAME};"
+      echo "✅ Database '$DB_NAME' ricreato."
+
+    - |
+      source restore.env
+      pg_restore \
+        --no-owner \
+        --no-acl \
+        --exit-on-error \
+        -d "$DB_URL" \
+        "$LOCAL_DUMP" || { docker start "${CONTAINER_ACTIVE}"; exit 1; }
+      echo "✅ Dump importato."
+      rm -f "$LOCAL_DUMP" restore.env
+
+    - echo "🚀 Avvio ${CONTAINER_ACTIVE}..."
+    - docker start "${CONTAINER_ACTIVE}"
+    - sleep 10
+    - |
+      if curl --fail http://localhost:$FIRST_PORT/api/; then
+        echo "✅ Applicazione online."
+      else
+        echo "❌ Applicazione offline."
+        docker logs "${CONTAINER_ACTIVE}" --tail 50 || true
+        exit 1
+      fi
+
+restore_backup_test:
+  extends: .restore_backup
+  variables:
+    PJ_NAME: "${PROJECT_NAME}-test"
+    CONTAINER_ACTIVE: "${PROJECT_NAME}-test"
+    DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
+  before_script:
+    - export FIRST_PORT="${PORT_TEST%%-*}"
+
+restore_backup_prod:
+  extends: .restore_backup
+  only:
+    - main
+  variables:
+    PJ_NAME: $PROJECT_NAME
+    CONTAINER_ACTIVE: $PROJECT_NAME
+    DATABASE_URL_PIPELINE: $DATABASE_URL
+  before_script:
+    - export FIRST_PORT="${PORT_PROD%%-*}"
