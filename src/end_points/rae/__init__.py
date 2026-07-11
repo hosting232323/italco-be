@@ -66,7 +66,7 @@ def update_product(_, id):
     update_rae_product(
       int(id),
       handle_document(
-        json.loads(request.form.get('data')), 'rae/dtr-documents', 'rae_product', 'link', session=session
+        json.loads(request.form.get('data')), 'rae/dtr-documents', 'rae_product', 'link'
       ),
       session=session,
     )
@@ -146,8 +146,7 @@ def update_disposal(_, id):
         'rae/first-copy-fir-documents',
         'disposal',
         'first_copy_document_fir',
-        'first_copy_document_fir',
-        session=session,
+        'first_copy_document_fir'
       )
 
     if 'fourth_copy_document_fir' in request.files:
@@ -156,8 +155,7 @@ def update_disposal(_, id):
         'rae/fourth-copy-fir-documents',
         'disposal',
         'fourth_copy_document_fir',
-        'fourth_copy_document_fir',
-        session=session,
+        'fourth_copy_document_fir'
       )
 
     update_rae_disposal(int(id), data, session=session)
@@ -170,4 +168,4 @@ def serve_rae_document(folder, filename):
   if folder not in ['dtr-documents', 'first-copy-fir-documents', 'fourth-copy-fir-documents']:
     return {'status': 'ko', 'message': 'Invalid folder'}
 
-  return send_from_directory(get_full_path(STATIC_FOLDER, folder, False, filename))
+  return send_from_directory(get_full_path(STATIC_FOLDER, folder, False), filename)

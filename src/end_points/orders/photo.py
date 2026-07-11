@@ -16,7 +16,7 @@ def handle_photos(data: dict, order: Order, session: session_type):
       if file_key == 'signature':
         data['signature'] = uploaded_file.read()
       else:
-        id = guess_next_id(session, 'photo')
+        id = guess_next_id('photo')
         create(
           Photo,
           {
