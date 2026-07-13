@@ -68,18 +68,20 @@ def test_document_models_use_the_new_table_names():
   assert DtrDocument.__tablename__ == 'dtr_document'
   assert FirFirstDocument.__tablename__ == 'fir_first_document'
   assert FirFourthDocument.__tablename__ == 'fir_fourth_document'
+  assert FirFirstDocument.__table__.c.disposal_id.nullable is False
+  assert FirFourthDocument.__table__.c.disposal_id.nullable is False
 
 
 def test_storage_and_database_are_committed_together(seeded_db, tmp_path):
   with StorageTransaction() as storage:
     with Session() as session:
       stored_path = storage.upload(pdf_file('committed.pdf'), 'committed.pdf', str(tmp_path), subfolder='documents')
-      create(FirFirstDocument, {'link': stored_path}, session=session)
+      create(DtrDocument, {'link': stored_path}, session=session)
       session.commit()
 
   assert os.path.isfile(get_full_path(str(tmp_path), 'documents', False, 'committed.pdf'))
   with Session() as session:
-    assert session.query(FirFirstDocument).filter_by(link=stored_path).count() == 1
+    assert session.query(DtrDocument).filter_by(link=stored_path).count() == 1
 
 
 def test_database_failure_rolls_back_file_and_row(seeded_db, tmp_path):
@@ -131,6 +133,11 @@ def test_rae_endpoint_returns_ko_when_storage_upload_fails(seeded_db, monkeypatc
   monkeypatch.setattr(StorageTransaction, 'upload', fail_upload)
 
   app = Flask(__name__)
+
+  @app.errorhandler(Exception)
+  def handle_exception(_):
+    return {'status': 'ko', 'message': 'Errore generico'}
+
   app.register_blueprint(rae_bp, url_prefix='/rae/')
   client = app.test_client()
   response = client.put(

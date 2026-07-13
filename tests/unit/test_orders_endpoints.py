@@ -1,6 +1,11 @@
 from datetime import date
 
+from database_api import Session
+
+import src.end_points.orders as orders_module
 from src.database.enum import UserRole
+from src.database.schema import Order
+from src.end_points.orders.services import RaeProductDeletionError
 from tests.utils import auth_header_for
 
 
@@ -23,3 +28,24 @@ def test_order_filter_returns_only_cap_70020(client):
   body = response.get_json()
   assert body['status'] == 'ok'
   assert all(order['cap'] == '70020' for order in body['orders'])
+
+
+def test_update_order_preserves_rae_product_deletion_error(client, monkeypatch):
+  with Session() as session:
+    order_id = session.query(Order.id).first()[0]
+
+  def fail_with_specific_error(*args, **kwargs):
+    raise RaeProductDeletionError('Impossibile eliminare un prodotto RAE già smaltito')
+
+  monkeypatch.setattr(orders_module, 'update_order', fail_with_specific_error)
+  response = client.put(
+    f'/order/{order_id}',
+    json={},
+    headers=auth_header_for('admin', role=UserRole.ADMIN),
+  )
+
+  assert response.status_code == 200
+  assert response.get_json() == {
+    'status': 'ko',
+    'message': 'Impossibile eliminare un prodotto RAE già smaltito',
+  }

@@ -30,12 +30,14 @@ CONFIG = [
     'owner_field': 'disposal_id',
     'subfolder': 'fir-first-document',
     'label': 'First Copy FIR',
+    'owner_required': True,
   },
   {
     'model': FirFourthDocument,
     'owner_field': 'disposal_id',
     'subfolder': 'fir-fourth-document',
     'label': 'Fourth Copy FIR',
+    'owner_required': True,
   },
 ]
 
@@ -45,10 +47,6 @@ def link_prefix(rows) -> str | None:
     if row.link and '/' in row.link:
       return row.link.rsplit('/', 1)[0] + '/'
   return None
-
-
-def local_files(folder: str) -> dict[str, str]:
-  return {entry.name: entry.path for entry in os.scandir(folder) if entry.is_file(follow_symlinks=False)}
 
 
 def reconcile(
@@ -62,6 +60,7 @@ def reconcile(
   owner_field = config['owner_field']
   subfolder = config['subfolder']
   label = config['label']
+  owner_required = config.get('owner_required', False)
 
   storage_folder = get_full_path(static_folder, subfolder, False)
   os.makedirs(storage_folder, exist_ok=True)
@@ -83,6 +82,7 @@ def reconcile(
       'orphans': orphans,
       'missing': missing,
       'imported': [],
+      'unresolved': [],
       'applied': apply,
     }
 
@@ -102,6 +102,11 @@ def reconcile(
 
     for name in orphans:
       owner = owners.get(name)
+      if owner_required and owner is None:
+        report['unresolved'].append(name)
+        print(f'  x {name} saltato: {owner_field} obbligatorio e non risolto')
+        continue
+
       created_at = datetime.fromtimestamp(os.path.getmtime(paths[name])).astimezone()
       action = 'importato' if apply else 'da importare'
       print(f'  + {action} {name} ({owner_field}={owner}, created_at={created_at.isoformat()})')
@@ -125,7 +130,7 @@ def parse_args():
   parser.add_argument(
     '--apply',
     action='store_true',
-    help='Applica gli inserimenti. Senza questa opzione viene eseguita solo un’anteprima.',
+    help="Applica gli inserimenti. Senza questa opzione viene eseguita solo un'anteprima.",
   )
   return parser.parse_args()
 

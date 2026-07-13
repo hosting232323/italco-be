@@ -1,5 +1,5 @@
 import json
-from flask import Blueprint, current_app, request, send_from_directory
+from flask import Blueprint, request, send_from_directory
 
 from api.storage import get_full_path
 from database_api import Session
@@ -63,22 +63,18 @@ def get_products(user: User):
 @rae_bp.route('product/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_product(_, id):
-  try:
-    with StorageTransaction() as storage:
-      with Session() as session:
-        update_rae_product(int(id), json.loads(request.form.get('data')), session=session)
-        store_document(
-          DtrDocument,
-          'rae_product_id',
-          int(id),
-          'rae/dtr-documents',
-          session=session,
-          storage=storage,
-        )
-        session.commit()
-  except Exception:
-    current_app.logger.exception('Aggiornamento prodotto RAE non completato')
-    return {'status': 'ko', 'message': 'Documento e dati non sono stati salvati'}
+  with StorageTransaction() as storage:
+    with Session() as session:
+      update_rae_product(int(id), json.loads(request.form.get('data')), session=session)
+      store_document(
+        DtrDocument,
+        'rae_product_id',
+        int(id),
+        'rae/dtr-documents',
+        session=session,
+        storage=storage,
+      )
+      session.commit()
 
   return {'status': 'ok', 'message': 'Operazione completata'}
 
@@ -146,36 +142,32 @@ def get_disposal(_):
 @rae_bp.route('disposal/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def update_disposal(_, id):
-  try:
-    with StorageTransaction() as storage:
-      with Session() as session:
-        data = json.loads(request.form.get('data'))
+  with StorageTransaction() as storage:
+    with Session() as session:
+      data = json.loads(request.form.get('data'))
 
-        if 'first_copy_document_fir' in request.files:
-          data = handle_document_by_name(
-            data,
-            'rae/fir-first-document',
-            'fir_first_document',
-            'first_copy_document_fir',
-            session=session,
-            storage=storage,
-          )
+      if 'first_copy_document_fir' in request.files:
+        data = handle_document_by_name(
+          data,
+          'rae/fir-first-document',
+          'fir_first_document',
+          'first_copy_document_fir',
+          session=session,
+          storage=storage,
+        )
 
-        if 'fourth_copy_document_fir' in request.files:
-          data = handle_document_by_name(
-            data,
-            'rae/fir-fourth-document',
-            'fir_fourth_document',
-            'fourth_copy_document_fir',
-            session=session,
-            storage=storage,
-          )
+      if 'fourth_copy_document_fir' in request.files:
+        data = handle_document_by_name(
+          data,
+          'rae/fir-fourth-document',
+          'fir_fourth_document',
+          'fourth_copy_document_fir',
+          session=session,
+          storage=storage,
+        )
 
-        update_rae_disposal(int(id), data, session=session)
-        session.commit()
-  except Exception:
-    current_app.logger.exception('Aggiornamento smaltimento RAE non completato')
-    return {'status': 'ko', 'message': 'Documenti e dati non sono stati salvati'}
+      update_rae_disposal(int(id), data, session=session)
+      session.commit()
 
   return {'status': 'ok', 'message': 'Operazione completata'}
 

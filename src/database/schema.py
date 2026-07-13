@@ -414,7 +414,7 @@ class FirFirstDocument(BaseEntity):
   __tablename__ = 'fir_first_document'
 
   link = Column(String, nullable=False)
-  disposal_id = Column(Integer, ForeignKey('disposal.id'), nullable=True)
+  disposal_id = Column(Integer, ForeignKey('disposal.id'), nullable=False)
 
   disposal = relationship('Disposal', back_populates='fir_first_documents')
 
@@ -423,6 +423,6 @@ class FirFourthDocument(BaseEntity):
   __tablename__ = 'fir_fourth_document'
 
   link = Column(String, nullable=False)
-  disposal_id = Column(Integer, ForeignKey('disposal.id'), nullable=True)
+  disposal_id = Column(Integer, ForeignKey('disposal.id'), nullable=False)
 
   disposal = relationship('Disposal', back_populates='fir_fourth_documents')
