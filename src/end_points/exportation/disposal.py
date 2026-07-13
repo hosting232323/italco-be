@@ -4,8 +4,8 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from .utils import export_pdf
-from ..rae.product_group import group_quantities_by_disposal
-from ..rae.queries import get_disposal_for_export, get_disposal_rae_products, query_disposal_group_quantities
+from ..rae.disposal import format_query_result, query_rae_disposals
+from ..rae.queries import get_disposal_for_export, get_disposal_rae_products
 from ..schedule.queries import get_schedule_by_order
 
 
@@ -48,11 +48,14 @@ def export_disposal_attached_a(disposal_id: int):
 
 
 def export_disposal_attached_b(disposal_id: int):
-  disposal = get_disposal_for_export(int(disposal_id))
-  if not disposal:
+  disposals = []
+  for row in query_rae_disposals(int(disposal_id)):
+    disposals = format_query_result(row, disposals)
+  if not disposals:
     return {'status': 'ko', 'message': 'Smaltimento non trovato'}
 
-  groups = group_quantities_by_disposal(query_disposal_group_quantities(int(disposal_id))).get(int(disposal_id), {})
+  disposal = disposals[0]
+  groups = disposal['group_quantities']
 
   if not groups:
     return {'status': 'ko', 'message': 'Nessun prodotto RAE associato a questo smaltimento'}
