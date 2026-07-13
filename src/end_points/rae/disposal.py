@@ -4,7 +4,7 @@ from database_api import Session
 from ...database.enum import RaeStatus
 from database_api.operations import create, get_by_ids, update, get_by_id
 
-from ...utils.storage import StorageTransaction
+from ...utils.storage import SessionWithStorage
 from .document import handle_document_by_name
 from ...database.schema import (
   Disposal,
@@ -25,46 +25,45 @@ def create_rae_disposal(data: dict):
 
 
 def update_rae_disposal(id: int, data: dict, files):
-  with StorageTransaction() as storage:
-    with Session() as session:
-      data = handle_document_by_name(
-        data,
-        'rae/fir-first-document',
-        'fir_first_document',
-        'first_copy_document_fir',
-        uploaded_file=files.get('first_copy_document_fir'),
-        session=session,
-        storage=storage,
-      )
-      data = handle_document_by_name(
-        data,
-        'rae/fir-fourth-document',
-        'fir_fourth_document',
-        'fourth_copy_document_fir',
-        uploaded_file=files.get('fourth_copy_document_fir'),
-        session=session,
-        storage=storage,
-      )
+  with SessionWithStorage() as session:
+    data = handle_document_by_name(
+      data,
+      'rae/fir-first-document',
+      'fir_first_document',
+      'first_copy_document_fir',
+      uploaded_file=files.get('first_copy_document_fir'),
+      session=session,
+      storage=session,
+    )
+    data = handle_document_by_name(
+      data,
+      'rae/fir-fourth-document',
+      'fir_fourth_document',
+      'fourth_copy_document_fir',
+      uploaded_file=files.get('fourth_copy_document_fir'),
+      session=session,
+      storage=session,
+    )
 
-      update_data = {}
-      if 'weight' in data:
-        update_data['weight'] = data['weight']
-      if update_data:
-        update(get_by_id(Disposal, id, session=session), update_data, session=session)
+    update_data = {}
+    if 'weight' in data:
+      update_data['weight'] = data['weight']
+    if update_data:
+      update(get_by_id(Disposal, id, session=session), update_data, session=session)
 
-      if 'first_copy_document_fir' in data:
-        create(
-          FirFirstDocument,
-          {'disposal_id': id, 'link': data['first_copy_document_fir']},
-          session=session,
-        )
-      if 'fourth_copy_document_fir' in data:
-        create(
-          FirFourthDocument,
-          {'disposal_id': id, 'link': data['fourth_copy_document_fir']},
-          session=session,
-        )
-      session.commit()
+    if 'first_copy_document_fir' in data:
+      create(
+        FirFirstDocument,
+        {'disposal_id': id, 'link': data['first_copy_document_fir']},
+        session=session,
+      )
+    if 'fourth_copy_document_fir' in data:
+      create(
+        FirFourthDocument,
+        {'disposal_id': id, 'link': data['fourth_copy_document_fir']},
+        session=session,
+      )
+    session.commit()
 
   return {'status': 'ok', 'message': 'Operazione completata!'}
 

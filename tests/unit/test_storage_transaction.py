@@ -21,7 +21,7 @@ from src.database.schema import (
 )
 from src.end_points.rae import rae_bp
 from src.utils import storage as storage_module
-from src.utils.storage import StorageTransaction
+from src.utils.storage import SessionWithStorage, StorageTransaction
 from tests.utils import auth_header_for
 
 
@@ -73,11 +73,10 @@ def test_document_models_use_the_new_table_names():
 
 
 def test_storage_and_database_are_committed_together(seeded_db, tmp_path):
-  with StorageTransaction() as storage:
-    with Session() as session:
-      stored_path = storage.upload(pdf_file('committed.pdf'), 'committed.pdf', str(tmp_path), subfolder='documents')
-      create(DtrDocument, {'link': stored_path}, session=session)
-      session.commit()
+  with SessionWithStorage() as session:
+    stored_path = session.upload(pdf_file('committed.pdf'), 'committed.pdf', str(tmp_path), subfolder='documents')
+    create(DtrDocument, {'link': stored_path}, session=session)
+    session.commit()
 
   assert os.path.isfile(get_full_path(str(tmp_path), 'documents', False, 'committed.pdf'))
   with Session() as session:
@@ -88,19 +87,30 @@ def test_database_failure_rolls_back_file_and_row(seeded_db, tmp_path):
   stored_path = get_full_path(str(tmp_path), 'documents', False, 'rolled-back.pdf')
 
   with pytest.raises(IntegrityError):
-    with StorageTransaction() as storage:
-      with Session() as session:
-        storage.upload(pdf_file('rolled-back.pdf'), 'rolled-back.pdf', str(tmp_path), subfolder='documents')
-        create(
-          FirFirstDocument,
-          {'link': stored_path, 'disposal_id': 999_999_999},
-          session=session,
-        )
-        session.commit()
+    with SessionWithStorage() as session:
+      session.upload(pdf_file('rolled-back.pdf'), 'rolled-back.pdf', str(tmp_path), subfolder='documents')
+      create(
+        FirFirstDocument,
+        {'link': stored_path, 'disposal_id': 999_999_999},
+        session=session,
+      )
+      session.commit()
 
   assert not os.path.exists(stored_path)
   with Session() as session:
     assert session.query(FirFirstDocument).filter_by(link=stored_path).count() == 0
+
+
+def test_session_without_commit_rolls_back_storage_and_database(seeded_db, tmp_path):
+  stored_path = get_full_path(str(tmp_path), 'documents', False, 'not-committed.pdf')
+
+  with SessionWithStorage() as session:
+    session.upload(pdf_file('not-committed.pdf'), 'not-committed.pdf', str(tmp_path), subfolder='documents')
+    create(DtrDocument, {'link': stored_path}, session=session)
+
+  assert not os.path.exists(stored_path)
+  with Session() as session:
+    assert session.query(DtrDocument).filter_by(link=stored_path).count() == 0
 
 
 def test_rae_endpoint_returns_ko_when_storage_upload_fails(seeded_db, monkeypatch):
