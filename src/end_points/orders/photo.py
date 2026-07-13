@@ -6,7 +6,7 @@ from database_api.operations import create
 
 from ... import STATIC_FOLDER, get_base_file_path
 from ...database.schema import Order, Photo
-from ...utils.file import guess_extension, guess_next_id
+from api.storage.utils import guess_extension, guess_next_id
 from ...utils.storage import SessionWithStorage
 
 
@@ -17,7 +17,7 @@ def handle_photos(data: dict, order: Order, session: SessionWithStorage):
       if file_key == 'signature':
         data['signature'] = uploaded_file.read()
       else:
-        photo_id = guess_next_id(session, 'photo')
+        photo_id = guess_next_id('photo', session=session)
         filename = f'{photo_id}{guess_extension(uploaded_file.mimetype)}'
         stored_path = session.upload(uploaded_file, filename, STATIC_FOLDER, subfolder='photos')
         create(
