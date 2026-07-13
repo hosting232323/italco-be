@@ -9,7 +9,6 @@ from ...database.enum import UserRole
 from api.storage import get_full_path
 from ...database.schema import User, Order
 from .utils import get_statuses_by_order_id
-from .services import RaeProductDeletionError
 from database_api.operations import get_by_id
 from .api import save_order_status_to_euronics
 from .. import flask_session_authentication
@@ -20,11 +19,6 @@ from .crud import create_order, update_order, filter_orders, get_order, delete_o
 
 
 order_bp = Blueprint('order_bp', __name__)
-
-
-@order_bp.errorhandler(RaeProductDeletionError)
-def handle_rae_product_deletion_error(error):
-  return {'status': 'ko', 'message': str(error)}
 
 
 @order_bp.route('', methods=['POST'])

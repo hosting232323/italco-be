@@ -1,7 +1,14 @@
-# ruff: noqa: T201
+# ruff: noqa: E402, T201
 import argparse
 import os
+import sys
 from datetime import datetime
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+  sys.path.insert(0, str(PROJECT_ROOT))
 
 from api.storage import get_all_filenames, get_full_path
 from database_api import Session, set_database

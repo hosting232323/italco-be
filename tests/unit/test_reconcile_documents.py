@@ -1,5 +1,8 @@
 import os
+import subprocess
+import sys
 from datetime import datetime
+from pathlib import Path
 
 from api.storage import get_full_path
 from database_api import Session
@@ -87,3 +90,18 @@ def test_reconcile_documents_with_real_fake_pdf_files(seeded_db, tmp_path):
 
   with Session() as session:
     assert session.query(FirFirstDocument).count() == 3
+
+
+def test_reconcile_documents_can_run_as_a_direct_script():
+  script = Path(__file__).resolve().parents[2] / 'scripts' / 'reconcile_documents.py'
+
+  result = subprocess.run(
+    [sys.executable, str(script), '--help'],
+    cwd=script.parent,
+    capture_output=True,
+    text=True,
+    check=False,
+  )
+
+  assert result.returncode == 0, result.stderr
+  assert 'Riconcilia i documenti' in result.stdout

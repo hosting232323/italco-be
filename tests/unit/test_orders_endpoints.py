@@ -1,5 +1,6 @@
 from datetime import date
 
+from api import hooks, register_flask_hooks
 from database_api import Session
 
 import src.end_points.orders as orders_module
@@ -30,7 +31,7 @@ def test_order_filter_returns_only_cap_70020(client):
   assert all(order['cap'] == '70020' for order in body['orders'])
 
 
-def test_update_order_preserves_rae_product_deletion_error(client, monkeypatch):
+def test_update_order_uses_base_hook_for_rae_product_deletion_error(client, monkeypatch, tmp_path):
   with Session() as session:
     order_id = session.query(Order.id).first()[0]
 
@@ -38,6 +39,8 @@ def test_update_order_preserves_rae_product_deletion_error(client, monkeypatch):
     raise RaeProductDeletionError('Impossibile eliminare un prodotto RAE già smaltito')
 
   monkeypatch.setattr(orders_module, 'update_order', fail_with_specific_error)
+  monkeypatch.setattr(hooks, 'send_telegram_error', lambda _traceback: None)
+  register_flask_hooks(client.application, str(tmp_path))
   response = client.put(
     f'/order/{order_id}',
     json={},
@@ -47,5 +50,5 @@ def test_update_order_preserves_rae_product_deletion_error(client, monkeypatch):
   assert response.status_code == 200
   assert response.get_json() == {
     'status': 'ko',
-    'message': 'Impossibile eliminare un prodotto RAE già smaltito',
+    'message': 'Errore generico',
   }
