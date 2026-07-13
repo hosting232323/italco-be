@@ -69,36 +69,50 @@ def update_rae_disposal(id: int, data: dict, files):
 
 
 def get_rae_disposals():
+  rae_disposals = []
+  for result in query_rae_disposals():
+    rae_disposals = format_query_result(result, rae_disposals)
+  return {'status': 'ok', 'rae_disposals': rae_disposals}
+
+
+def query_rae_disposals():
   with Session() as session:
-    results = (
-      session.query(Disposal, Carrier, CollectionCenter)
+    return (
+      session.query(
+        Disposal,
+        Carrier,
+        CollectionCenter,
+        FirFirstDocument,
+        FirFourthDocument,
+      )
       .join(Carrier, Disposal.carrier_id == Carrier.id)
       .join(CollectionCenter, Disposal.collection_center_id == CollectionCenter.id)
+      .outerjoin(FirFirstDocument, FirFirstDocument.disposal_id == Disposal.id)
+      .outerjoin(FirFourthDocument, FirFourthDocument.disposal_id == Disposal.id)
+      .order_by(
+        Disposal.id,
+        desc(FirFirstDocument.created_at).nullslast(),
+        desc(FirFourthDocument.created_at).nullslast(),
+      )
       .all()
     )
 
-    rae_disposals = []
-    for disposal, carrier, collection_center in results:
-      fir_first = (
-        session.query(FirFirstDocument)
-        .filter(FirFirstDocument.disposal_id == disposal.id)
-        .order_by(desc(FirFirstDocument.created_at))
-        .first()
-      )
-      fir_fourth = (
-        session.query(FirFourthDocument)
-        .filter(FirFourthDocument.disposal_id == disposal.id)
-        .order_by(desc(FirFourthDocument.created_at))
-        .first()
-      )
 
-      output = {
-        **disposal.to_dict(),
-        'first_copy_document_fir': fir_first.link if fir_first else None,
-        'fourth_copy_document_fir': fir_fourth.link if fir_fourth else None,
-        'carrier': carrier.to_dict(),
-        'collection_center': collection_center.to_dict(),
-      }
-      rae_disposals.append(output)
+def format_query_result(
+  result: tuple[Disposal, Carrier, CollectionCenter, FirFirstDocument | None, FirFourthDocument | None],
+  rae_disposals: list[dict],
+):
+  disposal, carrier, collection_center, fir_first, fir_fourth = result
+  if any(element['id'] == disposal.id for element in rae_disposals):
+    return rae_disposals
 
-    return {'status': 'ok', 'rae_disposals': rae_disposals}
+  rae_disposals.append(
+    {
+      **disposal.to_dict(),
+      'first_copy_document_fir': fir_first.link if fir_first else None,
+      'fourth_copy_document_fir': fir_fourth.link if fir_fourth else None,
+      'carrier': carrier.to_dict(),
+      'collection_center': collection_center.to_dict(),
+    }
+  )
+  return rae_disposals
