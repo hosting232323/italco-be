@@ -32,19 +32,22 @@ def test_reconcile_documents_with_real_fake_pdf_files(seeded_db, tmp_path):
   with Session() as session:
     carrier = create(Carrier, {}, session=session)
     center = create(CollectionCenter, {}, session=session)
-    disposal = create(
-      Disposal,
-      {'carrier_id': carrier.id, 'collection_center_id': center.id},
-      session=session,
-    )
+    disposals = [
+      create(
+        Disposal,
+        {'carrier_id': carrier.id, 'collection_center_id': center.id},
+        session=session,
+      )
+      for _ in range(3)
+    ]
     session.add_all(
       [
-        FirFirstDocument(link=prefix + 'linked.pdf', disposal_id=disposal.id),
-        FirFirstDocument(link=prefix + 'missing.pdf', disposal_id=disposal.id),
+        FirFirstDocument(link=prefix + 'linked.pdf', disposal_id=disposals[0].id),
+        FirFirstDocument(link=prefix + 'missing.pdf', disposal_id=disposals[1].id),
       ]
     )
     session.commit()
-    disposal_id = disposal.id
+    orphan_disposal_id = disposals[2].id
 
   storage_folder = get_full_path(str(tmp_path), config['subfolder'], False)
   os.makedirs(storage_folder, exist_ok=True)
@@ -57,7 +60,7 @@ def test_reconcile_documents_with_real_fake_pdf_files(seeded_db, tmp_path):
 
   expected_mtime = datetime(2026, 7, 10, 12, 30).astimezone().timestamp()
   os.utime(orphan_path, (expected_mtime, expected_mtime))
-  known_owners = {'fir_first_document': {'orphan.pdf': disposal_id}}
+  known_owners = {'fir_first_document': {'orphan.pdf': orphan_disposal_id}}
 
   preview = reconcile(config, static_folder=str(tmp_path), known_owners=known_owners, apply=False)
   assert preview['orphans'] == ['orphan.pdf', 'unowned.pdf']
@@ -74,7 +77,7 @@ def test_reconcile_documents_with_real_fake_pdf_files(seeded_db, tmp_path):
 
   with Session() as session:
     imported = session.query(FirFirstDocument).filter(FirFirstDocument.link == prefix + 'orphan.pdf').one()
-    assert imported.disposal_id == disposal_id
+    assert imported.disposal_id == orphan_disposal_id
     assert abs(imported.created_at.timestamp() - expected_mtime) < 1
 
   repeated = reconcile(config, static_folder=str(tmp_path), known_owners=known_owners, apply=True)

@@ -31,6 +31,7 @@ def upgrade() -> None:
       ['disposal.id'],
     ),
     sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('disposal_id'),
   )
   op.create_table(
     'fir_fourth_document',
@@ -44,6 +45,7 @@ def upgrade() -> None:
       ['disposal.id'],
     ),
     sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('disposal_id'),
   )
   op.create_table(
     'dtr_document',

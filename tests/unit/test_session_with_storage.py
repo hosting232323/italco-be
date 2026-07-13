@@ -70,6 +70,8 @@ def test_document_models_use_the_new_table_names():
   assert FirFourthDocument.__tablename__ == 'fir_fourth_document'
   assert FirFirstDocument.__table__.c.disposal_id.nullable is False
   assert FirFourthDocument.__table__.c.disposal_id.nullable is False
+  assert FirFirstDocument.__table__.c.disposal_id.unique is True
+  assert FirFourthDocument.__table__.c.disposal_id.unique is True
 
 
 def test_storage_and_database_are_committed_together(seeded_db, tmp_path):

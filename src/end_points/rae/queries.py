@@ -2,7 +2,6 @@ from datetime import date
 from sqlalchemy.orm import Session as session_type
 from sqlalchemy import extract, func, and_, cast, Date, desc
 
-from database_api import Session
 from ...utils.date import handle_date
 from ...utils.query import limit_per_entity
 from ...database.enum import RaeStatus
@@ -26,15 +25,16 @@ from ...database.schema import (
 @db_session_decorator(commit=False)
 def query_rae_products(
   filters: list[dict], limit: int = None, session: session_type = None
-) -> list[tuple[RaeProduct, RaeProductGroup, User, Order, Schedule]]:
+) -> list[tuple[RaeProduct, RaeProductGroup, User, Order, Schedule, DtrDocument | None]]:
   query = (
-    session.query(RaeProduct, RaeProductGroup, User, Order, Schedule)
+    session.query(RaeProduct, RaeProductGroup, User, Order, Schedule, DtrDocument)
     .join(RaeProductGroup, RaeProduct.rae_product_group_id == RaeProductGroup.id)
     .join(User, RaeProduct.user_id == User.id)
     .join(Order, RaeProduct.order_id == Order.id)
     .outerjoin(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
     .outerjoin(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
     .outerjoin(Schedule, Schedule.id == ScheduleItem.schedule_id)
+    .outerjoin(DtrDocument, DtrDocument.rae_product_id == RaeProduct.id)
   )
 
   for filter in filters:
@@ -54,7 +54,12 @@ def query_rae_products(
       query = query.filter(field == value)
 
   return limit_per_entity(
-    query.order_by(desc(RaeProduct.dtr_date), desc(RaeProduct.emission_date)),
+    query.order_by(
+      desc(RaeProduct.dtr_date),
+      desc(RaeProduct.emission_date),
+      desc(DtrDocument.created_at).nullslast(),
+      desc(DtrDocument.id),
+    ),
     RaeProduct.id,
     limit,
     subquery_order_by=(desc(RaeProduct.dtr_date), desc(RaeProduct.emission_date)),
@@ -87,16 +92,6 @@ def get_product_and_group(rae_product_id: int, session: session_type = None) -> 
   rae_product['cer_code'] = result[1].cer_code
   rae_product['group_code'] = result[1].group_code
   return rae_product
-
-
-def get_dtr_document(rae_product_id: int) -> DtrDocument:
-  with Session() as session:
-    return (
-      session.query(DtrDocument)
-      .filter(DtrDocument.rae_product_id == rae_product_id)
-      .order_by(desc(DtrDocument.created_at))
-      .first()
-    )
 
 
 @db_session_decorator()

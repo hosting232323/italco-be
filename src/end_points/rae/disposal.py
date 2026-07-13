@@ -24,8 +24,25 @@ def create_rae_disposal(data: dict):
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 
+def ensure_document_not_already_stored(model, disposal_id: int, uploaded_file, session):
+  if uploaded_file and session.query(model.id).filter(model.disposal_id == disposal_id).first():
+    raise ValueError(f'{model.__name__} già presente per lo smaltimento {disposal_id}')
+
+
 def update_rae_disposal(id: int, data: dict, files):
   with SessionWithStorage() as session:
+    ensure_document_not_already_stored(
+      FirFirstDocument,
+      id,
+      files.get('first_copy_document_fir'),
+      session,
+    )
+    ensure_document_not_already_stored(
+      FirFourthDocument,
+      id,
+      files.get('fourth_copy_document_fir'),
+      session,
+    )
     data = handle_document_by_name(
       data,
       'rae/fir-first-document',

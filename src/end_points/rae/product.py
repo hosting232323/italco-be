@@ -9,7 +9,6 @@ from .document import store_document
 from .queries import (
   query_rae_products,
   query_count_rae_products,
-  get_dtr_document,
   get_rae_products_by_order,
   get_rae_product_tuples_by_order,
 )
@@ -68,15 +67,18 @@ def update_rae_product(id: int, data: dict, files):
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
-def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, Schedule], list: list[dict], user: User):
+def format_query_result(
+  tupla: tuple[RaeProduct, RaeProductGroup, User, Order, Schedule, DtrDocument | None],
+  list: list[dict],
+  user: User,
+):
   for element in list:
     if element['id'] == tupla[0].id:
       return list
 
-  document = get_dtr_document(tupla[0].id)
   output = {
     **tupla[0].to_dict(),
-    'link': document.link if document else None,
+    'link': tupla[5].link if tupla[5] else None,
     'order': tupla[3].to_dict(),
     'product_group': tupla[1].to_dict(),
     'user': format_user_with_info(tupla[2], user.role),
