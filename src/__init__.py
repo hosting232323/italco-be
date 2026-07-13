@@ -1,10 +1,11 @@
 import os
-from flask import Flask, request
+from flask import Flask
 from flask_cors import CORS
 
 from api.settings import IS_DEV
 from .checks import trigger_checks
 from api.storage import folder_backup
+from api.storage.utils import get_base_file_path
 from database_api.backup import db_backup
 from api import swagger_decorator, register_flask_hooks, PrefixMiddleware
 
@@ -35,12 +36,7 @@ else:
   CORS(app, origins=allowed_origins)
 
 
-try:
-  register_flask_hooks(app, STATIC_FOLDER, user_log_field='nickname')
-except TypeError as error:
-  if 'user_log_field' not in str(error):
-    raise
-  register_flask_hooks(app, STATIC_FOLDER)
+register_flask_hooks(app, STATIC_FOLDER, user_log_field='nickname')
 
 
 @app.route('/', methods=['GET'])
@@ -72,7 +68,3 @@ def checks_endpoint():
     get_base_file_path('rae/fir-first-document'),
     get_base_file_path('rae/fir-fourth-document'),
   )
-
-
-def get_base_file_path(path):
-  return f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/{path}/'
