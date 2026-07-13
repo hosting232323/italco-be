@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session as session_type
 from database_api.operations import create
 
 from ... import STATIC_FOLDER, get_base_file_path
-from ...utils.storage import SessionWithStorage, StorageTransaction
+from ...utils.storage import SessionWithStorage
 
 
 def guess_next_id(session: session_type, model: str) -> int:
@@ -27,7 +27,7 @@ def store_document(
   folder: str,
   uploaded_file,
   session: session_type,
-  storage: StorageTransaction | SessionWithStorage,
+  storage: SessionWithStorage,
 ):
   if not uploaded_file or uploaded_file.mimetype != 'application/pdf':
     return None
@@ -46,7 +46,7 @@ def handle_document_by_name(
   field_name: str,
   uploaded_file,
   session: session_type,
-  storage: StorageTransaction | SessionWithStorage,
+  storage: SessionWithStorage,
 ) -> dict:
   if not uploaded_file or uploaded_file.mimetype != 'application/pdf':
     return data

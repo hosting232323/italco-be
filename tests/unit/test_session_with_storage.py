@@ -21,7 +21,7 @@ from src.database.schema import (
 )
 from src.end_points.rae import rae_bp
 from src.utils import storage as storage_module
-from src.utils.storage import SessionWithStorage, StorageTransaction
+from src.utils.storage import SessionWithStorage
 from tests.utils import auth_header_for
 
 
@@ -45,7 +45,7 @@ def test_partial_upload_is_removed(monkeypatch, tmp_path):
   monkeypatch.setattr(storage_module, 'upload_file', fail_after_partial_write)
 
   with pytest.raises(OSError, match='upload interrupted'):
-    with StorageTransaction() as storage:
+    with SessionWithStorage() as storage:
       storage.upload(pdf_file('partial.pdf'), 'partial.pdf', str(tmp_path), subfolder='documents')
 
   assert not os.path.exists(expected_path)
@@ -56,7 +56,7 @@ def test_multiple_uploaded_files_are_removed_together(tmp_path):
   paths = [get_full_path(str(tmp_path), 'documents', False, filename) for filename in filenames]
 
   with pytest.raises(RuntimeError, match='database failure'):
-    with StorageTransaction() as storage:
+    with SessionWithStorage() as storage:
       for filename in filenames:
         storage.upload(pdf_file(filename), filename, str(tmp_path), subfolder='documents')
       raise RuntimeError('database failure')
@@ -140,7 +140,7 @@ def test_rae_endpoint_returns_ko_when_storage_upload_fails(seeded_db, monkeypatc
   def fail_upload(*args, **kwargs):
     raise OSError('storage unavailable')
 
-  monkeypatch.setattr(StorageTransaction, 'upload', fail_upload)
+  monkeypatch.setattr(SessionWithStorage, 'upload', fail_upload)
 
   app = Flask(__name__)
 
