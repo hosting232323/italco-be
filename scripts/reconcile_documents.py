@@ -1,11 +1,13 @@
+# ruff: noqa: T201
+import argparse
 import os
 from datetime import datetime
 
-from api.storage import get_all_filenames
-from api.storage.utils import get_full_path
 from database_api import Session, set_database
 from database_api.operations import create
-from src.database.schema import RaeDocument, DisposalFirstCopyDocument, DisposalFourthCopyDocument
+
+from src.database.schema import DisposalFirstCopyDocument, DisposalFourthCopyDocument, RaeDocument
+from src.utils.file import get_full_path
 
 
 STATIC_FOLDER = os.environ.get(
@@ -40,46 +42,100 @@ CONFIG = [
 
 def link_prefix(rows) -> str | None:
   for row in rows:
-    if row.link:
-      return row.link[: row.link.rfind('/') + 1]
+    if row.link and '/' in row.link:
+      return row.link.rsplit('/', 1)[0] + '/'
   return None
 
 
-def reconcile(config: dict):
-  model, owner_field, subfolder, label = config['model'], config['owner_field'], config['subfolder'], config['label']
+def local_files(folder: str) -> dict[str, str]:
+  return {entry.name: entry.path for entry in os.scandir(folder) if entry.is_file(follow_symlinks=False)}
 
-  os.makedirs(get_full_path(STATIC_FOLDER, subfolder, False), exist_ok=True)
-  paths = {os.path.basename(path): path for path in get_all_filenames(STATIC_FOLDER, 'local', subfolder)}
+
+def reconcile(
+  config: dict,
+  *,
+  static_folder: str = STATIC_FOLDER,
+  known_owners: dict | None = None,
+  apply: bool = False,
+) -> dict:
+  model = config['model']
+  owner_field = config['owner_field']
+  subfolder = config['subfolder']
+  label = config['label']
+
+  storage_folder = get_full_path(static_folder, subfolder, False)
+  os.makedirs(storage_folder, exist_ok=True)
+  paths = local_files(storage_folder)
 
   with Session() as session:
     rows = session.query(model).all()
+    linked = {os.path.basename(row.link) for row in rows if row.link}
+    prefix = link_prefix(rows)
+    owners_by_table = KNOWN_OWNERS if known_owners is None else known_owners
+    owners = owners_by_table.get(model.__tablename__, {})
+    orphans = sorted(set(paths) - linked)
+    missing = sorted(linked - set(paths))
 
-  linked = {os.path.basename(row.link) for row in rows}
-  prefix = link_prefix(rows)
-  known = KNOWN_OWNERS.get(model.__tablename__, {})
+    report = {
+      'label': label,
+      'files': len(paths),
+      'rows': len(rows),
+      'orphans': orphans,
+      'missing': missing,
+      'imported': [],
+      'applied': apply,
+    }
 
-  orphans = sorted(set(paths) - linked)
-  missing = sorted(linked - set(paths))
+    print(f'\n=== {label} ({subfolder}) ===')
+    print(
+      f'  files su disco: {len(paths)} | righe: {len(rows)} | '
+      f'files orfani: {len(orphans)} | righe senza file: {len(missing)}'
+    )
 
-  print(f'\n=== {label} ({subfolder}) ===')
-  print(f'  files su disco: {len(paths)} | righe: {len(rows)} | files orfani: {len(orphans)} | righe senza file: {len(missing)}')
+    for name in missing:
+      print(f'  ! riga senza file su disco: {name}')
 
-  for name in missing:
-    print(f'  ! riga senza file su disco: {name}')
+    if orphans and prefix is None:
+      print('  x nessuna riga esistente da cui ricavare il prefisso del link, gruppo saltato')
+      report['skipped_reason'] = 'missing_link_prefix'
+      return report
 
-  if orphans and prefix is None:
-    print('  ✗ nessuna riga esistente da cui ricavare il prefisso del link, gruppo saltato')
-    return
+    for name in orphans:
+      owner = owners.get(name)
+      created_at = datetime.fromtimestamp(os.path.getmtime(paths[name])).astimezone()
+      action = 'importato' if apply else 'da importare'
+      print(f'  + {action} {name} ({owner_field}={owner}, created_at={created_at.isoformat()})')
 
-  for name in orphans:
-    owner = known.get(name)
-    created_at = datetime.fromtimestamp(os.path.getmtime(paths[name]))
-    create(model, {'link': prefix + name, owner_field: owner, 'created_at': created_at})
-    print(f'  + importato {name} ({owner_field}={owner}, created_at={created_at})')
+      if apply:
+        create(
+          model,
+          {'link': prefix + name, owner_field: owner, 'created_at': created_at},
+          session=session,
+        )
+        report['imported'].append(name)
+
+    if apply:
+      session.commit()
+
+    return report
+
+
+def parse_args():
+  parser = argparse.ArgumentParser(description='Riconcilia i documenti presenti su disco con le righe nel database.')
+  parser.add_argument(
+    '--apply',
+    action='store_true',
+    help='Applica gli inserimenti. Senza questa opzione viene eseguita solo un’anteprima.',
+  )
+  return parser.parse_args()
 
 
 if __name__ == '__main__':
+  args = parse_args()
   set_database(os.environ['DATABASE_URL'])
 
-  for config in CONFIG:
-    reconcile(config)
+  if not args.apply:
+    print('DRY RUN: nessuna modifica al database. Usa --apply per applicare la bonifica.')
+
+  for item in CONFIG:
+    reconcile(item, apply=args.apply)
