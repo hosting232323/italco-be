@@ -54,18 +54,18 @@ def export_disposal_attached_b(disposal_id: int):
   if not disposals:
     return {'status': 'ko', 'message': 'Smaltimento non trovato'}
 
-  disposal = disposals[0]
-  groups = disposal['group_quantities']
-
-  if not groups:
+  if not disposals[0]['group_quantities']:
     return {'status': 'ko', 'message': 'Nessun prodotto RAE associato a questo smaltimento'}
 
-  rows = [{'raggruppamento': group_code, 'quantita': qty} for group_code, qty in sorted(groups.items())]
+  rows = [
+    {'raggruppamento': group_code, 'quantita': qty}
+    for group_code, qty in sorted(disposals[0]['group_quantities'].items())
+  ]
   total = sum(r['quantita'] for r in rows)
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
-    src=render_template('disposal_attached_b.html', disposal=disposal, rows=rows, total=total),
+    src=render_template('disposal_attached_b.html', disposal=disposals[0], rows=rows, total=total),
     dest=result,
   )
   if pisa_status.err:
