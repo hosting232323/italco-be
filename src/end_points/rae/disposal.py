@@ -67,7 +67,7 @@ def query_rae_disposals() -> list[tuple[Disposal, Carrier, CollectionCenter, str
         Carrier,
         CollectionCenter,
         RaeProductGroup.group_code,
-        func.sum(func.coalesce(RaeProduct.quantity, 0)),
+        func.sum(RaeProduct.quantity),
       )
       .join(Carrier, Disposal.carrier_id == Carrier.id)
       .join(CollectionCenter, Disposal.collection_center_id == CollectionCenter.id)

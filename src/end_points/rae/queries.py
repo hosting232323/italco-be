@@ -127,7 +127,7 @@ def query_disposal_group_quantities(
     session.query(
       RaeProduct.disposal_id,
       RaeProductGroup.group_code,
-      func.sum(func.coalesce(RaeProduct.quantity, 0)),
+      func.sum(RaeProduct.quantity),
     )
     .join(RaeProductGroup, RaeProduct.rae_product_group_id == RaeProductGroup.id)
     .filter(RaeProduct.disposal_id.isnot(None))
