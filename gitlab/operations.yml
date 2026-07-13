@@ -124,6 +124,7 @@ restore_backup_prod:
     DATABASE_URL_PIPELINE: $DATABASE_URL
   before_script:
     - export FIRST_PORT="${PORT_PROD%%-*}"
+
 setup_nominatim:
   stage: operations
   when: manual
