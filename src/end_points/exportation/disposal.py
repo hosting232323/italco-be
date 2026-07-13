@@ -51,8 +51,8 @@ def export_disposal_attached_b(disposal_id: int):
   disposals = []
   for row in query_rae_disposals(int(disposal_id)):
     disposals = format_query_result(row, disposals)
-  if not disposals:
-    return {'status': 'ko', 'message': 'Smaltimento non trovato'}
+  if len(disposals) != 1:
+    return {'status': 'ko', 'message': 'Numero di smaltimenti trovati non valido'}
 
   if not disposals[0]['group_quantities']:
     return {'status': 'ko', 'message': 'Nessun prodotto RAE associato a questo smaltimento'}

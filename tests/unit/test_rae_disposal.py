@@ -1,3 +1,5 @@
+import pytest
+
 from src.end_points.exportation import disposal as export_disposal_module
 from src.end_points.rae import disposal as disposal_module
 
@@ -85,3 +87,14 @@ def test_attached_b_export_reuses_disposal_query_and_formatter(monkeypatch):
   assert rendered['disposal']['id'] == 7
   assert rendered['rows'] == [{'raggruppamento': 'R1', 'quantita': 5}]
   assert rendered['total'] == 5
+
+
+@pytest.mark.parametrize('disposals', [[], [{'id': 7}, {'id': 8}]])
+def test_attached_b_export_rejects_invalid_disposal_count(monkeypatch, disposals):
+  monkeypatch.setattr(export_disposal_module, 'query_rae_disposals', lambda _disposal_id: [object()])
+  monkeypatch.setattr(export_disposal_module, 'format_query_result', lambda _row, _results: disposals)
+
+  assert export_disposal_module.export_disposal_attached_b(7) == {
+    'status': 'ko',
+    'message': 'Numero di smaltimenti trovati non valido',
+  }
