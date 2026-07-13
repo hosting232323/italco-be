@@ -4,6 +4,7 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from .utils import export_pdf
+from ..rae.disposal import format_query_result, query_rae_disposals
 from ..rae.queries import get_disposal_for_export, get_disposal_rae_products
 from ..schedule.queries import get_schedule_by_order
 
@@ -47,23 +48,24 @@ def export_disposal_attached_a(disposal_id: int):
 
 
 def export_disposal_attached_b(disposal_id: int):
-  disposal = get_disposal_for_export(int(disposal_id))
-  if not disposal:
-    return {'status': 'ko', 'message': 'Smaltimento non trovato'}
+  disposals = []
+  for row in query_rae_disposals(int(disposal_id)):
+    disposals = format_query_result(row, disposals)
+  if len(disposals) != 1:
+    return {'status': 'ko', 'message': 'Numero di smaltimenti trovati non valido'}
 
-  groups: dict[str, int] = defaultdict(int)
-  for rp, rpg, _u, _o in get_disposal_rae_products(int(disposal_id)):
-    groups[rpg.group_code] += rp.quantity or 0
-
-  if not groups:
+  if not disposals[0]['group_quantities']:
     return {'status': 'ko', 'message': 'Nessun prodotto RAE associato a questo smaltimento'}
 
-  rows = [{'raggruppamento': group_code, 'quantita': qty} for group_code, qty in sorted(groups.items())]
+  rows = [
+    {'raggruppamento': group_code, 'quantita': qty}
+    for group_code, qty in sorted(disposals[0]['group_quantities'].items())
+  ]
   total = sum(r['quantita'] for r in rows)
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
-    src=render_template('disposal_attached_b.html', disposal=disposal, rows=rows, total=total),
+    src=render_template('disposal_attached_b.html', disposal=disposals[0], rows=rows, total=total),
     dest=result,
   )
   if pisa_status.err:
