@@ -1,5 +1,5 @@
 from src.end_points.rae import disposal as disposal_module
-from src.end_points.rae.group_quantities import group_quantities_by_disposal
+from src.end_points.rae.product_group import group_quantities_by_disposal
 
 
 class StubEntity:

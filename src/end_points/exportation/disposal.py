@@ -4,7 +4,7 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from .utils import export_pdf
-from ..rae.group_quantities import group_quantities_by_disposal
+from ..rae.product_group import group_quantities_by_disposal
 from ..rae.queries import get_disposal_for_export, get_disposal_rae_products, query_disposal_group_quantities
 from ..schedule.queries import get_schedule_by_order
 

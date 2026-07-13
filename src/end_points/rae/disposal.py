@@ -3,7 +3,7 @@ from ...database.enum import RaeStatus
 from sqlalchemy.orm import Session as session_type
 from database_api.operations import create, get_by_id, get_by_ids, update
 from ...database.schema import Disposal, Carrier, CollectionCenter, RaeProduct
-from .group_quantities import group_quantities_by_disposal
+from .product_group import group_quantities_by_disposal
 from .queries import query_disposal_group_quantities
 
 
