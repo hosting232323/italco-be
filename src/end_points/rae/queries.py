@@ -120,6 +120,25 @@ def get_disposal_rae_products(
 
 
 @db_session_decorator(commit=False)
+def query_disposal_group_quantities(
+  disposal_id: int = None, session: session_type = None
+) -> list[tuple[int, str, int]]:
+  query = (
+    session.query(
+      RaeProduct.disposal_id,
+      RaeProductGroup.group_code,
+      func.sum(func.coalesce(RaeProduct.quantity, 0)),
+    )
+    .join(RaeProductGroup, RaeProduct.rae_product_group_id == RaeProductGroup.id)
+    .filter(RaeProduct.disposal_id.isnot(None))
+  )
+  if disposal_id is not None:
+    query = query.filter(RaeProduct.disposal_id == disposal_id)
+
+  return query.group_by(RaeProduct.disposal_id, RaeProductGroup.group_code).all()
+
+
+@db_session_decorator(commit=False)
 def get_disposal_for_export(disposal_id: int, session: session_type = None) -> dict | None:
   result = (
     session.query(Disposal, Carrier, CollectionCenter)

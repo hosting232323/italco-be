@@ -3,6 +3,8 @@ from ...database.enum import RaeStatus
 from sqlalchemy.orm import Session as session_type
 from database_api.operations import create, get_by_id, get_by_ids, update
 from ...database.schema import Disposal, Carrier, CollectionCenter, RaeProduct
+from .group_quantities import group_quantities_by_disposal
+from .queries import query_disposal_group_quantities
 
 
 def create_rae_disposal(data: dict):
@@ -30,6 +32,11 @@ def get_rae_disposals():
   rae_disposals = []
   for tupla in query_rae_disposals():
     rae_disposals = format_query_result(tupla, rae_disposals)
+
+  quantities_by_disposal = group_quantities_by_disposal(query_disposal_group_quantities())
+  for disposal in rae_disposals:
+    disposal['group_quantities'] = quantities_by_disposal.get(disposal['id'], {})
+
   return {'status': 'ok', 'rae_disposals': rae_disposals}
 
 
