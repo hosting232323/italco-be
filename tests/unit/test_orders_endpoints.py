@@ -6,7 +6,6 @@ from database_api import Session
 import src.end_points.orders as orders_module
 from src.database.enum import UserRole
 from src.database.schema import Order
-from src.end_points.orders.services import RaeProductDeletionError
 from tests.utils import auth_header_for
 
 
@@ -31,15 +30,18 @@ def test_order_filter_returns_only_cap_70020(client):
   assert all(order['cap'] == '70020' for order in body['orders'])
 
 
-def test_update_order_uses_base_hook_for_rae_product_deletion_error(client, monkeypatch, tmp_path):
+def test_update_order_sends_specific_deletion_error_to_base_hook(client, monkeypatch, tmp_path):
   with Session() as session:
     order_id = session.query(Order.id).first()[0]
 
+  specific_message = 'Impossibile eliminare un prodotto RAE già smaltito'
+  telegram_tracebacks = []
+
   def fail_with_specific_error(*args, **kwargs):
-    raise RaeProductDeletionError('Impossibile eliminare un prodotto RAE già smaltito')
+    raise Exception(specific_message)
 
   monkeypatch.setattr(orders_module, 'update_order', fail_with_specific_error)
-  monkeypatch.setattr(hooks, 'send_telegram_error', lambda _traceback: None)
+  monkeypatch.setattr(hooks, 'send_telegram_error', telegram_tracebacks.append)
   register_flask_hooks(client.application, str(tmp_path))
   response = client.put(
     f'/order/{order_id}',
@@ -48,6 +50,8 @@ def test_update_order_uses_base_hook_for_rae_product_deletion_error(client, monk
   )
 
   assert response.status_code == 200
+  assert len(telegram_tracebacks) == 1
+  assert specific_message in telegram_tracebacks[0]
   assert response.get_json() == {
     'status': 'ko',
     'message': 'Errore generico',
