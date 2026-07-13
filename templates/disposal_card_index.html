@@ -1,4 +1,5 @@
 {% extends "components/base.html" %}
+{% from "components/disposal.html" import rae_products_table %}
 
 {% block content %}
 <h1>Ritiri RAEE per Punto Vendita</h1>
@@ -16,32 +17,7 @@
 {% for customer in customers %}
 <div class="section">
   <h2>{{ customer.nome }} ({{ customer.rae_products|length }} ritiri)</h2>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th style="width: 13%;">Data DTR</th>
-        <th style="width: 8%;">N° DDT</th>
-        <th style="width: 28%;">Prodotto</th>
-        <th style="width: 8%;">CER</th>
-        <th style="width: 12%;">Raggrupp.</th>
-        <th style="width: 7%;">Q.tà</th>
-        <th style="width: 24%;">Destinatario</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in customer.rae_products %}
-      <tr>
-        <td>{{ row.dtr }}</td>
-        <td>{{ row.n_ddt }}</td>
-        <td>{{ row.nome_prodotto }}</td>
-        <td>{{ row.codice_cer }}</td>
-        <td>{{ row.raggruppamento }}</td>
-        <td>{{ row.quantita }}</td>
-        <td>{{ row.destinatario }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {{ rae_products_table(customer.rae_products) }}
   <div style="text-align: right; margin-top: 6px; font-size: 12px;">
     Totale pezzi: <b>{{ customer.subtotale }}</b>
   </div>
