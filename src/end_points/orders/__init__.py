@@ -55,15 +55,13 @@ def get_order_endpoint(id):
 def update_order_endpoint(user: User, id):
   with SessionWithStorage() as session:
     order: Order = get_by_id(Order, int(id), session=session)
-    form_data = request.form.get('data')
-    data = json.loads(form_data) if isinstance(form_data, str) else request.json
+    if isinstance(request.form.get('data'), str):
+      data = handle_photos(json.loads(request.form.get('data')), order, session=session)
+    else:
+      data = request.json
 
     if data.get('version') is not None and data['version'] != order.version:
       return {'status': 'ko', 'message': "L'ordine è stato modificato nel frattempo. Ricarica la pagina e riprova."}
-
-    if isinstance(form_data, str):
-      data = handle_photos(data, order, session=session)
-
     motivation = update_order(user, order, data, session)
     session.commit()
 
