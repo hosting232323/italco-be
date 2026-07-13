@@ -73,5 +73,6 @@ def checks_endpoint():
     get_base_file_path('rae/fourth-copy-fir-documents'),
   )
 
+
 def get_base_file_path(path):
   return f'http{"s" if not IS_DEV else ""}://{request.host}{f"/{API_PREFIX}" if API_PREFIX else ""}/{path}/'

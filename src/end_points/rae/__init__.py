@@ -1,7 +1,7 @@
 import json
 from flask import Blueprint, request, send_from_directory
 
-from api.storage.utils import get_full_path
+from ...utils.file import get_full_path
 from database_api import Session
 
 from ... import STATIC_FOLDER

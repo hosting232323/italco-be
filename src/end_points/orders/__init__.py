@@ -6,7 +6,7 @@ from .mailer import mailer_check
 from database_api import Session
 from .photo import handle_photos
 from ...database.enum import UserRole
-from api.storage.utils import get_full_path
+from ...utils.file import get_full_path
 from ...database.schema import User, Order
 from .utils import get_statuses_by_order_id
 from .services import RaeProductDeletionError
