@@ -51,13 +51,13 @@ def export_selected_orders_excel(_):
   return export_orders_excel(request.json['order_ids'])
 
 
-@export_bp.route('disposal/<id>/attached-a', methods=['GET'])
+@export_bp.route('disposal/<id>/attached-1', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_disposal_attached_a_route(_, id):
   return export_disposal_attached_a(id)
 
 
-@export_bp.route('disposal/<id>/attached-b', methods=['GET'])
+@export_bp.route('disposal/<id>/attached-2', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_disposal_attached_b_route(_, id):
   return export_disposal_attached_b(id)
