@@ -13,9 +13,9 @@ from .database.schema import (
   Schedule,
   Photo,
   History,
-  RaeDocument,
-  DisposalFirstCopyDocument,
-  DisposalFourthCopyDocument,
+  DtrDocument,
+  FirFirstDocument,
+  FirFourthDocument,
 )
 
 
@@ -25,22 +25,22 @@ with open(missing_photos_path, 'r', encoding='utf-8') as file:
 
 
 def trigger_checks(
-  folder, base_photo_path, base_dtr_document_path, base_first_copy_fir_document_path, base_fourth_copy_document_fir_path
+  folder, base_photo_path, base_dtr_document_path, base_fir_first_document_path, base_fir_fourth_document_path
 ):
   database_integrity_test()
   check_mismatch(get_all_photos(base_photo_path), folder, 'Photos', 'photos')
   check_mismatch(get_all_documents(base_dtr_document_path), folder, 'DTR Documents', 'dtr-documents')
   check_mismatch(
-    get_all_first_copy_fir_documents(base_first_copy_fir_document_path),
+    get_all_fir_first_documents(base_fir_first_document_path),
     folder,
     'First Copy FIR Documents',
-    'first-copy-fir-documents',
+    'fir-first-document',
   )
   check_mismatch(
-    get_all_fourth_copy_fir_documents(base_fourth_copy_document_fir_path),
+    get_all_fir_fourth_documents(base_fir_fourth_document_path),
     folder,
     'Fourth FIR Copy Documents',
-    'fourth-copy-fir-documents',
+    'fir-fourth-document',
   )
 
   return {'status': 'ok', 'message': 'Check eseguiti con successo'}
@@ -75,17 +75,17 @@ def get_all_photos(base_photo_path: str) -> set[str]:
 
 def get_all_documents(base_document_path: str) -> set[str]:
   with Session() as session:
-    return [row.link.replace(base_document_path, '') for row in session.query(RaeDocument).all()]
+    return [row.link.replace(base_document_path, '') for row in session.query(DtrDocument).all()]
 
 
-def get_all_first_copy_fir_documents(base_document_path: str) -> set[str]:
+def get_all_fir_first_documents(base_document_path: str) -> set[str]:
   with Session() as session:
-    return [row.link.replace(base_document_path, '') for row in session.query(DisposalFirstCopyDocument).all()]
+    return [row.link.replace(base_document_path, '') for row in session.query(FirFirstDocument).all()]
 
 
-def get_all_fourth_copy_fir_documents(base_document_path: str) -> set[str]:
+def get_all_fir_fourth_documents(base_document_path: str) -> set[str]:
   with Session() as session:
-    return [row.link.replace(base_document_path, '') for row in session.query(DisposalFourthCopyDocument).all()]
+    return [row.link.replace(base_document_path, '') for row in session.query(FirFourthDocument).all()]
 
 
 def get_checks():

@@ -2,7 +2,7 @@ import json
 from flask import Blueprint, current_app, request, send_from_directory
 
 from ... import STATIC_FOLDER
-from ...utils.file import StorageTransaction
+from ...utils.storage import StorageTransaction
 from .mailer import mailer_check
 from database_api import Session
 from .photo import handle_photos

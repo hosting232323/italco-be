@@ -14,7 +14,7 @@ from ...database.schema import (
   Order,
   Product,
   RaeProduct,
-  RaeDocument,
+  DtrDocument,
   RaeProductGroup,
   User,
   Schedule,
@@ -89,12 +89,12 @@ def get_product_and_group(rae_product_id: int, session: session_type = None) -> 
   return rae_product
 
 
-def get_rae_document(rae_product_id: int) -> RaeDocument:
+def get_dtr_document(rae_product_id: int) -> DtrDocument:
   with Session() as session:
     return (
-      session.query(RaeDocument)
-      .filter(RaeDocument.rae_product_id == rae_product_id)
-      .order_by(desc(RaeDocument.created_at))
+      session.query(DtrDocument)
+      .filter(DtrDocument.rae_product_id == rae_product_id)
+      .order_by(desc(DtrDocument.created_at))
       .first()
     )
 

@@ -7,7 +7,7 @@ from database_api.operations import update, get_by_id, create
 from .queries import (
   query_rae_products,
   query_count_rae_products,
-  get_rae_document,
+  get_dtr_document,
   get_rae_products_by_order,
   get_rae_product_tuples_by_order,
 )
@@ -58,7 +58,7 @@ def format_query_result(tupla: tuple[RaeProduct, RaeProductGroup, User, Order, S
     if element['id'] == tupla[0].id:
       return list
 
-  document = get_rae_document(tupla[0].id)
+  document = get_dtr_document(tupla[0].id)
   output = {
     **tupla[0].to_dict(),
     'link': document.link if document else None,

@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
   op.create_table(
-    'disposal_first_copy_document',
+    'fir_first_document',
     sa.Column('link', sa.String(), nullable=False),
     sa.Column('disposal_id', sa.Integer(), nullable=True),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -33,7 +33,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
   )
   op.create_table(
-    'disposal_fourth_copy_document',
+    'fir_fourth_document',
     sa.Column('link', sa.String(), nullable=False),
     sa.Column('disposal_id', sa.Integer(), nullable=True),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -46,7 +46,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
   )
   op.create_table(
-    'rae_document',
+    'dtr_document',
     sa.Column('link', sa.String(), nullable=False),
     sa.Column('rae_product_id', sa.Integer(), nullable=True),
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -60,20 +60,20 @@ def upgrade() -> None:
   )
 
   op.execute("""
-    INSERT INTO rae_document (link, rae_product_id, created_at, updated_at)
+    INSERT INTO dtr_document (link, rae_product_id, created_at, updated_at)
     SELECT link, id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     FROM rae_product
     WHERE link IS NOT NULL
   """)
 
   op.execute("""
-    INSERT INTO disposal_first_copy_document (link, disposal_id, created_at, updated_at)
+    INSERT INTO fir_first_document (link, disposal_id, created_at, updated_at)
     SELECT first_copy_document_fir, id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     FROM disposal
     WHERE first_copy_document_fir IS NOT NULL
   """)
   op.execute("""
-    INSERT INTO disposal_fourth_copy_document (link, disposal_id, created_at, updated_at)
+    INSERT INTO fir_fourth_document (link, disposal_id, created_at, updated_at)
     SELECT fourth_copy_document_fir, id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     FROM disposal
     WHERE fourth_copy_document_fir IS NOT NULL
@@ -91,8 +91,8 @@ def downgrade() -> None:
   op.execute("""
     UPDATE rae_product
     SET link = (
-      SELECT link FROM rae_document
-      WHERE rae_document.rae_product_id = rae_product.id
+      SELECT link FROM dtr_document
+      WHERE dtr_document.rae_product_id = rae_product.id
       ORDER BY created_at DESC, id DESC
       LIMIT 1
     )
@@ -101,18 +101,18 @@ def downgrade() -> None:
   op.execute("""
     UPDATE disposal
     SET first_copy_document_fir = (
-      SELECT link FROM disposal_first_copy_document
-      WHERE disposal_first_copy_document.disposal_id = disposal.id
+      SELECT link FROM fir_first_document
+      WHERE fir_first_document.disposal_id = disposal.id
       ORDER BY created_at DESC, id DESC
       LIMIT 1
     ),
     fourth_copy_document_fir = (
-      SELECT link FROM disposal_fourth_copy_document
-      WHERE disposal_fourth_copy_document.disposal_id = disposal.id
+      SELECT link FROM fir_fourth_document
+      WHERE fir_fourth_document.disposal_id = disposal.id
       ORDER BY created_at DESC, id DESC
       LIMIT 1
     )
   """)
-  op.drop_table('rae_document')
-  op.drop_table('disposal_fourth_copy_document')
-  op.drop_table('disposal_first_copy_document')
+  op.drop_table('dtr_document')
+  op.drop_table('fir_fourth_document')
+  op.drop_table('fir_first_document')

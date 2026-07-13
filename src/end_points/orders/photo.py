@@ -7,7 +7,8 @@ from database_api.operations import create
 
 from ... import STATIC_FOLDER, get_base_file_path
 from ...database.schema import Order, Photo
-from ...utils.file import StorageTransaction, guess_extension, guess_next_id
+from ...utils.file import guess_extension, guess_next_id
+from ...utils.storage import StorageTransaction
 
 
 def handle_photos(data: dict, order: Order, session: session_type, storage: StorageTransaction):

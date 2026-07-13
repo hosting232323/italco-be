@@ -5,8 +5,8 @@ from api.storage import get_full_path
 from database_api import Session
 
 from ... import STATIC_FOLDER
-from ...utils.file import StorageTransaction
-from ...database.schema import User, RaeDocument
+from ...utils.storage import StorageTransaction
+from ...database.schema import User, DtrDocument
 from ...database.enum import UserRole
 from .product import get_rae_products, update_rae_product
 from .document import store_document, handle_document_by_name
@@ -68,7 +68,7 @@ def update_product(_, id):
       with Session() as session:
         update_rae_product(int(id), json.loads(request.form.get('data')), session=session)
         store_document(
-          RaeDocument,
+          DtrDocument,
           'rae_product_id',
           int(id),
           'rae/dtr-documents',
@@ -154,8 +154,8 @@ def update_disposal(_, id):
         if 'first_copy_document_fir' in request.files:
           data = handle_document_by_name(
             data,
-            'rae/first-copy-fir-documents',
-            'disposal_first_copy_document',
+            'rae/fir-first-document',
+            'fir_first_document',
             'first_copy_document_fir',
             session=session,
             storage=storage,
@@ -164,8 +164,8 @@ def update_disposal(_, id):
         if 'fourth_copy_document_fir' in request.files:
           data = handle_document_by_name(
             data,
-            'rae/fourth-copy-fir-documents',
-            'disposal_fourth_copy_document',
+            'rae/fir-fourth-document',
+            'fir_fourth_document',
             'fourth_copy_document_fir',
             session=session,
             storage=storage,
@@ -181,8 +181,8 @@ def update_disposal(_, id):
 
 
 @rae_bp.route('<folder>/<filename>', methods=['GET'])
-def serve_rae_document(folder, filename):
-  if folder not in ['dtr-documents', 'first-copy-fir-documents', 'fourth-copy-fir-documents']:
+def serve_document(folder, filename):
+  if folder not in ['dtr-documents', 'fir-first-document', 'fir-fourth-document']:
     return {'status': 'ko', 'message': 'Invalid folder'}
 
   return send_from_directory(get_full_path(STATIC_FOLDER, folder, False), filename)

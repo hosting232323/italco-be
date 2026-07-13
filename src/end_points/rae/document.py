@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session as session_type
 from database_api.operations import create
 
 from ... import STATIC_FOLDER, get_base_file_path
-from ...utils.file import StorageTransaction
+from ...utils.storage import StorageTransaction
 
 
 def guess_next_id(session: session_type, model: str) -> int:

@@ -9,8 +9,8 @@ from ...database.schema import (
   Carrier,
   CollectionCenter,
   RaeProduct,
-  DisposalFirstCopyDocument,
-  DisposalFourthCopyDocument,
+  FirFirstDocument,
+  FirFourthDocument,
 )
 
 
@@ -31,13 +31,13 @@ def update_rae_disposal(id: int, data: dict, session: session_type):
 
   if 'first_copy_document_fir' in data:
     create(
-      DisposalFirstCopyDocument,
+      FirFirstDocument,
       {'disposal_id': id, 'link': data['first_copy_document_fir']},
       session=session,
     )
   if 'fourth_copy_document_fir' in data:
     create(
-      DisposalFourthCopyDocument,
+      FirFourthDocument,
       {'disposal_id': id, 'link': data['fourth_copy_document_fir']},
       session=session,
     )
@@ -55,23 +55,23 @@ def get_rae_disposals():
 
     rae_disposals = []
     for disposal, carrier, collection_center in results:
-      first_copy = (
-        session.query(DisposalFirstCopyDocument)
-        .filter(DisposalFirstCopyDocument.disposal_id == disposal.id)
-        .order_by(desc(DisposalFirstCopyDocument.created_at))
+      fir_first = (
+        session.query(FirFirstDocument)
+        .filter(FirFirstDocument.disposal_id == disposal.id)
+        .order_by(desc(FirFirstDocument.created_at))
         .first()
       )
-      fourth_copy = (
-        session.query(DisposalFourthCopyDocument)
-        .filter(DisposalFourthCopyDocument.disposal_id == disposal.id)
-        .order_by(desc(DisposalFourthCopyDocument.created_at))
+      fir_fourth = (
+        session.query(FirFourthDocument)
+        .filter(FirFourthDocument.disposal_id == disposal.id)
+        .order_by(desc(FirFourthDocument.created_at))
         .first()
       )
 
       output = {
         **disposal.to_dict(),
-        'first_copy_document_fir': first_copy.link if first_copy else None,
-        'fourth_copy_document_fir': fourth_copy.link if fourth_copy else None,
+        'first_copy_document_fir': fir_first.link if fir_first else None,
+        'fourth_copy_document_fir': fir_fourth.link if fir_fourth else None,
         'carrier': carrier.to_dict(),
         'collection_center': collection_center.to_dict(),
       }

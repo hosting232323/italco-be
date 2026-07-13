@@ -4,7 +4,7 @@ from datetime import datetime
 from database_api import Session
 
 from scripts.reconcile_documents import reconcile
-from src.database.schema import DisposalFirstCopyDocument
+from src.database.schema import FirFirstDocument
 from api.storage import get_full_path
 
 
@@ -20,18 +20,18 @@ trailer
 
 def test_reconcile_documents_with_real_fake_pdf_files(seeded_db, tmp_path):
   config = {
-    'model': DisposalFirstCopyDocument,
+    'model': FirFirstDocument,
     'owner_field': 'disposal_id',
-    'subfolder': 'first-copy-fir-documents',
+    'subfolder': 'fir-first-document',
     'label': 'First Copy FIR',
   }
-  prefix = 'https://files.example.test/rae/first-copy-fir-documents/'
+  prefix = 'https://files.example.test/rae/fir-first-document/'
 
   with Session() as session:
     session.add_all(
       [
-        DisposalFirstCopyDocument(link=prefix + 'linked.pdf'),
-        DisposalFirstCopyDocument(link=prefix + 'missing.pdf'),
+        FirFirstDocument(link=prefix + 'linked.pdf'),
+        FirFirstDocument(link=prefix + 'missing.pdf'),
       ]
     )
     session.commit()
@@ -54,15 +54,13 @@ def test_reconcile_documents_with_real_fake_pdf_files(seeded_db, tmp_path):
   assert preview['imported'] == []
 
   with Session() as session:
-    assert session.query(DisposalFirstCopyDocument).count() == 2
+    assert session.query(FirFirstDocument).count() == 2
 
   applied = reconcile(config, static_folder=str(tmp_path), known_owners={}, apply=True)
   assert applied['imported'] == ['orphan.pdf']
 
   with Session() as session:
-    imported = (
-      session.query(DisposalFirstCopyDocument).filter(DisposalFirstCopyDocument.link == prefix + 'orphan.pdf').one()
-    )
+    imported = session.query(FirFirstDocument).filter(FirFirstDocument.link == prefix + 'orphan.pdf').one()
     assert imported.disposal_id is None
     assert abs(imported.created_at.timestamp() - expected_mtime) < 1
 
@@ -71,4 +69,4 @@ def test_reconcile_documents_with_real_fake_pdf_files(seeded_db, tmp_path):
   assert repeated['imported'] == []
 
   with Session() as session:
-    assert session.query(DisposalFirstCopyDocument).count() == 3
+    assert session.query(FirFirstDocument).count() == 3
