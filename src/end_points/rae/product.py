@@ -1,9 +1,13 @@
 from datetime import datetime
 
+from database_api import Session
+
 from ...database.enum import RaeStatus
 from ..users.queries import format_user_with_info
-from sqlalchemy.orm import Session as session_type
 from database_api.operations import update, get_by_id, create
+
+from ...utils.storage import StorageTransaction
+from .document import store_document
 from .queries import (
   query_rae_products,
   query_count_rae_products,
@@ -15,6 +19,7 @@ from ...database.schema import (
   Order,
   RaeProduct,
   RaeProductGroup,
+  DtrDocument,
   User,
   Schedule,
 )
@@ -48,8 +53,21 @@ def create_rae_product(
   return create(RaeProduct, body, session=session)
 
 
-def update_rae_product(id: int, data: dict, session: session_type):
-  update(get_by_id(RaeProduct, id), {'status': RaeStatus(data['status'])}, session=session)
+def update_rae_product(id: int, data: dict, files):
+  with StorageTransaction() as storage:
+    with Session() as session:
+      update(get_by_id(RaeProduct, id, session=session), {'status': RaeStatus(data['status'])}, session=session)
+      store_document(
+        DtrDocument,
+        'rae_product_id',
+        id,
+        'rae/dtr-documents',
+        uploaded_file=next(iter(files.values()), None),
+        session=session,
+        storage=storage,
+      )
+      session.commit()
+
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 

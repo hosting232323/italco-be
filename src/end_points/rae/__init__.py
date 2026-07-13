@@ -2,14 +2,11 @@ import json
 from flask import Blueprint, request, send_from_directory
 
 from api.storage import get_full_path
-from database_api import Session
 
 from ... import STATIC_FOLDER
-from ...utils.storage import StorageTransaction
-from ...database.schema import User, DtrDocument
+from ...database.schema import User
 from ...database.enum import UserRole
 from .product import get_rae_products, update_rae_product
-from .document import store_document, handle_document_by_name
 from .. import flask_session_authentication
 from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
 from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
@@ -63,20 +60,7 @@ def get_products(user: User):
 @rae_bp.route('product/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_product(_, id):
-  with StorageTransaction() as storage:
-    with Session() as session:
-      update_rae_product(int(id), json.loads(request.form.get('data')), session=session)
-      store_document(
-        DtrDocument,
-        'rae_product_id',
-        int(id),
-        'rae/dtr-documents',
-        session=session,
-        storage=storage,
-      )
-      session.commit()
-
-  return {'status': 'ok', 'message': 'Operazione completata'}
+  return update_rae_product(int(id), json.loads(request.form.get('data')), request.files)
 
 
 @rae_bp.route('carrier', methods=['POST'])
@@ -142,34 +126,7 @@ def get_disposal(_):
 @rae_bp.route('disposal/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def update_disposal(_, id):
-  with StorageTransaction() as storage:
-    with Session() as session:
-      data = json.loads(request.form.get('data'))
-
-      if 'first_copy_document_fir' in request.files:
-        data = handle_document_by_name(
-          data,
-          'rae/fir-first-document',
-          'fir_first_document',
-          'first_copy_document_fir',
-          session=session,
-          storage=storage,
-        )
-
-      if 'fourth_copy_document_fir' in request.files:
-        data = handle_document_by_name(
-          data,
-          'rae/fir-fourth-document',
-          'fir_fourth_document',
-          'fourth_copy_document_fir',
-          session=session,
-          storage=storage,
-        )
-
-      update_rae_disposal(int(id), data, session=session)
-      session.commit()
-
-  return {'status': 'ok', 'message': 'Operazione completata'}
+  return update_rae_disposal(int(id), json.loads(request.form.get('data')), request.files)
 
 
 @rae_bp.route('<folder>/<filename>', methods=['GET'])

@@ -1,6 +1,5 @@
 import os
 
-from flask import request
 from sqlalchemy import text
 from sqlalchemy.orm import Session as session_type
 
@@ -26,10 +25,10 @@ def store_document(
   owner_field: str,
   owner_id: int,
   folder: str,
+  uploaded_file,
   session: session_type,
   storage: StorageTransaction,
 ):
-  uploaded_file = next(iter(request.files.values()), None)
   if not uploaded_file or uploaded_file.mimetype != 'application/pdf':
     return None
 
@@ -45,10 +44,10 @@ def handle_document_by_name(
   folder: str,
   model: str,
   field_name: str,
+  uploaded_file,
   session: session_type,
   storage: StorageTransaction,
 ) -> dict:
-  uploaded_file = request.files.get(field_name)
   if not uploaded_file or uploaded_file.mimetype != 'application/pdf':
     return data
 
