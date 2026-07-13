@@ -1,95 +1,11 @@
 {% extends "components/base.html" %}
 
-{% block styles %}
-    @page {
-      size: a4 portrait;
-      margin: 0.7cm;
-    }
-
-    .attached-a-heading {
-      color: #25313c;
-      margin-bottom: 12px;
-    }
-
-    .attached-a-section {
-      margin-bottom: 16px;
-    }
-
-    .attached-a-section h2 {
-      color: #33424f;
-      font-size: 14px;
-      margin-top: 18px;
-      margin-bottom: 8px;
-      padding-bottom: 4px;
-      border-bottom: 0.7pt solid #aeb8c2;
-    }
-
-    .attached-a-info-table {
-      color: #2f3b45;
-      font-size: 11px;
-    }
-
-    .attached-a-info-table td {
-      border: 0.6pt solid #c4ccd3;
-      padding: 6px 8px;
-      vertical-align: middle;
-    }
-
-    .attached-a-info-table td.label {
-      width: 25%;
-      background: #edf1f4;
-    }
-
-    .attached-a-table {
-      color: #26333d;
-      font-size: 10px;
-      line-height: 13px;
-      table-layout: fixed;
-      border: 0.6pt solid #b7c1ca;
-    }
-
-    .attached-a-table th {
-      color: #25313c;
-      background: #dde5eb;
-      border: 0.6pt solid #aeb9c3;
-      padding: 6px 3px;
-      line-height: 12px;
-      text-align: center;
-      vertical-align: middle;
-    }
-
-    .attached-a-table td {
-      border: 0.6pt solid #c4ccd3;
-      padding: 6px 3px;
-      line-height: 13px;
-      vertical-align: middle;
-      word-wrap: break-word;
-    }
-
-    .attached-a-table tr.alternate td {
-      background: #f7f9fa;
-    }
-
-    .attached-a-table td.compact {
-      text-align: center;
-      white-space: nowrap;
-    }
-
-    .total.attached-a-total {
-      color: #25313c;
-      font-size: 13px;
-      margin-top: 14px;
-      padding-top: 8px;
-      border-top: 1pt solid #8e9aa5;
-    }
-{% endblock %}
-
 {% block content %}
-<h1 class="attached-a-heading">Elenco Cronologico Ritiri RAEE</h1>
+<h1>Elenco Cronologico Ritiri RAEE</h1>
 
-<div class="section attached-a-section">
+<div class="section">
   <h2>Smaltimento</h2>
-  <table class="info-table attached-a-info-table">
+  <table class="info-table">
     <tr><td class="label">Codice</td><td>{{ disposal.code }}</td></tr>
     <tr><td class="label">Data</td><td>{{ disposal.date }}</td></tr>
     <tr><td class="label">Trasportatore</td><td>{{ disposal.carrier.company_name }}</td></tr>
@@ -97,30 +13,30 @@
   </table>
 </div>
 
-<div class="section attached-a-section">
+<div class="section">
   <h2>Ritiri RAEE</h2>
-  <table class="data-table attached-a-table" repeat="1">
+  <table class="data-table" style="font-size: 10px;" repeat="1">
     <thead>
       <tr>
         <th style="width: 10%;">Data DTR</th>
         <th style="width: 10%;">N° DDT</th>
-        <th style="width: 18%;">Prodotto</th>
-        <th style="width: 11%;">CER</th>
-        <th style="width: 8%;">Ragg.</th>
+        <th style="width: 17%;">Prodotto</th>
+        <th style="width: 10%;">CER</th>
+        <th style="width: 11%;">Raggrupp.</th>
         <th style="width: 6%;">Q.tà</th>
-        <th style="width: 17%;">Punto<br>vendita</th>
-        <th style="width: 20%;">Destinatario</th>
+        <th style="width: 17%;">Punto Vendita</th>
+        <th style="width: 19%;">Destinatario</th>
       </tr>
     </thead>
     <tbody>
       {% for row in rows %}
-      <tr{% if loop.index is even %} class="alternate"{% endif %}>
-        <td class="compact">{{ row.dtr }}</td>
-        <td class="compact">{{ row.n_ddt }}</td>
+      <tr>
+        <td>{{ row.dtr }}</td>
+        <td>{{ row.n_ddt }}</td>
         <td>{{ row.nome_prodotto }}</td>
-        <td class="compact">{{ row.codice_cer }}</td>
-        <td class="compact">{{ row.raggruppamento }}</td>
-        <td class="compact">{{ row.quantita }}</td>
+        <td>{{ row.codice_cer }}</td>
+        <td>{{ row.raggruppamento }}</td>
+        <td>{{ row.quantita }}</td>
         <td>{{ row.cliente }}</td>
         <td>{{ row.destinatario }}</td>
       </tr>
@@ -129,7 +45,7 @@
   </table>
 </div>
 
-<div class="total attached-a-total">
+<div class="total">
   <b>Totale pezzi:</b> {{ total }}
 </div>
 {% endblock %}
