@@ -30,17 +30,19 @@ def test_group_quantities_by_disposal_returns_empty_mapping_without_rows():
 
 
 def test_get_rae_disposals_includes_automatic_group_quantities(monkeypatch):
-  monkeypatch.setattr(
-    disposal_module,
-    'query_rae_disposals',
-    lambda: [(StubEntity(7), StubEntity(10), StubEntity(20))],
-  )
-  monkeypatch.setattr(
-    disposal_module,
-    'query_disposal_group_quantities',
-    lambda: [(7, 'R1', 2), (7, 'R3', 4)],
-  )
+  query_calls = 0
+
+  def query_rae_disposals():
+    nonlocal query_calls
+    query_calls += 1
+    return [
+      (StubEntity(7), StubEntity(10), StubEntity(20), 'R1', 2),
+      (StubEntity(7), StubEntity(10), StubEntity(20), 'R3', 4),
+    ]
+
+  monkeypatch.setattr(disposal_module, 'query_rae_disposals', query_rae_disposals)
 
   result = disposal_module.get_rae_disposals()
 
   assert result['rae_disposals'][0]['group_quantities'] == {'R1': 2, 'R3': 4}
+  assert query_calls == 1
