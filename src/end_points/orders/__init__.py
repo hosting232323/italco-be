@@ -1,12 +1,13 @@
 import json
-from flask import Blueprint, request, send_from_directory
+from flask import Blueprint, current_app, request, send_from_directory
 
 from ... import STATIC_FOLDER
+from ...utils.file import StorageTransaction
 from .mailer import mailer_check
 from database_api import Session
 from .photo import handle_photos
 from ...database.enum import UserRole
-from ...utils.file import get_full_path
+from api.storage import get_full_path
 from ...database.schema import User, Order
 from .utils import get_statuses_by_order_id
 from .services import RaeProductDeletionError
@@ -48,21 +49,26 @@ def get_order_endpoint(id):
 @order_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order_endpoint(user: User, id):
-  with Session() as session:
-    order: Order = get_by_id(Order, int(id), session=session)
-    if isinstance(request.form.get('data'), str):
-      data = handle_photos(json.loads(request.form.get('data')), order, session=session)
-    else:
-      data = request.json
+  try:
+    with Session() as session:
+      order: Order = get_by_id(Order, int(id), session=session)
+      form_data = request.form.get('data')
+      data = json.loads(form_data) if isinstance(form_data, str) else request.json
 
-    if data.get('version') is not None and data['version'] != order.version:
-      return {'status': 'ko', 'message': "L'ordine è stato modificato nel frattempo. Ricarica la pagina e riprova."}
+      if data.get('version') is not None and data['version'] != order.version:
+        return {'status': 'ko', 'message': "L'ordine è stato modificato nel frattempo. Ricarica la pagina e riprova."}
 
-    try:
-      motivation = update_order(user, order, data, session)
-      session.commit()
-    except RaeProductDeletionError as error:
-      return {'status': 'ko', 'message': str(error)}
+      with StorageTransaction() as storage:
+        if isinstance(form_data, str):
+          data = handle_photos(data, order, session=session, storage=storage)
+
+        motivation = update_order(user, order, data, session)
+        session.commit()
+  except RaeProductDeletionError as error:
+    return {'status': 'ko', 'message': str(error)}
+  except Exception:
+    current_app.logger.exception('Aggiornamento ordine non completato')
+    return {'status': 'ko', 'message': 'File e dati dell’ordine non sono stati salvati'}
 
   save_order_status_to_euronics(order)
   mailer_check(order, data, motivation)

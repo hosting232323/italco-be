@@ -3,11 +3,11 @@ import argparse
 import os
 from datetime import datetime
 
+from api.storage import get_all_filenames, get_full_path
 from database_api import Session, set_database
 from database_api.operations import create
 
 from src.database.schema import DisposalFirstCopyDocument, DisposalFourthCopyDocument, RaeDocument
-from src.utils.file import get_full_path
 
 
 STATIC_FOLDER = os.environ.get(
@@ -65,7 +65,7 @@ def reconcile(
 
   storage_folder = get_full_path(static_folder, subfolder, False)
   os.makedirs(storage_folder, exist_ok=True)
-  paths = local_files(storage_folder)
+  paths = {os.path.basename(path): path for path in get_all_filenames(static_folder, subfolder=subfolder)}
 
   with Session() as session:
     rows = session.query(model).all()

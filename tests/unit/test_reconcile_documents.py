@@ -5,7 +5,7 @@ from database_api import Session
 
 from scripts.reconcile_documents import reconcile
 from src.database.schema import DisposalFirstCopyDocument
-from src.utils.file import get_full_path
+from api.storage import get_full_path
 
 
 FAKE_PDF = b"""%PDF-1.4
