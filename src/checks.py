@@ -29,15 +29,15 @@ def trigger_checks(
 ):
   database_integrity_test()
   check_mismatch(get_all_photos(base_photo_path), folder, 'Photos', 'photos')
-  check_mismatch(get_all_documents(base_dtr_document_path), folder, 'DTR Documents', 'dtr-documents')
+  check_mismatch(get_all_documents(DtrDocument, base_dtr_document_path), folder, 'DTR Documents', 'dtr-documents')
   check_mismatch(
-    get_all_fir_first_documents(base_fir_first_document_path),
+    get_all_documents(FirFirstDocument, base_fir_first_document_path),
     folder,
     'First Copy FIR Documents',
     'fir-first-document',
   )
   check_mismatch(
-    get_all_fir_fourth_documents(base_fir_fourth_document_path),
+    get_all_documents(FirFourthDocument, base_fir_fourth_document_path),
     folder,
     'Fourth FIR Copy Documents',
     'fir-fourth-document',
@@ -73,19 +73,9 @@ def get_all_photos(base_photo_path: str) -> set[str]:
     ]
 
 
-def get_all_documents(base_document_path: str) -> set[str]:
+def get_all_documents(model, base_document_path: str) -> list[str]:
   with Session() as session:
-    return [row.link.replace(base_document_path, '') for row in session.query(DtrDocument).all()]
-
-
-def get_all_fir_first_documents(base_document_path: str) -> set[str]:
-  with Session() as session:
-    return [row.link.replace(base_document_path, '') for row in session.query(FirFirstDocument).all()]
-
-
-def get_all_fir_fourth_documents(base_document_path: str) -> set[str]:
-  with Session() as session:
-    return [row.link.replace(base_document_path, '') for row in session.query(FirFourthDocument).all()]
+    return [row.link.replace(base_document_path, '') for row in session.query(model).all()]
 
 
 def get_checks():
