@@ -2,9 +2,8 @@ import json
 from flask import Blueprint, request, send_from_directory
 
 from ... import STATIC_FOLDER
-from ...utils.storage import StorageTransaction
+from ...utils.storage import SessionWithStorage
 from .mailer import mailer_check
-from database_api import Session
 from .photo import handle_photos
 from ...database.enum import UserRole
 from api.storage import get_full_path
@@ -54,7 +53,7 @@ def get_order_endpoint(id):
 @order_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order_endpoint(user: User, id):
-  with Session() as session:
+  with SessionWithStorage() as session:
     order: Order = get_by_id(Order, int(id), session=session)
     form_data = request.form.get('data')
     data = json.loads(form_data) if isinstance(form_data, str) else request.json
@@ -62,12 +61,11 @@ def update_order_endpoint(user: User, id):
     if data.get('version') is not None and data['version'] != order.version:
       return {'status': 'ko', 'message': "L'ordine è stato modificato nel frattempo. Ricarica la pagina e riprova."}
 
-    with StorageTransaction() as storage:
-      if isinstance(form_data, str):
-        data = handle_photos(data, order, session=session, storage=storage)
+    if isinstance(form_data, str):
+      data = handle_photos(data, order, session=session)
 
-      motivation = update_order(user, order, data, session)
-      session.commit()
+    motivation = update_order(user, order, data, session)
+    session.commit()
 
   save_order_status_to_euronics(order)
   mailer_check(order, data, motivation)
