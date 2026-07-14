@@ -1,3 +1,5 @@
+import pytest
+
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -42,6 +44,17 @@ def test_export_attached_a_builds_afir_code_from_pv_and_disposal(monkeypatch):
 
   assert rendered['template'] == 'disposal_attached_a.html'
   assert rendered['rows'][0]['codice_afir'] == 'PV-001-AFIR-37'
+
+
+def test_format_row_skips_afir_queries_by_default(monkeypatch):
+  rae_product, group, user, order = _rae_product_row()
+  monkeypatch.setattr(disposal_module, 'get_schedule_by_order', lambda _id: None)
+  monkeypatch.setattr(disposal_module, 'get_user_info', lambda *_args: pytest.fail('Unexpected customer info query'))
+  monkeypatch.setattr(disposal_module, 'get_by_id', lambda *_args: pytest.fail('Unexpected disposal query'))
+
+  row = disposal_module.format_row(rae_product, group, user, order)
+
+  assert 'codice_afir' not in row
 
 
 def test_afir_column_is_rendered_only_in_attached_a():
