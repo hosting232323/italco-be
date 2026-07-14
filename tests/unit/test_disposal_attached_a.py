@@ -8,7 +8,7 @@ from src.end_points.exportation import disposal as disposal_module
 
 def _rae_product_row():
   return (
-    SimpleNamespace(number=12, quantity=2),
+    SimpleNamespace(number=12, quantity=2, disposal_id=7),
     SimpleNamespace(name='Frigorifero', cer_code=200123, group_code='R1'),
     SimpleNamespace(id=10, nickname='Punto vendita Bari'),
     SimpleNamespace(id=4, addressee='Mario Rossi'),
@@ -33,6 +33,7 @@ def test_export_attached_a_builds_afir_code_from_pv_and_disposal(monkeypatch):
     lambda user_id, _klass: SimpleNamespace(import_code='PV-001') if user_id == 10 else None,
   )
   monkeypatch.setattr(disposal_module, 'get_schedule_by_order', lambda _id: None)
+  monkeypatch.setattr(disposal_module, 'get_by_id', lambda _klass, _id: SimpleNamespace(code=37))
   monkeypatch.setattr(disposal_module, 'render_template', capture_template)
   monkeypatch.setattr(disposal_module.pisa, 'CreatePDF', lambda **_kwargs: PdfStatus())
   monkeypatch.setattr(disposal_module, 'export_pdf', lambda content: content)

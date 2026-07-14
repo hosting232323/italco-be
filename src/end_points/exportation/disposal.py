@@ -2,18 +2,20 @@ from io import BytesIO
 from collections import defaultdict
 from xhtml2pdf import pisa
 from flask import render_template
+from database_api.operations import get_by_id
 
 from .utils import export_pdf
-from ...database.schema import CustomerUserInfo
+from ...database.schema import CustomerUserInfo, Disposal
 from ..rae.disposal import format_query_result, query_rae_disposals
 from ..rae.queries import get_disposal_for_export, get_disposal_rae_products
 from ..schedule.queries import get_schedule_by_order
 from ..users.queries import get_user_info
 
 
-def format_row(rae_product, rae_product_group, user, order, disposal_code) -> dict:
+def format_row(rae_product, rae_product_group, user, order) -> dict:
   schedule = get_schedule_by_order(order.id)
   customer_user_info = get_user_info(user.id, CustomerUserInfo)
+  disposal = get_by_id(Disposal, rae_product.disposal_id)
   return {
     'dtr': schedule.date.strftime('%d/%m/%Y') if schedule and schedule.date else '/',
     'n_ddt': rae_product.number,
@@ -23,7 +25,7 @@ def format_row(rae_product, rae_product_group, user, order, disposal_code) -> di
     'quantita': rae_product.quantity or 0,
     'cliente': user.nickname,
     'destinatario': order.addressee,
-    'codice_afir': f'{customer_user_info.import_code}-AFIR-{disposal_code}',
+    'codice_afir': f'{customer_user_info.import_code}-AFIR-{disposal.code}',
   }
 
 
@@ -33,7 +35,7 @@ def export_disposal_attached_a(disposal_id: int):
     return {'status': 'ko', 'message': 'Smaltimento non trovato'}
 
   rows = sorted(
-    [format_row(rp, rpg, u, o, disposal['code']) for rp, rpg, u, o in get_disposal_rae_products(int(disposal_id))],
+    [format_row(rp, rpg, u, o) for rp, rpg, u, o in get_disposal_rae_products(int(disposal_id))],
     key=lambda r: r['dtr'],
   )
   if not rows:
@@ -84,7 +86,7 @@ def export_disposal_card_index(disposal_id: int):
 
   by_customer: dict[str, list[dict]] = defaultdict(list)
   for rp, rpg, u, o in get_disposal_rae_products(int(disposal_id)):
-    by_customer[u.nickname].append(format_row(rp, rpg, u, o, disposal['code']))
+    by_customer[u.nickname].append(format_row(rp, rpg, u, o))
 
   if not by_customer:
     return {'status': 'ko', 'message': 'Nessun prodotto RAE associato a questo smaltimento'}
