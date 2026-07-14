@@ -11,9 +11,10 @@ from ..schedule.queries import get_schedule_by_order
 from ..users.queries import get_user_info
 
 
-def format_row(rae_product, rae_product_group, user, order, disposal_code=None) -> dict:
+def format_row(rae_product, rae_product_group, user, order, disposal_code) -> dict:
   schedule = get_schedule_by_order(order.id)
-  row = {
+  customer_user_info = get_user_info(user.id, CustomerUserInfo)
+  return {
     'dtr': schedule.date.strftime('%d/%m/%Y') if schedule and schedule.date else '/',
     'n_ddt': rae_product.number,
     'nome_prodotto': rae_product_group.name,
@@ -22,11 +23,8 @@ def format_row(rae_product, rae_product_group, user, order, disposal_code=None) 
     'quantita': rae_product.quantity or 0,
     'cliente': user.nickname,
     'destinatario': order.addressee,
+    'codice_afir': f'{customer_user_info.import_code}-AFIR-{disposal_code}',
   }
-  if disposal_code is not None:
-    customer_user_info = get_user_info(user.id, CustomerUserInfo)
-    row['codice_afir'] = f'{customer_user_info.import_code}-AFIR-{disposal_code}'
-  return row
 
 
 def export_disposal_attached_a(disposal_id: int):
@@ -86,7 +84,7 @@ def export_disposal_card_index(disposal_id: int):
 
   by_customer: dict[str, list[dict]] = defaultdict(list)
   for rp, rpg, u, o in get_disposal_rae_products(int(disposal_id)):
-    by_customer[u.nickname].append(format_row(rp, rpg, u, o))
+    by_customer[u.nickname].append(format_row(rp, rpg, u, o, disposal['code']))
 
   if not by_customer:
     return {'status': 'ko', 'message': 'Nessun prodotto RAE associato a questo smaltimento'}
