@@ -15,7 +15,7 @@ def _rae_product_row():
   )
 
 
-def test_export_attached_a_builds_afir_code_from_user_id_and_disposal(monkeypatch):
+def test_export_attached_a_builds_afir_code_from_user_and_disposal_ids(monkeypatch):
   rendered = {}
 
   def capture_template(template, **context):
@@ -28,7 +28,6 @@ def test_export_attached_a_builds_afir_code_from_user_id_and_disposal(monkeypatc
   monkeypatch.setattr(disposal_module, 'get_disposal_for_export', lambda _id: {'code': 37})
   monkeypatch.setattr(disposal_module, 'get_disposal_rae_products', lambda _id: [_rae_product_row()])
   monkeypatch.setattr(disposal_module, 'get_schedule_by_order', lambda _id: None)
-  monkeypatch.setattr(disposal_module, 'get_by_id', lambda _klass, _id: SimpleNamespace(code=37))
   monkeypatch.setattr(disposal_module, 'render_template', capture_template)
   monkeypatch.setattr(disposal_module.pisa, 'CreatePDF', lambda **_kwargs: PdfStatus())
   monkeypatch.setattr(disposal_module, 'export_pdf', lambda content: content)
@@ -36,7 +35,7 @@ def test_export_attached_a_builds_afir_code_from_user_id_and_disposal(monkeypatc
   disposal_module.export_disposal_attached_a(7)
 
   assert rendered['template'] == 'disposal_attached_a.html'
-  assert rendered['rows'][0]['codice_afir'] == '10-AFIR-37'
+  assert rendered['rows'][0]['codice_afir'] == '10-AFIR-7'
 
 
 def test_afir_column_is_rendered_only_in_attached_a():
@@ -51,7 +50,7 @@ def test_afir_column_is_rendered_only_in_attached_a():
     'quantita': 2,
     'cliente': 'Punto vendita Bari',
     'destinatario': 'Mario Rossi',
-    'codice_afir': '10-AFIR-37',
+    'codice_afir': '10-AFIR-7',
   }
   disposal = {
     'code': 37,
@@ -70,8 +69,8 @@ def test_afir_column_is_rendered_only_in_attached_a():
     )
 
   assert attached_a.count('Codice AFIR') == 1
-  assert attached_a.count('10-AFIR-37') == 1
+  assert attached_a.count('10-AFIR-7') == 1
   assert '<td class="label">Codice AFIR</td>' in attached_a
   assert '>Codice AFIR</th>' not in attached_a
   assert 'Codice AFIR' not in card_index
-  assert '10-AFIR-37' not in card_index
+  assert '10-AFIR-7' not in card_index

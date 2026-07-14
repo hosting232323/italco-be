@@ -2,10 +2,7 @@ from io import BytesIO
 from collections import defaultdict
 from xhtml2pdf import pisa
 from flask import render_template
-from database_api.operations import get_by_id
-
 from .utils import export_pdf
-from ...database.schema import Disposal
 from ..rae.disposal import format_query_result, query_rae_disposals
 from ..rae.queries import get_disposal_for_export, get_disposal_rae_products
 from ..schedule.queries import get_schedule_by_order
@@ -13,7 +10,6 @@ from ..schedule.queries import get_schedule_by_order
 
 def format_row(rae_product, rae_product_group, user, order) -> dict:
   schedule = get_schedule_by_order(order.id)
-  disposal = get_by_id(Disposal, rae_product.disposal_id)
   return {
     'dtr': schedule.date.strftime('%d/%m/%Y') if schedule and schedule.date else '/',
     'n_ddt': rae_product.number,
@@ -23,7 +19,7 @@ def format_row(rae_product, rae_product_group, user, order) -> dict:
     'quantita': rae_product.quantity or 0,
     'cliente': user.nickname,
     'destinatario': order.addressee,
-    'codice_afir': f'{user.id}-AFIR-{disposal.code}',
+    'codice_afir': f'{user.id}-AFIR-{rae_product.disposal_id}',
   }
 
 
