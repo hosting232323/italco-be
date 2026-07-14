@@ -1,4 +1,5 @@
 {% extends "components/base.html" %}
+{% from "components/disposal.html" import rae_products_table %}
 
 {% block content %}
 <h1>Elenco Cronologico Ritiri RAEE</h1>
@@ -7,6 +8,10 @@
   <h2>Smaltimento</h2>
   <table class="info-table">
     <tr><td class="label">Codice</td><td>{{ disposal.code }}</td></tr>
+    <tr>
+      <td class="label">Codice AFIR</td>
+      <td>{{ rows | map(attribute='codice_afir') | unique | join(', ') }}</td>
+    </tr>
     <tr><td class="label">Data</td><td>{{ disposal.date }}</td></tr>
     <tr><td class="label">Trasportatore</td><td>{{ disposal.carrier.company_name }}</td></tr>
     <tr><td class="label">Centro di raccolta</td><td>{{ disposal.collection_center.company_name }}</td></tr>
@@ -15,36 +20,7 @@
 
 <div class="section">
   <h2>Ritiri RAEE</h2>
-  <table class="data-table" repeat="1">
-    <thead>
-      <tr>
-        <th style="width: 10.5%;">Data DTR</th>
-        <th style="width: 9.5%;">N° DDT</th>
-        <th style="width: 12%;">Prodotto</th>
-        <th style="width: 8.5%;">CER</th>
-        <th style="width: 11%;">Raggrupp.</th>
-        <th style="width: 7%;">Q.tà</th>
-        <th style="width: 10.5%;">Punto Vendita</th>
-        <th style="width: 13%;">Destinatario</th>
-        <th style="width: 18%;">Codice AFIR</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in rows %}
-      <tr>
-        <td>{{ row.dtr }}</td>
-        <td>{{ row.n_ddt }}</td>
-        <td>{{ row.nome_prodotto }}</td>
-        <td>{{ row.codice_cer }}</td>
-        <td>{{ row.raggruppamento }}</td>
-        <td>{{ row.quantita }}</td>
-        <td>{{ row.cliente }}</td>
-        <td>{{ row.destinatario }}</td>
-        <td>{{ row.codice_afir }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {{ rae_products_table(rows) }}
 </div>
 
 <div class="total">

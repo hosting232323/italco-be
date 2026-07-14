@@ -75,5 +75,7 @@ def test_afir_column_is_rendered_only_in_attached_a():
 
   assert attached_a.count('Codice AFIR') == 1
   assert attached_a.count('PV-001-AFIR-37') == 1
+  assert '<td class="label">Codice AFIR</td>' in attached_a
+  assert '>Codice AFIR</th>' not in attached_a
   assert 'Codice AFIR' not in card_index
   assert 'PV-001-AFIR-37' not in card_index
