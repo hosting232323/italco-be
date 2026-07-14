@@ -2,7 +2,6 @@ from io import BytesIO
 from collections import defaultdict
 from xhtml2pdf import pisa
 from flask import render_template
-
 from .utils import export_pdf
 from ..rae.disposal import format_query_result, query_rae_disposals
 from ..rae.queries import get_disposal_for_export, get_disposal_rae_products
@@ -28,18 +27,17 @@ def export_disposal_attached_a(disposal_id: int):
   if not disposal:
     return {'status': 'ko', 'message': 'Smaltimento non trovato'}
 
-  rows = sorted(
-    [format_row(rp, rpg, u, o) for rp, rpg, u, o in get_disposal_rae_products(int(disposal_id))],
-    key=lambda r: r['dtr'],
-  )
-  if not rows:
+  rae_products = get_disposal_rae_products(int(disposal_id))
+  if not rae_products:
     return {'status': 'ko', 'message': 'Nessun prodotto RAE associato a questo smaltimento'}
 
+  rows = sorted([format_row(rp, rpg, u, o) for rp, rpg, u, o in rae_products], key=lambda r: r['dtr'])
+  codice_afir = f'{rae_products[0][2].id}-AFIR-{disposal_id}'
   total = sum(r['quantita'] for r in rows)
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
-    src=render_template('disposal_attached_a.html', disposal=disposal, rows=rows, total=total),
+    src=render_template('disposal_attached_a.html', disposal=disposal, rows=rows, codice_afir=codice_afir, total=total),
     dest=result,
   )
   if pisa_status.err:
