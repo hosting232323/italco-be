@@ -14,9 +14,9 @@ class StubEntity:
 
 def test_format_query_result_sums_groups_and_deduplicates_disposals():
   rows = [
-    (StubEntity(7), StubEntity(10), StubEntity(20), 'R3', 3),
-    (StubEntity(7), StubEntity(10), StubEntity(20), 'R1', 2),
-    (StubEntity(7), StubEntity(10), StubEntity(20), 'R1', 4),
+    (StubEntity(7), StubEntity(10), StubEntity(20), None, None, 'R3', 3),
+    (StubEntity(7), StubEntity(10), StubEntity(20), None, None, 'R1', 2),
+    (StubEntity(7), StubEntity(10), StubEntity(20), None, None, 'R1', 4),
   ]
   result = []
   for row in rows:
@@ -27,7 +27,9 @@ def test_format_query_result_sums_groups_and_deduplicates_disposals():
 
 
 def test_format_query_result_handles_disposal_without_products():
-  result = disposal_module.format_query_result((StubEntity(7), StubEntity(10), StubEntity(20), None, None), [])
+  result = disposal_module.format_query_result(
+    (StubEntity(7), StubEntity(10), StubEntity(20), None, None, None, None), []
+  )
 
   assert result[0]['group_quantities'] == {}
 
@@ -39,9 +41,9 @@ def test_get_rae_disposals_includes_automatic_group_quantities(monkeypatch):
     nonlocal query_calls
     query_calls += 1
     return [
-      (StubEntity(7), StubEntity(10), StubEntity(20), 'R1', 2),
-      (StubEntity(7), StubEntity(10), StubEntity(20), 'R1', 3),
-      (StubEntity(7), StubEntity(10), StubEntity(20), 'R3', 4),
+      (StubEntity(7), StubEntity(10), StubEntity(20), None, None, 'R1', 2),
+      (StubEntity(7), StubEntity(10), StubEntity(20), None, None, 'R1', 3),
+      (StubEntity(7), StubEntity(10), StubEntity(20), None, None, 'R3', 4),
     ]
 
   monkeypatch.setattr(disposal_module, 'query_rae_disposals', query_rae_disposals)
@@ -53,7 +55,7 @@ def test_get_rae_disposals_includes_automatic_group_quantities(monkeypatch):
 
 
 def test_attached_b_export_reuses_disposal_query_and_formatter(monkeypatch):
-  row = (StubEntity(7), StubEntity(10), StubEntity(20), 'R1', 5)
+  row = (StubEntity(7), StubEntity(10), StubEntity(20), None, None, 'R1', 5)
   calls = {'query': [], 'format': 0}
   rendered = {}
 

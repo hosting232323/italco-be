@@ -1,28 +1,46 @@
 import os
-from flask import request
 
-from ... import STATIC_FOLDER
-from api.storage import upload_file
-from api.storage.utils import guess_next_id, get_base_file_path
+from sqlalchemy.orm import Session as session_type
+
+from api.storage.utils import guess_next_id
+from database_api.operations import create
+
+from ... import STATIC_FOLDER, get_base_file_path
+from ...utils.storage import SessionWithStorage
 
 
-def handle_document(data: dict, folder: str, model: str, field_name: str) -> dict:
-  uploaded_file = next(iter(request.files.values()), None)
+def store_document(
+  model,
+  owner_field: str,
+  owner_id: int,
+  folder: str,
+  uploaded_file,
+  session: session_type,
+  storage: SessionWithStorage,
+):
+  if not uploaded_file or uploaded_file.mimetype != 'application/pdf':
+    return None
+
+  document_id = guess_next_id(model.__tablename__, session=session)
+  filename = f'{document_id}.pdf'
+  stored_path = storage.upload(uploaded_file, filename, STATIC_FOLDER, subfolder=folder.split('/')[-1])
+  link = get_base_file_path(folder) + os.path.basename(stored_path)
+  return create(model, {'id': document_id, owner_field: owner_id, 'link': link}, session=session)
+
+
+def handle_document_by_name(
+  data: dict,
+  folder: str,
+  model: str,
+  field_name: str,
+  uploaded_file,
+  session: session_type,
+  storage: SessionWithStorage,
+) -> dict:
   if not uploaded_file or uploaded_file.mimetype != 'application/pdf':
     return data
 
-  data[field_name] = get_base_file_path(folder) + os.path.basename(
-    upload_file(uploaded_file, f'{guess_next_id(model)}.pdf', STATIC_FOLDER, subfolder=folder.split('/')[-1])
-  )
-  return data
-
-
-def handle_document_by_name(data: dict, folder: str, model: str, field_name: str, file_name: str) -> dict:
-  uploaded_file = request.files.get(file_name)
-  if not uploaded_file or uploaded_file.mimetype != 'application/pdf':
-    return data
-
-  data[field_name] = get_base_file_path(folder) + os.path.basename(
-    upload_file(uploaded_file, f'{guess_next_id(model)}.pdf', STATIC_FOLDER, 'local', folder.split('/')[-1])
-  )
+  filename = f'{guess_next_id(model, session=session)}.pdf'
+  stored_path = storage.upload(uploaded_file, filename, STATIC_FOLDER, subfolder=folder.split('/')[-1])
+  data[field_name] = get_base_file_path(folder) + os.path.basename(stored_path)
   return data

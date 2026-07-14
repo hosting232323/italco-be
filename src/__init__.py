@@ -5,8 +5,8 @@ from flask_cors import CORS
 from api.settings import IS_DEV
 from .checks import trigger_checks
 from api.storage import folder_backup
-from database_api.backup import db_backup
 from api.storage.utils import get_base_file_path
+from database_api.backup import db_backup
 from api import swagger_decorator, register_flask_hooks, PrefixMiddleware
 
 
@@ -65,5 +65,6 @@ def checks_endpoint():
     STATIC_FOLDER,
     get_base_file_path('order/photos'),
     get_base_file_path('rae/dtr-documents'),
-    get_base_file_path('rae/fir-documents'),
+    get_base_file_path('rae/fir-first-document'),
+    get_base_file_path('rae/fir-fourth-document'),
   )

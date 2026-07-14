@@ -285,7 +285,6 @@ class Product(BaseEntity):
 class RaeProduct(BaseEntity):
   __tablename__ = 'rae_product'
 
-  link = Column(String)
   number = Column(Integer)
   emission_date = Column(DateTime)
   dtr_date = Column(Date)
@@ -301,6 +300,16 @@ class RaeProduct(BaseEntity):
   product = relationship('Product', back_populates='rae_product')
   disposal = relationship('Disposal', back_populates='rae_products')
   rae_product_group = relationship('RaeProductGroup', back_populates='rae_product')
+  dtr_documents = relationship('DtrDocument', back_populates='rae_product', cascade='all, delete-orphan')
+
+
+class DtrDocument(BaseEntity):
+  __tablename__ = 'dtr_document'
+
+  link = Column(String, nullable=False)
+  rae_product_id = Column(Integer, ForeignKey('rae_product.id'), nullable=True)
+
+  rae_product = relationship('RaeProduct', back_populates='dtr_documents')
 
 
 class RaeProductGroup(BaseEntity):
@@ -390,8 +399,6 @@ class Disposal(BaseEntity):
   date = Column(Date)
   code = Column(String)
   weight = Column(Float)
-  first_copy_document_fir = Column(String)
-  fourth_copy_document_fir = Column(String)
 
   carrier_id = Column(Integer, ForeignKey('carrier.id'), nullable=False)
   collection_center_id = Column(Integer, ForeignKey('collection_center.id'), nullable=False)
@@ -399,3 +406,23 @@ class Disposal(BaseEntity):
   carrier = relationship('Carrier', back_populates='disposals')
   rae_products = relationship('RaeProduct', back_populates='disposal')
   collection_center = relationship('CollectionCenter', back_populates='disposals')
+  fir_first_documents = relationship('FirFirstDocument', back_populates='disposal', cascade='all, delete-orphan')
+  fir_fourth_documents = relationship('FirFourthDocument', back_populates='disposal', cascade='all, delete-orphan')
+
+
+class FirFirstDocument(BaseEntity):
+  __tablename__ = 'fir_first_document'
+
+  link = Column(String, nullable=False)
+  disposal_id = Column(Integer, ForeignKey('disposal.id'), nullable=False, unique=True)
+
+  disposal = relationship('Disposal', back_populates='fir_first_documents')
+
+
+class FirFourthDocument(BaseEntity):
+  __tablename__ = 'fir_fourth_document'
+
+  link = Column(String, nullable=False)
+  disposal_id = Column(Integer, ForeignKey('disposal.id'), nullable=False, unique=True)
+
+  disposal = relationship('Disposal', back_populates='fir_fourth_documents')
