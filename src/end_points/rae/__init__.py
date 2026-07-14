@@ -1,14 +1,12 @@
 import json
 from flask import Blueprint, request, send_from_directory
 
-from ... import STATIC_FOLDER
-from database_api import Session
-from ...database.schema import User
 from api.storage import get_full_path
+
+from ... import STATIC_FOLDER
+from ...database.schema import User
 from ...database.enum import UserRole
-from .document import handle_document
 from .product import get_rae_products, update_rae_product
-from .document import handle_document_by_name
 from .. import flask_session_authentication
 from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
 from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
@@ -62,14 +60,7 @@ def get_products(user: User):
 @rae_bp.route('product/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_product(_, id):
-  with Session() as session:
-    update_rae_product(
-      int(id),
-      handle_document(json.loads(request.form.get('data')), 'rae/dtr-documents', 'rae_product', 'link'),
-      session=session,
-    )
-    session.commit()
-  return {'status': 'ok', 'message': 'Operazione completata'}
+  return update_rae_product(int(id), json.loads(request.form.get('data')), request.files)
 
 
 @rae_bp.route('carrier', methods=['POST'])
@@ -135,27 +126,12 @@ def get_disposal(_):
 @rae_bp.route('disposal/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def update_disposal(_, id):
-  with Session() as session:
-    data = json.loads(request.form.get('data'))
-
-    if 'first_copy_document_fir' in request.files:
-      data = handle_document_by_name(
-        data, 'rae/first-copy-fir-documents', 'disposal', 'first_copy_document_fir', 'first_copy_document_fir'
-      )
-
-    if 'fourth_copy_document_fir' in request.files:
-      data = handle_document_by_name(
-        data, 'rae/fourth-copy-fir-documents', 'disposal', 'fourth_copy_document_fir', 'fourth_copy_document_fir'
-      )
-
-    update_rae_disposal(int(id), data, session=session)
-    session.commit()
-  return {'status': 'ok', 'message': 'Operazione completata'}
+  return update_rae_disposal(int(id), json.loads(request.form.get('data')), request.files)
 
 
 @rae_bp.route('<folder>/<filename>', methods=['GET'])
-def serve_rae_document(folder, filename):
-  if folder not in ['dtr-documents', 'first-copy-fir-documents', 'fourth-copy-fir-documents']:
+def serve_document(folder, filename):
+  if folder not in ['dtr-documents', 'fir-first-document', 'fir-fourth-document']:
     return {'status': 'ko', 'message': 'Invalid folder'}
 
-  return send_from_directory(get_full_path(STATIC_FOLDER, folder, False), filename)
+  return send_from_directory(get_full_path(STATIC_FOLDER, folder), filename)

@@ -2,14 +2,13 @@ import json
 from flask import Blueprint, request, send_from_directory
 
 from ... import STATIC_FOLDER
+from ...utils.storage import SessionWithStorage
 from .mailer import mailer_check
-from database_api import Session
 from .photo import handle_photos
 from ...database.enum import UserRole
 from api.storage import get_full_path
 from ...database.schema import User, Order
 from .utils import get_statuses_by_order_id
-from .services import RaeProductDeletionError
 from database_api.operations import get_by_id
 from .api import save_order_status_to_euronics
 from .. import flask_session_authentication
@@ -48,7 +47,7 @@ def get_order_endpoint(id):
 @order_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order_endpoint(user: User, id):
-  with Session() as session:
+  with SessionWithStorage() as session:
     order: Order = get_by_id(Order, int(id), session=session)
     if isinstance(request.form.get('data'), str):
       data = handle_photos(json.loads(request.form.get('data')), order, session=session)
@@ -57,12 +56,8 @@ def update_order_endpoint(user: User, id):
 
     if data.get('version') is not None and data['version'] != order.version:
       return {'status': 'ko', 'message': "L'ordine è stato modificato nel frattempo. Ricarica la pagina e riprova."}
-
-    try:
-      motivation = update_order(user, order, data, session)
-      session.commit()
-    except RaeProductDeletionError as error:
-      return {'status': 'ko', 'message': str(error)}
+    motivation = update_order(user, order, data, session)
+    session.commit()
 
   save_order_status_to_euronics(order)
   mailer_check(order, data, motivation)
@@ -99,7 +94,7 @@ def get_statuses(_, id):
 
 @order_bp.route('photos/<filename>', methods=['GET'])
 def serve_image_endpoint(filename):
-  return send_from_directory(get_full_path(STATIC_FOLDER, 'photos', False), filename)
+  return send_from_directory(get_full_path(STATIC_FOLDER, 'photos'), filename)
 
 
 @order_bp.route('collection-points/<id>', methods=['GET'])

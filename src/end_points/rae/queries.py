@@ -13,6 +13,7 @@ from ...database.schema import (
   Order,
   Product,
   RaeProduct,
+  DtrDocument,
   RaeProductGroup,
   User,
   Schedule,
@@ -24,15 +25,16 @@ from ...database.schema import (
 @db_session_decorator(commit=False)
 def query_rae_products(
   filters: list[dict], limit: int = None, session: session_type = None
-) -> list[tuple[RaeProduct, RaeProductGroup, User, Order, Schedule]]:
+) -> list[tuple[RaeProduct, RaeProductGroup, User, Order, Schedule, DtrDocument | None]]:
   query = (
-    session.query(RaeProduct, RaeProductGroup, User, Order, Schedule)
+    session.query(RaeProduct, RaeProductGroup, User, Order, Schedule, DtrDocument)
     .join(RaeProductGroup, RaeProduct.rae_product_group_id == RaeProductGroup.id)
     .join(User, RaeProduct.user_id == User.id)
     .join(Order, RaeProduct.order_id == Order.id)
     .outerjoin(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
     .outerjoin(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
     .outerjoin(Schedule, Schedule.id == ScheduleItem.schedule_id)
+    .outerjoin(DtrDocument, DtrDocument.rae_product_id == RaeProduct.id)
   )
 
   for filter in filters:
@@ -52,7 +54,12 @@ def query_rae_products(
       query = query.filter(field == value)
 
   return limit_per_entity(
-    query.order_by(desc(RaeProduct.dtr_date), desc(RaeProduct.emission_date)),
+    query.order_by(
+      desc(RaeProduct.dtr_date),
+      desc(RaeProduct.emission_date),
+      desc(DtrDocument.created_at).nullslast(),
+      desc(DtrDocument.id),
+    ),
     RaeProduct.id,
     limit,
     subquery_order_by=(desc(RaeProduct.dtr_date), desc(RaeProduct.emission_date)),

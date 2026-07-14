@@ -6,10 +6,6 @@ from database_api.operations import create, delete, get_by_id
 from ...database.schema import Order, Product, RaeProduct, ServiceUser, Schedule
 
 
-class RaeProductDeletionError(Exception):
-  pass
-
-
 def create_products(order: Order, products: dict, customer_user_id: int, cloned_order: bool, session):
   service_users = get_service_users(order, products, customer_user_id)
   for product in products.keys():
@@ -31,7 +27,7 @@ def update_products(order: Order, products: dict, customer_user_id: int, schedul
       if old_product.rae_product_id:
         rae_product: RaeProduct = get_by_id(RaeProduct, old_product.rae_product_id, session=session)
         if rae_product and rae_product.status != RaeStatus.GENERATED:
-          raise RaeProductDeletionError(
+          raise Exception(
             f"Impossibile eliminare il prodotto RAE '{old_product.name}': è eliminabile solo se in stato Generato."
           )
       delete(old_product, session=session)

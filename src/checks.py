@@ -3,41 +3,44 @@ import re
 from sqlalchemy import or_, cast, String
 
 from database_api import Session
-from .database.enum import RaeStatus
 from api.storage import check_mismatch
 from api.telegram import send_telegram_message
 from sqlalchemy.orm import Session as session_type
-from .database.schema import Order, Product, ServiceUser, Schedule, Photo, History, RaeProduct, Disposal
+from .database.schema import (
+  Order,
+  Product,
+  ServiceUser,
+  Schedule,
+  Photo,
+  History,
+  DtrDocument,
+  FirFirstDocument,
+  FirFourthDocument,
+)
 
 
 missing_photos_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'missing_photos.txt')
 with open(missing_photos_path, 'r', encoding='utf-8') as file:
   MISSING_PHOTOS = [int(id) for id in re.findall(r'id:\s*(\d+)', file.read())]
 
-missing_dtr_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'missing_dtr_files.txt')
-with open(missing_dtr_path, 'r', encoding='utf-8') as file:
-  MISSING_DTR_FILES = [line.strip() for line in file if line.strip()]
-
 
 def trigger_checks(
-  folder, base_photo_path, base_dtr_document_path, base_first_copy_fir_document_path, base_fourth_copy_document_fir_path
+  folder, base_photo_path, base_dtr_document_path, base_fir_first_document_path, base_fir_fourth_document_path
 ):
   database_integrity_test()
-  check_mismatch(get_all_photos(base_photo_path), folder, 'Photos', 'local', 'photos')
-  check_mismatch(get_all_dtr_documents(base_dtr_document_path), folder, 'DTR Documents', 'local', 'dtr-documents')
+  check_mismatch(get_all_photos(base_photo_path), folder, 'Photos', 'photos')
+  check_mismatch(get_all_documents(DtrDocument, base_dtr_document_path), folder, 'DTR Documents', 'dtr-documents')
   check_mismatch(
-    get_all_first_copy_fir_documents(base_first_copy_fir_document_path),
+    get_all_documents(FirFirstDocument, base_fir_first_document_path),
     folder,
     'First Copy FIR Documents',
-    'local',
-    'first-copy-fir-documents',
+    'fir-first-document',
   )
   check_mismatch(
-    get_all_fourth_copy_fir_documents(base_fourth_copy_document_fir_path),
+    get_all_documents(FirFourthDocument, base_fir_fourth_document_path),
     folder,
     'Fourth FIR Copy Documents',
-    'local',
-    'fourth-copy-fir-documents',
+    'fir-fourth-document',
   )
 
   return {'status': 'ok', 'message': 'Check eseguiti con successo'}
@@ -70,34 +73,9 @@ def get_all_photos(base_photo_path: str) -> set[str]:
     ]
 
 
-def get_all_dtr_documents(base_document_path: str) -> set[str]:
+def get_all_documents(model, base_document_path: str) -> list[str]:
   with Session() as session:
-    return [
-      row.link.replace(base_document_path, '')
-      for row in session.query(RaeProduct)
-      .filter(
-        RaeProduct.status.in_([RaeStatus.LDR, RaeStatus.ANNULLED, RaeStatus.DISPOSED_OFF]),
-        RaeProduct.link.is_not(None),
-        RaeProduct.link.not_in(MISSING_DTR_FILES),
-      )
-      .all()
-    ]
-
-
-def get_all_first_copy_fir_documents(base_document_path: str) -> set[str]:
-  with Session() as session:
-    return [
-      row.link.replace(base_document_path, '')
-      for row in session.query(Disposal).filter(Disposal.first_copy_document_fir.is_not(None)).all()
-    ]
-
-
-def get_all_fourth_copy_fir_documents(base_document_path: str) -> set[str]:
-  with Session() as session:
-    return [
-      row.link.replace(base_document_path, '')
-      for row in session.query(Disposal).filter(Disposal.fourth_copy_document_fir.is_not(None)).all()
-    ]
+    return [row.link.replace(base_document_path, '') for row in session.query(model).all()]
 
 
 def get_checks():
