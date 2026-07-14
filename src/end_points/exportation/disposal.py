@@ -5,16 +5,16 @@ from flask import render_template
 from database_api.operations import get_by_id
 
 from .utils import export_pdf
-from ...database.schema import CustomerUserInfo, Disposal
+from ...database.schema import Disposal
 from ..rae.disposal import format_query_result, query_rae_disposals
 from ..rae.queries import get_disposal_for_export, get_disposal_rae_products
 from ..schedule.queries import get_schedule_by_order
-from ..users.queries import get_user_info
 
 
-def format_row(rae_product, rae_product_group, user, order, include_afir=False) -> dict:
+def format_row(rae_product, rae_product_group, user, order) -> dict:
   schedule = get_schedule_by_order(order.id)
-  row = {
+  disposal = get_by_id(Disposal, rae_product.disposal_id)
+  return {
     'dtr': schedule.date.strftime('%d/%m/%Y') if schedule and schedule.date else '/',
     'n_ddt': rae_product.number,
     'nome_prodotto': rae_product_group.name,
@@ -23,12 +23,8 @@ def format_row(rae_product, rae_product_group, user, order, include_afir=False) 
     'quantita': rae_product.quantity or 0,
     'cliente': user.nickname,
     'destinatario': order.addressee,
+    'codice_afir': f'{user.id}-AFIR-{disposal.code}',
   }
-  if include_afir:
-    customer_user_info = get_user_info(user.id, CustomerUserInfo)
-    disposal = get_by_id(Disposal, rae_product.disposal_id)
-    row['codice_afir'] = f'{customer_user_info.import_code}-AFIR-{disposal.code}'
-  return row
 
 
 def export_disposal_attached_a(disposal_id: int):
@@ -37,7 +33,7 @@ def export_disposal_attached_a(disposal_id: int):
     return {'status': 'ko', 'message': 'Smaltimento non trovato'}
 
   rows = sorted(
-    [format_row(rp, rpg, u, o, include_afir=True) for rp, rpg, u, o in get_disposal_rae_products(int(disposal_id))],
+    [format_row(rp, rpg, u, o) for rp, rpg, u, o in get_disposal_rae_products(int(disposal_id))],
     key=lambda r: r['dtr'],
   )
   if not rows:

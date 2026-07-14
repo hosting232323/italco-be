@@ -1,5 +1,3 @@
-import pytest
-
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,7 +15,7 @@ def _rae_product_row():
   )
 
 
-def test_export_attached_a_builds_afir_code_from_pv_and_disposal(monkeypatch):
+def test_export_attached_a_builds_afir_code_from_user_id_and_disposal(monkeypatch):
   rendered = {}
 
   def capture_template(template, **context):
@@ -29,11 +27,6 @@ def test_export_attached_a_builds_afir_code_from_pv_and_disposal(monkeypatch):
 
   monkeypatch.setattr(disposal_module, 'get_disposal_for_export', lambda _id: {'code': 37})
   monkeypatch.setattr(disposal_module, 'get_disposal_rae_products', lambda _id: [_rae_product_row()])
-  monkeypatch.setattr(
-    disposal_module,
-    'get_user_info',
-    lambda user_id, _klass: SimpleNamespace(import_code='PV-001') if user_id == 10 else None,
-  )
   monkeypatch.setattr(disposal_module, 'get_schedule_by_order', lambda _id: None)
   monkeypatch.setattr(disposal_module, 'get_by_id', lambda _klass, _id: SimpleNamespace(code=37))
   monkeypatch.setattr(disposal_module, 'render_template', capture_template)
@@ -43,18 +36,7 @@ def test_export_attached_a_builds_afir_code_from_pv_and_disposal(monkeypatch):
   disposal_module.export_disposal_attached_a(7)
 
   assert rendered['template'] == 'disposal_attached_a.html'
-  assert rendered['rows'][0]['codice_afir'] == 'PV-001-AFIR-37'
-
-
-def test_format_row_skips_afir_queries_by_default(monkeypatch):
-  rae_product, group, user, order = _rae_product_row()
-  monkeypatch.setattr(disposal_module, 'get_schedule_by_order', lambda _id: None)
-  monkeypatch.setattr(disposal_module, 'get_user_info', lambda *_args: pytest.fail('Unexpected customer info query'))
-  monkeypatch.setattr(disposal_module, 'get_by_id', lambda *_args: pytest.fail('Unexpected disposal query'))
-
-  row = disposal_module.format_row(rae_product, group, user, order)
-
-  assert 'codice_afir' not in row
+  assert rendered['rows'][0]['codice_afir'] == '10-AFIR-37'
 
 
 def test_afir_column_is_rendered_only_in_attached_a():
@@ -69,7 +51,7 @@ def test_afir_column_is_rendered_only_in_attached_a():
     'quantita': 2,
     'cliente': 'Punto vendita Bari',
     'destinatario': 'Mario Rossi',
-    'codice_afir': 'PV-001-AFIR-37',
+    'codice_afir': '10-AFIR-37',
   }
   disposal = {
     'code': 37,
@@ -88,8 +70,8 @@ def test_afir_column_is_rendered_only_in_attached_a():
     )
 
   assert attached_a.count('Codice AFIR') == 1
-  assert attached_a.count('PV-001-AFIR-37') == 1
+  assert attached_a.count('10-AFIR-37') == 1
   assert '<td class="label">Codice AFIR</td>' in attached_a
   assert '>Codice AFIR</th>' not in attached_a
   assert 'Codice AFIR' not in card_index
-  assert 'PV-001-AFIR-37' not in card_index
+  assert '10-AFIR-37' not in card_index
