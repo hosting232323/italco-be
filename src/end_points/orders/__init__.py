@@ -94,7 +94,7 @@ def get_statuses(_, id):
 
 @order_bp.route('photos/<filename>', methods=['GET'])
 def serve_image_endpoint(filename):
-  return send_from_directory(get_full_path(STATIC_FOLDER, 'photos', False), filename)
+  return send_from_directory(get_full_path(STATIC_FOLDER, 'photos'), filename)
 
 
 @order_bp.route('collection-points/<id>', methods=['GET'])

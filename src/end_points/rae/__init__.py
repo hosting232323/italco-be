@@ -134,4 +134,4 @@ def serve_document(folder, filename):
   if folder not in ['dtr-documents', 'fir-first-document', 'fir-fourth-document']:
     return {'status': 'ko', 'message': 'Invalid folder'}
 
-  return send_from_directory(get_full_path(STATIC_FOLDER, folder, False), filename)
+  return send_from_directory(get_full_path(STATIC_FOLDER, folder), filename)

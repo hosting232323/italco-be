@@ -33,7 +33,7 @@ def pdf_file(filename: str) -> FileStorage:
 
 
 def test_partial_upload_is_removed(monkeypatch, tmp_path):
-  expected_path = get_full_path(str(tmp_path), 'documents', False, 'partial.pdf')
+  expected_path = get_full_path(str(tmp_path), 'documents', filename='partial.pdf')
 
   def fail_after_partial_write(content, filename, folder, *, server=None, subfolder=None, ignore_dev=None):
     path = get_full_path(folder, subfolder, ignore_dev, filename)
@@ -53,7 +53,7 @@ def test_partial_upload_is_removed(monkeypatch, tmp_path):
 
 def test_multiple_uploaded_files_are_removed_together(tmp_path):
   filenames = ['first.pdf', 'second.pdf']
-  paths = [get_full_path(str(tmp_path), 'documents', False, filename) for filename in filenames]
+  paths = [get_full_path(str(tmp_path), 'documents', filename=filename) for filename in filenames]
 
   with pytest.raises(RuntimeError, match='database failure'):
     with SessionWithStorage() as storage:
@@ -80,13 +80,13 @@ def test_storage_and_database_are_committed_together(seeded_db, tmp_path):
     create(DtrDocument, {'link': stored_path}, session=session)
     session.commit()
 
-  assert os.path.isfile(get_full_path(str(tmp_path), 'documents', False, 'committed.pdf'))
+  assert os.path.isfile(get_full_path(str(tmp_path), 'documents', filename='committed.pdf'))
   with Session() as session:
     assert session.query(DtrDocument).filter_by(link=stored_path).count() == 1
 
 
 def test_database_failure_rolls_back_file_and_row(seeded_db, tmp_path):
-  stored_path = get_full_path(str(tmp_path), 'documents', False, 'rolled-back.pdf')
+  stored_path = get_full_path(str(tmp_path), 'documents', filename='rolled-back.pdf')
 
   with pytest.raises(IntegrityError):
     with SessionWithStorage() as session:
@@ -104,7 +104,7 @@ def test_database_failure_rolls_back_file_and_row(seeded_db, tmp_path):
 
 
 def test_session_without_commit_rolls_back_storage_and_database(seeded_db, tmp_path):
-  stored_path = get_full_path(str(tmp_path), 'documents', False, 'not-committed.pdf')
+  stored_path = get_full_path(str(tmp_path), 'documents', filename='not-committed.pdf')
 
   with SessionWithStorage() as session:
     session.upload(pdf_file('not-committed.pdf'), 'not-committed.pdf', str(tmp_path), subfolder='documents')

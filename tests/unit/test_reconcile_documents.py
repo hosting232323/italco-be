@@ -52,7 +52,7 @@ def test_reconcile_documents_with_real_fake_pdf_files(seeded_db, tmp_path):
     session.commit()
     orphan_disposal_id = disposals[2].id
 
-  storage_folder = get_full_path(str(tmp_path), config['subfolder'], False)
+  storage_folder = get_full_path(str(tmp_path), config['subfolder'])
   os.makedirs(storage_folder, exist_ok=True)
   linked_path = os.path.join(storage_folder, 'linked.pdf')
   orphan_path = os.path.join(storage_folder, 'orphan.pdf')
