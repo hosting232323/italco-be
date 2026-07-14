@@ -10,8 +10,7 @@ def _rae_product_row():
   return (
     SimpleNamespace(number=12, quantity=2),
     SimpleNamespace(name='Frigorifero', cer_code=200123, group_code='R1'),
-    SimpleNamespace(nickname='Punto vendita Bari'),
-    SimpleNamespace(import_code='PV-001'),
+    SimpleNamespace(id=10, nickname='Punto vendita Bari'),
     SimpleNamespace(id=4, addressee='Mario Rossi'),
   )
 
@@ -28,6 +27,11 @@ def test_export_attached_a_builds_afir_code_from_pv_and_disposal(monkeypatch):
 
   monkeypatch.setattr(disposal_module, 'get_disposal_for_export', lambda _id: {'code': 37})
   monkeypatch.setattr(disposal_module, 'get_disposal_rae_products', lambda _id: [_rae_product_row()])
+  monkeypatch.setattr(
+    disposal_module,
+    'get_user_info',
+    lambda user_id, _klass: SimpleNamespace(import_code='PV-001') if user_id == 10 else None,
+  )
   monkeypatch.setattr(disposal_module, 'get_schedule_by_order', lambda _id: None)
   monkeypatch.setattr(disposal_module, 'render_template', capture_template)
   monkeypatch.setattr(disposal_module.pisa, 'CreatePDF', lambda **_kwargs: PdfStatus())

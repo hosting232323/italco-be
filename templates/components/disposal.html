@@ -1,16 +1,15 @@
-{% macro rae_products_table(rows, show_afir=false) %}
+{% macro rae_products_table(rows) %}
 <table class="data-table" repeat="1">
   <thead>
     <tr>
-      <th style="width: {{ '10.5%' if show_afir else '13%' }};">Data DTR</th>
-      <th style="width: {{ '9.5%' if show_afir else '11.5%' }};">N° DDT</th>
-      <th style="width: {{ '12%' if show_afir else '14.5%' }};">Prodotto</th>
-      <th style="width: {{ '8.5%' if show_afir else '10.5%' }};">CER</th>
-      <th style="width: {{ '11%' if show_afir else '13.5%' }};">Raggrupp.</th>
-      <th style="width: {{ '7%' if show_afir else '8.5%' }};">Q.tà</th>
-      <th style="width: {{ '10.5%' if show_afir else '12.5%' }};">Punto Vendita</th>
-      <th style="width: {{ '13%' if show_afir else '16%' }};">Destinatario</th>
-      {% if show_afir %}<th style="width: 18%;">Codice AFIR</th>{% endif %}
+      <th style="width: 13%;">Data DTR</th>
+      <th style="width: 11.5%;">N° DDT</th>
+      <th style="width: 14.5%;">Prodotto</th>
+      <th style="width: 10.5%;">CER</th>
+      <th style="width: 13.5%;">Raggrupp.</th>
+      <th style="width: 8.5%;">Q.tà</th>
+      <th style="width: 12.5%;">Punto Vendita</th>
+      <th style="width: 16%;">Destinatario</th>
     </tr>
   </thead>
   <tbody>
@@ -24,7 +23,6 @@
       <td>{{ row.quantita }}</td>
       <td>{{ row.cliente }}</td>
       <td>{{ row.destinatario }}</td>
-      {% if show_afir %}<td>{{ row.codice_afir }}</td>{% endif %}
     </tr>
     {% endfor %}
   </tbody>

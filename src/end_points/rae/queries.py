@@ -9,7 +9,6 @@ from database_api.operations import db_session_decorator
 from ...database.schema import (
   Carrier,
   CollectionCenter,
-  CustomerUserInfo,
   Disposal,
   Order,
   Product,
@@ -109,12 +108,11 @@ def get_rae_product_tuples_by_order(order: Order, session: session_type = None) 
 @db_session_decorator(commit=False)
 def get_disposal_rae_products(
   disposal_id: int, session: session_type = None
-) -> list[tuple[RaeProduct, RaeProductGroup, User, CustomerUserInfo, Order]]:
+) -> list[tuple[RaeProduct, RaeProductGroup, User, Order]]:
   return (
-    session.query(RaeProduct, RaeProductGroup, User, CustomerUserInfo, Order)
+    session.query(RaeProduct, RaeProductGroup, User, Order)
     .join(RaeProductGroup, RaeProduct.rae_product_group_id == RaeProductGroup.id)
     .join(User, RaeProduct.user_id == User.id)
-    .join(CustomerUserInfo, User.id == CustomerUserInfo.user_id)
     .join(Order, RaeProduct.order_id == Order.id)
     .filter(RaeProduct.disposal_id == disposal_id)
     .all()
