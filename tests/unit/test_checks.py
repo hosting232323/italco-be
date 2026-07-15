@@ -34,4 +34,4 @@ class StubSession:
 def test_get_all_documents_uses_the_requested_model(monkeypatch, model):
   monkeypatch.setattr(checks, 'Session', lambda: StubSession(model))
 
-  assert checks.get_all_documents(model, 'https://files.example.test/rae/documents/') == ['1.pdf', '2.pdf']
+  assert checks.get_all_documents(model) == ['1.pdf', '2.pdf']

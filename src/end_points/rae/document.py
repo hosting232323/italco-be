@@ -2,10 +2,10 @@ import os
 
 from sqlalchemy.orm import Session as session_type
 
-from api.storage.utils import guess_next_id
+from api.storage.utils import guess_next_id, get_base_file_path
 from database_api.operations import create
 
-from ... import STATIC_FOLDER, get_base_file_path
+from ... import STATIC_FOLDER
 from ...utils.storage import SessionWithStorage
 
 
