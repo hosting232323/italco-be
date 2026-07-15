@@ -3,6 +3,8 @@
   when: manual
   tags:
     - "${SERVER_NAME}-deploy"
+  variables:
+    API_PREFIX: api
   script:
     - |
       cat <<-EOF > env_file
