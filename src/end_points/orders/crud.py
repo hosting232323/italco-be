@@ -15,6 +15,21 @@ from .clone import format_data_cloning_order, update_cloned_order, query_product
 from ..schedule.queries import get_delivery_groups_by_order_id, get_schedule_item_by_order, get_schedule_by_order
 
 
+NON_UPDATABLE_ORDER_FIELDS = frozenset(
+  {
+    'products',
+    'user_id',
+    'motivation',
+    'start_time_slot',
+    'end_time_slot',
+    'version',
+    'id',
+    'created_at',
+    'updated_at',
+  }
+)
+
+
 def create_order(user: User, data: dict):
   clean_data = {key: value for key, value in data.items() if key not in ['products', 'user_id', 'cloned_order_id']}
   clean_data['type'] = OrderType(clean_data['type'])
@@ -152,11 +167,7 @@ def update_order(user: User, order: Order, data: dict, session):
 
   order = update(
     order,
-    {
-      key: value
-      for key, value in data.items()
-      if key not in ['products', 'user_id', 'motivation', 'start_time_slot', 'end_time_slot', 'version']
-    },
+    {key: value for key, value in data.items() if key not in NON_UPDATABLE_ORDER_FIELDS},
     session=session,
   )
   return motivation
