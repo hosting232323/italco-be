@@ -88,7 +88,7 @@ unit_tests:
       - coverage.xml
 
 # End-to-end tests con Playwright contro frontend + backend reali.
-e2e_playwright_tests:
+e2e_tests:
   <<: *python_test_template
   services:
     - name: postgres:15
@@ -133,7 +133,7 @@ e2e_playwright_tests:
       elif [ -n "$ITALCO_FE_REPO_URL" ]; then
         git clone --depth 1 "$ITALCO_FE_REPO_URL" "$ITALCO_FE_DIR"
       else
-        echo "Missing frontend source for e2e_playwright_tests."
+        echo "Missing frontend source for e2e_tests."
         echo "Set LOCAL_ITALCO_FE_DIR (preferred for gitlab-ci-local), or CI_ITALCO_FE_USERNAME/CI_ITALCO_FE_TOKEN, or ITALCO_FE_REPO_URL."
         exit 1
       fi
