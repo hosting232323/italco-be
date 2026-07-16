@@ -158,9 +158,7 @@ def test_login_rejects_unknown_user(client):
 def test_update_position_creates_delivery_info(client):
   delivery = create_user(UserRole.DELIVERY)
 
-  response = client.post(
-    '/user/position', json={'lat': '45.123', 'lon': '9.456'}, headers=auth_header(delivery)
-  )
+  response = client.post('/user/position', json={'lat': '45.123', 'lon': '9.456'}, headers=auth_header(delivery))
 
   assert response.get_json()['status'] == 'ok'
   with Session() as session:

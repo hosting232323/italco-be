@@ -276,9 +276,7 @@ def test_pianification_requires_booked_status(client):
   order = create_order(status=OrderStatus.ACQUIRED)
   create_product(order, service_user)
 
-  response = client.post(
-    '/schedule/pianification', json={'orders_id': [order.id]}, headers=auth_header(operator)
-  )
+  response = client.post('/schedule/pianification', json={'orders_id': [order.id]}, headers=auth_header(operator))
 
   body = response.get_json()
   assert body['status'] == 'ko'
@@ -291,9 +289,7 @@ def test_pianification_builds_schedule_items(client):
   order = create_order(status=OrderStatus.BOOKED)
   create_product(order, service_user, collection_point_id=collection_point.id)
 
-  response = client.post(
-    '/schedule/pianification', json={'orders_id': [order.id]}, headers=auth_header(operator)
-  )
+  response = client.post('/schedule/pianification', json={'orders_id': [order.id]}, headers=auth_header(operator))
 
   body = response.get_json()
   assert body['status'] == 'ok'

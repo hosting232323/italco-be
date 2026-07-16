@@ -34,9 +34,7 @@ def _payload(service, collection_point, **extra):
     'cap': '70121',
     'dpc': '2026-07-20',
     'drc': '2026-07-18',
-    'products': {
-      'Frigo': {'services': [{'id': service.id}], 'collection_point': {'id': collection_point.id}}
-    },
+    'products': {'Frigo': {'services': [{'id': service.id}], 'collection_point': {'id': collection_point.id}}},
     **extra,
   }
 

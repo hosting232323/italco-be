@@ -118,9 +118,7 @@ def test_update_service_user(client):
   customer = create_user(UserRole.CUSTOMER)
   service_user = create_service_user(customer, create_service())
 
-  response = client.put(
-    f'/service/customer/{service_user.id}', json={'price': 99.0}, headers=auth_header(admin)
-  )
+  response = client.put(f'/service/customer/{service_user.id}', json={'price': 99.0}, headers=auth_header(admin))
 
   assert response.get_json()['status'] == 'ok'
   assert get_by_id(ServiceUser, service_user.id).price == 99.0
@@ -142,9 +140,7 @@ def test_set_all_users_associates_customers_without_the_service(client):
   service = create_service()
   missing = create_user(UserRole.CUSTOMER)
 
-  response = client.get(
-    f'/service/set-all-users?service_id={service.id}&price=20', headers=auth_header(admin)
-  )
+  response = client.get(f'/service/set-all-users?service_id={service.id}&price=20', headers=auth_header(admin))
 
   body = response.get_json()
   assert body['status'] == 'ok'
@@ -167,9 +163,7 @@ def test_set_all_users_should_skip_already_associated_customers(client):
   create_service_user(already, service, price=5.0)
   missing = create_user(UserRole.CUSTOMER)
 
-  response = client.get(
-    f'/service/set-all-users?service_id={service.id}&price=20', headers=auth_header(admin)
-  )
+  response = client.get(f'/service/set-all-users?service_id={service.id}&price=20', headers=auth_header(admin))
 
   body = response.get_json()
   # Comportamento corretto atteso: solo il cliente senza il servizio viene associato

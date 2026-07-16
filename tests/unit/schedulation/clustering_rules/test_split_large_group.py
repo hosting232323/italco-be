@@ -51,9 +51,7 @@ def test_enforce_max_size_rechunks_groups():
 
 
 def test_split_sequentially_chunks_orders():
-  orders = [
-    {'operation_type': 'Order', 'order_id': i, 'cap': '70056', 'products': {}} for i in range(1, 6)
-  ]
+  orders = [{'operation_type': 'Order', 'order_id': i, 'cap': '70056', 'products': {}} for i in range(1, 6)]
 
   result = split_sequentially(orders, [], max_size_group=2)
 
@@ -79,8 +77,7 @@ def _order_with_caps(orders_spec):
 
 def test_cluster_orders_by_cap_groups_nearby_orders():
   order_items = [
-    {'operation_type': 'Order', 'order_id': i, 'cap': NEAR_CAPS[i % len(NEAR_CAPS)], 'products': {}}
-    for i in range(6)
+    {'operation_type': 'Order', 'order_id': i, 'cap': NEAR_CAPS[i % len(NEAR_CAPS)], 'products': {}} for i in range(6)
   ]
 
   sub_groups = cluster_orders_by_cap(order_items, [], max_size_group=3, max_distance_km=50)

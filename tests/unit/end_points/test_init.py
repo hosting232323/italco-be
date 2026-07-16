@@ -159,6 +159,4 @@ def test_local_fallback_rejects_expired_and_invalid_tokens(local_auth_app):
   )
 
   assert client.get('/protected', headers={'Authorization': expired}).get_json()['message'] == 'Token scaduto'
-  assert (
-    client.get('/protected', headers={'Authorization': 'garbage'}).get_json()['message'] == 'Token non valido'
-  )
+  assert client.get('/protected', headers={'Authorization': 'garbage'}).get_json()['message'] == 'Token non valido'

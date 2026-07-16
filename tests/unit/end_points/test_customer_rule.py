@@ -54,9 +54,7 @@ def test_delete_customer_rules_bulk(client):
   first = _rule(customer, 0)
   second = _rule(customer, 1)
 
-  response = client.delete(
-    '/customer-rule', json={'ids': [first.id, second.id]}, headers=auth_header(admin)
-  )
+  response = client.delete('/customer-rule', json={'ids': [first.id, second.id]}, headers=auth_header(admin))
 
   assert response.get_json()['status'] == 'ok'
   assert get_by_id(CustomerRule, first.id) is None

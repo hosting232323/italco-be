@@ -34,9 +34,7 @@ def test_update_carrier(client):
   admin = create_user(UserRole.ADMIN)
   carrier = create_carrier()
 
-  response = client.put(
-    f'/rae/carrier/{carrier.id}', json={'company_name': 'Rinominata'}, headers=auth_header(admin)
-  )
+  response = client.put(f'/rae/carrier/{carrier.id}', json={'company_name': 'Rinominata'}, headers=auth_header(admin))
 
   assert response.get_json()['status'] == 'ok'
   assert get_by_id(Carrier, carrier.id).company_name == 'Rinominata'

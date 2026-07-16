@@ -42,9 +42,7 @@ def test_update_transport(client):
   admin = create_user(UserRole.ADMIN)
   transport = create_transport()
 
-  response = client.put(
-    f'/transport/{transport.id}', json={'name': 'Rinominato'}, headers=auth_header(admin)
-  )
+  response = client.put(f'/transport/{transport.id}', json={'name': 'Rinominato'}, headers=auth_header(admin))
 
   assert response.get_json()['status'] == 'ok'
   assert get_by_id(Transport, transport.id).name == 'Rinominato'

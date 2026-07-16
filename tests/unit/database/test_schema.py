@@ -64,9 +64,7 @@ def test_order_cascade_deletes_children(db):
   service_user = create_service_user(customer, service)
   order = create_order()
   product = create_product(order, service_user)
-  motivation = create(
-    Motivation, {'order_id': order.id, 'status': OrderStatus.NOT_DELIVERED, 'text': 'assente'}
-  )
+  motivation = create(Motivation, {'order_id': order.id, 'status': OrderStatus.NOT_DELIVERED, 'text': 'assente'})
 
   delete(order)
 

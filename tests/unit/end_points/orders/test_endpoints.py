@@ -34,9 +34,7 @@ def _order_payload(service, collection_point, **extra):
 def test_create_order_as_customer(client):
   customer, service, _, collection_point = customer_with_service()
 
-  response = client.post(
-    '/order', json=_order_payload(service, collection_point), headers=auth_header(customer)
-  )
+  response = client.post('/order', json=_order_payload(service, collection_point), headers=auth_header(customer))
 
   body = response.get_json()
   assert body['status'] == 'ok'

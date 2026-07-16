@@ -13,11 +13,7 @@ def test_export_invoice_returns_pdf_for_delivered_orders(client):
 
   response = client.post(
     '/export/invoice',
-    json={
-      'filters': [
-        {'model': 'Order', 'field': 'booking_date', 'value': ['2026-07-01', '2026-07-31']}
-      ]
-    },
+    json={'filters': [{'model': 'Order', 'field': 'booking_date', 'value': ['2026-07-01', '2026-07-31']}]},
     headers=auth_header(admin),
   )
 
@@ -33,11 +29,7 @@ def test_export_invoice_fails_without_delivered_orders(client):
 
   response = client.post(
     '/export/invoice',
-    json={
-      'filters': [
-        {'model': 'Order', 'field': 'booking_date', 'value': ['2026-07-01', '2026-07-31']}
-      ]
-    },
+    json={'filters': [{'model': 'Order', 'field': 'booking_date', 'value': ['2026-07-01', '2026-07-31']}]},
     headers=auth_header(admin),
   )
 

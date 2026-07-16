@@ -115,9 +115,7 @@ def test_update_schedule_item_endpoint(client):
   create_product(order, service_user)
   item = link_order_to_schedule(order, schedule)
 
-  response = client.put(
-    f'/schedule/item/{item.id}', json={'completed': True}, headers=auth_header(delivery)
-  )
+  response = client.put(f'/schedule/item/{item.id}', json={'completed': True}, headers=auth_header(delivery))
 
   assert response.get_json()['status'] == 'ok'
   from src.database.schema import ScheduleItem

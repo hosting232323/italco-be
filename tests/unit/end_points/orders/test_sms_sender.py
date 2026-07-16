@@ -19,7 +19,7 @@ def test_get_order_link_uses_origin_and_hashid(app, db):
     link = get_order_link(order)
 
   assert link == f'https://fe.example.com/order/{hashids.encode(order.id)}'
-  assert hashids.decode(link.rsplit("/", 1)[-1]) == (order.id,)
+  assert hashids.decode(link.rsplit('/', 1)[-1]) == (order.id,)
 
 
 def test_delay_sms_check_disabled_in_dev(db, monkeypatch):
@@ -53,9 +53,7 @@ def test_delay_sms_check_sends_message_with_slot(app, db, monkeypatch):
   customer, _, service_user, _ = customer_with_service()
   order = create_order(addressee_contact='+391112223', booking_date=date(2026, 7, 20))
   create_product(order, service_user)
-  item = link_order_to_schedule(
-    order, create_schedule(), start_time_slot=time(9, 0), end_time_slot=time(11, 0)
-  )
+  item = link_order_to_schedule(order, create_schedule(), start_time_slot=time(9, 0), end_time_slot=time(11, 0))
 
   with app.test_request_context(headers={'Origin': 'https://fe.example.com'}):
     delay_sms_check(order, item)

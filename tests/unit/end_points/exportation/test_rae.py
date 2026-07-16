@@ -16,9 +16,7 @@ from tests.unit.factories import (
 def _order_with_emitted_rae():
   customer, _, service_user, _ = customer_with_service()
   order = create_order()
-  rae_product = create_rae_product(
-    order, customer, status=RaeStatus.EMITTED, dtr_date=date.today(), number=7
-  )
+  rae_product = create_rae_product(order, customer, status=RaeStatus.EMITTED, dtr_date=date.today(), number=7)
   create_product(order, service_user, rae_product_id=rae_product.id)
   return customer, order, rae_product
 

@@ -36,9 +36,7 @@ def test_update_product_group(client):
   admin = create_user(UserRole.ADMIN)
   group = create_rae_product_group()
 
-  response = client.put(
-    f'/rae/product-group/{group.id}', json={'name': 'Aggiornato'}, headers=auth_header(admin)
-  )
+  response = client.put(f'/rae/product-group/{group.id}', json={'name': 'Aggiornato'}, headers=auth_header(admin))
 
   assert response.get_json()['status'] == 'ok'
   assert get_by_id(RaeProductGroup, group.id).name == 'Aggiornato'

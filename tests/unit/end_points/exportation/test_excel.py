@@ -13,9 +13,7 @@ def test_export_orders_excel_builds_spreadsheet(client):
   order = create_order(addressee='Cliente Excel', anomaly=True)
   create_product(order, service_user, name='Lavastoviglie')
 
-  response = client.post(
-    '/export/orders/excel', json={'order_ids': [order.id]}, headers=auth_header(admin)
-  )
+  response = client.post('/export/orders/excel', json={'order_ids': [order.id]}, headers=auth_header(admin))
 
   assert response.status_code == 200
   assert 'spreadsheetml' in response.headers['Content-Type']
@@ -42,9 +40,7 @@ def test_export_orders_excel_rejects_empty_selection(client):
 def test_export_orders_excel_rejects_unknown_orders(client):
   admin = create_user(UserRole.ADMIN)
 
-  response = client.post(
-    '/export/orders/excel', json={'order_ids': [987654]}, headers=auth_header(admin)
-  )
+  response = client.post('/export/orders/excel', json={'order_ids': [987654]}, headers=auth_header(admin))
 
   body = response.get_json()
   assert body['status'] == 'ko'

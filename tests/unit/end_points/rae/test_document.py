@@ -22,9 +22,7 @@ def _pdf(filename='doc.pdf', content_type='application/pdf'):
 def _fake_upload(monkeypatch):
   import src.utils.storage as storage_module
 
-  monkeypatch.setattr(
-    storage_module, 'upload_file', lambda content, filename, folder, **kwargs: f'/fake/{filename}'
-  )
+  monkeypatch.setattr(storage_module, 'upload_file', lambda content, filename, folder, **kwargs: f'/fake/{filename}')
 
 
 def test_store_document_creates_row_with_sequence_id(app, db, monkeypatch):
@@ -56,9 +54,7 @@ def test_store_document_creates_row_with_sequence_id(app, db, monkeypatch):
 def test_store_document_ignores_missing_or_non_pdf(app, db):
   with app.test_request_context():
     with SessionWithStorage() as session:
-      assert (
-        store_document(DtrDocument, 'rae_product_id', 1, 'rae/dtr-documents', None, session, session) is None
-      )
+      assert store_document(DtrDocument, 'rae_product_id', 1, 'rae/dtr-documents', None, session, session) is None
       assert (
         store_document(
           DtrDocument,

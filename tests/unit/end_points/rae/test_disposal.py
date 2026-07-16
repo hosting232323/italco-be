@@ -24,9 +24,7 @@ FAKE_PDF = b'%PDF-1.4\n%%EOF\n'
 def _fake_upload(monkeypatch):
   import src.utils.storage as storage_module
 
-  monkeypatch.setattr(
-    storage_module, 'upload_file', lambda content, filename, folder, **kwargs: f'/fake/{filename}'
-  )
+  monkeypatch.setattr(storage_module, 'upload_file', lambda content, filename, folder, **kwargs: f'/fake/{filename}')
 
 
 def test_create_disposal_links_rae_products(client):

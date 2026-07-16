@@ -36,8 +36,7 @@ def test_assign_matches_closest_delivery_user():
   result = assign_delivery_users_to_schedule_items(groups, delivery_users)
 
   assignment = {
-    tuple(order_ids(group['schedule_items'])): [user['id'] for user in group['delivery_users']]
-    for group in result
+    tuple(order_ids(group['schedule_items'])): [user['id'] for user in group['delivery_users']] for group in result
   }
   assert assignment == {(21,): [11], (10,): [22]}
   assert all(group['transports'] == [] for group in result)

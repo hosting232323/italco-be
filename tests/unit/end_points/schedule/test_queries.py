@@ -59,9 +59,7 @@ def test_query_schedules_by_date_range(db):
   _, schedule, _, _ = _full_schedule(service_user, schedule_date=date(2026, 7, 15))
   _full_schedule(service_user, schedule_date=date(2026, 9, 1))
 
-  results = query_schedules(
-    [{'model': 'Schedule', 'field': 'date', 'value': ['2026-07-14', '2026-07-16']}]
-  )
+  results = query_schedules([{'model': 'Schedule', 'field': 'date', 'value': ['2026-07-14', '2026-07-16']}])
 
   assert {row[0].id for row in results} == {schedule.id}
 
@@ -70,9 +68,7 @@ def test_query_schedules_created_at_exact_day(db):
   _, _, service_user, _ = customer_with_service()
   _, schedule, _, _ = _full_schedule(service_user)
 
-  results = query_schedules(
-    [{'model': 'Schedule', 'field': 'created_at', 'value': date.today().strftime('%Y-%m-%d')}]
-  )
+  results = query_schedules([{'model': 'Schedule', 'field': 'created_at', 'value': date.today().strftime('%Y-%m-%d')}])
 
   assert {row[0].id for row in results} == {schedule.id}
 
@@ -81,9 +77,7 @@ def test_query_schedules_with_services(db):
   _, service, service_user, _ = customer_with_service()
   order, schedule, _, _ = _full_schedule(service_user)
 
-  results = query_schedules(
-    [{'model': 'Schedule', 'field': 'id', 'value': schedule.id}], get_services=True
-  )
+  results = query_schedules([{'model': 'Schedule', 'field': 'id', 'value': schedule.id}], get_services=True)
 
   assert len(results[0]) == 8
   assert results[0][7].id == service.id

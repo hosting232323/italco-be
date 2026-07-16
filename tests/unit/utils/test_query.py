@@ -36,9 +36,7 @@ def test_limit_per_entity_with_subquery_order_by(db):
   users = [create_user(UserRole.DELIVERY) for _ in range(4)]
 
   with Session() as session:
-    results = limit_per_entity(
-      _query_users(session), User.id, 2, subquery_order_by=(asc(User.id),)
-    ).all()
+    results = limit_per_entity(_query_users(session), User.id, 2, subquery_order_by=(asc(User.id),)).all()
 
   # L'ordinamento del sottoquery seleziona i primi due id creati
   assert {user.id for user in results} == {users[0].id, users[1].id}

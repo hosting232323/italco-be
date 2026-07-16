@@ -66,9 +66,7 @@ def test_query_orders_work_date_range(db):
   outside = create_order(dpc=date(2026, 8, 20))
   create_product(outside, service_user)
 
-  results = query_orders(
-    [{'model': 'Order', 'field': 'work_date', 'value': ['2026-07-15', '2026-07-25']}]
-  )
+  results = query_orders([{'model': 'Order', 'field': 'work_date', 'value': ['2026-07-15', '2026-07-25']}])
 
   assert [tupla[0].id for tupla in results] == [inside.id]
 
@@ -90,9 +88,7 @@ def test_query_orders_created_at_exact_date(db):
   order = create_order()
   create_product(order, service_user)
 
-  results = query_orders(
-    [{'model': 'Order', 'field': 'created_at', 'value': date.today().strftime('%Y-%m-%d')}]
-  )
+  results = query_orders([{'model': 'Order', 'field': 'created_at', 'value': date.today().strftime('%Y-%m-%d')}])
 
   assert [tupla[0].id for tupla in results] == [order.id]
 

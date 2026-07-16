@@ -18,9 +18,7 @@ PNG_BYTES = (
 def test_update_order_with_photo_creates_photo_row(client, monkeypatch):
   import src.utils.storage as storage_module
 
-  monkeypatch.setattr(
-    storage_module, 'upload_file', lambda content, filename, folder, **kwargs: f'/fake/{filename}'
-  )
+  monkeypatch.setattr(storage_module, 'upload_file', lambda content, filename, folder, **kwargs: f'/fake/{filename}')
   admin = create_user(UserRole.ADMIN)
   _, _, service_user, _ = customer_with_service()
   order = create_order()
@@ -45,9 +43,7 @@ def test_update_order_with_photo_creates_photo_row(client, monkeypatch):
 def test_update_order_with_signature_saves_binary(client, monkeypatch):
   import src.utils.storage as storage_module
 
-  monkeypatch.setattr(
-    storage_module, 'upload_file', lambda content, filename, folder, **kwargs: f'/fake/{filename}'
-  )
+  monkeypatch.setattr(storage_module, 'upload_file', lambda content, filename, folder, **kwargs: f'/fake/{filename}')
   admin = create_user(UserRole.ADMIN)
   _, _, service_user, _ = customer_with_service()
   order = create_order()

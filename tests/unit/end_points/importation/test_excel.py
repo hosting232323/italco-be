@@ -167,9 +167,7 @@ def test_excel_import_endpoint_reports_conflicts(client):
 def test_excel_import_endpoint_requires_file(client):
   admin = create_user(UserRole.ADMIN)
 
-  response = client.post(
-    '/import/excel', data={'customer_id': '1'}, headers=auth_header(admin)
-  )
+  response = client.post('/import/excel', data={'customer_id': '1'}, headers=auth_header(admin))
 
   body = response.get_json()
   assert body['status'] == 'ko'
@@ -193,9 +191,7 @@ def test_handle_excel_conflict_endpoint(client):
     },
   }
 
-  response = client.post(
-    '/import/excel/conflict', json={'orders': [payload_order]}, headers=auth_header(admin)
-  )
+  response = client.post('/import/excel/conflict', json={'orders': [payload_order]}, headers=auth_header(admin))
 
   body = response.get_json()
   assert body['status'] == 'ok'

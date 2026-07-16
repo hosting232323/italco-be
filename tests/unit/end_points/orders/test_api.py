@@ -20,10 +20,12 @@ from tests.unit.factories import (
 )
 
 
-def test_save_order_status_skips_without_api_password(db, capsys):
+def test_save_order_status_skips_without_api_password(db, capsys, monkeypatch):
+  # Forziamo la chiave assente: in CI potrebbe essere una variabile di progetto
+  monkeypatch.setattr(orders_api, 'EURONICS_API_PASSWORD', None)
   order = create_order()
 
-  save_order_status_to_euronics(order)  # EURONICS_API_PASSWORD non impostata
+  save_order_status_to_euronics(order)
 
   assert 'Euronics Api Key Error' in capsys.readouterr().out
 
@@ -65,16 +67,12 @@ def test_get_transport_by_schedule(db):
 
 def test_save_order_status_posts_expected_payload(db, monkeypatch):
   customer, _, service_user, _ = customer_with_service()
-  order = create_order(
-    external_id='EXT-42', booking_date=date(2026, 7, 20), operator_note='citofono rotto'
-  )
+  order = create_order(external_id='EXT-42', booking_date=date(2026, 7, 20), operator_note='citofono rotto')
   rae_product = create_rae_product(order, customer)
   create_product(order, service_user, rae_product_id=rae_product.id)
   transport = create_transport()
   schedule = create_schedule(transport)
-  link_order_to_schedule(
-    order, schedule, index=3, start_time_slot=time(8, 0), end_time_slot=time(10, 0)
-  )
+  link_order_to_schedule(order, schedule, index=3, start_time_slot=time(8, 0), end_time_slot=time(10, 0))
 
   captured = {}
 
@@ -117,9 +115,7 @@ def test_save_order_status_without_schedule_uses_defaults(db, monkeypatch):
 
   monkeypatch.setattr(orders_api, 'EURONICS_API_PASSWORD', 'secret')
   monkeypatch.setattr(orders_api, 'EURONICS_USER_IDS', [customer.id])
-  monkeypatch.setattr(
-    orders_api.requests, 'post', lambda url, json: captured.update(json=json) or FakeResponse()
-  )
+  monkeypatch.setattr(orders_api.requests, 'post', lambda url, json: captured.update(json=json) or FakeResponse())
 
   save_order_status_to_euronics(order)
 

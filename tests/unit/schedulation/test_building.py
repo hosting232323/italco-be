@@ -68,9 +68,7 @@ def test_builder_groups_orders_by_cap_cluster():
     ]
   )
 
-  order_counts = sorted(
-    sum(1 for item in group if item['operation_type'] == 'Order') for group in groups
-  )
+  order_counts = sorted(sum(1 for item in group if item['operation_type'] == 'Order') for group in groups)
   assert order_counts == [1, 2]
 
 

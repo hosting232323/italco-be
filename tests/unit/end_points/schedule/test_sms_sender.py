@@ -42,9 +42,7 @@ def test_schedule_sms_sends_programmed_message(app, db, monkeypatch):
   customer, _, service_user, _ = customer_with_service()
   order = create_order(addressee_contact='+39555', booking_date=date(2026, 7, 22))
   create_product(order, service_user)
-  item = link_order_to_schedule(
-    order, create_schedule(), start_time_slot=time(14, 0), end_time_slot=time(16, 0)
-  )
+  item = link_order_to_schedule(order, create_schedule(), start_time_slot=time(14, 0), end_time_slot=time(16, 0))
 
   with app.test_request_context(headers={'Origin': 'https://fe.example.com'}):
     schedule_sms_check(order, item)

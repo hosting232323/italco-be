@@ -40,9 +40,7 @@ def test_format_data_cloning_product_prefers_collection_point():
 
 
 def test_format_data_cloning_product_falls_back_to_transport():
-  product_data = format_data_cloning_product(
-    {}, {'release_collection_point_id': None, 'release_transport_id': 9}
-  )
+  product_data = format_data_cloning_product({}, {'release_collection_point_id': None, 'release_transport_id': 9})
 
   assert product_data['collection_point_id'] is None
   assert product_data['transport_id'] == 9
@@ -85,9 +83,7 @@ def test_reschedule_products_with_collection_point(db):
   product = create_product(order, service_user, name='Frigo')
 
   with Session() as session:
-    reschedule_products(
-      1, order, {'Frigo': {'release_collection_point_id': collection_point.id}}, session=session
-    )
+    reschedule_products(1, order, {'Frigo': {'release_collection_point_id': collection_point.id}}, session=session)
     session.commit()
 
   assert get_by_id(Product, product.id).release_collection_point_id == collection_point.id
