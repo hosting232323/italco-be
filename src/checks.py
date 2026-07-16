@@ -24,24 +24,12 @@ with open(missing_photos_path, 'r', encoding='utf-8') as file:
   MISSING_PHOTOS = [int(id) for id in re.findall(r'id:\s*(\d+)', file.read())]
 
 
-def trigger_checks(
-  folder, base_photo_path, base_dtr_document_path, base_fir_first_document_path, base_fir_fourth_document_path
-):
+def trigger_checks(folder):
   database_integrity_test()
-  check_mismatch(get_all_photos(base_photo_path), folder, 'Photos', 'photos')
-  check_mismatch(get_all_documents(DtrDocument, base_dtr_document_path), folder, 'DTR Documents', 'dtr-documents')
-  check_mismatch(
-    get_all_documents(FirFirstDocument, base_fir_first_document_path),
-    folder,
-    'First Copy FIR Documents',
-    'fir-first-document',
-  )
-  check_mismatch(
-    get_all_documents(FirFourthDocument, base_fir_fourth_document_path),
-    folder,
-    'Fourth FIR Copy Documents',
-    'fir-fourth-document',
-  )
+  check_mismatch(get_all_photos(), folder, 'Photos', 'photos')
+  check_mismatch(get_all_documents(DtrDocument), folder, 'DTR Documents', 'dtr-documents')
+  check_mismatch(get_all_documents(FirFirstDocument), folder, 'First Copy FIR Documents', 'fir-first-document')
+  check_mismatch(get_all_documents(FirFourthDocument), folder, 'Fourth FIR Copy Documents', 'fir-fourth-document')
 
   return {'status': 'ok', 'message': 'Check eseguiti con successo'}
 
@@ -65,17 +53,14 @@ def database_integrity_test():
   send_telegram_message('\n'.join(message_lines))
 
 
-def get_all_photos(base_photo_path: str) -> set[str]:
+def get_all_photos() -> list[str]:
   with Session() as session:
-    return [
-      row.link.replace(base_photo_path, '')
-      for row in session.query(Photo).filter(Photo.id.not_in(MISSING_PHOTOS)).all()
-    ]
+    return [row.link.rsplit('/', 1)[-1] for row in session.query(Photo).filter(Photo.id.not_in(MISSING_PHOTOS)).all()]
 
 
-def get_all_documents(model, base_document_path: str) -> list[str]:
+def get_all_documents(model) -> list[str]:
   with Session() as session:
-    return [row.link.replace(base_document_path, '') for row in session.query(model).all()]
+    return [row.link.rsplit('/', 1)[-1] for row in session.query(model).all()]
 
 
 def get_checks():
