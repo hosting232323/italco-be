@@ -1,10 +1,15 @@
+import re
+from io import BytesIO
 from datetime import date
+
+from pypdf import PdfReader
 
 from src.database.enum import RaeStatus, UserRole
 from src.end_points.exportation.rae import get_rae_export_info_by_order
 
 from tests.unit.factories import (
   auth_header,
+  create_dtr_document,
   create_order,
   create_product,
   create_rae_product,
@@ -84,6 +89,61 @@ def test_export_rae_by_product_unknown_product(client):
   body = response.get_json()
   assert body['status'] == 'ko'
   assert body['message'] == 'Prodotto rae non trovato'
+
+
+def test_export_rae_card_index_returns_pdf(client):
+  operator = create_user(UserRole.OPERATOR)
+  customer, _, _ = _order_with_emitted_rae()
+
+  response = client.get(f'/export/rae/card-index/{customer.id}/{date.today().year}', headers=auth_header(operator))
+
+  assert response.status_code == 200
+  assert response.headers['Content-Type'] == 'application/pdf'
+
+
+def test_export_rae_card_index_unknown_selling_point(client):
+  operator = create_user(UserRole.OPERATOR)
+
+  response = client.get(f'/export/rae/card-index/999999/{date.today().year}', headers=auth_header(operator))
+
+  body = response.get_json()
+  assert body['status'] == 'ko'
+  assert body['message'] == 'Punto vendita non trovato'
+
+
+def test_export_rae_card_index_rejects_non_customer_user(client):
+  operator = create_user(UserRole.OPERATOR)
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.get(f'/export/rae/card-index/{admin.id}/{date.today().year}', headers=auth_header(operator))
+
+  body = response.get_json()
+  assert body['status'] == 'ko'
+  assert body['message'] == 'Punto vendita non trovato'
+
+
+def test_export_rae_card_index_counts_each_pickup_once_with_multiple_dtr_documents(client):
+  operator = create_user(UserRole.OPERATOR)
+  customer, _, rae_product = _order_with_emitted_rae()
+  create_dtr_document(rae_product)
+  create_dtr_document(rae_product)
+
+  response = client.get(f'/export/rae/card-index/{customer.id}/{date.today().year}', headers=auth_header(operator))
+
+  assert response.status_code == 200
+  text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
+  assert re.search(r'Totale pezzi:\s*(\d+)', text).group(1) == '1'
+
+
+def test_export_rae_card_index_without_pickups_in_year(client):
+  operator = create_user(UserRole.OPERATOR)
+  customer, _, _ = _order_with_emitted_rae()
+
+  response = client.get(f'/export/rae/card-index/{customer.id}/{date.today().year - 1}', headers=auth_header(operator))
+
+  body = response.get_json()
+  assert body['status'] == 'ko'
+  assert body['message'] == 'Nessun ritiro RAEE trovato per questo punto vendita in questo anno'
 
 
 def test_get_rae_export_info_by_order_requires_dtr_date():

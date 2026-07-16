@@ -83,24 +83,6 @@ def test_export_attached_b_wrong_disposal_count(client):
   assert body['message'] == 'Numero di smaltimenti trovati non valido'
 
 
-def test_export_card_index_returns_pdf(client):
-  operator = create_user(UserRole.OPERATOR)
-  disposal, _, _ = _disposal_with_products()
-
-  response = client.get(f'/export/disposal/{disposal.id}/card-index', headers=auth_header(operator))
-
-  assert response.status_code == 200
-  assert response.headers['Content-Type'] == 'application/pdf'
-
-
-def test_export_card_index_missing_disposal(client):
-  operator = create_user(UserRole.OPERATOR)
-
-  response = client.get('/export/disposal/999999/card-index', headers=auth_header(operator))
-
-  assert response.get_json()['message'] == 'Smaltimento non trovato'
-
-
 def test_format_row_uses_schedule_date(db):
   customer, _, service_user, _ = customer_with_service()
   order = create_order(addressee='Con borderò')

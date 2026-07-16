@@ -18,6 +18,7 @@ from src.database.schema import (
   DeliveryGroup,
   DeliveryUserInfo,
   Disposal,
+  DtrDocument,
   Order,
   Product,
   RaeProduct,
@@ -190,6 +191,10 @@ def create_disposal(carrier: Carrier = None, collection_center: CollectionCenter
       **extra,
     },
   )
+
+
+def create_dtr_document(rae_product: RaeProduct, **extra) -> DtrDocument:
+  return create(DtrDocument, {'link': unique('dtr-link'), 'rae_product_id': rae_product.id, **extra})
 
 
 def customer_with_service(
