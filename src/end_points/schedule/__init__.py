@@ -7,7 +7,7 @@ from ...schedulation import execute_schedulation
 from .. import flask_session_authentication
 from ...schedulation.building import build_schedule_items
 from ...database.schema import Schedule, User, DeliveryGroup
-from .delivery import get_items_for_delivery, update_schedule_item
+from .delivery import get_items_for_delivery, get_history_for_delivery, update_schedule_item
 from database_api.operations import create, delete, get_by_id, update
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
 from .utils import (
@@ -147,6 +147,12 @@ def pianification(_):
 @flask_session_authentication([UserRole.DELIVERY])
 def update_schedule_item_endpoint(user: User, id):
   return update_schedule_item(user, int(id), request.json['completed'])
+
+
+@schedule_bp.route('history', methods=['GET'])
+@flask_session_authentication([UserRole.DELIVERY])
+def get_history_for_delivery_endpoint(user: User):
+  return get_history_for_delivery(user)
 
 
 @schedule_bp.route('delivery', methods=['GET'])

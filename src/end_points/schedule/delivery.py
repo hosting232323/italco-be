@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from ...database.enum import OrderStatus
 from database_api.operations import get_by_id, update
@@ -26,6 +26,25 @@ def get_items_for_delivery(delivery_user: User):
     'status': 'ok',
     'schedule_items': sorted(schedules[0]['schedule_items'], key=lambda schedule_item: schedule_item['index']),
   }
+
+
+def get_history_for_delivery(delivery_user: User):
+  schedules = []
+  yesterday = date.today() - timedelta(days=1)
+  for tupla in query_schedules(
+    [
+      {'model': 'DeliveryGroup', 'field': 'user_id', 'value': delivery_user.id},
+      {'model': 'Schedule', 'field': 'date', 'value': [date.min, yesterday]},
+    ],
+    get_services=True,
+  ):
+    schedules = format_query_result(tupla, schedules)
+
+  for schedule in schedules:
+    schedule['schedule_items'] = sorted(schedule['schedule_items'], key=lambda schedule_item: schedule_item['index'])
+  schedules.sort(key=lambda schedule: schedule['date'], reverse=True)
+
+  return {'status': 'ok', 'schedules': schedules}
 
 
 def update_schedule_item(delivery_user: User, schedule_item_id: int, completed: bool):

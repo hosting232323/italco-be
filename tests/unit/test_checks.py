@@ -17,30 +17,63 @@ from tests.unit.factories import (
 from database_api import Session
 
 
+class StubDocument:
+  def __init__(self, link):
+    self.link = link
+
+
+class StubSession:
+  def __init__(self, expected_model, links):
+    self.expected_model = expected_model
+    self.links = links
+
+  def __enter__(self):
+    return self
+
+  def __exit__(self, *_):
+    return None
+
+  def query(self, model):
+    assert model is self.expected_model
+    return self
+
+  def all(self):
+    return [StubDocument(link) for link in self.links]
+
+
 @pytest.mark.parametrize('model', [DtrDocument, FirFirstDocument, FirFourthDocument])
-def test_get_all_documents_strips_base_path(model, db, monkeypatch):
+def test_get_all_documents_returns_basenames(model, db):
   from database_api.operations import create
 
   base = 'https://files.example.test/rae/documents/'
   # I documenti richiedono un owner valido: creiamo lo scenario minimo.
   if model is DtrDocument:
-    customer = create_user(UserRole.CUSTOMER)
     from tests.unit.factories import create_rae_product
 
-    rae_product = create_rae_product(create_order(), customer)
+    rae_product = create_rae_product(create_order(), create_user(UserRole.CUSTOMER))
     create(model, {'link': f'{base}1.pdf', 'rae_product_id': rae_product.id})
     create(model, {'link': f'{base}2.pdf', 'rae_product_id': rae_product.id})
   else:
     from tests.unit.factories import create_disposal
 
-    disposal = create_disposal()
-    create(model, {'link': f'{base}1.pdf', 'disposal_id': disposal.id})
-    disposal2 = create_disposal()
-    create(model, {'link': f'{base}2.pdf', 'disposal_id': disposal2.id})
+    create(model, {'link': f'{base}1.pdf', 'disposal_id': create_disposal().id})
+    create(model, {'link': f'{base}2.pdf', 'disposal_id': create_disposal().id})
 
-  result = sorted(checks.get_all_documents(model, base))
+  assert sorted(checks.get_all_documents(model)) == ['1.pdf', '2.pdf']
 
-  assert result == ['1.pdf', '2.pdf']
+
+def test_get_all_documents_returns_basenames_for_any_prefix(monkeypatch):
+  # Regressione: i link in DB possono avere host/scheme diversi da quelli della request
+  # corrente (localhost, cron, http vs https): il confronto deve restare sui basename.
+  links = [
+    'https://ares-logistics.it/api/rae/dtr-documents/1.pdf',
+    'http://localhost:8080/api/rae/dtr-documents/2.pdf',
+    'https://altro-dominio.it/rae/dtr-documents/3.pdf',
+    '4.pdf',
+  ]
+  monkeypatch.setattr(checks, 'Session', lambda: StubSession(DtrDocument, links))
+
+  assert checks.get_all_documents(DtrDocument) == ['1.pdf', '2.pdf', '3.pdf', '4.pdf']
 
 
 def test_get_all_photos_excludes_missing_ids(db, monkeypatch):
@@ -53,9 +86,7 @@ def test_get_all_photos_excludes_missing_ids(db, monkeypatch):
   drop = create(Photo, {'order_id': order.id, 'link': f'{base}drop.jpg'})
   monkeypatch.setattr(checks, 'MISSING_PHOTOS', [drop.id])
 
-  result = checks.get_all_photos(base)
-
-  assert result == ['keep.jpg']
+  assert checks.get_all_photos() == ['keep.jpg']
 
 
 def test_check_orders_no_user_finds_orphan_orders(db):
@@ -148,15 +179,23 @@ def test_database_integrity_test_sends_report(db, monkeypatch):
   assert 'Report Dati Corrotti' in messages[0]
 
 
-def test_trigger_checks_orchestrates_all_steps(db, monkeypatch):
-  calls = {'integrity': 0, 'mismatch': []}
-  monkeypatch.setattr(checks, 'database_integrity_test', lambda: calls.__setitem__('integrity', 1))
+def test_trigger_checks_passes_basenames_to_check_mismatch(monkeypatch):
+  calls = []
+  monkeypatch.setattr(checks, 'database_integrity_test', lambda: None)
+  monkeypatch.setattr(checks, 'get_all_photos', lambda: ['1.jpg'])
+  monkeypatch.setattr(checks, 'get_all_documents', lambda model: [f'{model.__name__}.pdf'])
   monkeypatch.setattr(
-    checks, 'check_mismatch', lambda db_files, folder, label, subfolder: calls['mismatch'].append(label)
+    checks,
+    'check_mismatch',
+    lambda files, folder, label, subfolder=None: calls.append((files, folder, label, subfolder)),
   )
 
-  result = checks.trigger_checks('folder', 'photos', 'dtr', 'fir1', 'fir4')
+  response = checks.trigger_checks('/static')
 
-  assert result['status'] == 'ok'
-  assert calls['integrity'] == 1
-  assert calls['mismatch'] == ['Photos', 'DTR Documents', 'First Copy FIR Documents', 'Fourth FIR Copy Documents']
+  assert response == {'status': 'ok', 'message': 'Check eseguiti con successo'}
+  assert calls == [
+    (['1.jpg'], '/static', 'Photos', 'photos'),
+    (['DtrDocument.pdf'], '/static', 'DTR Documents', 'dtr-documents'),
+    (['FirFirstDocument.pdf'], '/static', 'First Copy FIR Documents', 'fir-first-document'),
+    (['FirFourthDocument.pdf'], '/static', 'Fourth FIR Copy Documents', 'fir-fourth-document'),
+  ]
