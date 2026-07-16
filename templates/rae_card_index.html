@@ -1,0 +1,27 @@
+{% extends "components/base.html" %}
+{% from "components/disposal.html" import rae_products_table %}
+
+{% block content %}
+<h1>Schedario Ritiri RAEE</h1>
+
+<div class="section">
+  <h2>Punto Vendita</h2>
+  <table class="info-table">
+    <tr><td class="label">Punto vendita</td><td>{{ customer.nickname }}</td></tr>
+    {% if customer.customer_user_info %}
+    <tr><td class="label">Ragione sociale</td><td>{{ customer.customer_user_info.company_name or '' }}</td></tr>
+    <tr><td class="label">Indirizzo</td><td>{{ customer.customer_user_info.address or '' }} {{ customer.customer_user_info.city or '' }}</td></tr>
+    {% endif %}
+    <tr><td class="label">Anno</td><td>{{ year }}</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>Ritiri RAEE ({{ rows|length }})</h2>
+  {{ rae_products_table(rows) }}
+</div>
+
+<div class="total">
+  <b>Totale pezzi:</b> {{ total }}
+</div>
+{% endblock %}

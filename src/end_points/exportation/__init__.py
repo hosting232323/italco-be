@@ -8,8 +8,8 @@ from .order import export_order
 from .schedule import export_schedule
 from .excel import export_orders_excel
 from .invoice import export_order_invoice
-from .rae import export_rae, export_rae_by_product
-from .disposal import export_disposal_attached_a, export_disposal_attached_b, export_disposal_card_index
+from .rae import export_rae, export_rae_by_product, export_rae_card_index
+from .disposal import export_disposal_attached_a, export_disposal_attached_b
 
 
 export_bp = Blueprint('export_bp', __name__)
@@ -31,6 +31,12 @@ def export_orders_invoice(_):
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_orders_schedule(user: User, id):
   return export_schedule(user, id)
+
+
+@export_bp.route('rae/card-index/<int:user_id>/<int:year>', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+def export_rae_card_index_route(user: User, user_id, year):
+  return export_rae_card_index(user, user_id, year)
 
 
 @export_bp.route('rae/<order_id>', methods=['GET'])
@@ -61,9 +67,3 @@ def export_disposal_attached_a_route(_, id):
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def export_disposal_attached_b_route(_, id):
   return export_disposal_attached_b(id)
-
-
-@export_bp.route('disposal/<id>/card-index', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
-def export_disposal_card_index_route(_, id):
-  return export_disposal_card_index(id)
