@@ -14,3 +14,6 @@ seed_data.py
 .github/instructions/
 .gilab-ci-local/
 static/
+
+.coverage
+coverage.xml

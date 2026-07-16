@@ -1,24 +1,20 @@
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
-from flask import Flask
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
-from sqlalchemy.exc import OperationalError
-
-import database_api
-import src.database.schema  # noqa: F401
-from src.database.seed import seed_data
-from src.end_points.orders import order_bp
-from src.end_points.users import user_bp
 
 
-# Ensure the project root is in sys.path for imports
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
   sys.path.insert(0, str(PROJECT_ROOT))
+
+# Lo storage locale deve essere isolato PRIMA dell'import di src:
+# STATIC_FOLDER viene letto a livello di modulo in src/__init__.py.
+os.environ.setdefault('STATIC_FOLDER', tempfile.mkdtemp(prefix='italco-test-static-'))
 
 
 def _assert_test_database_url(url: str) -> str:
@@ -29,55 +25,67 @@ def _assert_test_database_url(url: str) -> str:
   return url
 
 
-@pytest.fixture(scope='session')
-def database_engine():
-  database_url = os.environ.get('DATABASE_URL')
-  if not database_url:
-    raise RuntimeError('DATABASE_URL is required for tests.')
+def _prepare_test_database(url: str):
+  """Crea il database di test se manca e riparte da uno schema vuoto.
 
-  safe_url = _assert_test_database_url(database_url)
-  engine = create_engine(safe_url, pool_pre_ping=True)
-  try:
-    with engine.connect():
-      pass
-  except OperationalError as exc:
-    parsed = make_url(safe_url)
-    if parsed.drivername.startswith('postgresql') and 'does not exist' in str(exc):
-      admin_url = parsed.set(database='postgres')
-      admin_engine = create_engine(admin_url, isolation_level='AUTOCOMMIT', pool_pre_ping=True)
-      with admin_engine.connect() as conn:
-        exists = conn.execute(
-          text('SELECT 1 FROM pg_database WHERE datname = :db_name'),
-          {'db_name': parsed.database},
-        ).scalar()
-        if not exists:
-          conn.execute(text(f'CREATE DATABASE "{parsed.database}"'))
-      admin_engine.dispose()
-      with engine.connect():
-        pass
-    else:
-      raise
-  database_api.engine = engine
-  yield engine
+  Lo schema viene poi ricostruito dalle migrazioni alembic quando
+  src.__main__ chiama set_database (alembic_migration_check).
+  """
+  parsed = make_url(url)
+  admin_engine = create_engine(parsed.set(database='postgres'), isolation_level='AUTOCOMMIT', pool_pre_ping=True)
+  with admin_engine.connect() as conn:
+    exists = conn.execute(
+      text('SELECT 1 FROM pg_database WHERE datname = :db_name'), {'db_name': parsed.database}
+    ).scalar()
+    if not exists:
+      conn.execute(text(f'CREATE DATABASE "{parsed.database}"'))
+  admin_engine.dispose()
+
+  engine = create_engine(url, isolation_level='AUTOCOMMIT', pool_pre_ping=True)
+  with engine.connect() as conn:
+    conn.execute(text('DROP SCHEMA public CASCADE'))
+    conn.execute(text('CREATE SCHEMA public'))
   engine.dispose()
 
 
-@pytest.fixture
-def seeded_db(database_engine):
-  database_api.Base.metadata.drop_all(bind=database_engine)
-  database_api.Base.metadata.create_all(bind=database_engine)
-  seed_data()
+DATABASE_URL = _assert_test_database_url(os.environ['DATABASE_URL'])
+_prepare_test_database(DATABASE_URL)
+
+# L'import registra tutti i blueprint sull'app reale ed esegue set_database,
+# che applica le migrazioni alembic sul database di test appena ripulito.
+import database_api  # noqa: E402
+import src.__main__  # noqa: E402,F401
+from src import app as flask_app  # noqa: E402
+from src.database.seed import seed_data  # noqa: E402
+
+
+_TABLES = ', '.join(f'"{table.name}"' for table in database_api.Base.metadata.sorted_tables)
+
+
+def _truncate_all_tables():
+  with database_api.engine.begin() as conn:
+    conn.execute(text(f'TRUNCATE TABLE {_TABLES} RESTART IDENTITY CASCADE'))
+
+
+@pytest.fixture(autouse=True)
+def db():
+  """Ogni test parte da un database vuoto (schema creato dalle migrazioni)."""
+  _truncate_all_tables()
   yield
 
 
 @pytest.fixture
-def app(seeded_db):
-  app = Flask(__name__)
-  app.register_blueprint(user_bp, url_prefix='/users/')
-  app.register_blueprint(order_bp, url_prefix='/order/')
-  return app
+def seeded_db(db):
+  seed_data()
+  yield
+
+
+@pytest.fixture(scope='session')
+def app():
+  flask_app.config.update(TESTING=True)
+  return flask_app
 
 
 @pytest.fixture
-def client(app):
+def client(app, db):
   return app.test_client()

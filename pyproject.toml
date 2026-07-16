@@ -24,8 +24,8 @@ dependencies = [
 dev = [
   "tqdm",
   "pytest",
+  "pytest-cov",
   "python-dotenv",
-  "selenium",
   "ruff",
   "playwright",
   "pytest-playwright",
