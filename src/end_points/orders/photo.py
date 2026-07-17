@@ -6,7 +6,7 @@ from database_api.operations import create
 
 from ... import STATIC_FOLDER
 from ...database.schema import Order, Photo
-from api.storage.utils import guess_extension, guess_next_id, get_base_file_path
+from api.storage import get_base_file_path, guess_extension, guess_next_id
 from api.storage.session import SessionWithStorage
 
 
