@@ -1,11 +1,12 @@
 from sqlalchemy import and_
+from sqlalchemy.orm import Session as session_type
 from flask import Blueprint, request
 
 from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
 from ..database.schema import Transport, Schedule, DeliveryGroup
-from database_api.operations import create, delete, get_by_id, update
+from database_api.operations import create, delete, get_by_id, update, db_session_decorator
 
 
 transport_bp = Blueprint('transport_bp', __name__)
@@ -42,11 +43,11 @@ def query_transports() -> list[Transport]:
     return session.query(Transport).all()
 
 
-def get_delivery_transport(delivery_user_id) -> Transport:
-  with Session() as session:
-    return (
-      session.query(Transport)
-      .join(Schedule, Transport.id == Schedule.transport_id)
-      .join(DeliveryGroup, and_(Schedule.id == DeliveryGroup.schedule_id, DeliveryGroup.user_id == delivery_user_id))
-      .first()
-    )
+@db_session_decorator(commit=False)
+def get_delivery_transport(delivery_user_id, session: session_type = None) -> Transport:
+  return (
+    session.query(Transport)
+    .join(Schedule, Transport.id == Schedule.transport_id)
+    .join(DeliveryGroup, and_(Schedule.id == DeliveryGroup.schedule_id, DeliveryGroup.user_id == delivery_user_id))
+    .first()
+  )

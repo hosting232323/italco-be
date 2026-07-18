@@ -13,6 +13,7 @@ from sqlalchemy import (
   Time,
   JSON,
   DateTime,
+  UniqueConstraint,
 )
 
 from database_api import BaseEntity
@@ -79,6 +80,7 @@ class CustomerGroup(BaseEntity):
 
 class DeliveryGroup(BaseEntity):
   __tablename__ = 'delivery_group'
+  __table_args__ = (UniqueConstraint('schedule_id', 'user_id', name='uq_delivery_group_schedule_user'),)
 
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
   schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)

@@ -1,6 +1,8 @@
 from sqlalchemy import and_, desc, or_, cast, Date
+from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
+from database_api.operations import db_session_decorator
 from ...utils.date import handle_date
 from ...utils.query import limit_per_entity
 from ...database.enum import OrderType
@@ -101,19 +103,21 @@ def query_orders(
     return limit_per_entity(query.order_by(desc(Order.created_at)), Order.id, limit).all()
 
 
-def query_products(order: Order) -> list[Product]:
-  with Session() as session:
-    return session.query(Product).filter(Product.order_id == order.id).all()
+@db_session_decorator(commit=False)
+def query_products(order: Order, session: session_type = None) -> list[Product]:
+  return session.query(Product).filter(Product.order_id == order.id).all()
 
 
-def query_service_users(service_ids: list[int], user_id: int, type: OrderType) -> list[ServiceUser]:
-  with Session() as session:
-    return (
-      session.query(ServiceUser)
-      .join(Service, Service.id == ServiceUser.service_id)
-      .filter(ServiceUser.user_id == user_id, ServiceUser.service_id.in_(service_ids), Service.type == type)
-      .all()
-    )
+@db_session_decorator(commit=False)
+def query_service_users(
+  service_ids: list[int], user_id: int, type: OrderType, session: session_type = None
+) -> list[ServiceUser]:
+  return (
+    session.query(ServiceUser)
+    .join(Service, Service.id == ServiceUser.service_id)
+    .filter(ServiceUser.user_id == user_id, ServiceUser.service_id.in_(service_ids), Service.type == type)
+    .all()
+  )
 
 
 def format_query_result(
@@ -188,16 +192,16 @@ def get_selling_point(order: Order) -> User:
     )
 
 
-def get_delivery_user(order: Order) -> User:
-  with Session() as session:
-    return (
-      session.query(User)
-      .join(ScheduleItemOrder, ScheduleItemOrder.order_id == order.id)
-      .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
-      .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
-      .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == User.id))
-      .first()
-    )
+@db_session_decorator(commit=False)
+def get_delivery_user(order: Order, session: session_type = None) -> User:
+  return (
+    session.query(User)
+    .join(ScheduleItemOrder, ScheduleItemOrder.order_id == order.id)
+    .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+    .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
+    .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == User.id))
+    .first()
+  )
 
 
 def get_order_by_external_id_and_customer(external_id: str, customer_id: str) -> Order:

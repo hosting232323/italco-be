@@ -120,6 +120,7 @@ def test_handle_schedule_item_order_emits_rae_and_updates_status(db):
       },
       schedule,
       session,
+      pending_sms=[],
     )
     session.commit()
 
@@ -147,6 +148,7 @@ def test_handle_schedule_item_collection_point(db):
       },
       schedule,
       session,
+      pending_sms=[],
     )
     session.commit()
 
@@ -211,6 +213,7 @@ def test_schedule_items_updating_updates_creates_and_deletes(db):
       actual_items,
       schedule,
       session=session,
+      pending_sms=[],
     )
     session.commit()
 

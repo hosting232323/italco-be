@@ -14,8 +14,8 @@ service_bp = Blueprint('service_bp', __name__)
 @service_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def create_service(_):
-  request.json['type'] = OrderType(request.json['type'])
-  return {'status': 'ok', 'service': create(Service, request.json).to_dict()}
+  data = {**request.json, 'type': OrderType(request.json['type'])}
+  return {'status': 'ok', 'service': create(Service, data).to_dict()}
 
 
 @service_bp.route('', methods=['GET'])
@@ -31,8 +31,8 @@ def get_services(user: User):
 @flask_session_authentication([UserRole.ADMIN])
 def update_service(_, id):
   service: Service = get_by_id(Service, int(id))
-  request.json['type'] = OrderType(request.json['type'])
-  return {'status': 'ok', 'order': update(service, request.json).to_dict()}
+  data = {**request.json, 'type': OrderType(request.json['type'])}
+  return {'status': 'ok', 'order': update(service, data).to_dict()}
 
 
 @service_bp.route('<id>', methods=['DELETE'])

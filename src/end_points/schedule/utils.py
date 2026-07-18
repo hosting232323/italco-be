@@ -1,4 +1,3 @@
-from .sms_sender import schedule_sms_check
 from ..orders.queries import query_products
 from ..orders.api import save_order_status_to_euronics
 from ...database.enum import OrderStatus, ScheduleType
@@ -60,12 +59,13 @@ def format_schedule_data(schedule_data: dict, session=None):
   if not orders or not users or len(users) == 0:
     return None, None, None, {'status': 'ko', 'message': 'Errore nella creazione del borderò'}
 
-  del schedule_data['users']
-  del schedule_data['schedule_items']
-  return schedule_items, schedule_data, users, None
+  schedule_fields = {
+    key: value for key, value in schedule_data.items() if key not in ('users', 'schedule_items', 'deleted_users')
+  }
+  return schedule_items, schedule_fields, users, None
 
 
-def handle_schedule_item(item: dict, schedule: Schedule, session):
+def handle_schedule_item(item: dict, schedule: Schedule, session, pending_sms: list):
   operation_type = ScheduleType(item['operation_type'])
   new_item: ScheduleItem = create(
     ScheduleItem,
@@ -93,13 +93,15 @@ def handle_schedule_item(item: dict, schedule: Schedule, session):
       order,
       {
         'status': OrderStatus.BOOKING
-        if all(product.transport_id for product in query_products(order))
+        if all(product.transport_id for product in query_products(order, session=session))
         else OrderStatus.SCHEDULED
       },
       session=session,
     )
     emit_rae_products(order, schedule, session=session)
-    schedule_sms_check(order, new_item)
+    # L'invio avviene dopo il commit: se la transazione fallisce il cliente
+    # non deve ricevere una comunicazione su uno stato mai persistito.
+    pending_sms.append((order, new_item))
 
   elif operation_type == ScheduleType.COLLECTIONPOINT:
     create(
@@ -131,6 +133,7 @@ def schedule_items_updating(
   actual_schedule_items: list[tuple[ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder]],
   schedule: Schedule,
   session,
+  pending_sms: list,
 ):
   for schedule_item in schedule_items:
     if 'id' in schedule_item:
@@ -144,7 +147,7 @@ def schedule_items_updating(
         session=session,
       )
     else:
-      handle_schedule_item(schedule_item, schedule, session=session)
+      handle_schedule_item(schedule_item, schedule, session=session, pending_sms=pending_sms)
 
   items_to_delete = []
   for actual_item in actual_schedule_items:

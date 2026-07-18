@@ -2,7 +2,6 @@ from datetime import datetime
 
 from .utils import parse_time
 from database_api import Session
-from .sms_sender import delay_sms_check
 from ..users.queries import get_user_info
 from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
@@ -89,21 +88,23 @@ def get_order(order_id: int):
 
 
 def delete_order(user: User, order_id: int):
-  order: Order = get_by_id(Order, order_id)
-  item = get_schedule_item_by_order(order)
-  if not order or item or order.status not in [OrderStatus.ACQUIRED, OrderStatus.BOOKED]:
-    return {
-      'status': 'ko',
-      'message': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",
-    }
+  with Session() as session:
+    order: Order = get_by_id(Order, order_id, session=session)
+    item = get_schedule_item_by_order(order, session=session) if order else None
+    if not order or item or order.status not in [OrderStatus.ACQUIRED, OrderStatus.BOOKED]:
+      return {
+        'status': 'ko',
+        'message': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",
+      }
 
-  delete(order)
+    delete(order, session=session)
+    session.commit()
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
-def update_order(user: User, order: Order, data: dict, session):
+def update_order(user: User, order: Order, data: dict, session, pending_sms: list = None):
   is_delay = data['delay'] if 'delay' in data else False
-  schedule_item = get_schedule_item_by_order(order)
+  schedule_item = get_schedule_item_by_order(order, session=session)
   if 'motivation' in data:
     motivation = create(
       Motivation,
@@ -142,12 +143,12 @@ def update_order(user: User, order: Order, data: dict, session):
         order,
         data['products'],
         user.id if user.role == UserRole.CUSTOMER else data['user_id'],
-        get_schedule_by_order(order.id) if schedule_item else None,
+        get_schedule_by_order(order.id, session=session) if schedule_item else None,
         session,
       )
     if 'status' in data and data['status'] == OrderStatus.TO_RESCHEDULE and order.status != OrderStatus.TO_RESCHEDULE:
       reschedule_products(
-        get_delivery_user(order).id if user.role != UserRole.DELIVERY else user.id,
+        get_delivery_user(order, session=session).id if user.role != UserRole.DELIVERY else user.id,
         order,
         data['products'],
         session,
@@ -163,7 +164,10 @@ def update_order(user: User, order: Order, data: dict, session):
         {'start_time_slot': data['start_time_slot'], 'end_time_slot': data['end_time_slot']},
         session=session,
       )
-      delay_sms_check(order, data)
+      # L'SMS parte dopo il commit (dal chiamante): un rollback successivo non
+      # deve lasciare il cliente con una riprogrammazione mai avvenuta.
+      if pending_sms is not None:
+        pending_sms.append((order, schedule_item))
 
   order = update(
     order,
@@ -174,19 +178,22 @@ def update_order(user: User, order: Order, data: dict, session):
 
 
 def update_order_customer(user: User, user_id: int, order_id: int):
-  updates = []
-  service_users = get_service_users(user_id)
-  products = query_products(get_by_id(Order, order_id))
-  for product in products:
-    old_service_user: ServiceUser = get_by_id(ServiceUser, product.service_user_id)
-    service_user = next(
-      (service_user for service_user in service_users if service_user.service_id == old_service_user.service_id), None
-    )
-    if service_user:
-      updates.append((product, service_user))
-  if len(updates) != len(products):
-    return {'status': 'ko', 'message': "Il nuovo utente non possiete gli stessi servizi dell'utente precedente"}
+  with Session() as session:
+    updates = []
+    service_users = get_service_users(user_id, session=session)
+    order = get_by_id(Order, order_id, session=session)
+    products = query_products(order, session=session)
+    for product in products:
+      old_service_user: ServiceUser = get_by_id(ServiceUser, product.service_user_id, session=session)
+      service_user = next(
+        (service_user for service_user in service_users if service_user.service_id == old_service_user.service_id), None
+      )
+      if service_user:
+        updates.append((product, service_user))
+    if len(updates) != len(products):
+      return {'status': 'ko', 'message': "Il nuovo utente non possiete gli stessi servizi dell'utente precedente"}
 
-  for product, service_user in updates:
-    update(product, {'service_user_id': service_user.id})
+    for product, service_user in updates:
+      update(product, {'service_user_id': service_user.id}, session=session)
+    session.commit()
   return {'status': 'ok', 'message': 'Operazione completata'}

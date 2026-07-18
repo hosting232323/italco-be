@@ -14,8 +14,8 @@ collection_point_bp = Blueprint('collection_point_bp', __name__)
 @collection_point_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.CUSTOMER])
 def create_collection_point(user: User):
-  request.json['user_id'] = user.id
-  return {'status': 'ok', 'collection_point': create(CollectionPoint, request.json).to_dict()}
+  data = {**request.json, 'user_id': user.id}
+  return {'status': 'ok', 'collection_point': create(CollectionPoint, data).to_dict()}
 
 
 @collection_point_bp.route('<id>', methods=['DELETE'])
