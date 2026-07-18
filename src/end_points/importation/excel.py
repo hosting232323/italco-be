@@ -9,10 +9,30 @@ from ...database.enum import OrderType, OrderStatus
 from ...database.schema import Order, Product, CollectionPoint
 
 
+REQUIRED_COLUMNS = [
+  'Rif. Com',
+  'Cod.  Serv',
+  'Descr. Serv',
+  'LDP',
+  'Destinatario',
+  'Indirizzo Dest.',
+  'Localita',
+  'Provincia',
+  'CAP',
+  'Booking',
+  'DRC',
+  'Piano',
+  'Note MW + Note',
+]
+
+
 def order_import_by_excel(file, customer_id):
   conflicted_orders = []
   imported_orders_count = 0
-  orders = parse_orders(file, customer_id)
+  orders, error = parse_orders(file, customer_id)
+  if error:
+    return {'status': 'ko', 'message': error}
+
   for _, order_data in orders.items():
     if (
       len(order_data['products']) != 1
@@ -72,6 +92,11 @@ def parse_orders(file, customer_id):
   service_users = get_service_users(customer_id)
   df = pd.read_excel(file, dtype=str).fillna('')
   df.columns = [c.strip() for c in df.columns]
+
+  missing_columns = [column for column in REQUIRED_COLUMNS if column not in df.columns]
+  if missing_columns:
+    return None, 'Il file Excel non ha il formato atteso. Colonne mancanti: ' + ', '.join(missing_columns) + '.'
+
   orders = defaultdict(lambda: {'products': [], 'services': [], 'rows': []})
   for _, row in df.iterrows():
     if row['Cod.  Serv'] in ['', '404']:
@@ -90,7 +115,7 @@ def parse_orders(file, customer_id):
           'collection_point': get_collection_point(row['LDP'], customer_id),
         }
       )
-  return orders
+  return orders, None
 
 
 def build_order(order: dict):

@@ -100,8 +100,9 @@ def test_get_collection_point_trims_names(db):
 def test_parse_orders_groups_services_and_products(db):
   customer = _customer_with_named_cp()
 
-  orders = parse_orders(_excel_bytes([_base_row(), _base_row(**{'Cod.  Serv': 'PRODOTTO'})]), customer.id)
+  orders, error = parse_orders(_excel_bytes([_base_row(), _base_row(**{'Cod.  Serv': 'PRODOTTO'})]), customer.id)
 
+  assert error is None
   assert 'ORD-1' in orders
   assert len(orders['ORD-1']['services']) == 1  # SVC-1 riconosciuto
   assert len(orders['ORD-1']['products']) == 1  # codice non riconosciuto -> prodotto
@@ -110,10 +111,11 @@ def test_parse_orders_groups_services_and_products(db):
 def test_parse_orders_skips_placeholder_codes(db):
   customer = _customer_with_named_cp()
 
-  orders = parse_orders(
+  orders, error = parse_orders(
     _excel_bytes([_base_row(**{'Cod.  Serv': ''}), _base_row(**{'Cod.  Serv': '404'})]), customer.id
   )
 
+  assert error is None
   assert orders == {}
 
 
@@ -162,6 +164,29 @@ def test_excel_import_endpoint_reports_conflicts(client):
   assert body['status'] == 'ok'
   assert body['imported_orders_count'] == 0
   assert len(body['conflicted_orders']) == 1
+
+
+def test_excel_import_endpoint_reports_missing_columns(client):
+  admin = create_user(UserRole.ADMIN)
+  customer = _customer_with_named_cp()
+  # File senza le colonne attese (es. formato sbagliato) -> messaggio parlante, niente 500
+  buffer = BytesIO()
+  pd.DataFrame([{'Colonna A': '1', 'Colonna B': '2'}]).to_excel(buffer, index=False)
+  buffer.seek(0)
+
+  response = client.post(
+    '/import/excel',
+    data={
+      'customer_id': str(customer.id),
+      'file': (buffer, 'orders.xlsx'),
+    },
+    headers=auth_header(admin),
+  )
+
+  body = response.get_json()
+  assert body['status'] == 'ko'
+  assert 'Colonne mancanti' in body['message']
+  assert 'Cod.  Serv' in body['message']
 
 
 def test_excel_import_endpoint_requires_file(client):
