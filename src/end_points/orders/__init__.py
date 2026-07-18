@@ -1,3 +1,4 @@
+import copy
 import json
 from flask import Blueprint, request, send_from_directory
 
@@ -5,6 +6,7 @@ from ... import STATIC_FOLDER
 from ...utils.storage import SessionWithStorage
 from .mailer import mailer_check
 from .photo import handle_photos
+from .sms_sender import delay_sms_check
 from ...database.enum import UserRole
 from api.storage import get_full_path
 from ...database.schema import User, Order
@@ -52,15 +54,18 @@ def update_order_endpoint(user: User, id):
     if isinstance(request.form.get('data'), str):
       data = handle_photos(json.loads(request.form.get('data')), order, session=session)
     else:
-      data = request.json
+      data = copy.deepcopy(request.json)
 
     if data.get('version') is not None and data['version'] != order.version:
       return {'status': 'ko', 'message': "L'ordine è stato modificato nel frattempo. Ricarica la pagina e riprova."}
-    motivation = update_order(user, order, data, session)
+    pending_sms = []
+    motivation = update_order(user, order, data, session, pending_sms=pending_sms)
     session.commit()
 
   save_order_status_to_euronics(order)
   mailer_check(order, data, motivation)
+  for sms_order, sms_item in pending_sms:
+    delay_sms_check(sms_order, sms_item)
   return {'status': 'ok', 'order': order.to_dict()}
 
 

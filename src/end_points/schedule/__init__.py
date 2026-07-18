@@ -8,6 +8,7 @@ from .. import flask_session_authentication
 from ...schedulation.building import build_schedule_items
 from ...database.schema import Schedule, User, DeliveryGroup
 from .delivery import get_items_for_delivery, get_history_for_delivery, update_schedule_item
+from .sms_sender import schedule_sms_check
 from database_api.operations import create, delete, get_by_id, update
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
 from .utils import (
@@ -20,6 +21,8 @@ from .utils import (
 from .queries import (
   query_schedules,
   query_schedules_count,
+  lock_delivery_assignment,
+  query_invalid_delivery_user_ids,
   format_query_result,
   get_delivery_groups,
   get_schedule_items,
@@ -39,28 +42,37 @@ def create_schedule(user: User):
     if response:
       return response
 
-    if any(query_schedules_count(user['id'], schedule_data['date']) > 0 for user in users):
+    user_ids = sorted({delivery_user['id'] for delivery_user in users})
+    if query_invalid_delivery_user_ids(user_ids, session=session):
+      return {'status': 'ko', 'message': 'Uno o più utenti selezionati non sono utenti delivery validi'}
+
+    for user_id in user_ids:
+      lock_delivery_assignment(user_id, schedule_data['date'], session=session)
+    if any(query_schedules_count(user_id, schedule_data['date'], session=session) > 0 for user_id in user_ids):
       return {'status': 'ko', 'message': 'Uno di questi utenti delivery è già assegnato'}
 
     schedule: Schedule = create(Schedule, schedule_data, session=session)
-    for user in users:
-      create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']}, session=session)
+    for user_id in user_ids:
+      create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user_id}, session=session)
+    pending_sms = []
     for item in schedule_items:
-      handle_schedule_item(item, schedule, session)
+      handle_schedule_item(item, schedule, session, pending_sms=pending_sms)
 
     session.commit()
     save_info_to_euronics(schedule_items)
+    for sms_order, sms_item in pending_sms:
+      schedule_sms_check(sms_order, sms_item)
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 
 @schedule_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
 def delete_schedule(_, id):
-  schedule: Schedule = get_by_id(Schedule, int(id))
   with Session() as session:
+    schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     for delivery_group in get_delivery_groups(schedule, session=session):
       delete(delivery_group, session=session)
-    delete_schedule_items(get_schedule_items(schedule), session=session)
+    delete_schedule_items(get_schedule_items(schedule, session=session), session=session)
     delete(schedule, session=session)
 
     session.commit()
@@ -89,29 +101,43 @@ def update_schedule(user: User, id):
     schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     actual_schedule_items = get_schedule_items(schedule, session=session)
     delivery_groups = get_delivery_groups(schedule, session=session)
-    deleted_users = []
-    if 'deleted_users' in request.json:
-      deleted_users = request.json['deleted_users']
-      for user_id in deleted_users:
-        for delivery_group in delivery_groups:
-          if delivery_group.user_id == user_id:
-            delete(delivery_group, session=session)
-            break
-      del request.json['deleted_users']
+    deleted_users = request.json.get('deleted_users', [])
+    for user_id in deleted_users:
+      for delivery_group in delivery_groups:
+        if delivery_group.user_id == user_id:
+          delete(delivery_group, session=session)
+          break
 
     schedule_items, schedule_data, users, response = format_schedule_data(request.json, session=session)
     if response:
+      session.rollback()
       return response
+
+    payload_user_ids = sorted({delivery_user['id'] for delivery_user in users})
+    if query_invalid_delivery_user_ids(payload_user_ids, session=session):
+      session.rollback()
+      return {'status': 'ko', 'message': 'Uno o più utenti selezionati non sono utenti delivery validi'}
 
     schedule = update(schedule, schedule_data, session=session)
     actual_user_ids = list(set([delivery_group.user_id for delivery_group in delivery_groups]) - set(deleted_users))
-    for user in users:
-      if user['id'] not in actual_user_ids and query_schedules_count(user['id'], schedule.date) == 0:
-        create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user['id']}, session=session)
+    # Lo stato finale include anche gli utenti già associati e non cancellati,
+    # pur se omessi dal payload: restano nel DB e vanno verificati anch'essi.
+    final_user_ids = sorted(set(payload_user_ids) | set(actual_user_ids))
+    for user_id in final_user_ids:
+      lock_delivery_assignment(user_id, schedule.date, session=session)
+    for user_id in final_user_ids:
+      if query_schedules_count(user_id, schedule.date, exclude_schedule_id=schedule.id, session=session) > 0:
+        session.rollback()
+        return {'status': 'ko', 'message': 'Uno di questi utenti delivery è già assegnato'}
+      if user_id not in actual_user_ids:
+        create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user_id}, session=session)
 
-    schedule_items_updating(schedule_items, actual_schedule_items, schedule, session=session)
+    pending_sms = []
+    schedule_items_updating(schedule_items, actual_schedule_items, schedule, session=session, pending_sms=pending_sms)
     session.commit()
     save_info_to_euronics(schedule_items)
+    for sms_order, sms_item in pending_sms:
+      schedule_sms_check(sms_order, sms_item)
   return {'status': 'ok', 'schedule': schedule.to_dict()}
 
 

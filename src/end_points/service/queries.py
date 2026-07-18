@@ -67,9 +67,9 @@ def query_orders_in_range(services_id, start_date, end_date):
     )
 
 
-def get_service_users(user_id: int) -> list[ServiceUser]:
-  with Session() as session:
-    return session.query(ServiceUser).filter(ServiceUser.user_id == user_id).all()
+@db_session_decorator(commit=False)
+def get_service_users(user_id: int, session: session_type = None) -> list[ServiceUser]:
+  return session.query(ServiceUser).filter(ServiceUser.user_id == user_id).all()
 
 
 @db_session_decorator(commit=False)

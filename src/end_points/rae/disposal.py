@@ -16,10 +16,13 @@ from .document import handle_document_by_name
 
 
 def create_rae_disposal(data: dict):
-  rae_product_ids = data.pop('rae_product_ids', [])
-  disposal = create(Disposal, data)
-  for rp in get_by_ids(RaeProduct, rae_product_ids):
-    update(rp, {'disposal_id': disposal.id, 'status': RaeStatus.DISPOSED_OFF})
+  rae_product_ids = data.get('rae_product_ids', [])
+  disposal_data = {key: value for key, value in data.items() if key != 'rae_product_ids'}
+  with Session() as session:
+    disposal = create(Disposal, disposal_data, session=session)
+    for rp in get_by_ids(RaeProduct, rae_product_ids, session=session):
+      update(rp, {'disposal_id': disposal.id, 'status': RaeStatus.DISPOSED_OFF}, session=session)
+    session.commit()
   return {'status': 'ok', 'message': 'Operazione completata!'}
 
 

@@ -7,14 +7,14 @@ from ...database.schema import Order, Product, RaeProduct, ServiceUser, Schedule
 
 
 def create_products(order: Order, products: dict, customer_user_id: int, cloned_order: bool, session):
-  service_users = get_service_users(order, products, customer_user_id)
+  service_users = get_service_users(order, products, customer_user_id, session=session)
   for product in products.keys():
     create_product(product, products[product], order, service_users, session=session, cloned_order=cloned_order)
 
 
 def update_products(order: Order, products: dict, customer_user_id: int, schedule: Schedule, session=None):
-  service_users = get_service_users(order, products, customer_user_id)
-  old_products = query_products(order)
+  service_users = get_service_users(order, products, customer_user_id, session=session)
+  old_products = query_products(order, session=session)
 
   for product in products.keys():
     if len([old_product for old_product in old_products if old_product.name == product]) > 0:
@@ -70,7 +70,13 @@ def create_product(
         break
 
 
-def get_service_users(order: Order, products: dict, user_id: int):
+def get_service_users(order: Order, products: dict, user_id: int, session=None):
+  # session=None esplicito non è passabile: db_session_decorator inietta il proprio
+  # kwarg session mantenendo quelli originali, e i due collirebbero (TypeError).
+  session_kwargs = {'session': session} if session is not None else {}
   return query_service_users(
-    list(set(service['id'] for product in products.values() for service in product['services'])), user_id, order.type
+    list(set(service['id'] for product in products.values() for service in product['services'])),
+    user_id,
+    order.type,
+    **session_kwargs,
   )

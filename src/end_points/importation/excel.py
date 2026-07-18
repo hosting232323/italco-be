@@ -1,3 +1,5 @@
+import re
+
 import pandas as pd
 from sqlalchemy import func
 from collections import defaultdict
@@ -6,7 +8,7 @@ from database_api import Session
 from database_api.operations import create
 from ..service.queries import get_service_users
 from ...database.enum import OrderType, OrderStatus
-from ...database.schema import Order, Product, CollectionPoint
+from ...database.schema import Order, Product, CollectionPoint, ServiceUser
 
 
 REQUIRED_COLUMNS = [
@@ -24,6 +26,64 @@ REQUIRED_COLUMNS = [
   'Piano',
   'Note MW + Note',
 ]
+
+# Campi del payload di conflitto letti da build_order.
+BUILD_ORDER_FIELDS = [
+  'Rif. Com',
+  'Destinatario',
+  'Indirizzo Dest.',
+  'Localita',
+  'Provincia',
+  'CAP',
+  'Booking',
+  'DRC',
+  'Piano',
+  'Note MW + Note',
+]
+
+DATE_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}')
+
+
+def validate_conflict_order(order_data, session) -> str:
+  """Valida struttura, campi e riferimenti di un ordine del conflict prima di
+  toccare il DB. Ritorna il messaggio d'errore per failed_orders, o None."""
+  if not isinstance(order_data, dict):
+    return 'Ordine in formato non valido'
+
+  missing_fields = [field for field in BUILD_ORDER_FIELDS if field not in order_data]
+  if missing_fields:
+    return 'Campi ordine mancanti: ' + ', '.join(missing_fields)
+
+  for field in ('Booking', 'DRC'):
+    if not isinstance(order_data[field], str) or not DATE_PATTERN.match(order_data[field]):
+      return f'Data "{field}" non valida'
+
+  products = order_data.get('products')
+  if not isinstance(products, dict) or len(products) == 0:
+    return 'Prodotti mancanti o in formato non valido'
+
+  for product_name, product in products.items():
+    if not isinstance(product, dict):
+      return f'Prodotto "{product_name}" in formato non valido'
+
+    services = product.get('services')
+    if not isinstance(services, list) or len(services) == 0:
+      return f'Servizi mancanti o non validi per il prodotto "{product_name}"'
+
+    if not all(isinstance(service_user_id, int) for service_user_id in services):
+      return f'Servizi mancanti o non validi per il prodotto "{product_name}"'
+
+    collection_point = product.get('collection_point')
+    if not isinstance(collection_point, dict) or not isinstance(collection_point.get('id'), int):
+      return f'Punto di ritiro mancante per il prodotto "{product_name}"'
+
+    if session.query(ServiceUser.id).filter(ServiceUser.id.in_(services)).count() != len(set(services)):
+      return f'Servizi inesistenti per il prodotto "{product_name}"'
+
+    if session.query(CollectionPoint.id).filter(CollectionPoint.id == collection_point['id']).first() is None:
+      return f'Punto di ritiro inesistente per il prodotto "{product_name}"'
+
+  return None
 
 
 def order_import_by_excel(file, customer_id):
@@ -54,38 +114,51 @@ def order_import_by_excel(file, customer_id):
       )
       continue
 
-    order = create(Order, build_order(order_data['rows'][0]))
-    for service_user in order_data['services']:
-      create(
-        Product,
-        {
-          'order_id': order.id,
-          'service_user_id': service_user['id'],
-          'name': order_data['products'][0]['name'],
-          'collection_point_id': order_data['products'][0]['collection_point'].id,
-        },
-      )
+    with Session() as session:
+      order = create(Order, build_order(order_data['rows'][0]), session=session)
+      for service_user in order_data['services']:
+        create(
+          Product,
+          {
+            'order_id': order.id,
+            'service_user_id': service_user['id'],
+            'name': order_data['products'][0]['name'],
+            'collection_point_id': order_data['products'][0]['collection_point'].id,
+          },
+          session=session,
+        )
+      session.commit()
     imported_orders_count += 1
   return {'status': 'ok', 'imported_orders_count': imported_orders_count, 'conflicted_orders': conflicted_orders}
 
 
 def handle_excel_conflict(orders):
+  failed_orders = []
   imported_orders_count = 0
   for order_data in orders:
-    order = create(Order, build_order(order_data))
-    for product_name, product in order_data['products'].items():
-      for service_user_id in product['services']:
-        create(
-          Product,
-          {
-            'name': product_name,
-            'order_id': order.id,
-            'service_user_id': service_user_id,
-            'collection_point_id': product['collection_point']['id'],
-          },
-        )
+    with Session() as session:
+      error = validate_conflict_order(order_data, session)
+      if error:
+        external_id = order_data.get('Rif. Com') if isinstance(order_data, dict) else None
+        failed_orders.append({'external_id': external_id, 'error': error})
+        continue
+
+      order = create(Order, build_order(order_data), session=session)
+      for product_name, product in order_data['products'].items():
+        for service_user_id in product['services']:
+          create(
+            Product,
+            {
+              'name': product_name,
+              'order_id': order.id,
+              'service_user_id': service_user_id,
+              'collection_point_id': product['collection_point']['id'],
+            },
+            session=session,
+          )
+      session.commit()
     imported_orders_count += 1
-  return {'status': 'ok', 'imported_orders_count': imported_orders_count}
+  return {'status': 'ok', 'imported_orders_count': imported_orders_count, 'failed_orders': failed_orders}
 
 
 def parse_orders(file, customer_id):

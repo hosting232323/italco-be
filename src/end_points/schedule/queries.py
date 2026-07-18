@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import and_, desc, or_, cast, Date
+from sqlalchemy import and_, desc, or_, cast, text, Date
 from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
@@ -72,51 +72,77 @@ def query_schedules(
     return limit_per_entity(query.order_by(desc(Schedule.created_at)), Schedule.id, limit).all()
 
 
-def query_schedules_count(user_id, schedule_date) -> int:
-  with Session() as session:
-    return (
-      session.query(DeliveryGroup)
-      .join(
-        Schedule,
-        and_(
-          DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user_id, Schedule.date == schedule_date
-        ),
-      )
-      .count()
+@db_session_decorator(commit=False)
+def query_invalid_delivery_user_ids(user_ids: list[int], session: session_type = None) -> list[int]:
+  """Ritorna gli id che non corrispondono a utenti con ruolo DELIVERY."""
+  valid_ids = {row[0] for row in session.query(User.id).filter(User.id.in_(user_ids), User.role == UserRole.DELIVERY)}
+  return sorted(set(user_ids) - valid_ids)
+
+
+def delivery_assignment_lock_key(user_id: int, schedule_date) -> str:
+  return f'delivery-assignment:{user_id}:{str(schedule_date)[:10]}'
+
+
+def lock_delivery_assignment(user_id: int, schedule_date, session: session_type):
+  """Serializza il check-then-create dei DeliveryGroup per (utente, data).
+
+  Il lock advisory è transazionale: viene rilasciato al commit/rollback
+  della sessione, quindi due richieste concorrenti non possono superare
+  entrambe il controllo query_schedules_count per la stessa coppia.
+  """
+  session.execute(
+    text('SELECT pg_advisory_xact_lock(hashtext(:key))'),
+    {'key': delivery_assignment_lock_key(user_id, schedule_date)},
+  )
+
+
+@db_session_decorator(commit=False)
+def query_schedules_count(
+  user_id: int,
+  schedule_date: datetime,
+  exclude_schedule_id: int = None,
+  session: session_type = None,
+) -> int:
+  query = session.query(DeliveryGroup).join(
+    Schedule,
+    and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user_id, Schedule.date == schedule_date),
+  )
+  if exclude_schedule_id is not None:
+    query = query.filter(Schedule.id != exclude_schedule_id)
+  return query.count()
+
+
+@db_session_decorator(commit=False)
+def get_schedule_item_by_order(order: Order, session: session_type = None) -> ScheduleItem:
+  return (
+    session.query(ScheduleItem)
+    .join(
+      ScheduleItemOrder,
+      and_(
+        ScheduleItemOrder.order_id == order.id,
+        ScheduleItem.operation_type == ScheduleType.ORDER,
+        ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
+      ),
     )
+    .first()
+  )
 
 
-def get_schedule_item_by_order(order: Order) -> ScheduleItem:
-  with Session() as session:
-    return (
-      session.query(ScheduleItem)
-      .join(
-        ScheduleItemOrder,
-        and_(
-          ScheduleItemOrder.order_id == order.id,
-          ScheduleItem.operation_type == ScheduleType.ORDER,
-          ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
-        ),
-      )
-      .first()
+@db_session_decorator(commit=False)
+def get_schedule_by_order(order_id: int, session: session_type = None) -> Schedule:
+  return (
+    session.query(Schedule)
+    .join(ScheduleItem, Schedule.id == ScheduleItem.schedule_id)
+    .join(
+      ScheduleItemOrder,
+      and_(
+        ScheduleItemOrder.order_id == order_id,
+        ScheduleItem.operation_type == ScheduleType.ORDER,
+        ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
+      ),
     )
-
-
-def get_schedule_by_order(order_id: int) -> Schedule:
-  with Session() as session:
-    return (
-      session.query(Schedule)
-      .join(ScheduleItem, Schedule.id == ScheduleItem.schedule_id)
-      .join(
-        ScheduleItemOrder,
-        and_(
-          ScheduleItemOrder.order_id == order_id,
-          ScheduleItem.operation_type == ScheduleType.ORDER,
-          ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
-        ),
-      )
-      .first()
-    )
+    .first()
+  )
 
 
 def format_query_result(

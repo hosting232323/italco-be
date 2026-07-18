@@ -25,8 +25,10 @@ def create_customer_rules(_):
 @customer_rules_bp.route('', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
 def delete_customer_rules(_):
-  for id in request.json['ids']:
-    delete(get_by_id(CustomerRule, int(id)))
+  with Session() as session:
+    for id in request.json['ids']:
+      delete(get_by_id(CustomerRule, int(id), session=session), session=session)
+    session.commit()
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 

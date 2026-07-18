@@ -37,11 +37,15 @@ def format_data_cloning_product(product_data: dict, input_data: dict):
 
 
 def reschedule_products(delivery_user_id: int, order: Order, product_data: dict, session):
-  for product in query_products(order):
+  delivery_transport = get_delivery_transport(delivery_user_id, session=session)
+  for product in query_products(order, session=session):
     for product_name in product_data.keys():
       if product.name == product_name:
         if product_data[product_name]['release_collection_point_id'] == 0:
-          update(product, {'release_transport_id': get_delivery_transport(delivery_user_id).id}, session=session)
+          if delivery_transport is None:
+            break
+
+          update(product, {'release_transport_id': delivery_transport.id}, session=session)
         else:
           update(
             product,
