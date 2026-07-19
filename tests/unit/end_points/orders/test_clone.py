@@ -1,7 +1,7 @@
 from database_api import Session
 from database_api.operations import get_by_id
 
-from src.database.enum import OrderStatus, UserRole
+from src.database.enum import OrderStatus
 from src.database.schema import Order, Product
 from src.end_points.orders.clone import (
   format_data_cloning_order,
@@ -11,13 +11,12 @@ from src.end_points.orders.clone import (
 )
 
 from tests.unit.factories import (
-  create_delivery_group,
   create_order,
   create_product,
   create_schedule,
   create_transport,
-  create_user,
   customer_with_service,
+  link_order_to_schedule,
 )
 
 
@@ -83,7 +82,7 @@ def test_reschedule_products_with_collection_point(db):
   product = create_product(order, service_user, name='Frigo')
 
   with Session() as session:
-    reschedule_products(1, order, {'Frigo': {'release_collection_point_id': collection_point.id}}, session=session)
+    reschedule_products(order, {'Frigo': {'release_collection_point_id': collection_point.id}}, session=session)
     session.commit()
 
   assert get_by_id(Product, product.id).release_collection_point_id == collection_point.id
@@ -93,13 +92,12 @@ def test_reschedule_products_with_transport_fallback(db):
   _, _, service_user, _ = customer_with_service()
   order = create_order()
   product = create_product(order, service_user, name='Frigo')
-  delivery = create_user(UserRole.DELIVERY)
   transport = create_transport()
   schedule = create_schedule(transport)
-  create_delivery_group(delivery, schedule)
+  link_order_to_schedule(order, schedule)
 
   with Session() as session:
-    reschedule_products(delivery.id, order, {'Frigo': {'release_collection_point_id': 0}}, session=session)
+    reschedule_products(order, {'Frigo': {'release_collection_point_id': 0}}, session=session)
     session.commit()
 
   assert get_by_id(Product, product.id).release_transport_id == transport.id

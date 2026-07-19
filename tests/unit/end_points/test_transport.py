@@ -2,12 +2,10 @@ from database_api.operations import get_by_id
 
 from src.database.enum import UserRole
 from src.database.schema import Transport
-from src.end_points.transport import get_delivery_transport, query_transports
+from src.end_points.transport import query_transports
 
 from tests.unit.factories import (
   auth_header,
-  create_delivery_group,
-  create_schedule,
   create_transport,
   create_user,
 )
@@ -70,13 +68,3 @@ def test_query_transports(db):
   transports = [create_transport(), create_transport()]
 
   assert {t.id for t in query_transports()} == {t.id for t in transports}
-
-
-def test_get_delivery_transport_finds_assigned_vehicle(db):
-  delivery = create_user(UserRole.DELIVERY)
-  transport = create_transport()
-  schedule = create_schedule(transport)
-  create_delivery_group(delivery, schedule)
-
-  assert get_delivery_transport(delivery.id).id == transport.id
-  assert get_delivery_transport(delivery.id + 999) is None

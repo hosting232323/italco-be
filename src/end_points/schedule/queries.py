@@ -116,6 +116,7 @@ def query_schedules_count(
 def get_schedule_item_by_order(order: Order, session: session_type = None) -> ScheduleItem:
   return (
     session.query(ScheduleItem)
+    .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
     .join(
       ScheduleItemOrder,
       and_(
@@ -124,6 +125,7 @@ def get_schedule_item_by_order(order: Order, session: session_type = None) -> Sc
         ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
       ),
     )
+    .order_by(desc(Schedule.date), desc(Schedule.id), desc(ScheduleItem.id))
     .first()
   )
 
@@ -141,6 +143,7 @@ def get_schedule_by_order(order_id: int, session: session_type = None) -> Schedu
         ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
       ),
     )
+    .order_by(desc(Schedule.date), desc(Schedule.id))
     .first()
   )
 
