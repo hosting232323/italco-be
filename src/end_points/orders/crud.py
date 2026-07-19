@@ -7,7 +7,7 @@ from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_products, update_products
 from database_api.operations import create, update, get_by_id, delete
-from .queries import query_orders, format_query_result, get_delivery_user
+from .queries import query_orders, format_query_result
 from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus
 from ...database.schema import User, Order, Motivation, DeliveryUserInfo, ServiceUser
 from .clone import format_data_cloning_order, update_cloned_order, query_products, reschedule_products
@@ -147,12 +147,7 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
         session,
       )
     if 'status' in data and data['status'] == OrderStatus.TO_RESCHEDULE and order.status != OrderStatus.TO_RESCHEDULE:
-      reschedule_products(
-        get_delivery_user(order, session=session).id if user.role != UserRole.DELIVERY else user.id,
-        order,
-        data['products'],
-        session,
-      )
+      reschedule_products(order, data['products'], session)
 
   if schedule_item and 'start_time_slot' in data and 'end_time_slot' in data:
     if (

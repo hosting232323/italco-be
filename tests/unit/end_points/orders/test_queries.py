@@ -7,7 +7,6 @@ from src.database.schema import CustomerGroup, History
 from src.end_points.orders.queries import (
   format_query_result,
   get_all_histories_by_order_id,
-  get_delivery_user,
   get_motivations_by_order_id,
   get_order_by_external_id,
   get_order_by_external_id_and_customer,
@@ -237,18 +236,6 @@ def test_get_selling_point_returns_customer(db):
   create_product(order, service_user)
 
   assert get_selling_point(order).id == customer.id
-
-
-def test_get_delivery_user_returns_assigned_driver(db):
-  _, _, service_user, _ = customer_with_service()
-  order = create_order()
-  create_product(order, service_user)
-  delivery = create_user(UserRole.DELIVERY)
-  schedule = create_schedule()
-  link_order_to_schedule(order, schedule)
-  create_delivery_group(delivery, schedule)
-
-  assert get_delivery_user(order).id == delivery.id
 
 
 def test_get_order_by_external_id_variants(db):

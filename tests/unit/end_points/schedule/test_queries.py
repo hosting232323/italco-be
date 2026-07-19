@@ -103,6 +103,27 @@ def test_get_schedule_item_and_schedule_by_order(db):
   assert get_schedule_by_order(create_order().id) is None
 
 
+def test_get_schedule_by_order_prefers_most_recent_schedule(db):
+  order = create_order()
+  old_schedule = create_schedule(schedule_date=date.today() - timedelta(days=7))
+  link_order_to_schedule(order, old_schedule)
+  recent_schedule = create_schedule(schedule_date=date.today())
+  link_order_to_schedule(order, recent_schedule)
+
+  assert get_schedule_by_order(order.id).id == recent_schedule.id
+
+
+def test_get_schedule_item_by_order_prefers_most_recent_schedule(db):
+  order = create_order()
+  old_schedule = create_schedule(schedule_date=date.today() - timedelta(days=7))
+  link_order_to_schedule(order, old_schedule)
+  recent_schedule = create_schedule(schedule_date=date.today())
+  recent_item = link_order_to_schedule(order, recent_schedule)
+
+  assert get_schedule_item_by_order(order).id == recent_item.id
+  assert get_schedule_item_by_order(order).schedule_id == get_schedule_by_order(order.id).id
+
+
 def test_get_schedule_items_returns_tuples_by_type(db):
   customer = create_user(UserRole.CUSTOMER)
   collection_point = create_collection_point(customer)

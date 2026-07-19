@@ -192,18 +192,6 @@ def get_selling_point(order: Order) -> User:
     )
 
 
-@db_session_decorator(commit=False)
-def get_delivery_user(order: Order, session: session_type = None) -> User:
-  return (
-    session.query(User)
-    .join(ScheduleItemOrder, ScheduleItemOrder.order_id == order.id)
-    .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
-    .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
-    .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == User.id))
-    .first()
-  )
-
-
 def get_order_by_external_id_and_customer(external_id: str, customer_id: str) -> Order:
   with Session() as session:
     return (

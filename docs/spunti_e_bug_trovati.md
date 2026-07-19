@@ -35,13 +35,6 @@ update_products (src/end_points/orders/services.py) solleva Exception con messag
 sul vincolo di eliminazione RAE, ma il gestore globale lo trasforma in "Errore generico": il
 messaggio non arriva mai al client. Andrebbe convertito in ko di validazione.
 
-## BUG BE: la rischedulazione può assegnare un trasporto storico errato
-
-reschedule_products usa get_delivery_transport(delivery_user_id), che apre una nuova sessione e
-restituisce il primo trasporto associato a un qualsiasi borderò del delivery. Se il delivery ha più
-borderò storici, release_transport_id può quindi puntare al mezzo sbagliato. Il trasporto va ricavato
-dal borderò collegato all'ordine corrente usando la stessa sessione della transazione.
-
 ## BUG BE: conflict Excel permette riferimenti appartenenti a clienti diversi
 
 validate_conflict_order verifica soltanto che ServiceUser e CollectionPoint esistano. Non controlla

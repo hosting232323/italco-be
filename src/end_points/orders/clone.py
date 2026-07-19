@@ -3,7 +3,7 @@ from datetime import datetime
 from .queries import query_products
 from ...database.schema import Order
 from ...database.enum import OrderStatus
-from ..transport import get_delivery_transport
+from ..schedule.queries import get_schedule_by_order
 from database_api.operations import update, get_by_id
 
 
@@ -36,16 +36,16 @@ def format_data_cloning_product(product_data: dict, input_data: dict):
   return product_data
 
 
-def reschedule_products(delivery_user_id: int, order: Order, product_data: dict, session):
-  delivery_transport = get_delivery_transport(delivery_user_id, session=session)
+def reschedule_products(order: Order, product_data: dict, session):
+  order_schedule = get_schedule_by_order(order.id, session=session)
   for product in query_products(order, session=session):
     for product_name in product_data.keys():
       if product.name == product_name:
         if product_data[product_name]['release_collection_point_id'] == 0:
-          if delivery_transport is None:
+          if order_schedule is None:
             break
 
-          update(product, {'release_transport_id': delivery_transport.id}, session=session)
+          update(product, {'release_transport_id': order_schedule.transport_id}, session=session)
         else:
           update(
             product,
