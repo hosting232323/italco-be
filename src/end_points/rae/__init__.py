@@ -2,6 +2,7 @@ import json
 from flask import Blueprint, request, send_from_directory
 
 from api.storage import get_full_path
+from api.storage.files import validate_files, PDF_EXTENSIONS
 
 from ... import STATIC_FOLDER
 from ...database.schema import User
@@ -60,6 +61,10 @@ def get_products(user: User):
 @rae_bp.route('product/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_product(_, id):
+  error = validate_files(request.files.values(), PDF_EXTENSIONS)
+  if error:
+    return {'status': 'ko', 'message': error}
+
   return update_rae_product(int(id), json.loads(request.form.get('data')), request.files)
 
 
@@ -126,6 +131,10 @@ def get_disposal(_):
 @rae_bp.route('disposal/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
 def update_disposal(_, id):
+  error = validate_files(request.files.values(), PDF_EXTENSIONS)
+  if error:
+    return {'status': 'ko', 'message': error}
+
   return update_rae_disposal(int(id), json.loads(request.form.get('data')), request.files)
 
 
