@@ -41,7 +41,9 @@ def test_mailer_check_ignores_neutral_updates(db, monkeypatch):
 def test_mailer_check_sends_for_not_delivered(db, monkeypatch):
   monkeypatch.setattr(mailer, 'IS_DEV', False)
   sent = []
-  monkeypatch.setattr(mailer, 'send_email', lambda mail, content, subject: sent.append((mail, content, subject)))
+  monkeypatch.setattr(
+    mailer, 'send_email', lambda mail, content, subject, signature=None: sent.append((mail, content, subject))
+  )
   order = create_order(status=OrderStatus.NOT_DELIVERED, customer_note='citofonare due volte')
   create(Photo, {'order_id': order.id, 'link': 'http://x/foto.jpg'})
 
@@ -59,7 +61,7 @@ def test_mailer_check_sends_for_not_delivered(db, monkeypatch):
 def test_mailer_check_sends_for_delay_and_anomaly_flags(db, monkeypatch):
   monkeypatch.setattr(mailer, 'IS_DEV', False)
   sent = []
-  monkeypatch.setattr(mailer, 'send_email', lambda mail, content, subject: sent.append(subject))
+  monkeypatch.setattr(mailer, 'send_email', lambda mail, content, subject, signature=None: sent.append(subject))
   order = create_order(status=OrderStatus.TO_RESCHEDULE)
 
   mailer_check(order, {'delay': True, 'anomaly': True}, None)
@@ -73,7 +75,7 @@ def test_mailer_check_sends_for_delay_and_anomaly_flags(db, monkeypatch):
 def test_mailer_check_without_motivation_uses_placeholder(db, monkeypatch):
   monkeypatch.setattr(mailer, 'IS_DEV', False)
   sent = []
-  monkeypatch.setattr(mailer, 'send_email', lambda mail, content, subject: sent.append(content))
+  monkeypatch.setattr(mailer, 'send_email', lambda mail, content, subject, signature=None: sent.append(content))
   order = create_order(status=OrderStatus.NOT_DELIVERED)
 
   mailer_check(order, {'status': OrderStatus.NOT_DELIVERED}, None)
