@@ -3,7 +3,6 @@ import json
 from flask import Blueprint, request, send_from_directory
 
 from ... import STATIC_FOLDER
-from ...utils.storage import SessionWithStorage
 from .mailer import mailer_check
 from .photo import handle_photos
 from .sms_sender import delay_sms_check
@@ -11,6 +10,7 @@ from ...database.enum import UserRole
 from api.storage import get_full_path
 from api.storage.files import validate_files, IMAGE_EXTENSIONS
 from ...database.schema import User, Order
+from api.storage.session import SessionWithStorage
 from .utils import get_statuses_by_order_id
 from database_api.operations import get_by_id
 from .api import save_order_status_to_euronics

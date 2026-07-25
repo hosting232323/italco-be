@@ -258,3 +258,29 @@ def test_collection_points_available_for_order(client):
   body = response.get_json()
   assert body['status'] == 'ok'
   assert [cp['id'] for cp in body['collection_points']] == [collection_point.id]
+
+
+def test_update_order_endpoint_deletes_product(client):
+  admin = create_user(UserRole.ADMIN)
+  customer, service, service_user, collection_point = customer_with_service()
+  order = create_order()
+  create_product(order, service_user, name='Lavatrice')
+
+  response = client.put(
+    f'/order/{order.id}',
+    json={
+      'id': order.id,
+      'version': 0,
+      'user_id': customer.id,
+      'products': {
+        'Asciugatrice': {
+          'services': [{'id': service.id}],
+          'collection_point': {'id': collection_point.id},
+        }
+      },
+      'delay': False,
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'

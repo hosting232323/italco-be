@@ -145,6 +145,47 @@ def test_delete_order_removes_waiting_order(db):
   assert get_by_id(Order, order.id) is None
 
 
+def test_delete_order_removes_photo_files_after_commit(db, monkeypatch):
+  from api.storage import session as session_module
+  from database_api.operations import create
+  from src.database.schema import Photo
+
+  order = create_order(status=OrderStatus.ACQUIRED)
+  create(Photo, {'order_id': order.id, 'link': 'http://x/order/photos/101.jpg'})
+  create(Photo, {'order_id': order.id, 'link': 'http://x/order/photos/102.jpg'})
+  admin = create_user(UserRole.ADMIN)
+
+  deleted_files = []
+  monkeypatch.setattr(
+    session_module, 'delete_file', lambda filename, folder, **kwargs: deleted_files.append((filename, kwargs))
+  )
+
+  result = delete_order(admin, order.id)
+
+  assert result['status'] == 'ok'
+  assert get_by_id(Order, order.id) is None
+  assert [filename for filename, _ in deleted_files] == ['101.jpg', '102.jpg']
+  assert all(kwargs['subfolder'] == 'photos' for _, kwargs in deleted_files)
+
+
+def test_delete_order_keeps_files_when_rejected(db, monkeypatch):
+  from api.storage import session as session_module
+  from database_api.operations import create
+  from src.database.schema import Photo
+
+  order = create_order(status=OrderStatus.DELIVERED)
+  create(Photo, {'order_id': order.id, 'link': 'http://x/order/photos/103.jpg'})
+  admin = create_user(UserRole.ADMIN)
+
+  deleted_files = []
+  monkeypatch.setattr(session_module, 'delete_file', lambda *args, **kwargs: deleted_files.append(args))
+
+  result = delete_order(admin, order.id)
+
+  assert result['status'] == 'ko'
+  assert deleted_files == []
+
+
 def test_update_order_booking_date_moves_to_booked(db):
   admin = create_user(UserRole.ADMIN)
   order = create_order(status=OrderStatus.ACQUIRED)

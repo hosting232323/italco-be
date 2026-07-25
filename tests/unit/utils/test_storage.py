@@ -3,14 +3,14 @@ from io import BytesIO
 
 import pytest
 from api.storage import get_full_path
+from api.storage import session as session_module
+from api.storage.session import SessionWithStorage
 from database_api import Session
 from database_api.operations import create
 from sqlalchemy.exc import IntegrityError
 from werkzeug.datastructures import FileStorage
 
 from src.database.schema import DtrDocument, FirFirstDocument
-from src.utils import storage as storage_module
-from src.utils.storage import SessionWithStorage
 
 
 FAKE_PDF = b'%PDF-1.4\n%%EOF\n'
@@ -29,6 +29,19 @@ def test_storage_and_database_are_committed_together(db, tmp_path):
   assert os.path.isfile(get_full_path(str(tmp_path), 'documents', filename='committed.pdf'))
   with Session() as session:
     assert session.query(DtrDocument).filter_by(link=stored_path).count() == 1
+
+
+def test_nothing_is_published_before_commit(db, tmp_path):
+  final_path = get_full_path(str(tmp_path), 'documents', filename='pending.pdf')
+
+  with SessionWithStorage() as session:
+    session.upload(pdf_file('pending.pdf'), 'pending.pdf', str(tmp_path), subfolder='documents')
+    create(DtrDocument, {'link': final_path}, session=session)
+    # Prima del commit il file non deve esistere nella destinazione finale.
+    assert not os.path.exists(final_path)
+    session.commit()
+
+  assert os.path.isfile(final_path)
 
 
 def test_session_without_commit_rolls_back_storage_and_database(db, tmp_path):
@@ -57,59 +70,53 @@ def test_database_failure_rolls_back_file_and_row(db, tmp_path):
     assert session.query(FirFirstDocument).filter_by(link=stored_path).count() == 0
 
 
-def test_partial_upload_is_removed(monkeypatch, tmp_path):
-  expected_path = get_full_path(str(tmp_path), 'documents', filename='partial.pdf')
-
-  def fail_after_partial_write(content, filename, folder, *, server=None, subfolder=None, ignore_dev=None):
-    path = get_full_path(folder, subfolder, ignore_dev, filename)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'wb') as file:
-      file.write(b'partial')
-    raise OSError('upload interrupted')
-
-  monkeypatch.setattr(storage_module, 'upload_file', fail_after_partial_write)
-
-  with pytest.raises(OSError, match='upload interrupted'):
-    with SessionWithStorage() as storage:
-      storage.upload(pdf_file('partial.pdf'), 'partial.pdf', str(tmp_path), subfolder='documents')
-
-  assert not os.path.exists(expected_path)
-
-
-def test_multiple_uploaded_files_are_removed_together(tmp_path):
+def test_multiple_uploaded_files_are_not_published_on_rollback(db, tmp_path):
   filenames = ['first.pdf', 'second.pdf']
   paths = [get_full_path(str(tmp_path), 'documents', filename=filename) for filename in filenames]
 
   with pytest.raises(RuntimeError, match='database failure'):
-    with SessionWithStorage() as storage:
+    with SessionWithStorage() as session:
       for filename in filenames:
-        storage.upload(pdf_file(filename), filename, str(tmp_path), subfolder='documents')
+        session.upload(pdf_file(filename), filename, str(tmp_path), subfolder='documents')
       raise RuntimeError('database failure')
 
   assert all(not os.path.exists(path) for path in paths)
 
 
-def test_rollback_survives_missing_files(monkeypatch, tmp_path):
-  """Un file già sparito dallo storage non deve interrompere la compensazione."""
+def test_publish_failure_after_commit_does_not_break_the_request(db, tmp_path, monkeypatch):
+  """Se la scrittura del file fallisce DOPO il commit, la riga resta salvata e
+  l'errore non si propaga (verrà segnalato da check_mismatch, è recuperabile)."""
+  stored_path = get_full_path(str(tmp_path), 'documents', filename='publish-fail.pdf')
+
+  def failing_upload(*args, **kwargs):
+    raise OSError('disk error')
+
+  monkeypatch.setattr(session_module, 'upload_file', failing_upload)
+
+  with SessionWithStorage() as session:
+    session.upload(pdf_file('publish-fail.pdf'), 'publish-fail.pdf', str(tmp_path), subfolder='documents')
+    create(DtrDocument, {'link': stored_path}, session=session)
+    session.commit()  # non solleva
+
+  assert not os.path.exists(stored_path)
+  with Session() as session:
+    assert session.query(DtrDocument).filter_by(link=stored_path).count() == 1
+
+
+def test_deferred_delete_runs_only_after_commit(db, tmp_path, monkeypatch):
   deleted = []
+  monkeypatch.setattr(session_module, 'delete_file', lambda filename, folder, **kwargs: deleted.append(filename))
 
-  def fake_delete(filename, folder, **kwargs):
-    deleted.append(filename)
-    if filename == 'ghost.pdf':
-      raise FileNotFoundError(filename)
-    if filename == 'broken.pdf':
-      raise OSError('storage error')
+  # Rollback: la delete non deve avvenire.
+  with SessionWithStorage() as session:
+    session.delete_file('keep.pdf', str(tmp_path), subfolder='documents')
+  assert deleted == []
 
-  monkeypatch.setattr(storage_module, 'upload_file', lambda *a, **k: 'fake-path')
-  monkeypatch.setattr(storage_module, 'delete_file', fake_delete)
-
-  with SessionWithStorage() as storage:
-    storage.upload(pdf_file('ghost.pdf'), 'ghost.pdf', str(tmp_path))
-    storage.upload(pdf_file('broken.pdf'), 'broken.pdf', str(tmp_path))
-    storage.upload(pdf_file('ok.pdf'), 'ok.pdf', str(tmp_path))
-
-  # Compensazione in ordine inverso, senza fermarsi sugli errori
-  assert deleted == ['ok.pdf', 'broken.pdf', 'ghost.pdf']
+  # Commit: la delete viene eseguita.
+  with SessionWithStorage() as session:
+    session.delete_file('remove.pdf', str(tmp_path), subfolder='documents')
+    session.commit()
+  assert deleted == ['remove.pdf']
 
 
 def test_getattr_raises_outside_context():

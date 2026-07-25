@@ -2,7 +2,9 @@ from datetime import datetime
 
 from .utils import parse_time
 from database_api import Session
+from ... import STATIC_FOLDER
 from ..users.queries import get_user_info
+from api.storage.session import SessionWithStorage
 from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_products, update_products
@@ -88,7 +90,7 @@ def get_order(order_id: int):
 
 
 def delete_order(user: User, order_id: int):
-  with Session() as session:
+  with SessionWithStorage() as session:
     order: Order = get_by_id(Order, order_id, session=session)
     item = get_schedule_item_by_order(order, session=session) if order else None
     if not order or item or order.status not in [OrderStatus.ACQUIRED, OrderStatus.BOOKED]:
@@ -97,6 +99,8 @@ def delete_order(user: User, order_id: int):
         'message': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",
       }
 
+    for photo in order.photo:
+      session.delete_file(photo.link.rsplit('/', 1)[-1], STATIC_FOLDER, subfolder='photos')
     delete(order, session=session)
     session.commit()
   return {'status': 'ok', 'message': 'Operazione completata'}

@@ -117,7 +117,7 @@ def test_get_products_endpoint_with_filters(client):
 
 
 def test_update_product_endpoint_changes_status_and_stores_document(client, monkeypatch):
-  import src.utils.storage as storage_module
+  from api.storage import session as storage_module
 
   monkeypatch.setattr(storage_module, 'upload_file', lambda content, filename, folder, **kwargs: f'/fake/{filename}')
   admin = create_user(UserRole.ADMIN)

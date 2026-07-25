@@ -11,7 +11,7 @@ from ...database.schema import (
   RaeProduct,
   RaeProductGroup,
 )
-from ...utils.storage import SessionWithStorage
+from api.storage.session import SessionWithStorage
 from .document import handle_document_by_name
 
 
