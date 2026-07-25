@@ -13,7 +13,7 @@ from ...utils.storage import SessionWithStorage
 def handle_photos(data: dict, order: Order, session: SessionWithStorage):
   for file_key in request.files.keys():
     uploaded_file = request.files[file_key]
-    if uploaded_file.mimetype in ['image/jpeg', 'image/png']:
+    if uploaded_file.mimetype in ['image/jpeg', 'image/png', 'image/webp']:
       if file_key == 'signature':
         data['signature'] = uploaded_file.read()
       else:

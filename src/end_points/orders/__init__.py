@@ -9,6 +9,7 @@ from .photo import handle_photos
 from .sms_sender import delay_sms_check
 from ...database.enum import UserRole
 from api.storage import get_full_path
+from api.storage.files import validate_files, IMAGE_EXTENSIONS
 from ...database.schema import User, Order
 from .utils import get_statuses_by_order_id
 from database_api.operations import get_by_id
@@ -49,6 +50,10 @@ def get_order_endpoint(id):
 @order_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.DELIVERY, UserRole.ADMIN, UserRole.CUSTOMER])
 def update_order_endpoint(user: User, id):
+  error = validate_files(request.files.values(), IMAGE_EXTENSIONS)
+  if error:
+    return {'status': 'ko', 'message': error}
+
   with SessionWithStorage() as session:
     order: Order = get_by_id(Order, int(id), session=session)
     if isinstance(request.form.get('data'), str):

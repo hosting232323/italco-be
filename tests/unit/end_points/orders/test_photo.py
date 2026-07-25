@@ -65,7 +65,7 @@ def test_update_order_with_signature_saves_binary(client, monkeypatch):
   assert get_by_id(Order, order.id).signature == PNG_BYTES
 
 
-def test_update_order_ignores_non_image_uploads(client):
+def test_update_order_rejects_non_image_uploads(client):
   admin = create_user(UserRole.ADMIN)
   _, _, service_user, _ = customer_with_service()
   order = create_order()
@@ -80,6 +80,8 @@ def test_update_order_ignores_non_image_uploads(client):
     headers=auth_header(admin),
   )
 
-  assert response.get_json()['status'] == 'ok'
+  body = response.get_json()
+  assert body['status'] == 'ko'
+  assert 'Estensione non supportata' in body['message']
   with Session() as session:
     assert session.query(Photo).filter_by(order_id=order.id).count() == 0
