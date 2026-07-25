@@ -12,8 +12,8 @@ from ..service.queries import get_service_user_by_user_and_code
 
 
 CITY_FIXES = {
-  'Noic?ttaro': 'Noicattaro',
-  'BARI-CARBONARA Bari': 'Carbonara',
+  'noic?ttaro': 'Noicattaro',
+  'bari-carbonara bari': 'Carbonara',
 }
 
 
@@ -92,7 +92,7 @@ def pdf_create_order(text, session) -> Order:
 
 def normalize_city(city: str) -> str:
   city_clean = city.strip()
-  return CITY_FIXES.get(city_clean, city_clean)
+  return CITY_FIXES.get(city_clean.lower(), city_clean)
 
 
 def get_collection_point(customer_id: int) -> CollectionPoint:
