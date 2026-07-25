@@ -6,7 +6,7 @@ from api.storage.utils import guess_next_id, get_base_file_path
 from database_api.operations import create
 
 from ... import STATIC_FOLDER
-from ...utils.storage import SessionWithStorage
+from api.storage.session import SessionWithStorage
 
 
 def store_document(

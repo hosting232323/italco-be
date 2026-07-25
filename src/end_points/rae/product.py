@@ -4,7 +4,7 @@ from ...database.enum import RaeStatus
 from ..users.queries import format_user_with_info
 from database_api.operations import update, get_by_id, create
 
-from ...utils.storage import SessionWithStorage
+from api.storage.session import SessionWithStorage
 from .document import store_document
 from .queries import (
   query_rae_products,

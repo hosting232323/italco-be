@@ -6,7 +6,7 @@ from database_api import Session
 
 from src.database.schema import DtrDocument
 from src.end_points.rae.document import handle_document_by_name, store_document
-from src.utils.storage import SessionWithStorage
+from api.storage.session import SessionWithStorage
 
 from tests.unit.factories import create_order, create_rae_product, create_user
 from src.database.enum import UserRole
@@ -20,7 +20,7 @@ def _pdf(filename='doc.pdf', content_type='application/pdf'):
 
 
 def _fake_upload(monkeypatch):
-  import src.utils.storage as storage_module
+  from api.storage import session as storage_module
 
   monkeypatch.setattr(storage_module, 'upload_file', lambda content, filename, folder, **kwargs: f'/fake/{filename}')
 
