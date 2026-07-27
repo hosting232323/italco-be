@@ -75,12 +75,12 @@ def test_send_message_creates_thread_and_returns_reply(client, monkeypatch):
   monkeypatch.setattr(chatty, 'client', fake)
   admin = create_user(UserRole.ADMIN)
 
-  response = client.post('/chatty/message', json={'message': 'Ciao'}, headers=auth_header(admin))
+  response = client.post('/chatty/chat', json={'message': 'Ciao'}, headers=auth_header(admin))
 
   body = response.get_json()
   assert body['status'] == 'ok'
-  assert body['thread_id'] == 'thread-nuovo'
-  assert body['message'] == 'Risposta assistente'
+  assert body['session_id'] == 'thread-nuovo'
+  assert body['response'] == 'Risposta assistente'
   assert fake.created_threads == 1
   assert 'Ciao' in fake.user_messages[0][2]
   with Session() as session:
@@ -93,10 +93,10 @@ def test_send_message_reuses_existing_thread(client, monkeypatch):
   admin = create_user(UserRole.ADMIN)
 
   response = client.post(
-    '/chatty/message', json={'message': 'Ancora', 'thread_id': 'thread-esistente'}, headers=auth_header(admin)
+    '/chatty/chat', json={'message': 'Ancora', 'session_id': 'thread-esistente'}, headers=auth_header(admin)
   )
 
-  assert response.get_json()['thread_id'] == 'thread-esistente'
+  assert response.get_json()['session_id'] == 'thread-esistente'
   assert fake.created_threads == 0
   with Session() as session:
     assert session.query(Chatty).count() == 0
@@ -116,7 +116,7 @@ def test_send_message_resolves_tool_call_with_orders(client, monkeypatch):
   order = create_order(addressee='Chatty Cliente')
   create_product(order, service_user)
 
-  response = client.post('/chatty/message', json={'message': 'ordini di oggi'}, headers=auth_header(admin))
+  response = client.post('/chatty/chat', json={'message': 'ordini di oggi'}, headers=auth_header(admin))
 
   assert response.get_json()['status'] == 'ok'
   assert len(fake.tool_outputs) == 1
