@@ -1,3 +1,4 @@
+import pytest
 from database_api import Session
 from database_api.operations import create, get_by_id
 
@@ -284,3 +285,35 @@ def test_update_order_endpoint_deletes_product(client):
   )
 
   assert response.get_json()['status'] == 'ok'
+
+
+def _query_token(role: UserRole) -> str:
+  return auth_header(create_user(role))['Authorization']
+
+
+def test_serve_photo_requires_a_token(client):
+  response = client.get('/order/photos/1.jpg')
+
+  body = response.get_json()
+  assert body['status'] == 'session'
+  assert body['message'] == 'Token assente'
+
+
+def test_serve_photo_ignores_the_authorization_header(client):
+  response = client.get('/order/photos/1.jpg', headers=auth_header(create_user(UserRole.ADMIN)))
+
+  assert response.get_json()['message'] == 'Token assente'
+
+
+@pytest.mark.parametrize('role', [UserRole.DELIVERY])
+def test_serve_photo_rejects_other_roles(client, role):
+  response = client.get(f'/order/photos/1.jpg?token={_query_token(role)}')
+
+  assert response.get_json()['message'] == 'Ruolo non autorizzato'
+
+
+@pytest.mark.parametrize('role', [UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER])
+def test_serve_photo_returns_404_for_missing_file(client, role):
+  response = client.get(f'/order/photos/non-esiste.jpg?token={_query_token(role)}')
+
+  assert response.status_code == 404

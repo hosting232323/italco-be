@@ -1,9 +1,13 @@
+import os
+
 from sqlalchemy import and_
 
 from api.settings import IS_DEV
 from api.email import send_email
+from api.storage import get_full_path
 from database_api import Session
 from .queries import get_order_photos
+from ... import STATIC_FOLDER
 from ...database.enum import OrderStatus
 from ...database.schema import Order, Motivation, User, CustomerUserInfo, ServiceUser, Product
 
@@ -53,12 +57,11 @@ def mailer_check(order: Order, data: dict, motivation: Motivation):
       f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\n'
       f'Motivazione: {motivation_text}\nNote Punto Vendita: {order.customer_note}'
     )
+    attachments = build_photo_attachments(order.id)
+    photo_line = f'<br>Foto: {len(attachments)} in allegato' if attachments else '<br>Nessuna foto disponibile'
     html = (
       f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.<br>Motivazione: {motivation_text}'
-      f'<br>Note Punto Vendita: {order.customer_note}<br>Foto:<br>'
-      + ''.join(
-        [f'<img src="{photo.link}" alt="Photo" style="max-width:300px;"><br>' for photo in get_order_photos(order.id)]
-      )
+      f'<br>Note Punto Vendita: {order.customer_note}{photo_line}'
     )
 
     for mail in get_mails(order):
@@ -66,6 +69,7 @@ def mailer_check(order: Order, data: dict, motivation: Motivation):
         mail,
         {'text': text, 'html': html},
         subject,
+        attachments=attachments,
         signature={
           'text': (
             '--\n'
@@ -87,6 +91,16 @@ def mailer_check(order: Order, data: dict, motivation: Motivation):
           ),
         },
       )
+
+
+def build_photo_attachments(order_id: int) -> list[dict]:
+  attachments = []
+  folder = get_full_path(STATIC_FOLDER, 'photos')
+  for photo in get_order_photos(order_id):
+    filename = os.path.basename(photo.link)
+    with open(os.path.join(folder, filename), 'rb') as file:
+      attachments.append({'content': file.read(), 'filename': filename})
+  return attachments
 
 
 def get_user_mail(order: Order) -> CustomerUserInfo:
