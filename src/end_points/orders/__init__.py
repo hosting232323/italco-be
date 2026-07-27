@@ -103,7 +103,8 @@ def get_statuses(_, id):
 
 
 @order_bp.route('photos/<filename>', methods=['GET'])
-def serve_image_endpoint(filename):
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER], allow_query_token=True)
+def serve_image_endpoint(_, filename):
   return send_from_directory(get_full_path(STATIC_FOLDER, 'photos'), filename)
 
 

@@ -139,7 +139,8 @@ def update_disposal(_, id):
 
 
 @rae_bp.route('<folder>/<filename>', methods=['GET'])
-def serve_document(folder, filename):
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], allow_query_token=True)
+def serve_document(_, folder, filename):
   if folder not in ['dtr-documents', 'fir-first-document', 'fir-fourth-document']:
     return {'status': 'ko', 'message': 'Invalid folder'}
 
