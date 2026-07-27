@@ -1,3 +1,4 @@
+import json
 from io import BytesIO
 
 import pandas as pd
@@ -197,6 +198,45 @@ def test_excel_import_endpoint_requires_file(client):
   body = response.get_json()
   assert body['status'] == 'ko'
   assert body['message'] == 'Nessun file caricato'
+
+
+def test_excel_import_endpoint_reads_customer_id_from_data_envelope(client):
+  # Il client manda il body in un unico campo 'data' JSON del FormData
+  admin = create_user(UserRole.ADMIN)
+  customer = _customer_with_named_cp()
+  rows = [
+    _base_row(**{'Cod.  Serv': 'PRODOTTO', 'Descr. Serv': 'Lavatrice'}),
+    _base_row(**{'Cod.  Serv': 'SVC-1', 'Descr. Serv': 'Montaggio'}),
+  ]
+
+  response = client.post(
+    '/import/excel',
+    data={
+      'data': json.dumps({'customer_id': customer.id}),
+      'file': (_excel_bytes(rows), 'orders.xlsx'),
+    },
+    headers=auth_header(admin),
+  )
+
+  body = response.get_json()
+  assert body['status'] == 'ok'
+  assert body['imported_orders_count'] == 1
+
+
+def test_excel_import_endpoint_reports_missing_customer_id(client):
+  # Senza punto vendita deve rispondere ko, non 400: un HTTPException lascerebbe il client in caricamento
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.post(
+    '/import/excel',
+    data={'data': json.dumps({}), 'file': (_excel_bytes([_base_row()]), 'orders.xlsx')},
+    headers=auth_header(admin),
+  )
+
+  assert response.status_code == 200
+  body = response.get_json()
+  assert body['status'] == 'ko'
+  assert body['message'] == 'Punto vendita non specificato'
 
 
 def test_handle_excel_conflict_endpoint(client):
