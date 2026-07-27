@@ -1,3 +1,4 @@
+import json
 from flask import Blueprint, request
 
 from ...database.enum import UserRole
@@ -13,6 +14,21 @@ from .api import save_orders_by_euronics, update_order_status_by_euronics
 import_bp = Blueprint('import_bp', __name__)
 
 
+def get_customer_id():
+  """Il client manda il body in un unico campo 'data' JSON del FormData.
+  Il fallback sul campo flat serve ai client non ancora aggiornati."""
+  data = request.form.get('data')
+  if isinstance(data, str):
+    try:
+      customer_id = json.loads(data).get('customer_id')
+    except json.JSONDecodeError:
+      customer_id = None
+  else:
+    customer_id = request.form.get('customer_id')
+
+  return customer_id or None
+
+
 @import_bp.route('excel', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def excel_order_import(_):
@@ -23,7 +39,11 @@ def excel_order_import(_):
   if error:
     return {'status': 'ko', 'message': error}
 
-  return order_import_by_excel(request.files['file'], request.form['customer_id'])
+  customer_id = get_customer_id()
+  if not customer_id:
+    return {'status': 'ko', 'message': 'Punto vendita non specificato'}
+
+  return order_import_by_excel(request.files['file'], customer_id)
 
 
 @import_bp.route('excel/conflict', methods=['POST'])
@@ -42,7 +62,11 @@ def pdf_order_import(_):
   if error:
     return {'status': 'ko', 'message': error}
 
-  return order_import_by_pdf(request.files, request.form['customer_id'])
+  customer_id = get_customer_id()
+  if not customer_id:
+    return {'status': 'ko', 'message': 'Punto vendita non specificato'}
+
+  return order_import_by_pdf(request.files, customer_id)
 
 
 @import_bp.route('euronics/list', methods=['POST'])

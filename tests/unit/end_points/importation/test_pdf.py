@@ -163,3 +163,55 @@ def test_order_import_by_pdf_rejects_unknown_collection_point(client, monkeypatc
   body = response.get_json()
   assert body['status'] == 'ko'
   assert body['message'] == 'Punto di ritiro non identificato'
+
+
+def test_pdf_import_endpoint_reads_customer_id_from_data_envelope(client, monkeypatch):
+  # Il client manda il body in un unico campo 'data' JSON del FormData
+  import json
+  from io import BytesIO
+
+  import src.end_points.importation.pdf as pdf_module
+  from tests.unit.factories import auth_header
+
+  admin = create_user(UserRole.ADMIN)
+  customer = create_user(UserRole.CUSTOMER)
+  create_service_user(customer, create_service(), code='S1')
+  create_collection_point(customer)
+
+  text = 'Destinatario: Mario Rossi\nVia Roma 15 Città : Molfetta\nTel - Cell: 3391234567\nData consegna: 20/07/2026\n'
+  header = ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']
+  tables = [[header, ['A1', 'M', 'Frigo', '1', 'S1']]]
+  monkeypatch.setattr(pdf_module.pdfplumber, 'open', lambda file: _FakePdf([_FakePage(text, tables)]))
+
+  response = client.post(
+    '/import/pdf',
+    data={
+      'data': json.dumps({'customer_id': customer.id}),
+      'ordine.pdf': (BytesIO(b'%PDF-1.4'), 'ordine.pdf', 'application/pdf'),
+    },
+    headers=auth_header(admin),
+  )
+
+  body = response.get_json()
+  assert body['status'] == 'ok'
+  assert body['imported_orders_count'] == 1
+
+
+def test_pdf_import_endpoint_reports_missing_customer_id(client):
+  import json
+  from io import BytesIO
+
+  from tests.unit.factories import auth_header
+
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.post(
+    '/import/pdf',
+    data={'data': json.dumps({}), 'ordine.pdf': (BytesIO(b'%PDF-1.4'), 'ordine.pdf', 'application/pdf')},
+    headers=auth_header(admin),
+  )
+
+  assert response.status_code == 200
+  body = response.get_json()
+  assert body['status'] == 'ko'
+  assert body['message'] == 'Punto vendita non specificato'
