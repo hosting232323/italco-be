@@ -17,11 +17,11 @@ assistant_id = os.environ['ASSISTANT_ID']
 chatty_bp = Blueprint('chatty_bp', __name__)
 
 
-@chatty_bp.route('message', methods=['POST'])
+@chatty_bp.route('chat', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.DELIVERY])
 def send_message(user: User):
-  if 'thread_id' in request.json and request.json['thread_id']:
-    thread_id = request.json['thread_id']
+  if 'session_id' in request.json and request.json['session_id']:
+    thread_id = request.json['session_id']
   else:
     thread_id = client.beta.threads.create().id
     create(Chatty, {'thread_id': thread_id})
@@ -47,8 +47,8 @@ def send_message(user: User):
 
   return {
     'status': 'ok',
-    'thread_id': thread_id,
-    'message': client.beta.threads.messages.list(thread_id=thread_id).data[0].content[0].text.value,
+    'session_id': thread_id,
+    'response': client.beta.threads.messages.list(thread_id=thread_id).data[0].content[0].text.value,
   }
 
 
