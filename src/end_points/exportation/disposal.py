@@ -30,13 +30,26 @@ def export_disposal_attached_a(disposal_id: int):
   if not rae_products:
     return {'status': 'ko', 'message': 'Nessun prodotto RAE associato a questo smaltimento'}
 
-  rows = sorted([format_row(rp, rpg, u, o) for rp, rpg, u, o in rae_products], key=lambda r: r['dtr'])
-  codice_afir = f'{rae_products[0][2].id}-AFIR-{disposal_id}'
-  total = sum(r['quantita'] for r in rows)
+  grouped = {}
+  for rp, rpg, u, o in rae_products:
+    grouped.setdefault(u.id, {'user': u, 'rows': []})['rows'].append(format_row(rp, rpg, u, o))
+
+  sections = []
+  for group in sorted(grouped.values(), key=lambda g: g['user'].nickname):
+    user = group['user']
+    rows = sorted(group['rows'], key=lambda r: r['dtr'])
+    sections.append(
+      {
+        'punto_vendita': user.nickname,
+        'codice_afir': f'{user.id}-AFIR-{disposal_id}',
+        'rows': rows,
+        'total': sum(r['quantita'] for r in rows),
+      }
+    )
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
-    src=render_template('disposal_attached_a.html', disposal=disposal, rows=rows, codice_afir=codice_afir, total=total),
+    src=render_template('disposal_attached_a.html', disposal=disposal, sections=sections),
     dest=result,
   )
   if pisa_status.err:
