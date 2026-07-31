@@ -48,6 +48,10 @@ def create_order(user: User, data: dict):
       cloned_order = True
       clean_data = format_data_cloning_order(clean_data, data['cloned_order_id'])
 
+    missing = [field for field in ('type', 'addressee', 'address', 'cap', 'dpc', 'drc') if not clean_data.get(field)]
+    if missing:
+      return {'status': 'ko', 'message': f'Campi obbligatori mancanti: {", ".join(missing)}'}
+
     order: Order = create(Order, clean_data, session=session)
     create_products(
       order,
