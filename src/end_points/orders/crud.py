@@ -33,6 +33,8 @@ NON_UPDATABLE_ORDER_FIELDS = frozenset(
 
 def create_order(user: User, data: dict):
   clean_data = {key: value for key, value in data.items() if key not in ['products', 'user_id', 'cloned_order_id']}
+  if not clean_data.get('address'):
+    return {'status': 'ko', 'message': "L'indirizzo è obbligatorio"}
   clean_data['type'] = OrderType(clean_data['type'])
   if 'external_status' in clean_data:
     clean_data['external_status'] = EuronicsStatus(clean_data['external_status'])
