@@ -1,12 +1,19 @@
 .deploy:
   stage: deploy
   when: manual
+  allow_failure: false
+  resource_group: "${SERVICE}"
+  needs:
+    - build_image
   tags:
     - "${SERVER_NAME}-deploy"
   variables:
     API_PREFIX: api
+    MAINTENANCE: "0"
   script:
     - |
+      set -eu
+
       cat <<-EOF > env_file
         DATABASE_URL=$DATABASE_URL_PIPELINE
         DECODE_JWT_TOKEN=$DECODE_JWT_TOKEN
@@ -31,61 +38,110 @@
         SERVER_NAME=$SERVER_NAME
       EOF
 
-      docker build --no-cache -t $PJ_NAME:latest .
-      docker rm -f "${CONTAINER_NEXT}" 2>/dev/null || true
+      echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+      IMAGE="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+      docker pull "$IMAGE"
 
-      docker run --rm \
-        --env-file env_file \
-        -v $STATIC_FOLDER:$STATIC_FOLDER \
-        $PJ_NAME:latest python -m alembic upgrade heads
-
-      docker run -d --name ${CONTAINER_NEXT} \
-        --env-file env_file \
-        -p ${SECOND_PORT}:8080 \
-        $PJ_NAME:latest
-
-      sleep 10
-
-      if curl --fail http://localhost:$SECOND_PORT/$API_PREFIX/; then
-        docker rm -f ${CONTAINER_ACTIVE} 2>/dev/null || true
-        docker run -d --restart unless-stopped \
-          --name ${CONTAINER_ACTIVE} \
-          --env-file env_file \
-          -p ${FIRST_PORT}:8080 \
-          -v $STATIC_FOLDER:$STATIC_FOLDER \
-          -v $BACKUP_FOLDER:$BACKUP_FOLDER \
-          -v /opt/docker-ssh:/root/.ssh:ro \
-          $PJ_NAME:latest
-        docker rm -f ${CONTAINER_NEXT} 2>/dev/null || true
+      if docker ps -q -f "name=^/${SERVICE}-blue$" | grep -q .; then
+        CURRENT=blue; NEXT=green
+      elif docker ps -q -f "name=^/${SERVICE}-green$" | grep -q .; then
+        CURRENT=green; NEXT=blue
       else
-        docker logs ${CONTAINER_NEXT} || true
+        CURRENT=""; NEXT=blue
+      fi
+      echo "Colore attivo: ${CURRENT:-nessuno} -> nuovo: ${NEXT}"
+
+      LEGACY=""
+      if docker ps -q -f "name=^/${SERVICE}$" | grep -q .; then
+        LEGACY="${SERVICE}"
+        echo "Trovato container legacy '${LEGACY}': verra' rimosso al cutover."
+      fi
+
+      if [ "${MAINTENANCE}" = "1" ] && [ -n "${CURRENT}" ]; then
+        echo "MAINTENANCE=1: fermo ${SERVICE}-${CURRENT} prima delle migrazioni"
+        docker rm -f "${SERVICE}-${CURRENT}" || true
+        CURRENT=""
+      fi
+
+      docker run --rm --env-file env_file --network web \
+        --add-host=host.docker.internal:host-gateway \
+        -v "$STATIC_FOLDER:$STATIC_FOLDER" \
+        "$IMAGE" python -m alembic upgrade heads
+
+      docker rm -f "${SERVICE}-${NEXT}" 2>/dev/null || true
+
+      # "web" e' la rete condivisa creata da generic-deploy, ed e' anche il nome
+      # dell'unico entrypoint di Traefik (--entrypoints.web.address=:8080): sono
+      # due cose distinte che per caso si chiamano uguale. Non serve la label
+      # traefik.docker.network perche' Traefik gira gia' con
+      # --providers.docker.network=web e i container stanno su una rete sola.
+      docker run -d --restart unless-stopped \
+        --name "${SERVICE}-${NEXT}" \
+        --env-file env_file \
+        --network web \
+        --add-host=host.docker.internal:host-gateway \
+        -v "$STATIC_FOLDER:$STATIC_FOLDER" \
+        -v "$BACKUP_FOLDER:$BACKUP_FOLDER" \
+        -v /opt/docker-ssh:/root/.ssh:ro \
+        --label "traefik.enable=true" \
+        --label "traefik.http.routers.${SERVICE}-${NEXT}.rule=Host(\`${PUBLIC_HOST_PIPELINE}\`) && PathPrefix(\`/${API_PREFIX}\`)" \
+        --label "traefik.http.routers.${SERVICE}-${NEXT}.entrypoints=web" \
+        --label "traefik.http.routers.${SERVICE}-${NEXT}.service=${SERVICE}" \
+        --label "traefik.http.services.${SERVICE}.loadbalancer.server.port=8080" \
+        --label "traefik.http.services.${SERVICE}.loadbalancer.healthcheck.path=/${API_PREFIX}/" \
+        --label "traefik.http.services.${SERVICE}.loadbalancer.healthcheck.interval=5s" \
+        --label "traefik.http.services.${SERVICE}.loadbalancer.healthcheck.timeout=3s" \
+        "$IMAGE"
+
+      READY=0
+      for _ in $(seq 1 30); do
+        if docker exec "${SERVICE}-${NEXT}" curl -fsS "http://localhost:8080/${API_PREFIX}/" >/dev/null 2>&1; then
+          READY=1; break
+        fi
+        sleep 2
+      done
+      if [ "${READY}" != "1" ]; then
+        echo "❌ Il nuovo container non è diventato pronto"
+        docker logs "${SERVICE}-${NEXT}" --tail 50 || true
+        docker rm -f "${SERVICE}-${NEXT}" || true
         exit 1
       fi
 
+      if [ -n "${CURRENT}" ]; then
+        docker rm -f "${SERVICE}-${CURRENT}" || true
+      fi
+      if [ -n "${LEGACY}" ]; then
+        echo "Rimuovo il container legacy '${LEGACY}'."
+        docker rm -f "${LEGACY}" || true
+      fi
+      echo "✅ Deploy completato su ${SERVICE}-${NEXT} (Host: ${PUBLIC_HOST_PIPELINE})"
+
+  after_script:
+    - rm -f env_file
+    - docker logout "$CI_REGISTRY" || true
+
 deploy_test:
   extends: .deploy
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
   variables:
-    PJ_NAME: "${PROJECT_NAME}-test"
-    CONTAINER_ACTIVE: "${PROJECT_NAME}-test"
-    CONTAINER_NEXT: "${PROJECT_NAME}-test-next"
+    SERVICE: "${PROJECT_NAME}-test"
+    PUBLIC_HOST_PIPELINE: "test.${PUBLIC_HOST}"
     DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
     EURONICS_API_PASSWORD_PIPELINE: 0
     IS_DEV: 1
-  before_script:
-    - export FIRST_PORT="${PORT_TEST%%-*}"
-    - export SECOND_PORT="${PORT_TEST#*-}"
 
 deploy_prod:
   extends: .deploy
-  only:
-    - main
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
   variables:
-    PJ_NAME: $PROJECT_NAME
-    CONTAINER_ACTIVE: $PROJECT_NAME
-    CONTAINER_NEXT: "${PROJECT_NAME}-next"
-    DATABASE_URL_PIPELINE: $DATABASE_URL
-    EURONICS_API_PASSWORD_PIPELINE: $EURONICS_API_PASSWORD
+    SERVICE: "$PROJECT_NAME"
+    PUBLIC_HOST_PIPELINE: "$PUBLIC_HOST"
+    DATABASE_URL_PIPELINE: "$DATABASE_URL"
+    EURONICS_API_PASSWORD_PIPELINE: "$EURONICS_API_PASSWORD"
     IS_DEV: 0
-  before_script:
-    - export FIRST_PORT="${PORT_PROD%%-*}"
-    - export SECOND_PORT="${PORT_PROD#*-}"
