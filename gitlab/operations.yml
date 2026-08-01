@@ -1,7 +1,8 @@
 .setup_database:
   stage: operations
-  image: postgres:17
   when: manual
+  needs: []
+  allow_failure: true
   tags:
     - "${SERVER_NAME}-deploy"
   script:
@@ -22,30 +23,51 @@
 
 setup_database_test:
   extends: .setup_database
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
   variables:
     DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
 
 setup_database_prod:
   extends: .setup_database
-  only:
-    - main
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
   variables:
     DATABASE_URL_PIPELINE: "${DATABASE_URL}"
 
 .restore_backup:
   stage: operations
   when: manual
+  needs: []
+  allow_failure: false
   tags:
     - "${SERVER_NAME}-deploy"
+  variables:
+    API_PREFIX: api
   script:
-    - export DB_URL="$DATABASE_URL_PIPELINE"
-    - export DB_NAME=$(echo "$DB_URL" | awk -F/ '{print $NF}' | cut -d'?' -f1)
-    - export BASE_URL="${DB_URL%/*}/postgres"
-
-    - echo "⏹ Stopping ${CONTAINER_ACTIVE}..."
-    - docker stop "${CONTAINER_ACTIVE}" 2>/dev/null || true
-
     - |
+      set -eu
+
+      export DB_URL="$DATABASE_URL_PIPELINE"
+      export DB_NAME=$(echo "$DB_URL" | awk -F/ '{print $NF}' | cut -d'?' -f1)
+      export BASE_URL="${DB_URL%/*}/postgres"
+
+      if docker ps -q -f "name=^/${SERVICE}-blue$" | grep -q .; then
+        ACTIVE=blue
+      elif docker ps -q -f "name=^/${SERVICE}-green$" | grep -q .; then
+        ACTIVE=green
+      else
+        echo "❌ Nessun container attivo per ${SERVICE}: restore annullato."
+        exit 1
+      fi
+      CONTAINER="${SERVICE}-${ACTIVE}"
+      echo "⏹ Stopping ${CONTAINER}..."
+      docker stop "${CONTAINER}"
+
       REMOTE_BACKUP_DIR="${BACKUP_FOLDER}postgres-backup"
       LATEST_REMOTE=$(ssh \
         -o StrictHostKeyChecking=no \
@@ -55,14 +77,11 @@ setup_database_prod:
         "find \"$REMOTE_BACKUP_DIR\" -maxdepth 2 -type f -name '*.dump' | sort | tail -n 1")
       if [ -z "$LATEST_REMOTE" ]; then
         echo "❌ Nessun backup trovato in $REMOTE_BACKUP_DIR"
-        docker start "${CONTAINER_ACTIVE}" || true
+        docker start "${CONTAINER}" || true
         exit 1
       fi
       echo "📦 Ultimo backup: $LATEST_REMOTE"
-      echo "LATEST_REMOTE=$LATEST_REMOTE" >> restore.env
 
-    - |
-      source restore.env
       LOCAL_DUMP="/tmp/restore_$(date +%s).dump"
       scp \
         -o StrictHostKeyChecking=no \
@@ -71,9 +90,7 @@ setup_database_prod:
         "${BACKUP_SSH_CONFIG}:${LATEST_REMOTE}" \
         "$LOCAL_DUMP"
       echo "✅ Dump scaricato in $LOCAL_DUMP"
-      echo "LOCAL_DUMP=$LOCAL_DUMP" >> restore.env
 
-    - |
       psql "$BASE_URL" -c \
         "SELECT pg_terminate_backend(pid)
          FROM pg_stat_activity
@@ -82,52 +99,57 @@ setup_database_prod:
       psql "$BASE_URL" -c "CREATE DATABASE ${DB_NAME};"
       echo "✅ Database '$DB_NAME' ricreato."
 
-    - |
-      source restore.env
       pg_restore \
         --no-owner \
         --no-acl \
         --exit-on-error \
         -d "$DB_URL" \
-        "$LOCAL_DUMP" || { docker start "${CONTAINER_ACTIVE}"; exit 1; }
+        "$LOCAL_DUMP" || { docker start "${CONTAINER}"; exit 1; }
       echo "✅ Dump importato."
-      rm -f "$LOCAL_DUMP" restore.env
+      rm -f "$LOCAL_DUMP"
 
-    - echo "🚀 Avvio ${CONTAINER_ACTIVE}..."
-    - docker start "${CONTAINER_ACTIVE}"
-    - sleep 10
-    - |
-      if curl --fail http://localhost:$FIRST_PORT/api/; then
+      echo "🚀 Avvio ${CONTAINER}..."
+      docker start "${CONTAINER}"
+
+      READY=0
+      for _ in $(seq 1 15); do
+        if docker exec "${CONTAINER}" curl -fsS "http://localhost:8080/${API_PREFIX}/" >/dev/null 2>&1; then
+          READY=1; break
+        fi
+        sleep 2
+      done
+      if [ "${READY}" = "1" ]; then
         echo "✅ Applicazione online."
       else
         echo "❌ Applicazione offline."
-        docker logs "${CONTAINER_ACTIVE}" --tail 50 || true
+        docker logs "${CONTAINER}" --tail 50 || true
         exit 1
       fi
 
 restore_backup_test:
   extends: .restore_backup
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
   variables:
-    PJ_NAME: "${PROJECT_NAME}-test"
-    CONTAINER_ACTIVE: "${PROJECT_NAME}-test"
+    SERVICE: "${PROJECT_NAME}-test"
     DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
-  before_script:
-    - export FIRST_PORT="${PORT_TEST%%-*}"
 
 restore_backup_prod:
   extends: .restore_backup
-  only:
-    - main
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
   variables:
-    PJ_NAME: $PROJECT_NAME
-    CONTAINER_ACTIVE: $PROJECT_NAME
-    DATABASE_URL_PIPELINE: $DATABASE_URL
-  before_script:
-    - export FIRST_PORT="${PORT_PROD%%-*}"
+    SERVICE: "$PROJECT_NAME"
+    DATABASE_URL_PIPELINE: "$DATABASE_URL"
 
 setup_nominatim:
   stage: operations
   when: manual
+  needs: []
   tags:
     - "${SERVER_NAME}-deploy"
   script:

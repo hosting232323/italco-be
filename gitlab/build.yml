@@ -1,0 +1,16 @@
+build_image:
+  stage: build
+  interruptible: true
+  tags:
+    - "${SERVER_NAME}-deploy"
+  rules:
+    - when: always
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG" .
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG"
+  after_script:
+    - docker image prune -f || true
+    - docker builder prune -f || true
+    - docker logout "$CI_REGISTRY" || true
