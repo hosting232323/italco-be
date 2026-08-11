@@ -47,6 +47,18 @@
       text-align: left;
     }
 
+    .data-table.card-index td,
+    .data-table.card-index th {
+      padding: 6px 5px;
+      font-size: 12px;
+    }
+
+    /* I cognomi composti sono parole singole troppo lunghe per la cella e
+       sborderebbero su Stato: qui si spezza a caratteri, non a parole. */
+    .data-table.card-index td.wrap-anywhere {
+      -pdf-word-wrap: CJK;
+    }
+
     .flex-row {
       display: flex;
       gap: 20px;

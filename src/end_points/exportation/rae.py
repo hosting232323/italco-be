@@ -11,6 +11,17 @@ from ...database.schema import User, RaeProduct, Order
 from ..orders.queries import query_orders, format_query_result
 
 
+MAX_ADDRESSEE_WORD = 16
+
+RAE_STATUS_LABELS = {
+  RaeStatus.GENERATED: 'Generato',
+  RaeStatus.EMITTED: 'Emesso',
+  RaeStatus.LDR: 'LDR',
+  RaeStatus.DISPOSED_OFF: 'Smaltito',
+  RaeStatus.ANNULLED: 'Annullato',
+}
+
+
 def export_rae(user: User, order_id):
   order = _get_order_dict(int(order_id))
   if not order:
@@ -71,8 +82,9 @@ def export_rae_card_index(user: User, user_id: int, year: int):
       'codice_cer': group.cer_code,
       'raggruppamento': group.group_code,
       'quantita': rae_product.quantity or 0,
-      'cliente': customer.nickname,
       'destinatario': order.addressee,
+      'destinatario_lungo': _has_long_word(order.addressee),
+      'stato': RAE_STATUS_LABELS.get(rae_product.status, ''),
     }
     for rae_product, group, order in sorted(rae_products.values(), key=lambda t: (t[0].dtr_date, t[0].id))
   ]
@@ -92,6 +104,15 @@ def export_rae_card_index(user: User, user_id: int, year: int):
   if pisa_status.err:
     return {'status': 'ko', 'message': 'Errore nella creazione del PDF'}
   return export_pdf(result.getvalue())
+
+
+def _has_long_word(text: str | None) -> bool:
+  """Vero se una singola parola non entra nella colonna Destinatario.
+
+  Solo per queste righe lo schedario spezza a caratteri: sulle altre il
+  taglio a fine parola resta piu' leggibile.
+  """
+  return max((len(word) for word in (text or '').split()), default=0) > MAX_ADDRESSEE_WORD
 
 
 def get_rae_export_info_by_order(order: dict) -> list[dict]:
