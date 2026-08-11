@@ -15,6 +15,7 @@ from .end_points.schedule import schedule_bp
 from .end_points.importation import import_bp
 from .end_points.exportation import export_bp
 from .end_points.transport import transport_bp
+from .end_points.dashboard import dashboard_bp
 from .end_points.customer_group import customer_group_bp
 from .end_points.collection_point import collection_point_bp
 from .end_points.service.constraint import check_services_date
@@ -41,6 +42,7 @@ app.register_blueprint(export_bp, url_prefix='/export')
 app.register_blueprint(service_bp, url_prefix='/service')
 app.register_blueprint(schedule_bp, url_prefix='/schedule')
 app.register_blueprint(transport_bp, url_prefix='/transport')
+app.register_blueprint(dashboard_bp, url_prefix='/dashboard')
 app.register_blueprint(customer_rules_bp, url_prefix='/customer-rule')
 app.register_blueprint(customer_group_bp, url_prefix='/customer-group')
 app.register_blueprint(geographic_zone_bp, url_prefix='/geographic-zone')
