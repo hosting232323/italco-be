@@ -5,7 +5,7 @@ from datetime import date
 from pypdf import PdfReader
 
 from src.database.enum import RaeStatus, UserRole
-from src.end_points.exportation.rae import get_rae_export_info_by_order
+from src.end_points.exportation.rae import _has_long_word, get_rae_export_info_by_order
 
 from tests.unit.factories import (
   auth_header,
@@ -101,6 +101,23 @@ def test_export_rae_card_index_returns_pdf(client):
   assert response.headers['Content-Type'] == 'application/pdf'
 
 
+def test_export_rae_card_index_shows_pickup_status(client):
+  operator = create_user(UserRole.OPERATOR)
+  customer, _, _ = _order_with_emitted_rae()
+
+  response = client.get(f'/export/rae/card-index/{customer.id}/{date.today().year}', headers=auth_header(operator))
+
+  assert response.status_code == 200
+  text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
+  assert 'Stato' in text
+  assert 'Emesso' in text
+  # La colonna raggruppamento e' abbreviata per far posto allo stato.
+  assert 'Grup.' in text
+  assert 'Raggrupp.' not in text
+  # Il punto vendita compare solo nel riquadro in testa, non su ogni riga.
+  assert text.count(customer.nickname) == 1
+
+
 def test_export_rae_card_index_unknown_selling_point(client):
   operator = create_user(UserRole.OPERATOR)
 
@@ -144,6 +161,13 @@ def test_export_rae_card_index_without_pickups_in_year(client):
   body = response.get_json()
   assert body['status'] == 'ko'
   assert body['message'] == 'Nessun ritiro RAEE trovato per questo punto vendita in questo anno'
+
+
+def test_has_long_word_flags_only_addressees_that_would_overflow():
+  assert _has_long_word('MARTIRADONNAPETRUZZELLI GIOVANNIBATTISTA') is True
+  assert _has_long_word('MARTIRADONNA DONATELLA') is False
+  assert _has_long_word('') is False
+  assert _has_long_word(None) is False
 
 
 def test_get_rae_export_info_by_order_requires_dtr_date():

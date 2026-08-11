@@ -1,15 +1,19 @@
-{% macro rae_products_table(rows) %}
-<table class="data-table" repeat="1">
+{# card_index: variante dello schedario, che aggiunge lo stato del ritiro e
+   omette il punto vendita (uguale su tutte le righe, gia' in testa al PDF). #}
+{% macro rae_products_table(rows, card_index=false) %}
+{% set w = [13, 9, 17, 10, 8, 7, 23, 13] if card_index else [13, 11.5, 14.5, 10.5, 13.5, 8.5, 12.5, 16] %}
+<table class="data-table{{ ' card-index' if card_index }}" repeat="1">
   <thead>
     <tr>
-      <th style="width: 13%;">Data DTR</th>
-      <th style="width: 11.5%;">N° DDT</th>
-      <th style="width: 14.5%;">Prodotto</th>
-      <th style="width: 10.5%;">CER</th>
-      <th style="width: 13.5%;">Raggrupp.</th>
-      <th style="width: 8.5%;">Q.tà</th>
-      <th style="width: 12.5%;">Punto Vendita</th>
-      <th style="width: 16%;">Destinatario</th>
+      <th style="width: {{ w[0] }}%;">Data DTR</th>
+      <th style="width: {{ w[1] }}%;">N° DDT</th>
+      <th style="width: {{ w[2] }}%;">Prodotto</th>
+      <th style="width: {{ w[3] }}%;">CER</th>
+      <th style="width: {{ w[4] }}%;">{{ 'Grup.' if card_index else 'Raggrupp.' }}</th>
+      <th style="width: {{ w[5] }}%;">Q.tà</th>
+      {% if not card_index %}<th style="width: {{ w[6] }}%;">Punto Vendita</th>{% endif %}
+      <th style="width: {{ w[6] if card_index else w[7] }}%;">Destinatario</th>
+      {% if card_index %}<th style="width: {{ w[7] }}%;">Stato</th>{% endif %}
     </tr>
   </thead>
   <tbody>
@@ -21,8 +25,9 @@
       <td>{{ row.codice_cer }}</td>
       <td>{{ row.raggruppamento }}</td>
       <td>{{ row.quantita }}</td>
-      <td>{{ row.cliente }}</td>
-      <td>{{ row.destinatario }}</td>
+      {% if not card_index %}<td>{{ row.cliente }}</td>{% endif %}
+      <td class="{{ 'wrap-anywhere' if row.destinatario_lungo }}">{{ row.destinatario }}</td>
+      {% if card_index %}<td>{{ row.stato }}</td>{% endif %}
     </tr>
     {% endfor %}
   </tbody>
