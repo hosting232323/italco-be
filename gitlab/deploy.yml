@@ -82,6 +82,7 @@
         --add-host=host.docker.internal:host-gateway \
         -v "$STATIC_FOLDER:$STATIC_FOLDER" \
         -v "$BACKUP_FOLDER:$BACKUP_FOLDER" \
+        -v /opt/db-backup-fallback:/opt/db-backup-fallback \
         -v /opt/docker-ssh:/root/.ssh:ro \
         --label "traefik.enable=true" \
         --label "traefik.http.routers.${SERVICE}-${NEXT}.rule=Host(\`${PUBLIC_HOST_PIPELINE}\`) && PathPrefix(\`/${API_PREFIX}\`)" \
