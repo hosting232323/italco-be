@@ -44,6 +44,7 @@
 .python_test_template: &python_test_template
   stage: test
   image: python:3.11
+  needs: []
   interruptible: true
   tags:
     - test
@@ -114,7 +115,10 @@ e2e_tests:
     POSTGRES_PASSWORD: postgres
     DATABASE_URL_TEST: postgresql://postgres:postgres@postgres:5432/test_${CI_JOB_ID}
     DECODE_JWT_TOKEN: dummy
-    ITALCO_FE_DIR: $CI_PROJECT_DIR/.e2e/italco-fe
+    # Niente cartelle che iniziano con un punto: il server statico del
+    # frontend serve le rotte SPA con res.sendFile su path assoluto, e send
+    # risponde 404 se un segmento del path e' un dotfile.
+    ITALCO_FE_DIR: $CI_PROJECT_DIR/e2e-frontend/italco-fe
   before_script:
     - apt-get update
     - apt-get install -y --no-install-recommends curl git ca-certificates gnupg chromium

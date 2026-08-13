@@ -1,6 +1,7 @@
 lint_backend:
-  stage: lint
+  stage: housekeeping
   image: python:3.11
+  needs: []
   allow_failure: true
   interruptible: true
   tags:

@@ -3,7 +3,7 @@ E2E (Playwright): la Pianificazione Automatica rispetta MAX_PROFESSIONAL_ORDERS=
 
 Flusso completamente browser-based:
 1. Login come admin (fixture pw_page).
-2. Apre "Pianificazione Automatica".
+2. Va sulla pagina Ordini e apre "Pianificazione Automatica".
 3. Imposta la data odierna e min_size_group = 1.
 4. Invia e attende le proposte di borderò.
 5. Legge le proposte dalla risposta API e verifica il limite di ordini
@@ -59,9 +59,15 @@ def _count_professional_orders(orders: list) -> int:
   return count
 
 
-def test_schedule_proposals_professional_services_limit(pw_page: Page):
+def test_schedule_proposals_professional_services_limit(pw_page: Page, pw_base_url: str):
   page = pw_page
   captured_suggestions = []
+
+  # Il bottone "Pianificazione Automatica" sta in OrderTable, quindi nella
+  # pagina Ordini: dopo il login si atterra sulla dashboard, che non lo ha.
+  page.goto(f'{pw_base_url}/orders')
+  schedule_button = page.get_by_role('button', name='Pianificazione Automatica')
+  expect(schedule_button).to_be_visible(timeout=15_000)
 
   def _capture_suggestions(response):
     try:
@@ -75,7 +81,7 @@ def test_schedule_proposals_professional_services_limit(pw_page: Page):
 
   page.on('response', _capture_suggestions)
 
-  page.get_by_role('button', name='Pianificazione Automatica').click()
+  schedule_button.click()
   expect(page.locator('.v-dialog')).to_be_visible(timeout=10_000)
 
   date_field = page.locator('.v-dialog .v-text-field').filter(has_text='Data Work')
