@@ -3,6 +3,8 @@ build_image:
   interruptible: true
   tags:
     - "${SERVER_NAME}-deploy"
+  variables:
+    DOCKER_CONFIG: "$CI_PROJECT_DIR/.docker-$CI_JOB_ID"
   rules:
     - when: always
   script:
@@ -14,3 +16,4 @@ build_image:
     - docker image prune -f || true
     - docker builder prune -f || true
     - docker logout "$CI_REGISTRY" || true
+    - rm -rf "$CI_PROJECT_DIR/.docker-$CI_JOB_ID" || true
