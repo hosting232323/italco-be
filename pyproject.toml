@@ -24,7 +24,7 @@ dependencies = [
 dev = [
   "tqdm",
   "pytest",
-  "pytest-cov",
+  "coverage",
   "python-dotenv",
   "ruff",
   "playwright",
@@ -41,3 +41,30 @@ quote-style = "single"
 [tool.ruff.lint]
 select = ["E", "F", "T"]
 ignore = ["COM812"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+markers = [
+  # Test end-to-end con Playwright contro frontend + backend reali: servono
+  # i servizi attivi e non entrano nella misura di coverage.
+  # Suite veloce con: pytest -m "not e2e"
+  "e2e: end-to-end test con Playwright (deseleziona con '-m \"not e2e\"')",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+  "src/__main__.py",
+  "src/database/alembic/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90
+exclude_lines = [
+  "pragma: no cover",
+  "if __name__ == .__main__.:",
+  "raise NotImplementedError",
+  "def __repr__",
+]

@@ -37,10 +37,14 @@ docker compose --env-file .env.test up -d
 pytest
 
 # run only unit tests (exclude e2e tests)
-pytest ./tests/unit
+pytest -m "not e2e"
 
 # run only e2e tests
-pytest ./tests/e2e
+pytest -m e2e ./tests/e2e
+
+# run tests with coverage (stessi comandi della pipeline)
+coverage run -m pytest -m "not e2e"
+coverage report
 ```
 
 Note: for running the tests make sure the database name starts with `test` to avoid any accidental data loss. e.g. `test_italco_db`
