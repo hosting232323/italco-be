@@ -46,6 +46,7 @@
   image: python:3.11
   needs: []
   interruptible: true
+  needs: []
   tags:
     - test
   services:
@@ -66,19 +67,20 @@
     - pip install --retries 10 --timeout 120 ".[dev]"
     - *rewrite_test_env
 
-# Unit tests: strict, con gate di copertura > 90% (esce rosso sotto soglia).
-unit_tests:
+# Unit tests: strict, con gate di copertura > 90% (esce rosso sotto soglia,
+# la soglia e' in pyproject.toml).
+test_backend:
   <<: *python_test_template
   rules:
     - if: '$GITLAB_CI == "false"'
     - if: '$CI_COMMIT_BRANCH != "main"'
-  coverage: '/^TOTAL\s+\d+\s+\d+\s+(\d+)%/'
+  coverage: '/^TOTAL\s+.*\s+(\d+)%/'
   script:
-    - >
-      pytest ./tests/unit
-      --cov --cov-config=.coveragerc
-      --cov-report=term-missing --cov-report=xml
-      --cov-fail-under=90
+    - coverage run -m pytest -m "not e2e"
+    # --fail-under=0 solo qui: il gate e' `coverage report`, cosi' il report
+    # cobertura viene prodotto anche quando la soglia non e' rispettata.
+    - coverage xml --fail-under=0
+    - coverage report
   artifacts:
     when: always
     reports:
@@ -175,5 +177,5 @@ e2e_tests:
       else: raise SystemExit('Frontend did not become ready at http://${CONTAINER_IP}:3000/')
       "
 
-      pytest ./tests/e2e -vv
+      pytest -m e2e ./tests/e2e -vv
       cat frontend.log || true
