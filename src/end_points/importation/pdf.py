@@ -36,27 +36,34 @@ def order_import_by_pdf(files, customer_id):
 
       orders_count += 1
       order = pdf_create_order(text, session=session)
-      pdf_create_product(tables, order.id, collection_point.id, customer_id, session=session)
+      error = pdf_create_product(tables, order.id, collection_point.id, customer_id, session=session)
+      if error:
+        return {'status': 'ko', 'message': error}
 
     session.commit()
   return {'status': 'ok', 'imported_orders_count': orders_count}
 
 
-def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id: int, session):
+def pdf_create_product(tables, order_id: int, collection_point_id: int, user_id: int, session) -> str | None:
   if tables:
     for table in tables:
-      if table[0] == ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']:
+      if table and table[0] == ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']:
         for row in table[1:]:
+          service_code = str(row[4]).strip() if len(row) > 4 and row[4] is not None else ''
+          service_user = get_service_user_by_user_and_code(user_id, service_code, session=session)
+          if not service_user:
+            return f"Servizio con codice '{service_code}' non trovato per il punto vendita selezionato"
           create(
             Product,
             {
               'order_id': order_id,
               'name': f'{row[0]} {row[1]} {row[2]}',
               'collection_point_id': collection_point_id,
-              'service_user_id': get_service_user_by_user_and_code(user_id, row[4], session=session).id,
+              'service_user_id': service_user.id,
             },
             session=session,
           )
+  return None
 
 
 def pdf_create_order(text, session) -> Order:
