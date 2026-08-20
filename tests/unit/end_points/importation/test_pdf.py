@@ -215,3 +215,53 @@ def test_pdf_import_endpoint_reports_missing_customer_id(client):
   body = response.get_json()
   assert body['status'] == 'ko'
   assert body['message'] == 'Punto vendita non specificato'
+
+
+def test_pdf_create_product_returns_error_for_unknown_service_code(db):
+  from tests.unit.factories import create_order
+
+  customer = create_user(UserRole.CUSTOMER)
+  collection_point = create_collection_point(customer)
+  created_order = create_order()
+
+  tables = [
+    [
+      ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio'],
+      ['A1', 'MOD', 'Frigo', '1', 'UNKNOWN_CODE'],
+    ]
+  ]
+
+  with Session() as session:
+    error = pdf_create_product(tables, created_order.id, collection_point.id, customer.id, session=session)
+    assert error == "Servizio con codice 'UNKNOWN_CODE' non trovato per il punto vendita selezionato"
+
+
+def test_pdf_import_endpoint_returns_ko_when_service_code_not_found(client, monkeypatch):
+  import json
+  from io import BytesIO
+
+  import src.end_points.importation.pdf as pdf_module
+  from tests.unit.factories import auth_header
+
+  admin = create_user(UserRole.ADMIN)
+  customer = create_user(UserRole.CUSTOMER)
+  create_collection_point(customer)
+
+  text = 'Destinatario: Mario Rossi\nVia Roma 15 Città : Molfetta\nTel - Cell: 3391234567\nData consegna: 20/07/2026\n'
+  header = ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']
+  tables = [[header, ['A1', 'M', 'Frigo', '1', 'MISSING_SERVICE']]]
+  monkeypatch.setattr(pdf_module.pdfplumber, 'open', lambda file: _FakePdf([_FakePage(text, tables)]))
+
+  response = client.post(
+    '/import/pdf',
+    data={
+      'data': json.dumps({'customer_id': customer.id}),
+      'ordine.pdf': (BytesIO(b'%PDF-1.4'), 'ordine.pdf', 'application/pdf'),
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.status_code == 200
+  body = response.get_json()
+  assert body['status'] == 'ko'
+  assert body['message'] == "Servizio con codice 'MISSING_SERVICE' non trovato per il punto vendita selezionato"
