@@ -64,7 +64,7 @@ def create_product(
         }
         if cloned_order:
           product_data = format_data_cloning_product(product_data, data)
-        else:
+        elif 'collection_point' in data:
           product_data['collection_point_id'] = data['collection_point']['id']
         create(Product, product_data, session=session)
         break
