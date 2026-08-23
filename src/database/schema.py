@@ -1,4 +1,4 @@
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, declared_attr
 from sqlalchemy import (
   Column,
   Enum,
@@ -20,8 +20,29 @@ from database_api import BaseEntity
 from .enum import UserRole, OrderStatus, OrderType, ScheduleType, EuronicsStatus, RaeStatus
 
 
-class User(BaseEntity):
+class BaseItalcoEntity(BaseEntity):
+  # Entità isolate per company: il filtro in lettura e il timbro in scrittura
+  # vivono in database/events.py e agiscono su questa base, non sulle singole classi.
+  __abstract__ = True
+
+  company_id = Column(Integer, ForeignKey('company.id'), nullable=False)
+
+  @declared_attr
+  def company(cls):
+    return relationship('Company')
+
+
+class Company(BaseEntity):
+  __tablename__ = 'company'
+
+  name = Column(String, nullable=False)
+
+
+class User(BaseItalcoEntity):
   __tablename__ = 'user'
+
+  # Unico override del vincolo: NULL = utente fuori da ogni company (super admin).
+  company_id = Column(Integer, ForeignKey('company.id'), nullable=True)
 
   password = Column(String)
   role = Column(Enum(UserRole), nullable=False)
@@ -44,7 +65,7 @@ class User(BaseEntity):
       return {'id': self.id, 'nickname': self.nickname, 'role': self.role.value}
 
 
-class DeliveryUserInfo(BaseEntity):
+class DeliveryUserInfo(BaseItalcoEntity):
   __tablename__ = 'delivery_user_info'
 
   cap = Column(String)
@@ -55,7 +76,7 @@ class DeliveryUserInfo(BaseEntity):
   user = relationship('User', back_populates='delivery_user_info')
 
 
-class CustomerUserInfo(BaseEntity):
+class CustomerUserInfo(BaseItalcoEntity):
   __tablename__ = 'customer_user_info'
 
   city = Column(String)
@@ -70,7 +91,7 @@ class CustomerUserInfo(BaseEntity):
   user = relationship('User', back_populates='customer_user_info')
 
 
-class CustomerGroup(BaseEntity):
+class CustomerGroup(BaseItalcoEntity):
   __tablename__ = 'customer_group'
 
   name = Column(String, nullable=False)
@@ -78,7 +99,7 @@ class CustomerGroup(BaseEntity):
   user = relationship('User', back_populates='customer_group')
 
 
-class DeliveryGroup(BaseEntity):
+class DeliveryGroup(BaseItalcoEntity):
   __tablename__ = 'delivery_group'
   __table_args__ = (UniqueConstraint('schedule_id', 'user_id', name='uq_delivery_group_schedule_user'),)
 
@@ -89,7 +110,7 @@ class DeliveryGroup(BaseEntity):
   schedule = relationship('Schedule', back_populates='delivery_group')
 
 
-class Transport(BaseEntity):
+class Transport(BaseItalcoEntity):
   __tablename__ = 'transport'
 
   cap = Column(String)
@@ -103,7 +124,7 @@ class Transport(BaseEntity):
   )
 
 
-class Order(BaseEntity):
+class Order(BaseItalcoEntity):
   __tablename__ = 'order'
 
   status = Column(Enum(OrderStatus), nullable=False, default=OrderStatus.ACQUIRED)
@@ -141,7 +162,7 @@ class Order(BaseEntity):
   motivations = relationship('Motivation', back_populates='order', cascade='all, delete-orphan')
 
 
-class History(BaseEntity):
+class History(BaseItalcoEntity):
   __tablename__ = 'history'
 
   status = Column(JSON, nullable=False)
@@ -150,7 +171,7 @@ class History(BaseEntity):
   order = relationship('Order', back_populates='histories')
 
 
-class Motivation(BaseEntity):
+class Motivation(BaseItalcoEntity):
   __tablename__ = 'motivation'
 
   text = Column(String)
@@ -162,7 +183,7 @@ class Motivation(BaseEntity):
   order = relationship('Order', back_populates='motivations')
 
 
-class Schedule(BaseEntity):
+class Schedule(BaseItalcoEntity):
   __tablename__ = 'schedule'
 
   date = Column(Date, nullable=False)
@@ -173,7 +194,7 @@ class Schedule(BaseEntity):
   delivery_group = relationship('DeliveryGroup', back_populates='schedule')
 
 
-class ScheduleItem(BaseEntity):
+class ScheduleItem(BaseItalcoEntity):
   __tablename__ = 'schedule_item'
 
   index = Column(Integer)
@@ -188,7 +209,7 @@ class ScheduleItem(BaseEntity):
   schedule_item_collection_point = relationship('ScheduleItemCollectionPoint', back_populates='schedule_item')
 
 
-class ScheduleItemOrder(BaseEntity):
+class ScheduleItemOrder(BaseItalcoEntity):
   __tablename__ = 'schedule_item_order'
 
   order_id = Column(ForeignKey('order.id'), nullable=False)
@@ -198,7 +219,7 @@ class ScheduleItemOrder(BaseEntity):
   schedule_item = relationship('ScheduleItem', back_populates='schedule_item_order')
 
 
-class ScheduleItemCollectionPoint(BaseEntity):
+class ScheduleItemCollectionPoint(BaseItalcoEntity):
   __tablename__ = 'schedule_item_collection_point'
 
   schedule_item_id = Column(ForeignKey('schedule_item.id'), nullable=False)
@@ -208,7 +229,7 @@ class ScheduleItemCollectionPoint(BaseEntity):
   collection_point = relationship('CollectionPoint', back_populates='schedule_item_collection_point')
 
 
-class Photo(BaseEntity):
+class Photo(BaseItalcoEntity):
   __tablename__ = 'photo'
 
   link = Column(String, nullable=False)
@@ -217,7 +238,7 @@ class Photo(BaseEntity):
   order = relationship('Order', back_populates='photo')
 
 
-class CollectionPoint(BaseEntity):
+class CollectionPoint(BaseItalcoEntity):
   __tablename__ = 'collection_point'
 
   opening_time = Column(Time)
@@ -235,7 +256,7 @@ class CollectionPoint(BaseEntity):
   )
 
 
-class Service(BaseEntity):
+class Service(BaseItalcoEntity):
   __tablename__ = 'service'
 
   duration = Column(Integer)
@@ -248,7 +269,7 @@ class Service(BaseEntity):
   service_user = relationship('ServiceUser', back_populates='service')
 
 
-class ServiceUser(BaseEntity):
+class ServiceUser(BaseItalcoEntity):
   __tablename__ = 'service_user'
 
   code = Column(String)
@@ -261,7 +282,7 @@ class ServiceUser(BaseEntity):
   product = relationship('Product', back_populates='service_user')
 
 
-class Product(BaseEntity):
+class Product(BaseItalcoEntity):
   __tablename__ = 'product'
 
   name = Column(String, nullable=False)
@@ -284,7 +305,7 @@ class Product(BaseEntity):
   )
 
 
-class RaeProduct(BaseEntity):
+class RaeProduct(BaseItalcoEntity):
   __tablename__ = 'rae_product'
 
   number = Column(Integer)
@@ -314,7 +335,7 @@ class DtrDocument(BaseEntity):
   rae_product = relationship('RaeProduct', back_populates='dtr_documents')
 
 
-class RaeProductGroup(BaseEntity):
+class RaeProductGroup(BaseItalcoEntity):
   __tablename__ = 'rae_product_group'
 
   name = Column(String, nullable=False)
@@ -324,7 +345,7 @@ class RaeProductGroup(BaseEntity):
   rae_product = relationship('RaeProduct', back_populates='rae_product_group')
 
 
-class GeographicZone(BaseEntity):
+class GeographicZone(BaseItalcoEntity):
   __tablename__ = 'geographic_zone'
 
   name = Column(String, nullable=False)
@@ -333,7 +354,7 @@ class GeographicZone(BaseEntity):
   geographic_codes = relationship('GeographicCode', back_populates='zone', cascade='all, delete-orphan')
 
 
-class GeographicCode(BaseEntity):
+class GeographicCode(BaseItalcoEntity):
   __tablename__ = 'geographic_code'
 
   zone_id = Column(Integer, ForeignKey('geographic_zone.id'), nullable=False)
@@ -343,7 +364,7 @@ class GeographicCode(BaseEntity):
   zone = relationship('GeographicZone', back_populates='geographic_codes')
 
 
-class Constraint(BaseEntity):
+class Constraint(BaseItalcoEntity):
   __tablename__ = 'constraints'
 
   zone_id = Column(Integer, ForeignKey('geographic_zone.id'), nullable=False)
@@ -353,7 +374,7 @@ class Constraint(BaseEntity):
   zone = relationship('GeographicZone', back_populates='constraints')
 
 
-class CustomerRule(BaseEntity):
+class CustomerRule(BaseItalcoEntity):
   __tablename__ = 'customer_rule'
 
   day_of_week = Column(Integer, nullable=False)
@@ -395,7 +416,7 @@ class CollectionCenter(BaseEntity):
   disposals = relationship('Disposal', back_populates='collection_center')
 
 
-class Disposal(BaseEntity):
+class Disposal(BaseItalcoEntity):
   __tablename__ = 'disposal'
 
   date = Column(Date)

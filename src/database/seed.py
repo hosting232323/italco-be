@@ -3,12 +3,13 @@ from datetime import date, time, timedelta
 
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from database_api import Session
+from database_api import Session, current_scope, scope
 from database_api.operations import create
 
 from .enum import EuronicsStatus, OrderStatus, OrderType, ScheduleType, UserRole
 from .schema import (
   CollectionPoint,
+  Company,
   Constraint,
   CustomerGroup,
   CustomerRule,
@@ -34,6 +35,7 @@ from .schema import (
 
 SEED_PASSWORD_SECRET_KEY = 'local-dev-key-1234567890'
 SEED_PASSWORD_IV = '1234567890123456'
+SEED_COMPANY_NAME = 'Ares Logistics'
 
 
 def _encrypt_seed_password(password: str) -> str:
@@ -53,6 +55,16 @@ def seed_data():
   if not can_create():
     return
 
+  # Il seed popola una company sola. Senza tenant attivo le insert vengono
+  # rifiutate, quindi se il chiamante non ne ha già uno se ne crea uno qui.
+  if current_scope().get('company_id'):
+    return seed_company_data()
+
+  with scope(company_id=create(Company, {'name': SEED_COMPANY_NAME}).id):
+    return seed_company_data()
+
+
+def seed_company_data():
   today = date.today()
 
   create(

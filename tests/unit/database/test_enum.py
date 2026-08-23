@@ -2,7 +2,7 @@ from src.database.enum import EuronicsStatus, OrderStatus, OrderType, RaeStatus,
 
 
 def test_user_roles():
-  assert {role.value for role in UserRole} == {'Admin', 'Customer', 'Operator', 'Delivery'}
+  assert {role.value for role in UserRole} == {'Super Admin', 'Admin', 'Customer', 'Operator', 'Delivery'}
 
 
 def test_order_statuses():

@@ -46,7 +46,7 @@ def test_get_users_rejected_for_customer_role(client):
   response = client.get('/user', headers=auth_header(customer))
 
   body = response.get_json()
-  assert body['status'] == 'session'
+  assert body['status'] == 'ko'
   assert body['message'] == 'Ruolo non autorizzato'
 
 

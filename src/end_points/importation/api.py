@@ -2,7 +2,7 @@ import random
 import requests
 from datetime import datetime, timedelta
 
-from database_api import Session
+from database_api import Session, scope
 from ... import EURONICS_API_PASSWORD
 from database_api.operations import create, update
 from ..service.queries import get_service_user_by_user_and_code
@@ -51,7 +51,9 @@ def save_orders_by_euronics():
         update(order, diff)
       continue
 
-    with Session() as session:
+    # L'import Euronics non passa da una sessione utente: il tenant si deduce dal
+    # punto vendita destinatario dell'ordine.
+    with scope(company_id=result[0].company_id), Session() as session:
       if product_service_user_handler(
         imported_order,
         result[0],
