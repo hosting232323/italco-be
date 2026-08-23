@@ -56,7 +56,9 @@ _prepare_test_database(DATABASE_URL)
 import database_api  # noqa: E402
 import src.__main__  # noqa: E402,F401
 from src import app as flask_app  # noqa: E402
+from src.database.schema import Company  # noqa: E402
 from src.database.seed import seed_data  # noqa: E402
+from database_api.operations import create  # noqa: E402
 
 
 _TABLES = ', '.join(f'"{table.name}"' for table in database_api.Base.metadata.sorted_tables)
@@ -67,11 +69,22 @@ def _truncate_all_tables():
     conn.execute(text(f'TRUNCATE TABLE {_TABLES} RESTART IDENTITY CASCADE'))
 
 
+TEST_COMPANY_NAME = 'Test Company'
+
+
 @pytest.fixture(autouse=True)
 def db():
-  """Ogni test parte da un database vuoto (schema creato dalle migrazioni)."""
+  """Database vuoto (schema creato dalle migrazioni) e una company attiva.
+
+  Il tenant nello scope non è comodità da test: senza, il timbro in scrittura
+  rifiuta le insert esattamente come farebbe in produzione fuori da una
+  richiesta autenticata. La fixture restituisce la company così i test di
+  isolamento possono confrontarla con una seconda.
+  """
   _truncate_all_tables()
-  yield
+  company = create(Company, {'name': TEST_COMPANY_NAME})
+  with database_api.scope(company_id=company.id):
+    yield company
 
 
 @pytest.fixture

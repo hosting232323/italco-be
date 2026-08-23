@@ -53,7 +53,7 @@ def test_check_constraints_requires_customer_role(client):
 
   response = client.post('/check-constraints', json={}, headers=auth_header(admin))
 
-  assert response.get_json()['status'] == 'session'
+  assert response.get_json()['status'] == 'ko'
 
 
 def test_checks_endpoint_without_swagger_key_is_denied(client, monkeypatch):

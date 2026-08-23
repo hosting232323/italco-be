@@ -49,7 +49,7 @@ def test_analytics_allowed_for_admin_and_operator(client):
 def test_analytics_rejected_for_customer_and_delivery(client):
   for role in (UserRole.CUSTOMER, UserRole.DELIVERY):
     _, body = _analytics(client, create_user(role))
-    assert body['status'] == 'session'
+    assert body['status'] == 'ko'
     assert 'analytics' not in body
 
 

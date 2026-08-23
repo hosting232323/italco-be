@@ -41,9 +41,12 @@ def get_users(user: User):
 @flask_session_authentication([UserRole.ADMIN])
 def create_user(_):
   role = UserRole(request.json['role'])
-  if not role or role == UserRole.ADMIN:
+  if not role or role in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
     return {'status': 'error', 'message': 'Role not valid'}
 
+  # Il nickname è unico su tutto il database, non per company: il login avviene
+  # prima di sapere quale sia il tenant. get_user_by_nickname cerca fuori scope
+  # apposta, altrimenti un nickname già preso altrove sembrerebbe libero.
   if get_user_by_nickname(request.json['nickname']):
     return {'status': 'ko', 'message': 'Nickname già in uso'}
 
@@ -64,10 +67,12 @@ def login():
   if not user or user.nickname != request.json['email'] or user.password != request.json['password']:
     return {'status': 'ko', 'message': 'Credenziali errate'}
 
+  # company None = super admin: sceglierà da quale company operare.
   return {
     'status': 'ok',
     'user_id': user.id,
     'role': user.role.value,
+    'company': user.company.to_dict() if user.company else None,
     'token': create_jwt_token(user),
   }
 

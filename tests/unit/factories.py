@@ -7,6 +7,7 @@ puntuali, così i test dichiarano esattamente lo scenario che verificano.
 from datetime import date, time
 from uuid import uuid4
 
+from database_api import scope
 from database_api.operations import create
 
 from src.database.enum import OrderStatus, OrderType, RaeStatus, ScheduleType, UserRole
@@ -14,6 +15,7 @@ from src.database.schema import (
   Carrier,
   CollectionCenter,
   CollectionPoint,
+  Company,
   CustomerUserInfo,
   DeliveryGroup,
   DeliveryUserInfo,
@@ -38,6 +40,10 @@ def unique(prefix: str) -> str:
   return f'{prefix}-{uuid4().hex[:8]}'
 
 
+def create_company(name: str = None) -> Company:
+  return create(Company, {'name': name or unique('company')})
+
+
 def create_user(role: UserRole = UserRole.ADMIN, nickname: str = None, password: str = 'pw', **extra) -> User:
   return create(
     User,
@@ -45,8 +51,15 @@ def create_user(role: UserRole = UserRole.ADMIN, nickname: str = None, password:
   )
 
 
-def auth_header(user: User) -> dict:
-  return {'Authorization': create_jwt_token(user)}
+def create_super_admin(**extra) -> User:
+  # Creato fuori scope, come fa lo script in produzione: company_id resta NULL.
+  with scope(company_id=None):
+    return create_user(UserRole.SUPER_ADMIN, **extra)
+
+
+def auth_header(user: User, company_id: int = None) -> dict:
+  # company_id esplicito serve solo al super admin, che non ne ha una propria.
+  return {'Authorization': create_jwt_token(user, company_id)}
 
 
 def admin_header() -> dict:
