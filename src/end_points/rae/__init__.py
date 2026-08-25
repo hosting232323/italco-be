@@ -29,37 +29,37 @@ rae_bp = Blueprint('rae_bp', __name__)
 
 
 @rae_bp.route('product-group', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN], rae_required=True)
 def create_product_group(_):
   return create_rae_product_group(request.json)
 
 
 @rae_bp.route('product-group/<id>', methods=['DELETE'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN], rae_required=True)
 def delete_product_group(_, id):
   return delete_rae_product_group(int(id))
 
 
 @rae_bp.route('product-group', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def get_product_groups(_):
   return get_rae_product_groups()
 
 
 @rae_bp.route('product-group/<id>', methods=['PUT'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN], rae_required=True)
 def update_product_group(_, id):
   return update_rae_product_group(int(id), request.json)
 
 
 @rae_bp.route('product/filter', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def get_products(user: User):
   return get_rae_products(user, request.json['filters'])
 
 
 @rae_bp.route('product/<id>', methods=['PUT'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN], rae_required=True)
 def update_product(_, id):
   error = validate_files(request.files.values(), PDF_EXTENSIONS)
   if error:
@@ -69,67 +69,67 @@ def update_product(_, id):
 
 
 @rae_bp.route('carrier', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN], rae_required=True)
 def create_carrier(_):
   return create_rae_carrier(request.json)
 
 
 @rae_bp.route('carrier', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def get_carriers(_):
   return get_rae_carriers()
 
 
 @rae_bp.route('carrier/<id>', methods=['PUT'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN], rae_required=True)
 def update_carrier(_, id):
   return update_rae_carrier(int(id), request.json)
 
 
 @rae_bp.route('carrier/<id>', methods=['DELETE'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN], rae_required=True)
 def delete_carrier(_, id):
   return delete_rae_carrier(int(id))
 
 
 @rae_bp.route('collection-center', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN], rae_required=True)
 def create_collection_center(_):
   return create_rae_collection_center(request.json)
 
 
 @rae_bp.route('collection-center', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def get_collection_center(_):
   return get_rae_collection_centers()
 
 
 @rae_bp.route('collection-center/<id>', methods=['PUT'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN], rae_required=True)
 def update_collection_center(_, id):
   return update_rae_collection_center(int(id), request.json)
 
 
 @rae_bp.route('collection-center/<id>', methods=['DELETE'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN], rae_required=True)
 def delete_collection_center(_, id):
   return delete_rae_collection_center(int(id))
 
 
 @rae_bp.route('disposal', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def create_disposal(_):
   return create_rae_disposal(request.json)
 
 
 @rae_bp.route('disposal', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def get_disposal(_):
   return get_rae_disposals()
 
 
 @rae_bp.route('disposal/<id>', methods=['PUT'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def update_disposal(_, id):
   error = validate_files(request.files.values(), PDF_EXTENSIONS)
   if error:
@@ -139,7 +139,7 @@ def update_disposal(_, id):
 
 
 @rae_bp.route('<folder>/<filename>', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], allow_query_token=True)
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], allow_query_token=True, rae_required=True)
 def serve_document(_, folder, filename):
   if folder not in ['dtr-documents', 'fir-first-document', 'fir-fourth-document']:
     return {'status': 'ko', 'message': 'Invalid folder'}

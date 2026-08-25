@@ -34,19 +34,19 @@ def export_orders_schedule(user: User, id):
 
 
 @export_bp.route('rae/card-index/<int:user_id>/<int:year>', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def export_rae_card_index_route(user: User, user_id, year):
   return export_rae_card_index(user, user_id, year)
 
 
 @export_bp.route('rae/<order_id>', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def export_orders_rae(user: User, order_id):
   return export_rae(user, order_id)
 
 
 @export_bp.route('rae/product/<rae_product_id>', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def export_rae_product(user: User, rae_product_id):
   return export_rae_by_product(user, int(rae_product_id))
 
@@ -58,12 +58,12 @@ def export_selected_orders_excel(_):
 
 
 @export_bp.route('disposal/<id>/attached-1', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def export_disposal_attached_a_route(_, id):
   return export_disposal_attached_a(id)
 
 
 @export_bp.route('disposal/<id>/attached-2', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
 def export_disposal_attached_b_route(_, id):
   return export_disposal_attached_b(id)

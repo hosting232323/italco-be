@@ -5,7 +5,7 @@ from api.users import build_session_authentication
 from .. import STATIC_FOLDER
 from ..database.enum import UserRole
 from ..database.schema import User
-from ..database.queries import get_user_by_nickname
+from ..database.queries import get_user_by_nickname, is_rae_enabled
 
 
 # refresh=False: il token lo riemettiamo qui sotto, perché quello della lib
@@ -19,7 +19,10 @@ _session_authentication = build_session_authentication(
 
 
 def flask_session_authentication(
-  roles: list[UserRole] = None, allow_query_token: bool = False, tenant_required: bool = True
+  roles: list[UserRole] = None,
+  allow_query_token: bool = False,
+  tenant_required: bool = True,
+  rae_required: bool = False,
 ):
   """Autenticazione di sessione + risoluzione del tenant attivo.
 
@@ -28,6 +31,11 @@ def flask_session_authentication(
   altri sono inchiodati alla propria company. Lo scope risolto qui è l'unica
   sorgente del filtro in lettura e del timbro in scrittura (database/events.py),
   ed è attivo solo per la durata della richiesta.
+
+  rae_required=True marca gli endpoint che esistono solo se l'attività ha il
+  modulo RAEE acceso. Nascondere le pagine nel frontend è cosmetica: il flag
+  vale qualcosa solo se l'endpoint lo controlla da sé, e questo è il punto in
+  cui la company attiva è già risolta per tutti i ruoli.
   """
 
   def decorator(func):
@@ -47,6 +55,9 @@ def flask_session_authentication(
 
       if tenant_required and not company_id:
         return {'status': 'ko', 'message': 'Nessuna company selezionata'}
+
+      if rae_required and not is_rae_enabled(company_id):
+        return {'status': 'ko', 'message': 'Modulo RAEE non attivo per questa attività'}
 
       with scope(company_id=company_id):
         result = func(user, *args, **kwargs)
