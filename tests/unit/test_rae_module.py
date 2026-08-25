@@ -71,11 +71,14 @@ def test_super_admin_switches_the_module(db, client):
   turned_on = client.put(
     f'/company/{company.id}', json={'name': company.name, 'rae': True}, headers=auth_header(super_admin)
   ).get_json()
+  companies = client.get('/company', headers=auth_header(super_admin)).get_json()['companies']
+  persisted_company = next(item for item in companies if item['id'] == company.id)
   turned_off = client.put(
     f'/company/{company.id}', json={'name': company.name, 'rae': False}, headers=auth_header(super_admin)
   ).get_json()
 
   assert turned_on['company']['rae'] is True
+  assert persisted_company['rae'] is True
   assert turned_off['company'].get('rae', False) is False
 
 
