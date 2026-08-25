@@ -1,5 +1,6 @@
 from ...database.enum import RaeStatus
 from ..rae.product import create_rae_product
+from ...database.queries import is_rae_enabled
 from .clone import format_data_cloning_product
 from .queries import query_service_users, query_products
 from database_api.operations import create, delete, get_by_id
@@ -44,6 +45,12 @@ def create_product(
 ):
   rae_product = None
   if 'rae_product' in data:
+    # Unico punto in cui un ordine genera un prodotto RAE: ci passano creazione,
+    # aggiornamento e clonazione. Il controllo sta qui e non sulle rotte /order
+    # perché è il payload dei prodotti a portare il ritiro, non l'endpoint.
+    if not is_rae_enabled():
+      raise Exception('Il modulo RAEE non è attivo per questa attività: impossibile aggiungere un ritiro RAEE.')
+
     rae_product = create_rae_product(
       data['rae_product']['quantity'],
       data['rae_product']['rae_product_group_id'],

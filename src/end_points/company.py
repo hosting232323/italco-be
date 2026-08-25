@@ -37,7 +37,9 @@ def create_company(_):
   if get_user_by_nickname(admin_nickname):
     return {'status': 'ko', 'message': 'Nickname già in uso'}
 
-  company = create(Company, {'name': name})
+  # bool() esplicito: dal client il flag può arrivare assente, ed è il caso
+  # normale di un'attività appena creata. Il modulo RAEE nasce spento.
+  company = create(Company, {'name': name, 'rae': bool(request.json.get('rae'))})
 
   # Crea l'admin nella company appena nata usando lo scope tenant
   # così il listener set_company_on_insert timbra automaticamente la company_id.
@@ -65,7 +67,13 @@ def update_company(_, id):
   if not name:
     return {'status': 'ko', 'message': 'Nome obbligatorio'}
 
-  return {'status': 'ok', 'company': update(company, {'name': name}).to_dict()}
+  company_data = {'name': name}
+  if 'rae' in request.json:
+    if not isinstance(request.json['rae'], bool):
+      return {'status': 'ko', 'message': 'Il flag RAEE deve essere booleano'}
+    company_data['rae'] = request.json['rae']
+
+  return {'status': 'ok', 'company': update(company, company_data).to_dict()}
 
 
 @company_bp.route('select', methods=['POST'])

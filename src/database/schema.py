@@ -36,6 +36,10 @@ class Company(BaseEntity):
   __tablename__ = 'company'
 
   name = Column(String, nullable=False)
+  # Modulo RAEE dell'attività: spento di default, lo accende il super admin.
+  # È un interruttore solo, non una preferenza grafica: quando è False le
+  # pagine rae spariscono dal frontend e gli endpoint rae rispondono ko.
+  rae = Column(Boolean, nullable=False, default=False, server_default='false')
 
 
 class User(BaseItalcoEntity):

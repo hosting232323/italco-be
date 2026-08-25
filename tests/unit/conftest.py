@@ -80,9 +80,13 @@ def db():
   rifiuta le insert esattamente come farebbe in produzione fuori da una
   richiesta autenticata. La fixture restituisce la company così i test di
   isolamento possono confrontarla con una seconda.
+
+  rae=True perché la company di default è quella su cui gira tutto il resto
+  della suite, RAEE compreso. Lo spegnimento è la condizione da provare, non
+  quella da subire: i test del modulo disattivo se lo mettono a False da soli.
   """
   _truncate_all_tables()
-  company = create(Company, {'name': TEST_COMPANY_NAME})
+  company = create(Company, {'name': TEST_COMPANY_NAME, 'rae': True})
   with database_api.scope(company_id=company.id):
     yield company
 
