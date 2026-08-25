@@ -54,6 +54,25 @@ def test_create_products_with_rae_product(db):
     assert session.query(Product).one().rae_product_id == rae_product.id
 
 
+def test_create_products_with_rae_product_without_collection_point(db):
+  customer, service, _, _ = customer_with_service()
+  group = create_rae_product_group()
+  order = create_order()
+  payload = {
+    'Lavatrice': {
+      'services': [{'id': service.id}],
+      'rae_product': {'quantity': 3, 'rae_product_group_id': group.id},
+    }
+  }
+
+  with Session() as session:
+    create_products(order, payload, customer.id, False, session=session)
+    session.commit()
+
+  with Session() as session:
+    assert session.query(Product).one().collection_point_id is None
+
+
 def test_update_products_keeps_existing_and_adds_new(db):
   customer, service, service_user, collection_point = customer_with_service()
   order = create_order()
