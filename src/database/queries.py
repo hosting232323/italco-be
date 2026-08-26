@@ -13,6 +13,12 @@ def get_user_by_nickname(nickname: str) -> User | None:
     return session.query(User).options(joinedload(User.company)).filter(User.nickname == nickname).first()
 
 
+def get_user_by_id_unscoped(user_id: int) -> User | None:
+  """Lookup globale per access/refresh, indipendente dal tenant ambientale."""
+  with scope(company_id=None), Session() as session:
+    return session.query(User).options(joinedload(User.company)).filter(User.id == user_id).first()
+
+
 def is_rae_enabled(company_id: int = None) -> bool:
   """Modulo RAEE dell'attività su cui si sta operando.
 

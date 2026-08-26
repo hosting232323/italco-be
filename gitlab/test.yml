@@ -58,6 +58,8 @@
     POSTGRES_PASSWORD: postgres
     DATABASE_URL_TEST: postgresql://postgres:postgres@postgres:5432/test_${CI_JOB_ID}
     DECODE_JWT_TOKEN: dummy
+    LEGACY_PASSWORD_SECRET_KEY: test_legacy_key_1234567890123456
+    LEGACY_PASSWORD_IV: '1234567890123456'
     PYTHONPATH: $CI_PROJECT_DIR
     PIP_ROOT_USER_ACTION: ignore
   before_script:
@@ -117,6 +119,8 @@ e2e_tests:
     POSTGRES_PASSWORD: postgres
     DATABASE_URL_TEST: postgresql://postgres:postgres@postgres:5432/test_${CI_JOB_ID}
     DECODE_JWT_TOKEN: dummy
+    LEGACY_PASSWORD_SECRET_KEY: test_legacy_key_1234567890123456
+    LEGACY_PASSWORD_IV: '1234567890123456'
     # Niente cartelle che iniziano con un punto: il server statico del
     # frontend serve le rotte SPA con res.sendFile su path assoluto, e send
     # risponde 404 se un segmento del path e' un dotfile.
@@ -132,22 +136,32 @@ e2e_tests:
     - *rewrite_test_env
     - mkdir -p "$(dirname "$ITALCO_FE_DIR")"
     - |
+      ITALCO_FE_REF="${ITALCO_FE_REF:-$CI_COMMIT_REF_NAME}"
+
+      clone_frontend() {
+        repo_url="$1"
+        if ! git clone --depth 1 --branch "$ITALCO_FE_REF" "$repo_url" "$ITALCO_FE_DIR"; then
+          rm -rf "$ITALCO_FE_DIR"
+          git clone --depth 1 --branch main "$repo_url" "$ITALCO_FE_DIR"
+        fi
+      }
+
       if [ -n "$LOCAL_ITALCO_FE_DIR" ] && [ -d "$LOCAL_ITALCO_FE_DIR/.git" ]; then
         rm -rf "$ITALCO_FE_DIR"
         git clone --depth 1 "$LOCAL_ITALCO_FE_DIR" "$ITALCO_FE_DIR"
       elif [ -n "$CI_ITALCO_FE_USERNAME" ] && [ -n "$CI_ITALCO_FE_TOKEN" ] && [ -d "$ITALCO_FE_DIR/.git" ]; then
         git -C "$ITALCO_FE_DIR" remote set-url origin "https://$CI_ITALCO_FE_USERNAME:$CI_ITALCO_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git"
-        git -C "$ITALCO_FE_DIR" fetch --depth 1 origin
+        if ! git -C "$ITALCO_FE_DIR" fetch --depth 1 origin "$ITALCO_FE_REF"; then
+          git -C "$ITALCO_FE_DIR" fetch --depth 1 origin main
+        fi
         git -C "$ITALCO_FE_DIR" reset --hard FETCH_HEAD
         git -C "$ITALCO_FE_DIR" clean -fdx
       elif [ -n "$CI_ITALCO_FE_USERNAME" ] && [ -n "$CI_ITALCO_FE_TOKEN" ]; then
-        git clone --depth 1 "https://$CI_ITALCO_FE_USERNAME:$CI_ITALCO_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git" "$ITALCO_FE_DIR"
+        clone_frontend "https://$CI_ITALCO_FE_USERNAME:$CI_ITALCO_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git"
       elif [ -n "$ITALCO_FE_REPO_URL" ]; then
-        git clone --depth 1 "$ITALCO_FE_REPO_URL" "$ITALCO_FE_DIR"
+        clone_frontend "$ITALCO_FE_REPO_URL"
       else
-        echo "Missing frontend source for e2e_tests."
-        echo "Set LOCAL_ITALCO_FE_DIR (preferred for gitlab-ci-local), or CI_ITALCO_FE_USERNAME/CI_ITALCO_FE_TOKEN, or ITALCO_FE_REPO_URL."
-        exit 1
+        clone_frontend "https://gitlab-ci-token:$CI_JOB_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git"
       fi
     - cd "$ITALCO_FE_DIR" && npm ci --no-audit --no-fund && cd "$CI_PROJECT_DIR"
   script:
@@ -161,7 +175,7 @@ e2e_tests:
       export E2E_BACKEND_STARTUP_TIMEOUT=120
 
       cd "$ITALCO_FE_DIR"
-      VITE_HOSTNAME="http://${CONTAINER_IP}:8080/" VITE_SECRET_KEY="local-dev-key-1234567890" VITE_IV="1234567890123456" npm run build
+      VITE_HOSTNAME="http://${CONTAINER_IP}:8080/" npm run build
       HOST=0.0.0.0 LOCAL_PORT=3000 npm run serve > "$CI_PROJECT_DIR/frontend.log" 2>&1 &
       cd "$CI_PROJECT_DIR"
 

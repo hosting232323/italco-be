@@ -39,8 +39,8 @@ def test_status_change_appends_history(db):
 def test_flag_changes_append_history(db):
   order = create_order()
 
-  update(order, {'anomaly': True})
-  update(order, {'delay': True})
+  order = update(order, {'anomaly': True})
+  order = update(order, {'delay': True})
   update(order, {'confirmed': True})
 
   tracked = {(h.status['type'], h.status['value']) for h in _histories(order.id)}

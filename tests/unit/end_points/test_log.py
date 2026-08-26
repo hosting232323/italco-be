@@ -52,4 +52,5 @@ def test_log_endpoints_require_admin(client):
 
   response = client.post('/log/filter', json={'filters': {}}, headers=auth_header(operator))
 
-  assert response.get_json()['status'] == 'ko'
+  assert response.status_code == 403
+  assert response.get_json()['status'] == 'forbidden'

@@ -47,9 +47,11 @@ def test_analytics_allowed_for_admin_and_operator(client):
 
 
 def test_analytics_rejected_for_customer_and_delivery(client):
+  # Un ruolo non abilitato non e' una sessione da rinnovare: e' un 403.
   for role in (UserRole.CUSTOMER, UserRole.DELIVERY):
-    _, body = _analytics(client, create_user(role))
-    assert body['status'] == 'ko'
+    response, body = _analytics(client, create_user(role))
+    assert response.status_code == 403
+    assert body['status'] == 'forbidden'
     assert 'analytics' not in body
 
 

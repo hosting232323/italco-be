@@ -59,4 +59,5 @@ def test_product_group_requires_admin_for_writes(client):
     '/rae/product-group', json={'name': 'x', 'cer_code': 1, 'group_code': 'R9'}, headers=auth_header(operator)
   )
 
-  assert response.get_json()['status'] == 'ko'
+  assert response.status_code == 403
+  assert response.get_json()['status'] == 'forbidden'

@@ -6,6 +6,7 @@ generare ritiri chiamando gli endpoint a mano.
 """
 
 import pytest
+from api.users.security import hash_password
 
 from database_api import Session, scope
 from database_api.operations import update
@@ -107,13 +108,13 @@ def test_admin_cannot_switch_the_module(db, client):
 
   body = client.put(f'/company/{db.id}', json={'name': db.name, 'rae': True}, headers=auth_header(admin)).get_json()
 
-  assert body['status'] == 'ko'
+  assert body['status'] == 'forbidden'
   assert body['message'] == 'Ruolo non autorizzato'
 
 
 def test_login_carries_the_flag_to_the_frontend(db, client):
   """È il campo su cui il menù decide se mostrare le pagine RAEE."""
-  create_user(UserRole.ADMIN, nickname='login-rae', password='pw')
+  create_user(UserRole.ADMIN, nickname='login-rae', password=hash_password('pw'))
 
   body = client.post('/user/login', json={'email': 'login-rae', 'password': 'pw'}).get_json()
 

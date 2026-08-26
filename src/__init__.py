@@ -14,6 +14,14 @@ allowed_origins = [
   'https://www.ares-logistics.it',
 ]
 
+# Origin aggiuntive per gli ambienti che non stanno sul dominio di produzione
+# (tipicamente il frontend di test). Vanno elencate esplicitamente: con
+# supports_credentials=True una CORS che riflette qualunque origin lascia che un
+# sito qualsiasi guidi l'API con la sessione di chi lo visita.
+EXTRA_ALLOWED_ORIGINS = [
+  origin.strip() for origin in os.environ.get('EXTRA_ALLOWED_ORIGINS', '').split(',') if origin.strip()
+]
+
 
 DATABASE_URL = os.environ['DATABASE_URL']
 LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
@@ -29,10 +37,13 @@ if API_PREFIX:
   app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f'/{API_PREFIX}')
 
 
-if IS_DEV:
-  CORS(app)
+if IS_DEV and not EXTRA_ALLOWED_ORIGINS:
+  # Solo sviluppo locale, dove l'origin del frontend non e' prevedibile.
+  # Negli ambienti deployati con IS_DEV=1 (il test) va valorizzata
+  # EXTRA_ALLOWED_ORIGINS, cosi' anche li' la lista diventa esplicita.
+  CORS(app, supports_credentials=True)
 else:
-  CORS(app, origins=allowed_origins)
+  CORS(app, origins=allowed_origins + EXTRA_ALLOWED_ORIGINS, supports_credentials=True)
 
 
 register_flask_hooks(app, STATIC_FOLDER, user_log_field='nickname')
