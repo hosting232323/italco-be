@@ -6,8 +6,8 @@ from ..database.enum import UserRole
 from ..database.schema import Company, User
 from ..database.queries import get_user_by_nickname
 from .users.session import create_jwt_token
-from database_api import scope
-from database_api.operations import create, get_all, get_by_id, update
+from database_api import Session, scope
+from database_api.operations import create, get_all, get_by_id
 
 
 company_bp = Blueprint('company_bp', __name__)
@@ -60,21 +60,29 @@ def create_company(_):
 @company_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
 def update_company(_, id):
-  company: Company = get_by_id(Company, int(id))
-  if not company:
-    return {'status': 'ko', 'message': 'Company non trovata'}
-
-  name = (request.json.get('name') or '').strip()
+  payload = request.get_json(silent=True) or {}
+  name = (payload.get('name') or '').strip()
   if not name:
     return {'status': 'ko', 'message': 'Nome obbligatorio'}
+  if 'rae' in payload and not isinstance(payload['rae'], bool):
+    return {'status': 'ko', 'message': 'Il flag RAEE deve essere booleano'}
 
-  company_data = {'name': name}
-  if 'rae' in request.json:
-    if not isinstance(request.json['rae'], bool):
-      return {'status': 'ko', 'message': 'Il flag RAEE deve essere booleano'}
-    company_data['rae'] = request.json['rae']
+  # Update and serialize the company in the same transaction, so both the
+  # response and the next list read reflect the persisted database row.
+  with Session() as session, session.begin():
+    company: Company = session.get(Company, int(id))
+    if not company:
+      return {'status': 'ko', 'message': 'Company non trovata'}
 
-  return {'status': 'ok', 'company': update(company, company_data).to_dict()}
+    company.name = name
+    if 'rae' in payload:
+      company.rae = payload['rae']
+
+    session.flush()
+    session.refresh(company)
+    response_company = company.to_dict()
+
+  return {'status': 'ok', 'company': response_company}
 
 
 @company_bp.route('select', methods=['POST'])
