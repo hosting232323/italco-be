@@ -10,6 +10,11 @@
   variables:
     API_PREFIX: api
     MAINTENANCE: "0"
+    # Il cookie di refresh serve solo alle chiamate API: fuori da /api non
+    # ha motivo di viaggiare. Strict e' sufficiente perche' frontend e
+    # backend stanno sullo stesso sito (stesso host, path /api).
+    REFRESH_COOKIE_PATH: /api
+    REFRESH_COOKIE_SAMESITE: Strict
   script:
     - |
       set -eu
@@ -36,6 +41,11 @@
         BACKUP_FOLDER=$BACKUP_FOLDER
         BACKUP_SSH_CONFIG=$BACKUP_SSH_CONFIG
         SERVER_NAME=$SERVER_NAME
+        LEGACY_PASSWORD_SECRET_KEY=$LEGACY_PASSWORD_SECRET_KEY
+        LEGACY_PASSWORD_IV=$LEGACY_PASSWORD_IV
+        REFRESH_COOKIE_PATH=$REFRESH_COOKIE_PATH
+        REFRESH_COOKIE_SAMESITE=$REFRESH_COOKIE_SAMESITE
+        EXTRA_ALLOWED_ORIGINS=${EXTRA_ALLOWED_ORIGINS:-}
       EOF
 
       echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"

@@ -1,3 +1,4 @@
+from api.users.security import hash_password
 from flask import Blueprint, request
 
 from . import flask_session_authentication
@@ -49,7 +50,7 @@ def create_company(_):
       {
         'role': UserRole.ADMIN,
         'nickname': admin_nickname,
-        'password': admin_password,
+        'password': hash_password(admin_password),
       },
     )
 

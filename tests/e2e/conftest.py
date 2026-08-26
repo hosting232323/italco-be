@@ -99,13 +99,18 @@ def _wait_backend_ready(backend_url: str, timeout_seconds: int):
   health_url = f'{backend_url}/'
   while time.time() < deadline:
     try:
-      with urlopen(health_url, timeout=2):
-        return
+      with urlopen(health_url, timeout=2) as response:
+        # Non basta "qualcosa ha risposto": un processo estraneo gia' in ascolto
+        # sulla porta risponderebbe 404 e i test partirebbero contro di lui,
+        # fallendo poi in modo incomprensibile. Si pretende la risposta del
+        # nostro indice.
+        if response.status == 200 and b'Hello World' in response.read():
+          return
     except HTTPError:
-      # Il server ha risposto con uno status: il processo è up e in ascolto.
-      return
+      pass
     except URLError:
-      time.sleep(0.5)
+      pass
+    time.sleep(0.5)
   raise RuntimeError(f'Backend did not become ready at {health_url} within {timeout_seconds} seconds.')
 
 
@@ -179,9 +184,10 @@ def _drain(process):
 
 def _verify_login(backend_url: str, process):
   """Verifica che /user/login funzioni prima di eseguire i test browser."""
-  from src.database.seed import _encrypt_seed_password
-
-  payload = _json.dumps({'email': 'admin', 'password': _encrypt_seed_password('1234admin')}).encode('utf-8')
+  # La password viaggia in chiaro dentro HTTPS: e' il backend a hasharla. La
+  # fixture la cifrava, ereditando dal vecchio schema, e il login falliva prima
+  # ancora di aprire la pagina autenticata.
+  payload = _json.dumps({'email': 'admin', 'password': '1234admin'}).encode('utf-8')
   request = urllib.request.Request(
     f'{backend_url}/user/login', data=payload, headers={'Content-Type': 'application/json'}, method='POST'
   )
@@ -211,15 +217,42 @@ def pw_base_url(frontend_url: str) -> str:
   return frontend_url.rstrip('/')
 
 
+@pytest.fixture(scope='session')
+def warm_frontend(browser, pw_base_url: str, backend_server: str):
+  """Scalda il frontend prima che parta il primo test.
+
+  Servito da `vite dev`, il primo accesso fa scoprire a Vite dipendenze non
+  ancora ottimizzate (i gruppi di Vuetify sono tanti) e la pagina viene
+  ricaricata a metà interazione: il login si perde e il test fallisce in
+  timeout per un motivo che non c'entra con cio' che verifica. Un giro a vuoto
+  paga l'ottimizzazione una volta sola.
+
+  Per una esecuzione davvero stabile conviene comunque puntare E2E_FRONTEND_URL
+  a un bundle servito (`vite preview` o `npm run serve` dopo la build), dove il
+  problema non si pone: la CI fa gia' cosi'.
+  """
+  context = browser.new_context()
+  page = context.new_page()
+  try:
+    for route in ('/', '/dashboard', '/orders'):
+      page.goto(f'{pw_base_url}{route}')
+      page.wait_for_load_state('networkidle')
+  finally:
+    context.close()
+
+
 @pytest.fixture
-def pw_page(page: Page, pw_base_url: str, e2e_user: dict, backend_server: str) -> Page:
+def pw_page(page: Page, pw_base_url: str, e2e_user: dict, backend_server: str, warm_frontend) -> Page:
   """Page Playwright già autenticata come admin sulla dashboard."""
   page.goto(f'{pw_base_url}/')
+  page.wait_for_load_state('networkidle')
 
+  # I locator si risolvono dopo l'attesa: se Vite ha ricaricato durante il
+  # caricamento, quelli presi prima punterebbero a nodi non piu' attaccati.
   page.locator("input[type='email'], input[name='email']").fill(e2e_user['email'])
   password = page.locator("input[type='password'], input[name='password']")
   password.fill(e2e_user['password'])
   password.press('Enter')
 
-  page.wait_for_url('**/dashboard', timeout=15_000)
+  page.wait_for_url('**/dashboard', timeout=30_000)
   return page

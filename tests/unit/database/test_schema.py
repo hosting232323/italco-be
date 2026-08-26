@@ -29,7 +29,8 @@ def test_format_user_full_dict_for_admin_viewer(db):
   formatted = user.format_user(UserRole.ADMIN)
 
   assert formatted['nickname'] == 'cliente-1'
-  assert formatted['password'] == 'segreta'
+  assert 'password' not in formatted
+  assert 'password_shadow' not in formatted
   assert formatted['role'] == 'Customer'
 
 

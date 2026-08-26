@@ -61,7 +61,8 @@ def test_transport_endpoints_require_admin(client):
 
   response = client.post('/transport', json={'name': 'x', 'plate': 'y'}, headers=auth_header(delivery))
 
-  assert response.get_json()['status'] == 'ko'
+  assert response.status_code == 403
+  assert response.get_json()['status'] == 'forbidden'
 
 
 def test_query_transports(db):

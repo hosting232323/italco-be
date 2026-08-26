@@ -7,6 +7,8 @@ cliente finiscono sotto gli occhi di un altro.
 import jwt
 import pytest
 
+from api.users.security import hash_password
+
 from database_api import scope
 from database_api.operations import get_all
 
@@ -82,27 +84,33 @@ def test_wrong_role_is_not_reported_as_expired_session(db, client):
   chiamata, non la sessione."""
   customer = create_user(UserRole.CUSTOMER)
 
-  body = client.get('/user', headers=auth_header(customer)).get_json()
+  response = client.get('/user', headers=auth_header(customer))
+  body = response.get_json()
 
-  assert body['status'] == 'ko'
+  assert response.status_code == 403
+  assert body['status'] == 'forbidden'
   assert body['message'] == 'Ruolo non autorizzato'
 
 
 def test_company_endpoints_are_reserved_to_super_admin(db, client):
   admin = create_user(UserRole.ADMIN)
 
-  body = client.get('/company', headers=auth_header(admin)).get_json()
+  response = client.get('/company', headers=auth_header(admin))
+  body = response.get_json()
 
-  assert body['status'] == 'ko'
+  assert response.status_code == 403
+  assert body['status'] == 'forbidden'
   assert body['message'] == 'Ruolo non autorizzato'
 
 
 def test_super_admin_without_selection_is_blocked(db, client):
   super_admin = create_super_admin()
 
-  body = client.get('/user', headers=auth_header(super_admin)).get_json()
+  response = client.get('/user', headers=auth_header(super_admin))
+  body = response.get_json()
 
-  assert body['status'] == 'ko'
+  assert response.status_code == 403
+  assert body['status'] == 'forbidden'
   assert body['message'] == 'Nessuna company selezionata'
 
 
@@ -169,16 +177,23 @@ def test_normal_user_cannot_move_to_another_company_with_the_token(db, client):
 
 
 def test_refreshed_token_keeps_the_selected_company(db, client):
-  super_admin = create_super_admin()
+  create_super_admin(nickname='refresh-super', password=hash_password('pw'))
   other = create_company()
+  login = client.post('/user/login', json={'email': 'refresh-super', 'password': 'pw'}).get_json()
+  selection = client.post(
+    '/company/select', json={'company_id': other.id}, headers={'Authorization': login['access_token']}
+  ).get_json()
 
-  body = client.get('/user', headers=auth_header(super_admin, other.id)).get_json()
+  refreshed = client.post('/user/refresh', headers={'Authorization': selection['new_token']})
 
-  assert jwt.decode(body['new_token'], DECODE_JWT_TOKEN, algorithms=['HS256'])['company_id'] == other.id
+  assert refreshed.status_code == 200
+  assert (
+    jwt.decode(refreshed.get_json()['access_token'], DECODE_JWT_TOKEN, algorithms=['HS256'])['company_id'] == other.id
+  )
 
 
 def test_login_returns_the_company_of_the_user(db, client):
-  create_user(UserRole.ADMIN, nickname='login-admin', password='pw')
+  create_user(UserRole.ADMIN, nickname='login-admin', password=hash_password('pw'))
 
   body = client.post('/user/login', json={'email': 'login-admin', 'password': 'pw'}).get_json()
 
@@ -187,7 +202,7 @@ def test_login_returns_the_company_of_the_user(db, client):
 
 
 def test_login_of_super_admin_has_no_company(db, client):
-  create_super_admin(nickname='login-super', password='pw')
+  create_super_admin(nickname='login-super', password=hash_password('pw'))
 
   body = client.post('/user/login', json={'email': 'login-super', 'password': 'pw'}).get_json()
 

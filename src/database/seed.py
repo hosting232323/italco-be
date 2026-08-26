@@ -1,8 +1,6 @@
-import base64
 from datetime import date, time, timedelta
 
-from cryptography.hazmat.primitives import padding
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from api.users.security import hash_password
 from database_api import Session, current_scope, scope
 from database_api.operations import create
 
@@ -33,22 +31,18 @@ from .schema import (
   User,
 )
 
-SEED_PASSWORD_SECRET_KEY = 'local-dev-key-1234567890'
-SEED_PASSWORD_IV = '1234567890123456'
 SEED_COMPANY_NAME = 'Ares Logistics'
 
 
-def _encrypt_seed_password(password: str) -> str:
-  key_bytes = SEED_PASSWORD_SECRET_KEY.encode('utf-8')
-  iv_bytes = SEED_PASSWORD_IV.encode('utf-8')
+def _seed_password(password: str) -> str:
+  """Le password di seed si salvano hashate, come quelle vere.
 
-  padder = padding.PKCS7(128).padder()
-  padded = padder.update(password.encode('utf-8')) + padder.finalize()
-
-  cipher = Cipher(algorithms.AES(key_bytes), modes.CBC(iv_bytes))
-  encryptor = cipher.encryptor()
-  ciphertext = encryptor.update(padded) + encryptor.finalize()
-  return base64.b64encode(iv_bytes + ciphertext).decode('utf-8')
+  Prima venivano cifrate in AES con una chiave scritta qui dentro, diversa da
+  quella di .env.test: il seed produceva quindi utenti con cui non si riusciva
+  ad autenticarsi. Ora che il backend hasha e confronta con scrypt, il seed non
+  ha piu' motivo di conoscere nessuna chiave.
+  """
+  return hash_password(password)
 
 
 def seed_data():
@@ -71,7 +65,7 @@ def seed_company_data():
     User,
     {
       'nickname': 'admin',
-      'password': _encrypt_seed_password('1234admin'),
+      'password': _seed_password('1234admin'),
       'role': UserRole.ADMIN,
     },
   )
@@ -79,7 +73,7 @@ def seed_company_data():
     User,
     {
       'nickname': 'operator',
-      'password': _encrypt_seed_password('1234operator'),
+      'password': _seed_password('1234operator'),
       'role': UserRole.OPERATOR,
     },
   )
@@ -87,7 +81,7 @@ def seed_company_data():
     User,
     {
       'nickname': 'delivery',
-      'password': _encrypt_seed_password('1234delivery'),
+      'password': _seed_password('1234delivery'),
       'role': UserRole.DELIVERY,
     },
   )
@@ -95,7 +89,7 @@ def seed_company_data():
     User,
     {
       'nickname': 'customer',
-      'password': _encrypt_seed_password('1234customer'),
+      'password': _seed_password('1234customer'),
       'role': UserRole.CUSTOMER,
     },
   )
@@ -112,7 +106,7 @@ def seed_company_data():
         User,
         {
           'nickname': f'delivery_{index}',
-          'password': _encrypt_seed_password('1234delivery'),
+          'password': _seed_password('1234delivery'),
           'role': UserRole.DELIVERY,
         },
       )
@@ -122,7 +116,7 @@ def seed_company_data():
         User,
         {
           'nickname': f'customer_{index}',
-          'password': _encrypt_seed_password('1234customer'),
+          'password': _seed_password('1234customer'),
           'role': UserRole.CUSTOMER,
           'customer_group_id': customer_groups[index].id,
         },
@@ -133,7 +127,7 @@ def seed_company_data():
     User,
     {
       'nickname': 'customer_group_owner',
-      'password': _encrypt_seed_password('1234customer'),
+      'password': _seed_password('1234customer'),
       'role': UserRole.CUSTOMER,
       'customer_group_id': customer_groups[0].id,
     },

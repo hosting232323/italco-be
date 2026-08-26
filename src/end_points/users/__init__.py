@@ -1,8 +1,12 @@
+import secrets
+import string
 from flask import Blueprint, request
 
 from ...database.enum import UserRole
-from .. import flask_session_authentication
-from .session import create_jwt_token
+from .legacy import legacy_encrypt
+from .session import get_token_payload, refresh_access_token_response, replace_access_token
+from .. import auth, flask_session_authentication
+from api.users.security import hash_password, verify_password, is_hashed
 from ...database.queries import get_user_by_nickname
 from database_api.operations import delete, get_by_id, create, update
 from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo
@@ -15,6 +19,11 @@ from .queries import (
 
 
 user_bp = Blueprint('user_bp', __name__)
+
+
+def _generate_password(length=12) -> str:
+  alphabet = string.ascii_letters + string.digits
+  return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
 @user_bp.route('<id>', methods=['DELETE'])
@@ -50,31 +59,77 @@ def create_user(_):
   if get_user_by_nickname(request.json['nickname']):
     return {'status': 'ko', 'message': 'Nickname già in uso'}
 
+  password = request.json['password']
   create(
     User,
     {
       'role': role,
       'nickname': request.json['nickname'],
-      'password': request.json['password'],
+      'password': hash_password(password),
     },
   )
-  return {'status': 'ok', 'message': 'Utente registrato'}
+  return {'status': 'ok', 'message': 'Utente registrato', 'password': password}
 
 
 @user_bp.route('login', methods=['POST'])
 def login():
+  password = request.json['password']
   user: User = get_user_by_nickname(request.json['email'])
-  if not user or user.nickname != request.json['email'] or user.password != request.json['password']:
+  if not user or user.nickname != request.json['email']:
     return {'status': 'ko', 'message': 'Credenziali errate'}
 
-  # company None = super admin: sceglierà da quale company operare.
-  return {
-    'status': 'ok',
+  def verify(fresh: User, session) -> bool:
+    # Verifica e migrazione dell'hash avvengono sotto lo stesso lock che crea
+    # la sessione, così un reset concorrente non può riaprire l'accesso.
+    if not check_password(fresh, password):
+      return False
+    if not is_hashed(fresh.password):
+      update(fresh, {'password': hash_password(password)}, session=session)
+    return True
+
+  extra = {
     'user_id': user.id,
     'role': user.role.value,
     'company': user.company.to_dict() if user.company else None,
-    'token': create_jwt_token(user),
   }
+  response = auth.login_response(user, extra, verify=verify)
+  if response is None:
+    return {'status': 'ko', 'message': 'Credenziali errate'}
+  return replace_access_token(response, user)
+
+
+def check_password(user: User, password: str) -> bool:
+  if is_hashed(user.password):
+    return verify_password(password, user.password)
+  return legacy_encrypt(password) == user.password
+
+
+@user_bp.route('<id>/password', methods=['POST'])
+@flask_session_authentication([UserRole.ADMIN])
+def reset_password(_, id):
+  user: User = get_by_id(User, int(id))
+  if not user:
+    return {'status': 'ko', 'message': 'Utente non trovato'}
+  if user.role == UserRole.ADMIN:
+    return {'status': 'ko', 'message': 'Non è possibile reimpostare la password di un admin'}
+
+  password = (request.json or {}).get('password') or _generate_password()
+  with auth.user_session_lock(user.id) as session:
+    fresh = session.query(User).filter(User.id == user.id).one()
+    update(fresh, {'password': hash_password(password)}, session=session)
+    auth.revoke_user_sessions(user.id, db=session)
+  return {'status': 'ok', 'password': password}
+
+
+@user_bp.route('refresh', methods=['POST'])
+def refresh():
+  previous_payload = get_token_payload()
+  return refresh_access_token_response(auth.refresh(), previous_payload)
+
+
+@user_bp.route('logout', methods=['POST'])
+def logout():
+  return auth.logout()
 
 
 @user_bp.route('position', methods=['POST'])

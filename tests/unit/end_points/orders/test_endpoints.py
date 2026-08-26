@@ -299,10 +299,13 @@ def test_serve_photo_requires_a_token(client):
   assert body['message'] == 'Token assente'
 
 
-def test_serve_photo_ignores_the_authorization_header(client):
+def test_serve_photo_accepts_the_authorization_header(client):
+  # La query e' il ripiego per i tag <img>, non un sostituto dell'header:
+  # senza questo la foto non e' recuperabile via fetch e il token e' costretto
+  # a finire nell'URL.
   response = client.get('/order/photos/1.jpg', headers=auth_header(create_user(UserRole.ADMIN)))
 
-  assert response.get_json()['message'] == 'Token assente'
+  assert response.status_code == 404
 
 
 @pytest.mark.parametrize('role', [UserRole.DELIVERY])

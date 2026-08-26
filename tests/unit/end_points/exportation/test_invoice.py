@@ -43,4 +43,5 @@ def test_export_invoice_requires_admin(client):
 
   response = client.post('/export/invoice', json={'filters': []}, headers=auth_header(operator))
 
-  assert response.get_json()['status'] == 'ko'
+  assert response.status_code == 403
+  assert response.get_json()['status'] == 'forbidden'

@@ -64,9 +64,21 @@ class User(BaseItalcoEntity):
 
   def format_user(self, role: UserRole = None):
     if role == UserRole.ADMIN:
-      return self.to_dict()
+      hidden = {'password'}
+      return {key: value for key, value in self.to_dict().items() if key not in hidden}
     else:
       return {'id': self.id, 'nickname': self.nickname, 'role': self.role.value}
+
+
+class UserSession(BaseEntity):
+  __tablename__ = 'user_session'
+
+  user_id = Column(Integer, ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+  token_hash = Column(String, nullable=False, unique=True, index=True)
+  expires_at = Column(DateTime(timezone=True), nullable=False)
+  revoked = Column(Boolean, default=False, nullable=False)
+  rotated_at = Column(DateTime(timezone=True))
+  family_id = Column(String, nullable=False, index=True)
 
 
 class DeliveryUserInfo(BaseItalcoEntity):
