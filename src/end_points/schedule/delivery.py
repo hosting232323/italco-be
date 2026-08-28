@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from ...database.enum import OrderStatus
 from database_api.operations import get_by_id, update
 from ...database.schema import User, ScheduleItem, Order
-from .queries import query_schedules, format_query_result
+from .queries import query_schedules, format_query_result, close_schedule_position_if_done
 
 
 def get_items_for_delivery(delivery_user: User):
@@ -17,13 +17,14 @@ def get_items_for_delivery(delivery_user: User):
   ):
     schedules = format_query_result(tupla, schedules)
   if len(schedules) == 0:
-    return {'status': 'ok', 'schedule_items': []}
+    return {'status': 'ok', 'schedule_id': None, 'schedule_items': []}
 
   if len(schedules) > 1:
     return {'status': 'ko', 'message': 'Numero di bordero trovati non valido'}
 
   return {
     'status': 'ok',
+    'schedule_id': schedules[0]['id'],
     'schedule_items': sorted(schedules[0]['schedule_items'], key=lambda schedule_item: schedule_item['index']),
   }
 
@@ -49,7 +50,9 @@ def get_history_for_delivery(delivery_user: User):
 
 def update_schedule_item(delivery_user: User, schedule_item_id: int, completed: bool):
   schedule_item: ScheduleItem = get_by_id(ScheduleItem, schedule_item_id)
-  update(schedule_item, {'completed': completed})
+  schedule_item = update(schedule_item, {'completed': completed})
+  if completed:
+    close_schedule_position_if_done(schedule_item)
 
   items_response = get_items_for_delivery(delivery_user)
   if items_response['status'] == 'ko':

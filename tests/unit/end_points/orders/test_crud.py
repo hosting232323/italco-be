@@ -3,7 +3,7 @@ import pytest
 from database_api import Session
 from database_api.operations import get_by_id
 
-from src.database.enum import OrderStatus, OrderType, UserRole
+from src.database.enum import OrderStatus, OrderType, ScheduleItemUserType, UserRole
 from src.database.schema import Order, Product
 from src.end_points.orders.crud import (
   create_order as crud_create_order,
@@ -20,6 +20,7 @@ from tests.unit.factories import (
   create_order,
   create_product,
   create_schedule,
+  create_schedule_item_user,
   create_user,
   customer_with_service,
   link_order_to_schedule,
@@ -106,12 +107,51 @@ def test_get_order_adds_delivery_position_when_booking(db):
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
   create_delivery_group(delivery, schedule)
+  create_schedule_item_user(delivery, schedule)
 
   result = get_order(order.id)
 
   assert result['status'] == 'ok'
   assert float(result['order']['lat']) == 41.1
   assert float(result['order']['lon']) == 16.8
+
+
+def test_get_order_ignores_position_when_no_one_holds_it(db):
+  """Senza un evento ScheduleItemUser attivo nessuno ha 'preso' la posizione:
+  il corriere può avere una lat/lon salvata da un giro precedente, ma non va
+  mostrata finché non riattiva esplicitamente la condivisione per il borderò."""
+  _, _, service_user, _ = customer_with_service()
+  order = create_order(status=OrderStatus.BOOKING)
+  create_product(order, service_user)
+  delivery = create_user(UserRole.DELIVERY)
+  create_delivery_info(delivery, lat=41.1, lon=16.8)
+  schedule = create_schedule()
+  link_order_to_schedule(order, schedule)
+  create_delivery_group(delivery, schedule)
+
+  result = get_order(order.id)
+
+  assert result['status'] == 'ok'
+  assert 'lat' not in result['order']
+  assert 'lon' not in result['order']
+
+
+def test_get_order_ignores_position_after_closing(db):
+  _, _, service_user, _ = customer_with_service()
+  order = create_order(status=OrderStatus.BOOKING)
+  create_product(order, service_user)
+  delivery = create_user(UserRole.DELIVERY)
+  create_delivery_info(delivery, lat=41.1, lon=16.8)
+  schedule = create_schedule()
+  link_order_to_schedule(order, schedule)
+  create_delivery_group(delivery, schedule)
+  create_schedule_item_user(delivery, schedule, type=ScheduleItemUserType.OPENING)
+  create_schedule_item_user(delivery, schedule, type=ScheduleItemUserType.CLOSING)
+
+  result = get_order(order.id)
+
+  assert result['status'] == 'ok'
+  assert 'lat' not in result['order']
 
 
 def test_delete_order_rejects_scheduled_orders(db):
@@ -213,6 +253,28 @@ def test_update_order_completes_schedule_item(db):
 
   assert get_by_id(ScheduleItem, item.id).completed is True
   assert get_by_id(Order, order.id).status == OrderStatus.DELIVERED
+
+
+def test_update_order_closes_schedule_position_when_bordero_completed(db):
+  admin = create_user(UserRole.ADMIN)
+  delivery = create_user(UserRole.DELIVERY)
+  order = create_order(status=OrderStatus.BOOKING)
+  schedule = create_schedule()
+  link_order_to_schedule(order, schedule)
+  create_delivery_group(delivery, schedule)
+  create_schedule_item_user(delivery, schedule)
+
+  with Session() as session:
+    order_in_session = session.get(Order, order.id)
+    update_order(admin, order_in_session, {'id': order.id, 'status': 'Delivered'}, session)
+    session.commit()
+
+  from src.database.enum import ScheduleItemUserType
+  from src.end_points.schedule.queries import get_latest_schedule_item_user
+
+  latest = get_latest_schedule_item_user(schedule.id)
+  assert latest.type == ScheduleItemUserType.CLOSING
+  assert latest.user_id == delivery.id
 
 
 def test_update_order_type_and_confirmed(db):

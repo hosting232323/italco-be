@@ -1,12 +1,15 @@
 from datetime import date, timedelta
 
-from src.database.enum import OrderStatus, ScheduleType, UserRole
+from src.database.enum import OrderStatus, ScheduleItemUserType, ScheduleType, UserRole
 from src.end_points.schedule.queries import (
+  close_schedule_position_if_done,
   get_delivery_groups,
   get_delivery_groups_by_order_id,
   get_delivery_users_by_date,
+  get_latest_schedule_item_user,
   get_schedule_by_order,
   get_schedule_item_by_order,
+  get_schedule_item_users,
   get_schedule_items,
   get_transports_by_date,
   query_schedules,
@@ -23,6 +26,7 @@ from tests.unit.factories import (
   create_product,
   create_schedule,
   create_schedule_item,
+  create_schedule_item_user,
   create_transport,
   create_user,
   customer_with_service,
@@ -189,3 +193,74 @@ def test_get_transports_by_date_excludes_used_vehicles(db):
   results = get_transports_by_date(date.today())
 
   assert [transport.id for transport in results] == [free.id]
+
+
+def test_get_latest_schedule_item_user_returns_most_recent(db):
+  schedule = create_schedule()
+  first = create_user(UserRole.DELIVERY)
+  second = create_user(UserRole.DELIVERY)
+  create_schedule_item_user(first, schedule, ScheduleItemUserType.OPENING)
+  latest = create_schedule_item_user(second, schedule, ScheduleItemUserType.CHANGE)
+
+  result = get_latest_schedule_item_user(schedule.id)
+
+  assert result.id == latest.id
+  assert result.user_id == second.id
+  assert get_latest_schedule_item_user(create_schedule().id) is None
+
+
+def test_get_schedule_item_users_for_schedule(db):
+  schedule = create_schedule()
+  delivery = create_user(UserRole.DELIVERY)
+  event = create_schedule_item_user(delivery, schedule)
+
+  results = get_schedule_item_users(schedule)
+
+  assert [item.id for item in results] == [event.id]
+
+
+def test_close_schedule_position_if_done_creates_closing_when_all_completed(db):
+  delivery = create_user(UserRole.DELIVERY)
+  schedule = create_schedule()
+  item = create_schedule_item(schedule, completed=True)
+  create_schedule_item_user(delivery, schedule, ScheduleItemUserType.OPENING)
+
+  close_schedule_position_if_done(item)
+
+  latest = get_latest_schedule_item_user(schedule.id)
+  assert latest.type == ScheduleItemUserType.CLOSING
+  assert latest.user_id == delivery.id
+
+
+def test_close_schedule_position_if_done_waits_for_remaining_items(db):
+  delivery = create_user(UserRole.DELIVERY)
+  schedule = create_schedule()
+  done_item = create_schedule_item(schedule, index=0, completed=True)
+  create_schedule_item(schedule, index=1, completed=False)
+  create_schedule_item_user(delivery, schedule, ScheduleItemUserType.OPENING)
+
+  close_schedule_position_if_done(done_item)
+
+  latest = get_latest_schedule_item_user(schedule.id)
+  assert latest.type == ScheduleItemUserType.OPENING
+
+
+def test_close_schedule_position_if_done_is_noop_without_holder(db):
+  schedule = create_schedule()
+  item = create_schedule_item(schedule, completed=True)
+
+  close_schedule_position_if_done(item)
+
+  assert get_latest_schedule_item_user(schedule.id) is None
+
+
+def test_close_schedule_position_if_done_is_idempotent(db):
+  delivery = create_user(UserRole.DELIVERY)
+  schedule = create_schedule()
+  item = create_schedule_item(schedule, completed=True)
+  create_schedule_item_user(delivery, schedule, ScheduleItemUserType.OPENING)
+
+  close_schedule_position_if_done(item)
+  close_schedule_position_if_done(item)
+
+  assert len(get_schedule_item_users(schedule)) == 2

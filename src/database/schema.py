@@ -17,7 +17,7 @@ from sqlalchemy import (
 )
 
 from database_api import BaseEntity
-from .enum import UserRole, OrderStatus, OrderType, ScheduleType, EuronicsStatus, RaeStatus
+from .enum import UserRole, OrderStatus, OrderType, ScheduleType, ScheduleItemUserType, EuronicsStatus, RaeStatus
 
 
 class BaseItalcoEntity(BaseEntity):
@@ -208,6 +208,7 @@ class Schedule(BaseItalcoEntity):
   transport = relationship('Transport', back_populates='schedule')
   schedule_item = relationship('ScheduleItem', back_populates='schedule')
   delivery_group = relationship('DeliveryGroup', back_populates='schedule')
+  schedule_item_user = relationship('ScheduleItemUser', back_populates='schedule')
 
 
 class ScheduleItem(BaseItalcoEntity):
@@ -243,6 +244,23 @@ class ScheduleItemCollectionPoint(BaseItalcoEntity):
 
   schedule_item = relationship('ScheduleItem', back_populates='schedule_item_collection_point')
   collection_point = relationship('CollectionPoint', back_populates='schedule_item_collection_point')
+
+
+class ScheduleItemUser(BaseItalcoEntity):
+  """Traccia chi tiene il controllo della posizione condivisa di un borderò.
+
+  Ogni riga è un evento (Opening/Change/Closing): l'utente che tiene la
+  posizione in un dato momento è quello dell'ultimo evento non di chiusura.
+  """
+
+  __tablename__ = 'schedule_item_user'
+
+  type = Column(Enum(ScheduleItemUserType), nullable=False)
+  schedule_id = Column(ForeignKey('schedule.id'), nullable=False)
+  user_id = Column(ForeignKey('user.id'), nullable=False)
+
+  schedule = relationship('Schedule', back_populates='schedule_item_user')
+  user = relationship('User')
 
 
 class Photo(BaseItalcoEntity):
