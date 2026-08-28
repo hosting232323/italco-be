@@ -58,8 +58,6 @@
     POSTGRES_PASSWORD: postgres
     DATABASE_URL_TEST: postgresql://postgres:postgres@postgres:5432/test_${CI_JOB_ID}
     DECODE_JWT_TOKEN: dummy
-    LEGACY_PASSWORD_SECRET_KEY: test_legacy_key_1234567890123456
-    LEGACY_PASSWORD_IV: '1234567890123456'
     PYTHONPATH: $CI_PROJECT_DIR
     PIP_ROOT_USER_ACTION: ignore
   before_script:
@@ -119,8 +117,6 @@ e2e_tests:
     POSTGRES_PASSWORD: postgres
     DATABASE_URL_TEST: postgresql://postgres:postgres@postgres:5432/test_${CI_JOB_ID}
     DECODE_JWT_TOKEN: dummy
-    LEGACY_PASSWORD_SECRET_KEY: test_legacy_key_1234567890123456
-    LEGACY_PASSWORD_IV: '1234567890123456'
     # Niente cartelle che iniziano con un punto: il server statico del
     # frontend serve le rotte SPA con res.sendFile su path assoluto, e send
     # risponde 404 se un segmento del path e' un dotfile.
