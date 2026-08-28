@@ -1,3 +1,5 @@
+from sqlalchemy import desc
+
 from database_api import Session
 from database_api.operations import create, get_by_id, get_by_ids, update
 
@@ -152,4 +154,4 @@ def query_rae_disposals(
     )
     if disposal_id is not None:
       query = query.filter(Disposal.id == disposal_id)
-    return query.all()
+    return query.order_by(desc(Disposal.created_at)).all()

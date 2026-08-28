@@ -1,4 +1,4 @@
-from sqlalchemy import and_
+from sqlalchemy import and_, desc
 from flask import Blueprint, request
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -73,7 +73,12 @@ def check_customer_rules(user: User) -> list[datetime]:
 
 def query_customer_rules() -> list[CustomerRule, User]:
   with Session() as session:
-    return session.query(CustomerRule, User).join(User, User.id == CustomerRule.user_id).all()
+    return (
+      session.query(CustomerRule, User)
+      .join(User, User.id == CustomerRule.user_id)
+      .order_by(desc(CustomerRule.created_at))
+      .all()
+    )
 
 
 def query_my_customer_rules(user: User) -> list[CustomerRule]:

@@ -1,3 +1,5 @@
+from sqlalchemy import desc
+
 from database_api import Session
 from ...database.schema import Carrier
 from database_api.operations import create, delete, get_by_id, update
@@ -27,4 +29,4 @@ def get_rae_carriers():
 
 def query_rae_carriers() -> list[Carrier]:
   with Session() as session:
-    return session.query(Carrier).all()
+    return session.query(Carrier).order_by(desc(Carrier.created_at)).all()

@@ -1,13 +1,15 @@
 from api.users.security import hash_password
 from flask import Blueprint, request
 
+from sqlalchemy import desc
+
 from . import flask_session_authentication
 from ..database.enum import UserRole
 from ..database.schema import Company, User
 from ..database.queries import get_user_by_nickname
 from .users.session import create_jwt_token
 from database_api import Session, scope
-from database_api.operations import create, get_all, get_by_id
+from database_api.operations import create, get_by_id
 
 
 company_bp = Blueprint('company_bp', __name__)
@@ -18,7 +20,12 @@ company_bp = Blueprint('company_bp', __name__)
 @company_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
 def get_companies(_):
-  return {'status': 'ok', 'companies': [company.to_dict() for company in get_all(Company)]}
+  return {'status': 'ok', 'companies': [company.to_dict() for company in query_companies()]}
+
+
+def query_companies() -> list[Company]:
+  with Session() as session:
+    return session.query(Company).order_by(desc(Company.created_at)).all()
 
 
 @company_bp.route('', methods=['POST'])

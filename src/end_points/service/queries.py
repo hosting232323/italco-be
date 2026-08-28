@@ -1,3 +1,4 @@
+from sqlalchemy import desc
 from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
@@ -15,7 +16,7 @@ def query_services(user: User = None) -> list[tuple[Service, ServiceUser, User]]
     )
     if user.role == UserRole.CUSTOMER:
       query = query.filter(ServiceUser.user_id == user.id)
-    return query.all()
+    return query.order_by(desc(Service.created_at)).all()
 
 
 def query_service_user(service_id: int, user_id: int = None) -> list[ServiceUser] | ServiceUser:

@@ -1,4 +1,4 @@
-from sqlalchemy import and_
+from sqlalchemy import and_, desc
 
 from database_api import Session
 from ...database.enum import UserRole
@@ -23,7 +23,7 @@ def query_users(user: User, role: UserRole = None) -> list[User]:
 
     if role:
       query = query.filter(User.role == role)
-    return query.all()
+    return query.order_by(desc(User.created_at)).all()
 
 
 def count_user_dependencies(id: int) -> dict:
