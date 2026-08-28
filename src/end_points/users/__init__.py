@@ -3,10 +3,9 @@ import string
 from flask import Blueprint, request
 
 from ...database.enum import UserRole
-from .legacy import legacy_encrypt
 from .session import get_token_payload, refresh_access_token_response, replace_access_token
 from .. import auth, flask_session_authentication
-from api.users.security import hash_password, verify_password, is_hashed
+from api.users.security import hash_password, verify_password
 from ...database.queries import get_user_by_nickname
 from database_api.operations import delete, get_by_id, create, update
 from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo
@@ -79,13 +78,9 @@ def login():
     return {'status': 'ko', 'message': 'Credenziali errate'}
 
   def verify(fresh: User, session) -> bool:
-    # Verifica e migrazione dell'hash avvengono sotto lo stesso lock che crea
-    # la sessione, così un reset concorrente non può riaprire l'accesso.
-    if not check_password(fresh, password):
-      return False
-    if not is_hashed(fresh.password):
-      update(fresh, {'password': hash_password(password)}, session=session)
-    return True
+    # Verifica sotto lo stesso lock che crea la sessione, così un reset
+    # concorrente non può riaprire l'accesso con la password vecchia.
+    return check_password(fresh, password)
 
   extra = {
     'user_id': user.id,
@@ -99,9 +94,7 @@ def login():
 
 
 def check_password(user: User, password: str) -> bool:
-  if is_hashed(user.password):
-    return verify_password(password, user.password)
-  return legacy_encrypt(password) == user.password
+  return verify_password(password, user.password)
 
 
 @user_bp.route('<id>/password', methods=['POST'])

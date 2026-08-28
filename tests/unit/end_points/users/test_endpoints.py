@@ -134,9 +134,7 @@ def test_delete_user_not_found(client):
 
 
 def test_login_ok_returns_token_and_role(client):
-  from src.end_points.users.legacy import legacy_encrypt
-
-  create_user(UserRole.DELIVERY, nickname='driver', password=legacy_encrypt('pw-login'))
+  create_user(UserRole.DELIVERY, nickname='driver', password=hash_password('pw-login'))
 
   response = client.post('/user/login', json={'email': 'driver', 'password': 'pw-login'})
 
@@ -147,9 +145,7 @@ def test_login_ok_returns_token_and_role(client):
 
 
 def test_login_rejects_wrong_password(client):
-  from src.end_points.users.legacy import legacy_encrypt
-
-  create_user(UserRole.DELIVERY, nickname='driver2', password=legacy_encrypt('pw-corretta'))
+  create_user(UserRole.DELIVERY, nickname='driver2', password=hash_password('pw-corretta'))
 
   response = client.post('/user/login', json={'email': 'driver2', 'password': 'pw-sbagliata'})
 
@@ -169,10 +165,8 @@ def test_reset_password_revokes_the_open_sessions(client):
   compromesso: se le sessioni restassero valide, il refresh token in mano a chi
   e' entrato continuerebbe a funzionare per giorni.
   """
-  from src.end_points.users.legacy import legacy_encrypt
-
   admin = create_user(UserRole.ADMIN)
-  driver = create_user(UserRole.DELIVERY, nickname='driver-reset', password=legacy_encrypt('pw-vecchia'))
+  driver = create_user(UserRole.DELIVERY, nickname='driver-reset', password=hash_password('pw-vecchia'))
 
   login = client.post('/user/login', json={'email': 'driver-reset', 'password': 'pw-vecchia'})
   assert login.get_json()['status'] == 'ok'
@@ -197,9 +191,7 @@ def test_two_tabs_can_refresh_with_the_same_cookie(client):
   grazia e' un doppione innocuo, non un furto. Qui gira su Postgres, quindi
   verifica anche che rotated_at torni indietro tz-aware.
   """
-  from src.end_points.users.legacy import legacy_encrypt
-
-  driver = create_user(UserRole.DELIVERY, nickname='driver-tabs', password=legacy_encrypt('pw'))
+  driver = create_user(UserRole.DELIVERY, nickname='driver-tabs', password=hash_password('pw'))
   client.post('/user/login', json={'email': 'driver-tabs', 'password': 'pw'})
   shared_cookie = client.get_cookie('refresh_token').value
 
@@ -228,9 +220,7 @@ def test_grace_is_not_granted_by_another_device_of_the_same_user(client):
   l'access token non deve materializzarsi: qui si verifica anche che non apra
   davvero un endpoint protetto.
   """
-  from src.end_points.users.legacy import legacy_encrypt
-
-  create_user(UserRole.DELIVERY, nickname='driver-fam', password=legacy_encrypt('pw'))
+  create_user(UserRole.DELIVERY, nickname='driver-fam', password=hash_password('pw'))
   login = {'email': 'driver-fam', 'password': 'pw'}
 
   client.post('/user/login', json=login)
@@ -265,9 +255,7 @@ def test_concurrent_refresh_leaves_a_single_live_session(app, db):
   entrambe le richieste leggevano la sessione come attiva e ruotavano entrambe.
   La rotazione e' un compare-and-swap, quindi una sola deve vincere.
   """
-  from src.end_points.users.legacy import legacy_encrypt
-
-  user = create_user(UserRole.DELIVERY, nickname='driver-race', password=legacy_encrypt('pw'))
+  user = create_user(UserRole.DELIVERY, nickname='driver-race', password=hash_password('pw'))
   client = app.test_client()
   client.post('/user/login', json={'email': 'driver-race', 'password': 'pw'})
   shared = client.get_cookie('refresh_token').value
@@ -298,9 +286,7 @@ def test_concurrent_refresh_leaves_a_single_live_session(app, db):
 
 def test_logout_closes_the_family_with_a_just_rotated_token(client):
   """Il logout deve chiudere la catena anche col cookie di un giro prima."""
-  from src.end_points.users.legacy import legacy_encrypt
-
-  create_user(UserRole.DELIVERY, nickname='driver-logout', password=legacy_encrypt('pw'))
+  create_user(UserRole.DELIVERY, nickname='driver-logout', password=hash_password('pw'))
   client.post('/user/login', json={'email': 'driver-logout', 'password': 'pw'})
   previous = client.get_cookie('refresh_token').value
   client.post('/user/refresh')
@@ -322,10 +308,9 @@ def test_login_with_the_old_password_loses_against_a_reset(app, db):
   cui prima il login riusciva.
   """
   from src.end_points import auth
-  from src.end_points.users.legacy import legacy_encrypt
 
   admin = create_user(UserRole.ADMIN)
-  user = create_user(UserRole.DELIVERY, nickname='driver-login-race', password=legacy_encrypt('vecchia'))
+  user = create_user(UserRole.DELIVERY, nickname='driver-login-race', password=hash_password('vecchia'))
 
   reset_done = threading.Event()
   login_result = []
@@ -412,9 +397,7 @@ def test_logout_wins_against_a_concurrent_refresh(app, db):
   perche' il lock non copre gli inserimenti. Con il lock sulla riga utente le
   due operazioni si mettono in fila.
   """
-  from src.end_points.users.legacy import legacy_encrypt
-
-  user = create_user(UserRole.DELIVERY, nickname='driver-logout-race', password=legacy_encrypt('pw'))
+  user = create_user(UserRole.DELIVERY, nickname='driver-logout-race', password=hash_password('pw'))
   client = app.test_client()
   client.post('/user/login', json={'email': 'driver-logout-race', 'password': 'pw'})
   cookie = client.get_cookie('refresh_token').value
@@ -448,10 +431,8 @@ def test_password_reset_wins_against_a_concurrent_refresh(app, db):
   Password e revoca devono essere lo stesso atto: in due transazioni separate
   il refresh crea il successore dopo la revoca, e chi era entrato resta dentro.
   """
-  from src.end_points.users.legacy import legacy_encrypt
-
   admin = create_user(UserRole.ADMIN)
-  user = create_user(UserRole.DELIVERY, nickname='driver-reset-race', password=legacy_encrypt('pw'))
+  user = create_user(UserRole.DELIVERY, nickname='driver-reset-race', password=hash_password('pw'))
   client = app.test_client()
   client.post('/user/login', json={'email': 'driver-reset-race', 'password': 'pw'})
   cookie = client.get_cookie('refresh_token').value
