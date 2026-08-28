@@ -1,4 +1,4 @@
-from sqlalchemy import and_
+from sqlalchemy import and_, desc
 from flask import Blueprint, request
 
 from database_api import Session
@@ -46,7 +46,7 @@ def query_collection_points(user: User) -> list[CollectionPoint]:
     query = session.query(CollectionPoint)
     if user.role == UserRole.CUSTOMER:
       query = query.filter(CollectionPoint.user_id == user.id)
-    return query.all()
+    return query.order_by(desc(CollectionPoint.created_at)).all()
 
 
 def query_collection_points_available(order_id: int) -> list[CollectionPoint]:

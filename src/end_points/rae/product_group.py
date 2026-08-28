@@ -1,3 +1,5 @@
+from sqlalchemy import desc
+
 from database_api import Session
 from ...database.schema import RaeProductGroup
 from database_api.operations import create, delete, get_by_id, update
@@ -27,4 +29,4 @@ def update_rae_product_group(id: int, data: dict):
 
 def query_rae_product_groups() -> list[RaeProductGroup]:
   with Session() as session:
-    return session.query(RaeProductGroup).all()
+    return session.query(RaeProductGroup).order_by(desc(RaeProductGroup.created_at)).all()

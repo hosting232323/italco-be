@@ -1,4 +1,4 @@
-from sqlalchemy import and_
+from sqlalchemy import and_, desc
 from flask import Blueprint, request
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
@@ -106,7 +106,7 @@ def query_geographic_zones(province=None) -> list[tuple[GeographicZone, Constrai
     )
     if province:
       query = query.filter(GeographicZone.name == province)
-    return query.all()
+    return query.order_by(desc(GeographicZone.created_at)).all()
 
 
 def format_query_result(tupla: tuple[GeographicZone, Constraint, GeographicCode], list: list[dict]) -> list[dict]:

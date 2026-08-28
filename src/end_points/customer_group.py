@@ -1,4 +1,5 @@
 from flask import Blueprint, request
+from sqlalchemy import desc
 
 from database_api import Session
 from ..database.enum import UserRole
@@ -57,4 +58,9 @@ def format_query_result(tupla: tuple[CustomerGroup, User], list: list[dict]) -> 
 
 def query_customer_groups() -> list[tuple[CustomerGroup, User]]:
   with Session() as session:
-    return session.query(CustomerGroup, User).outerjoin(User, CustomerGroup.id == User.customer_group_id).all()
+    return (
+      session.query(CustomerGroup, User)
+      .outerjoin(User, CustomerGroup.id == User.customer_group_id)
+      .order_by(desc(CustomerGroup.created_at))
+      .all()
+    )

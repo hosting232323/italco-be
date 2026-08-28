@@ -1,4 +1,5 @@
 from flask import Blueprint, request
+from sqlalchemy import desc
 
 from database_api import Session
 from ..database.enum import UserRole
@@ -38,4 +39,4 @@ def update_transport(_, id):
 
 def query_transports() -> list[Transport]:
   with Session() as session:
-    return session.query(Transport).all()
+    return session.query(Transport).order_by(desc(Transport.created_at)).all()
