@@ -11,6 +11,7 @@ from src.database.schema import (
   ScheduleItem,
   ScheduleItemCollectionPoint,
   ScheduleItemOrder,
+  ScheduleItemUser,
 )
 
 from tests.unit.factories import (
@@ -20,6 +21,7 @@ from tests.unit.factories import (
   create_order,
   create_product,
   create_schedule,
+  create_schedule_item_user,
   create_transport,
   create_user,
   customer_with_service,
@@ -148,7 +150,9 @@ def test_delete_schedule_restores_orders(client):
   create_product(order, service_user)
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
-  create_delivery_group(create_user(UserRole.DELIVERY), schedule)
+  delivery = create_user(UserRole.DELIVERY)
+  create_delivery_group(delivery, schedule)
+  create_schedule_item_user(delivery, schedule)
 
   response = client.delete(f'/schedule/{schedule.id}', headers=auth_header(admin))
 
@@ -158,6 +162,7 @@ def test_delete_schedule_restores_orders(client):
   with Session() as session:
     assert session.query(ScheduleItem).count() == 0
     assert session.query(DeliveryGroup).count() == 0
+    assert session.query(ScheduleItemUser).count() == 0
 
 
 def test_filter_schedules(client):

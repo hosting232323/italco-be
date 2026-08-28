@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session as session_type
 from database_api import Session
 from ...utils.date import handle_date
 from ...utils.query import limit_per_entity
-from ...database.enum import ScheduleType, UserRole
-from database_api.operations import db_session_decorator
+from ...database.enum import ScheduleType, ScheduleItemUserType, UserRole
+from database_api.operations import create, db_session_decorator
 from ...database.schema import (
   Schedule,
   User,
@@ -16,6 +16,7 @@ from ...database.schema import (
   ScheduleItem,
   ScheduleItemCollectionPoint,
   ScheduleItemOrder,
+  ScheduleItemUser,
   CollectionPoint,
   Product,
   ServiceUser,
@@ -282,6 +283,55 @@ def get_schedule_items(
 @db_session_decorator(commit=False)
 def get_delivery_groups(schedule: Schedule, session: session_type = None) -> list[DeliveryGroup]:
   return session.query(DeliveryGroup).filter(DeliveryGroup.schedule_id == schedule.id).all()
+
+
+@db_session_decorator(commit=False)
+def get_schedule_item_users(schedule: Schedule, session: session_type = None) -> list[ScheduleItemUser]:
+  return session.query(ScheduleItemUser).filter(ScheduleItemUser.schedule_id == schedule.id).all()
+
+
+@db_session_decorator(commit=False)
+def get_latest_schedule_item_user(schedule_id: int, session: session_type = None) -> ScheduleItemUser:
+  """L'evento più recente per il borderò: determina chi tiene la posizione."""
+  return (
+    session.query(ScheduleItemUser)
+    .filter(ScheduleItemUser.schedule_id == schedule_id)
+    .order_by(desc(ScheduleItemUser.id))
+    .first()
+  )
+
+
+def close_schedule_position_if_done(schedule_item: ScheduleItem, session: session_type = None):
+  """Se tutti gli item del borderò sono completati, chiude la posizione condivisa.
+
+  Va chiamata subito dopo aver marcato `schedule_item` come completato, sia dal
+  completamento di un punto di ritiro sia dalla chiusura di un ordine.
+  """
+  if session is None:
+    _close_schedule_position_if_done(schedule_item.schedule_id)
+  else:
+    _close_schedule_position_if_done(schedule_item.schedule_id, session=session)
+
+
+@db_session_decorator(commit=True)
+def _close_schedule_position_if_done(schedule_id: int, session: session_type = None):
+  remaining = (
+    session.query(ScheduleItem)
+    .filter(ScheduleItem.schedule_id == schedule_id, ScheduleItem.completed.is_(False))
+    .count()
+  )
+  if remaining > 0:
+    return
+
+  latest = get_latest_schedule_item_user(schedule_id, session=session)
+  if latest is None or latest.type == ScheduleItemUserType.CLOSING:
+    return
+
+  create(
+    ScheduleItemUser,
+    {'schedule_id': schedule_id, 'user_id': latest.user_id, 'type': ScheduleItemUserType.CLOSING},
+    session=session,
+  )
 
 
 def get_delivery_groups_by_order_id(order_id: int) -> list[DeliveryGroup]:

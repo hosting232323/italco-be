@@ -53,3 +53,9 @@ class OrderType(enum.Enum):
 class ScheduleType(enum.Enum):
   ORDER = 'Order'
   COLLECTIONPOINT = 'CollectionPoint'
+
+
+class ScheduleItemUserType(enum.Enum):
+  OPENING = 'Opening'
+  CHANGE = 'Change'
+  CLOSING = 'Closing'

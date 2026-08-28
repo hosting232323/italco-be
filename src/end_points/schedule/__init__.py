@@ -8,6 +8,7 @@ from .. import flask_session_authentication
 from ...schedulation.building import build_schedule_items
 from ...database.schema import Schedule, User, DeliveryGroup
 from .delivery import get_items_for_delivery, get_history_for_delivery, update_schedule_item
+from .position import get_schedule_position, claim_schedule_position
 from .sms_sender import schedule_sms_check
 from database_api.operations import create, delete, get_by_id, update
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
@@ -26,6 +27,7 @@ from .queries import (
   format_query_result,
   get_delivery_groups,
   get_schedule_items,
+  get_schedule_item_users,
   get_schedule_item_for_order_id_filter,
   format_schedule_item,
 )
@@ -72,6 +74,8 @@ def delete_schedule(_, id):
     schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     for delivery_group in get_delivery_groups(schedule, session=session):
       delete(delivery_group, session=session)
+    for schedule_item_user in get_schedule_item_users(schedule, session=session):
+      delete(schedule_item_user, session=session)
     delete_schedule_items(get_schedule_items(schedule, session=session), session=session)
     delete(schedule, session=session)
 
@@ -185,3 +189,15 @@ def get_history_for_delivery_endpoint(user: User):
 @flask_session_authentication([UserRole.DELIVERY])
 def get_items_for_delivery_endpoint(user: User):
   return get_items_for_delivery(user)
+
+
+@schedule_bp.route('<id>/position', methods=['GET'])
+@flask_session_authentication([UserRole.DELIVERY])
+def get_schedule_position_endpoint(user: User, id):
+  return get_schedule_position(user, int(id))
+
+
+@schedule_bp.route('<id>/position', methods=['POST'])
+@flask_session_authentication([UserRole.DELIVERY])
+def claim_schedule_position_endpoint(user: User, id):
+  return claim_schedule_position(user, int(id))

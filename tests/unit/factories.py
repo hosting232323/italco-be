@@ -10,7 +10,7 @@ from uuid import uuid4
 from database_api import scope
 from database_api.operations import create
 
-from src.database.enum import OrderStatus, OrderType, RaeStatus, ScheduleType, UserRole
+from src.database.enum import OrderStatus, OrderType, RaeStatus, ScheduleItemUserType, ScheduleType, UserRole
 from src.database.schema import (
   Carrier,
   CollectionCenter,
@@ -28,6 +28,7 @@ from src.database.schema import (
   Schedule,
   ScheduleItem,
   ScheduleItemOrder,
+  ScheduleItemUser,
   Service,
   ServiceUser,
   Transport,
@@ -153,6 +154,12 @@ def link_order_to_schedule(order: Order, schedule: Schedule, **item_extra) -> Sc
 
 def create_delivery_group(delivery_user: User, schedule: Schedule) -> DeliveryGroup:
   return create(DeliveryGroup, {'user_id': delivery_user.id, 'schedule_id': schedule.id})
+
+
+def create_schedule_item_user(
+  delivery_user: User, schedule: Schedule, type: ScheduleItemUserType = ScheduleItemUserType.OPENING
+) -> ScheduleItemUser:
+  return create(ScheduleItemUser, {'user_id': delivery_user.id, 'schedule_id': schedule.id, 'type': type})
 
 
 def create_customer_info(customer: User, **extra) -> CustomerUserInfo:

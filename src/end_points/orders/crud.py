@@ -10,10 +10,15 @@ from ..service.queries import get_service_users
 from .services import create_products, update_products
 from database_api.operations import create, update, get_by_id, delete
 from .queries import query_orders, format_query_result
-from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus
+from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus, ScheduleItemUserType
 from ...database.schema import User, Order, Motivation, DeliveryUserInfo, ServiceUser
 from .clone import format_data_cloning_order, update_cloned_order, query_products, reschedule_products
-from ..schedule.queries import get_delivery_groups_by_order_id, get_schedule_item_by_order, get_schedule_by_order
+from ..schedule.queries import (
+  get_schedule_item_by_order,
+  get_schedule_by_order,
+  close_schedule_position_if_done,
+  get_latest_schedule_item_user,
+)
 
 
 NON_UPDATABLE_ORDER_FIELDS = frozenset(
@@ -85,12 +90,13 @@ def get_order(order_id: int):
     raise Exception('Numero di ordini trovati non valido')
 
   if orders[0]['status'] == 'Booking':
-    for delivery_group in get_delivery_groups_by_order_id(orders[0]['id']):
-      delivery_user_info = get_user_info(delivery_group.user_id, DeliveryUserInfo)
+    schedule = get_schedule_by_order(order_id)
+    holder = get_latest_schedule_item_user(schedule.id) if schedule else None
+    if holder and holder.type != ScheduleItemUserType.CLOSING:
+      delivery_user_info = get_user_info(holder.user_id, DeliveryUserInfo)
       if delivery_user_info and delivery_user_info.lat is not None and delivery_user_info.lon is not None:
         orders[0]['lat'] = delivery_user_info.lat
         orders[0]['lon'] = delivery_user_info.lon
-        break
 
   return {'status': 'ok', 'order': orders[0]}
 
@@ -136,7 +142,8 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
       data['completion_date'] = datetime.now()
     if data['status'] in [OrderStatus.NOT_DELIVERED, OrderStatus.DELIVERED, OrderStatus.TO_RESCHEDULE]:
       if schedule_item:
-        update(schedule_item, {'completed': True}, session=session)
+        schedule_item = update(schedule_item, {'completed': True}, session=session)
+        close_schedule_position_if_done(schedule_item, session=session)
   if order.status == OrderStatus.ACQUIRED and 'booking_date' in data and order.booking_date != data['booking_date']:
     data['status'] = OrderStatus.BOOKED
 
