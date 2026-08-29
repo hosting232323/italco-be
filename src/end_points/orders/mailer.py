@@ -13,7 +13,7 @@ from ...database.schema import Order, Motivation, User, CustomerUserInfo, Servic
 
 
 MAILS = (
-  ['coppolagabriele973@gmail.com', 'hosting23232323@gmail.com']
+  ['coppolagabriele973@gmail.com']
   if not IS_DEV
   else ['coppolagabriele973@gmail.com', 'colasanto.giovanni.inf@gmail.com']
 )
