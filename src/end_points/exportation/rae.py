@@ -2,7 +2,7 @@ from io import BytesIO
 from xhtml2pdf import pisa
 from flask import render_template
 
-from .utils import export_pdf
+from .utils import export_pdf, company_context
 from ...database.enum import RaeStatus, UserRole
 from database_api.operations import get_by_id
 from ..rae.queries import get_product_and_group, query_rae_products
@@ -98,6 +98,7 @@ def export_rae_card_index(user: User, user_id: int, year: int):
       year=year,
       rows=rows,
       total=total,
+      **company_context(),
     ),
     dest=result,
   )
@@ -141,6 +142,7 @@ def _render_rae_pdf(rae_products: list[dict], order: dict, customer: User, role)
       addressee=order['addressee'],
       created_at=order['created_at'],
       customer=format_user_with_info(customer, role),
+      **company_context(),
     ),
     dest=result,
   )

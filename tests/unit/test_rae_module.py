@@ -29,6 +29,17 @@ from tests.unit.factories import (
 
 RAE_OFF_MESSAGE = 'Modulo RAEE non attivo per questa attività'
 
+# Dati legali obbligatori in creazione: legal_name/vat_number/address/city
+# sempre, i due campi rae_ solo quando l'attività nasce con il modulo acceso.
+LEGAL_PAYLOAD = {
+  'legal_name': 'Attività SRL',
+  'vat_number': '11122233344',
+  'address': 'Via Test 1',
+  'city': 'Bari (BA)',
+  'rae_registration': 'RD000S00000000 del 01/01/26',
+  'rae_grouping_place': 'Via Deposito 1, Bari (BA)',
+}
+
 
 @pytest.fixture
 def rae_off(db) -> Company:
@@ -45,7 +56,13 @@ def test_super_admin_creates_a_company_with_the_module_on(db, client):
 
   body = client.post(
     '/company',
-    json={'name': 'Con RAEE', 'admin_nickname': 'admin-rae', 'admin_password': 'pw', 'rae': True},
+    json={
+      'name': 'Con RAEE',
+      'admin_nickname': 'admin-rae',
+      'admin_password': 'pw',
+      'rae': True,
+      **LEGAL_PAYLOAD,
+    },
     headers=auth_header(super_admin),
   ).get_json()
 
@@ -58,7 +75,15 @@ def test_company_created_without_the_flag_has_it_off(db, client):
 
   body = client.post(
     '/company',
-    json={'name': 'Senza RAEE', 'admin_nickname': 'admin-no-rae', 'admin_password': 'pw'},
+    json={
+      'name': 'Senza RAEE',
+      'admin_nickname': 'admin-no-rae',
+      'admin_password': 'pw',
+      'legal_name': 'Attività SRL',
+      'vat_number': '11122233344',
+      'address': 'Via Test 1',
+      'city': 'Bari (BA)',
+    },
     headers=auth_header(super_admin),
   ).get_json()
 

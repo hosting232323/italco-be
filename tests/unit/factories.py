@@ -41,8 +41,8 @@ def unique(prefix: str) -> str:
   return f'{prefix}-{uuid4().hex[:8]}'
 
 
-def create_company(name: str = None, rae: bool = False) -> Company:
-  return create(Company, {'name': name or unique('company'), 'rae': rae})
+def create_company(name: str = None, rae: bool = False, **extra) -> Company:
+  return create(Company, {'name': name or unique('company'), 'rae': rae, **extra})
 
 
 def create_user(role: UserRole = UserRole.ADMIN, nickname: str = None, password: str = 'pw', **extra) -> User:

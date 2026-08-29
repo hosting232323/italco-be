@@ -41,6 +41,20 @@ class Company(BaseEntity):
   # pagine rae spariscono dal frontend e gli endpoint rae rispondono ko.
   rae = Column(Boolean, nullable=False, default=False, server_default='false')
 
+  # Dati legali dell'attività, stampati nei PDF al posto dei valori un tempo
+  # scritti a mano nei template. A DB restano tutti nullable: l'unico vincolo
+  # NOT NULL di company è name, e l'obbligatorietà (legal_name/address/city
+  # sempre, i due campi rae_ solo con modulo RAEE acceso) la impone l'endpoint,
+  # come già fa per name. tax_code e logo sono opzionali anche lì.
+  logo = Column(String)
+  legal_name = Column(String)
+  vat_number = Column(String)
+  tax_code = Column(String)
+  address = Column(String)
+  city = Column(String)
+  rae_registration = Column(String)
+  rae_grouping_place = Column(String)
+
 
 class User(BaseItalcoEntity):
   __tablename__ = 'user'

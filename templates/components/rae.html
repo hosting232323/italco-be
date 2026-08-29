@@ -1,5 +1,8 @@
-{% macro rae_block(rae_product, customer, addressee, address) %}
+{% from "components/company.html" import company_header %}
 
+{% macro rae_block(rae_product, customer, addressee, address, company=None, company_logo=None) %}
+
+{{ company_header(company, company_logo) }}
 <h1 class="rae-h1" style="margin-bottom: -15px;">Documento di trasporto raee</h1>
 
 <table width="100%">
@@ -24,16 +27,16 @@
   <h2 class="rae-h2">Trasportatore del rifiuto (RAEE)</h2>
   <table class="rae-info-table">
     <tr>
-      <td class="short-label">Ragione Sociale</td><td colspan="2">Italco.Mi Logistribuzioni SRL</td>
-      <td class="short-label">Codice Fiscale</td><td>02735550747</td>
+      <td class="short-label">Ragione Sociale</td><td colspan="2">{{ company and company.legal_name or '/' }}</td>
+      <td class="short-label">Codice Fiscale</td><td>{{ company and company.tax_code or '/' }}</td>
     </tr>
     <tr>
-      <td class="short-label">Estremi Iscrizione Ecc Raee</td><td colspan="2">RD401S00025192 del 26/02/26</td>
+      <td class="short-label">Estremi Iscrizione Ecc Raee</td><td colspan="2">{{ company and company.rae_registration or '/' }}</td>
       <td class="short-label">Targa</td><td>nd</td>
     </tr>
     <tr>
-      <td class="short-label">Indirizzo</td><td colspan="2">Via Emmanuele Filiberto 24 A</td>
-      <td class="short-label">Città</td><td>Mesagne (BR)</td>
+      <td class="short-label">Indirizzo</td><td colspan="2">{{ company and company.address or '/' }}</td>
+      <td class="short-label">Città</td><td>{{ company and company.city or '/' }}</td>
     </tr>
   </table>
 </div>
@@ -46,7 +49,7 @@
 {{ info_table("Primo destinatario", [
   (
     "Eventuale diverso Luogo di Raggruppamento dei RAEE",
-    "Via Brindisi, 160, Mesagne (BR)"
+    company and company.rae_grouping_place or '/'
   )
 ]) }}
 
@@ -54,12 +57,12 @@
   <h2 class="rae-h2">Destinatario finale</h2>
   <table class="rae-info-table">
     <tr>
-      <td class="label">Codice Distribuzione</td><td>RD401S00025192 del 26/02/26</td>
-      <td class="label">Codice Fiscale</td><td>02735550747</td>
+      <td class="label">Codice Distribuzione</td><td>{{ company and company.rae_registration or '/' }}</td>
+      <td class="label">Codice Fiscale</td><td>{{ company and company.tax_code or '/' }}</td>
     </tr>
     <tr>
-      <td class="label">Luogo di destino</td><td>Via Brindisi, 160, Mesagne (BR)</td>
-      <td class="label">Ragione Sociale</td><td>Italco.Mi Logistribuzioni SRL</td>
+      <td class="label">Luogo di destino</td><td>{{ company and company.rae_grouping_place or '/' }}</td>
+      <td class="label">Ragione Sociale</td><td>{{ company and company.legal_name or '/' }}</td>
     </tr>
     <tr>
       <td class="label">Ritiro R.A.E.E. non effettuato per</td>

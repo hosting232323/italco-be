@@ -36,6 +36,20 @@ def test_export_rae_by_order_returns_pdf(client):
   assert response.headers['Content-Type'] == 'application/pdf'
 
 
+def test_export_rae_by_order_prints_company_legal_data(client):
+  admin = create_user(UserRole.ADMIN)
+  _, order, _ = _order_with_emitted_rae()
+
+  response = client.get(f'/export/rae/{order.id}', headers=auth_header(admin))
+
+  assert response.status_code == 200
+  text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
+  # I valori un tempo hardcoded ora arrivano dalla company (fixture db).
+  assert 'Test Company SRL' in text
+  assert 'RD999S00099999 del 01/01/26' in text
+  assert 'Via Deposito 9, Bari (BA)' in text
+
+
 def test_export_rae_by_order_without_rae_products(client):
   admin = create_user(UserRole.ADMIN)
   _, _, service_user, _ = customer_with_service()

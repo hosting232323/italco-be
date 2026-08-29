@@ -3,7 +3,7 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from ...database.schema import User, Order
-from .utils import get_signature, export_pdf
+from .utils import get_signature, export_pdf, company_context
 from .rae import get_rae_export_info_by_order
 from database_api.operations import get_by_id
 from ..users.queries import format_user_with_info
@@ -42,6 +42,7 @@ def export_schedule(user: User, id):
       transport=schedules[0]['transport']['name'],
       users=', '.join([user['nickname'] for user in schedules[0]['users']]),
       orders=[{**order, 'signature': get_signature(get_by_id(Order, order['id']))} for order in orders],
+      **company_context(),
     ),
     dest=result,
   )

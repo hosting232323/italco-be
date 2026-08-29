@@ -3,7 +3,7 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from ...database.schema import Order
-from .utils import get_signature, export_pdf
+from .utils import get_signature, export_pdf, company_context
 from database_api.operations import get_by_id
 from ..orders.queries import query_orders, format_query_result
 
@@ -30,6 +30,7 @@ def export_order(id, customer_id: int = None):
       products=orders[0]['products'],
       note=orders[0].get('customer_note', '/'),
       signature=get_signature(get_by_id(Order, orders[0]['id'])),
+      **company_context(),
     ),
     dest=result,
   )

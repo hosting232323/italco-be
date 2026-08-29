@@ -1,7 +1,9 @@
 {% extends "components/base.html" %}
 {% from "components/order.html" import service_list %}
+{% from "components/company.html" import company_header %}
 
 {% block content %}
+{{ company_header(company, company_logo) }}
 <h1>Riepilogo Ordinazioni</h1>
 
 <div class="section">
