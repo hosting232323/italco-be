@@ -1,8 +1,10 @@
 {% extends "components/base.html" %}
 {% from "components/order.html" import info_table, service_list, order_block %}
 {% from "components/rae.html" import rae_block %}
+{% from "components/company.html" import company_header %}
 
 {% block content %}
+{{ company_header(company, company_logo) }}
 <h1>N° Borderò: {{ id }}</h1>
 
 {{ info_table("Informazioni", [
@@ -87,7 +89,7 @@
 
   <div style="page-break-before: always;"></div>
   {% for rae_product in order.rae_products %}
-    {{ rae_block(rae_product, order.customer, order.addressee, order.address) }}
+    {{ rae_block(rae_product, order.customer, order.addressee, order.address, company, company_logo) }}
     <div style="page-break-before: always;"></div>
   {% endfor %}
 

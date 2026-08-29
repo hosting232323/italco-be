@@ -1,3 +1,7 @@
+from io import BytesIO
+
+from pypdf import PdfReader
+
 from src.database.enum import UserRole
 
 from tests.unit.factories import auth_header, create_order, create_product, create_user, customer_with_service
@@ -14,6 +18,21 @@ def test_export_order_returns_pdf(client):
   assert response.status_code == 200
   assert response.headers['Content-Type'] == 'application/pdf'
   assert response.get_data().startswith(b'%PDF')
+
+
+def test_export_order_pdf_carries_the_company_letterhead(client):
+  admin = create_user(UserRole.ADMIN)
+  _, _, service_user, collection_point = customer_with_service()
+  order = create_order()
+  create_product(order, service_user, collection_point_id=collection_point.id)
+
+  response = client.get(f'/export/order/{order.id}', headers=auth_header(admin))
+
+  text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
+  assert 'Test Company SRL' in text
+  assert 'P. IVA 09876543210' in text
+  assert 'C.F. 01234567890' in text
+  assert 'Ares Logistics' in text
 
 
 def test_export_order_not_found(client):

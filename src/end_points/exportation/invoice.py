@@ -2,7 +2,7 @@ from io import BytesIO
 from xhtml2pdf import pisa
 from flask import render_template
 
-from .utils import export_pdf
+from .utils import export_pdf, company_context
 from ...database.enum import OrderStatus
 from ..orders.queries import query_orders, format_query_result
 
@@ -29,6 +29,7 @@ def export_order_invoice(filters: list[dict]):
       start_date=end_date,
       total=sum([order['price'] for order in orders]),
       customer=orders[0]['user']['nickname'] if orders else None,
+      **company_context(),
     ),
     dest=result,
   )

@@ -71,6 +71,18 @@ def _truncate_all_tables():
 
 TEST_COMPANY_NAME = 'Test Company'
 
+# Dati legali dell'attività: la fixture li popola così i PDF che li stampano
+# (il DDT RAEE) hanno qualcosa di reale da rendere, come in produzione.
+TEST_COMPANY_LEGAL = {
+  'legal_name': 'Test Company SRL',
+  'vat_number': '09876543210',
+  'tax_code': '01234567890',
+  'address': 'Via delle Prove 1',
+  'city': 'Bari (BA)',
+  'rae_registration': 'RD999S00099999 del 01/01/26',
+  'rae_grouping_place': 'Via Deposito 9, Bari (BA)',
+}
+
 
 @pytest.fixture(autouse=True)
 def db():
@@ -86,7 +98,7 @@ def db():
   quella da subire: i test del modulo disattivo se lo mettono a False da soli.
   """
   _truncate_all_tables()
-  company = create(Company, {'name': TEST_COMPANY_NAME, 'rae': True})
+  company = create(Company, {'name': TEST_COMPANY_NAME, 'rae': True, **TEST_COMPANY_LEGAL})
   with database_api.scope(company_id=company.id):
     yield company
 

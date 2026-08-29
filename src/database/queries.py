@@ -19,6 +19,21 @@ def get_user_by_id_unscoped(user_id: int) -> User | None:
     return session.query(User).options(joinedload(User.company)).filter(User.id == user_id).first()
 
 
+def get_active_company() -> Company | None:
+  """Company su cui si sta operando, letta dallo scope della richiesta.
+
+  Serve ai template PDF, che stampano i dati legali dell'attività: come
+  is_rae_enabled legge il tenant dallo scope e usa una sessione propria, così
+  chi genera il documento non deve trascinarsi la company lungo ogni firma.
+  """
+  company_id = current_scope().get('company_id')
+  if not company_id:
+    return None
+
+  with Session() as session:
+    return session.get(Company, company_id)
+
+
 def is_rae_enabled(company_id: int = None) -> bool:
   """Modulo RAEE dell'attività su cui si sta operando.
 

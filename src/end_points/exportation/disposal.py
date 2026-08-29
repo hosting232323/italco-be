@@ -1,7 +1,7 @@
 from io import BytesIO
 from xhtml2pdf import pisa
 from flask import render_template
-from .utils import export_pdf
+from .utils import export_pdf, company_context
 from ..rae.disposal import format_query_result, query_rae_disposals
 from ..rae.queries import get_disposal_for_export, get_disposal_rae_products
 from ..schedule.queries import get_schedule_by_order
@@ -49,7 +49,7 @@ def export_disposal_attached_a(disposal_id: int):
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
-    src=render_template('disposal_attached_a.html', disposal=disposal, sections=sections),
+    src=render_template('disposal_attached_a.html', disposal=disposal, sections=sections, **company_context()),
     dest=result,
   )
   if pisa_status.err:
@@ -75,7 +75,7 @@ def export_disposal_attached_b(disposal_id: int):
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
-    src=render_template('disposal_attached_b.html', disposal=disposals[0], rows=rows, total=total),
+    src=render_template('disposal_attached_b.html', disposal=disposals[0], rows=rows, total=total, **company_context()),
     dest=result,
   )
   if pisa_status.err:

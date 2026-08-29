@@ -1,0 +1,34 @@
+{# Carta intestata dell'attivita', in cima a ogni PDF: rettangolo con bordo
+   nero, logo a sinistra (alto quanto il blocco di testo), dati legali al
+   centro (ragione sociale in grassetto, poi indirizzo, poi P. IVA / C.F.
+   sulla stessa riga), targhetta "Powered by Ares Logistics" a destra. Il
+   logo c'e' sempre: quello dell'attivita' se caricato, altrimenti quello di
+   Ares. Se non c'e' nessuna company non stampa nulla. #}
+{% macro company_header(company, company_logo) %}
+{% if company %}
+<table class="letterhead">
+  <tr>
+    <td class="letterhead-logo">
+      {% if company_logo %}<img src="{{ company_logo }}">{% endif %}
+    </td>
+    <td class="letterhead-info">
+      {% set place = [company.address, company.city] | select | join(', ') %}
+      {% set ids = [] %}
+      {% if company.vat_number %}{% set _ = ids.append('P. IVA ' ~ company.vat_number) %}{% endif %}
+      {% if company.tax_code %}{% set _ = ids.append('C.F. ' ~ company.tax_code) %}{% endif %}
+      {% set extra_lines = [] %}
+      {% if place %}{% set _ = extra_lines.append(place) %}{% endif %}
+      {% if ids %}{% set _ = extra_lines.append(ids | join(' - ')) %}{% endif %}
+      {# Righe unite con <br> in un unico blocco: divs separati in una cella
+         di tabella prendono in xhtml2pdf un'interlinea fissa extra che il
+         line-height del CSS non controlla. #}
+      <span class="letterhead-name">{{ company.legal_name or company.name }}</span>
+      {% for line in extra_lines %}<br>{{ line }}{% endfor %}
+    </td>
+    <td class="letterhead-powered">
+      <div class="powered-tag">Powered by<br><strong>Ares Logistics</strong></div>
+    </td>
+  </tr>
+</table>
+{% endif %}
+{% endmacro %}
