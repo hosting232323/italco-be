@@ -3,7 +3,7 @@
 {% from "components/company.html" import company_header %}
 
 {% block content %}
-{{ company_header(company, company_logo) }}
+{{ company_header(company, company_logo, powered_tag) }}
 <h1>N° Bolla: {{ id }}</h1>
 
 {{ info_table("Informazioni Destinatario", [

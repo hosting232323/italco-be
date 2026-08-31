@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Targhetta "Powered by Ares Logistics" della carta intestata dei PDF.
+     E' un'immagine e non testo HTML perche' xhtml2pdf non conosce
+     border-radius: gli angoli arrotondati si possono disegnare solo qui.
+     Il riquadro grigio sta in basso a destra del disegno, cosi' nella cella
+     dell'intestazione si incastra nei bordi come un loro prolungamento. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="52" viewBox="0 0 96 52">
+  <path d="M0.5 52 V36 A6 6 0 0 1 6.5 30 H96 V52 Z" fill="#f2f2f2"/>
+  <path d="M0.5 52 V36 A6 6 0 0 1 6.5 30 H96" fill="none" stroke="#cccccc" stroke-width="1"/>
+  <text x="48" y="40" text-anchor="middle" font-family="Helvetica" font-size="7" fill="#000000">Powered by</text>
+  <text x="48" y="48.5" text-anchor="middle" font-family="Helvetica-Bold" font-size="8" fill="#000000">Ares Logistics</text>
+</svg>

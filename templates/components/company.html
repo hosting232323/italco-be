@@ -1,10 +1,12 @@
 {# Carta intestata dell'attivita', in cima a ogni PDF: rettangolo con bordo
-   nero, logo a sinistra (alto quanto il blocco di testo), dati legali al
-   centro (ragione sociale in grassetto, poi indirizzo, poi P. IVA / C.F.
-   sulla stessa riga), targhetta "Powered by Ares Logistics" a destra. Il
-   logo c'e' sempre: quello dell'attivita' se caricato, altrimenti quello di
-   Ares. Se non c'e' nessuna company non stampa nulla. #}
-{% macro company_header(company, company_logo) %}
+   grigio, logo a sinistra a tutta altezza separato da un filetto, dati legali
+   al centro (ragione sociale in grassetto, poi indirizzo, poi P. IVA / C.F.
+   sulla stessa riga), targhetta "Powered by Ares Logistics" incastrata
+   nell'angolo in basso a destra. Il logo c'e' sempre: quello dell'attivita'
+   se caricato, altrimenti quello di Ares. La targhetta e' un SVG (vedi
+   exportation/powered_tag.svg) perche' xhtml2pdf non sa arrotondare gli
+   angoli in CSS. Se non c'e' nessuna company non stampa nulla. #}
+{% macro company_header(company, company_logo, powered_tag=None) %}
 {% if company %}
 <table class="letterhead">
   <tr>
@@ -26,7 +28,7 @@
       {% for line in extra_lines %}<br>{{ line }}{% endfor %}
     </td>
     <td class="letterhead-powered">
-      <div class="powered-tag">Powered by<br><strong>Ares Logistics</strong></div>
+      {% if powered_tag %}<img class="powered-tag" src="{{ powered_tag }}">{% endif %}
     </td>
   </tr>
 </table>

@@ -5,7 +5,7 @@
 {% block content %}
 {% for section in sections %}
 <div{% if not loop.first %} style="page-break-before: always;"{% endif %}>
-  {{ company_header(company, company_logo) }}
+  {{ company_header(company, company_logo, powered_tag) }}
   <h1>Elenco Cronologico Ritiri RAEE</h1>
 
   <div class="section">
