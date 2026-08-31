@@ -14,6 +14,7 @@
   ("Veicolo", transport)
 ]) }}
 
+<div style="page-break-before: always; -pdf-next-page: landscape;"></div>
 <div class="section">
   <h2>Ordini</h2>
   <table class="data-table">
@@ -48,6 +49,7 @@
     </tbody>
   </table>
 </div>
+<div style="page-break-before: always; -pdf-next-page: body;"></div>
 
 <div class="section">
   <h2>Distanza</h2>
@@ -80,21 +82,15 @@
   </table>
 </div>
 
-<div style="page-break-before: always;"></div>
-
 {% for order in orders %}
+  <div style="page-break-before: always;"></div>
   <h2>N° Ordine: {{ order.id }}</h2>
 
   {{ order_block(order) }}
 
-  <div style="page-break-before: always;"></div>
   {% for rae_product in order.rae_products %}
-    {{ rae_block(rae_product, order.customer, order.addressee, order.address, company, company_logo, powered_tag) }}
     <div style="page-break-before: always;"></div>
+    {{ rae_block(rae_product, order.customer, order.addressee, order.address, company, company_logo, powered_tag) }}
   {% endfor %}
-
-  {% if not loop.last %}
-  <div style="page-break-before: always;"></div>
-  {% endif %}
 {% endfor %}
 {% endblock %}
