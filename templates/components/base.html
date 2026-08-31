@@ -3,6 +3,18 @@
 <head>
   <meta charset="utf-8">
   <style>
+    /* La sezione Ordini del borderò viene stampata su questa pagina orizzontale;
+       tutto il resto del documento resta sulla pagina di default sotto. */
+    @page landscape {
+      size: A4 landscape;
+      margin: 1cm;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 1cm;
+    }
+
     body {
       font-family: Helvetica, sans-serif;
       font-size: 13px;
