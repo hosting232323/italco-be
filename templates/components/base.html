@@ -13,11 +13,14 @@
     h1 { font-size: 20px; margin-bottom: 10px; }
 
     /* Carta intestata (components/company.html) */
+    /* Niente margini laterali: xhtml2pdf li applica al contenuto delle celle
+       ma non al bordo disegnato, e i 2px di scarto facevano partire il logo
+       staccato dal bordo sinistro e sbordare oltre il filetto di destra. */
     .letterhead {
       width: 100%;
       border: 1px solid #ccc;
       border-collapse: collapse;
-      margin: 2px 2px 14px 2px;
+      margin: 0 0 14px 0;
     }
 
     .letterhead td {
@@ -26,9 +29,17 @@
       vertical-align: middle;
     }
 
-    .letterhead-logo { width: 66px; }
-    .letterhead td.letterhead-logo { padding-right: 3px; }
-    .letterhead-logo img { width: 38px; height: 38px; }
+    /* Il logo riempie la colonna di sinistra da bordo a bordo: niente
+       padding, e l'altezza fissa dell'immagine detta l'altezza dell'intero
+       rettangolo (il blocco dati e' sempre piu' basso). Il filetto grigio a
+       destra lo separa dal resto dell'intestazione. */
+    .letterhead td.letterhead-logo {
+      width: 52px;
+      padding: 0;
+      border-right: 1px solid #ccc;
+    }
+
+    .letterhead-logo img { height: 52px; }
 
     .letterhead-info {
       font-size: 10px;
@@ -36,7 +47,7 @@
       line-height: 1.2;
     }
 
-    .letterhead td.letterhead-info { padding-left: 4px; }
+    .letterhead td.letterhead-info { padding-left: 12px; }
 
     .letterhead-name {
       font-size: 14px;
@@ -44,23 +55,26 @@
       color: #000;
     }
 
-    .letterhead-powered { width: 118px; text-align: right; }
+    /* La targhetta e' un SVG alto quanto l'intestazione che disegna il
+       riquadro grigio solo in fondo, cosi' si incastra nei bordi del
+       rettangolo come se ne fosse un prolungamento. */
+    .letterhead td.letterhead-powered { width: 96px; padding: 0; }
 
-    .powered-tag {
-      font-size: 8px;
-      line-height: 1.2;
-      color: #000;
-      text-align: center;
-    }
+    .powered-tag { width: 96px; height: 52px; }
 
+    /* xhtml2pdf fa collassare i margini verticali tenendo il piu' grande:
+       lo stacco fra due sezioni lo detta ora il margine inferiore della
+       .section (30px come prima), cosi' abbassare il margin-top dell'h2
+       accorcia solo il vuoto sotto il titolo del documento, che una
+       .section davanti non ce l'ha. */
     h2 {
       font-size: 16px;
-      margin-top: 30px;
+      margin-top: 12px;
       border-bottom: 1px solid #ccc;
       padding-bottom: 5px;
     }
 
-    .section { margin-bottom: 20px; }
+    .section { margin-bottom: 30px; }
 
     .info-table,
     .data-table {

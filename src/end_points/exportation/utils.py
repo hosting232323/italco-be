@@ -14,16 +14,23 @@ from ...database.queries import get_active_company
 LOGO_SUBFOLDER = 'company-logos'
 
 # Logo Ares usato quando l'attività non ne ha caricato uno proprio. Sta accanto
-# a questo modulo così il path non dipende dalla working directory.
+# a questo modulo così il path non dipende dalla working directory, come la
+# targhetta "Powered by" della carta intestata.
 ARES_LOGO_PATH = os.path.join(os.path.dirname(__file__), 'ares_logo.png')
+POWERED_TAG_PATH = os.path.join(os.path.dirname(__file__), 'powered_tag.svg')
 
 
 def company_context() -> dict:
-  """Intestazione aziendale per i template PDF: la company attiva e il suo
-  logo già incorporato. Si spande nel render_template così ogni documento
-  stampa la stessa carta intestata senza ripetere la logica."""
+  """Intestazione aziendale per i template PDF: la company attiva, il suo
+  logo e la targhetta "Powered by" già incorporati. Si spande nel
+  render_template così ogni documento stampa la stessa carta intestata
+  senza ripetere la logica."""
   company = get_active_company()
-  return {'company': company, 'company_logo': get_company_logo(company)}
+  return {
+    'company': company,
+    'company_logo': get_company_logo(company),
+    'powered_tag': get_powered_tag(),
+  }
 
 
 def _file_data_uri(path: str) -> str:
@@ -36,6 +43,16 @@ def _file_data_uri(path: str) -> str:
 @lru_cache(maxsize=1)
 def _ares_logo() -> str:
   return _file_data_uri(ARES_LOGO_PATH)
+
+
+@lru_cache(maxsize=1)
+def get_powered_tag() -> str:
+  """Targhetta "Powered by Ares Logistics" come data URI.
+
+  È un SVG e non testo HTML perché xhtml2pdf non supporta border-radius:
+  gli angoli arrotondati si possono disegnare solo dentro l'immagine.
+  """
+  return _file_data_uri(POWERED_TAG_PATH)
 
 
 def get_company_logo(company: Company | None) -> str:
