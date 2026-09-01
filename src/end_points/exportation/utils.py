@@ -8,6 +8,7 @@ from api.storage import get_full_path
 
 from ... import STATIC_FOLDER
 from ...database.schema import Order, Company
+from ...database.enum import OrderStatus
 from ...database.queries import get_active_company
 
 
@@ -78,6 +79,23 @@ def get_signature(order: Order):
     return f'data:image/png;base64,{signature_base64}'
   else:
     return None
+
+
+def get_signature_slots(order: Order) -> tuple[str | None, str | None]:
+  """In quale blocco firme del PDF va mostrata la firma raccolta:
+  - se l'ordine e' completato senza anomalie (DELIVERED e anomaly=False) va nel primo blocco
+  - se l'ordine e' completato con anomalie (DELIVERED e anomaly=True) va nel blocco anomalie
+  Ritorna (delivery_signature, anomaly_signature)."""
+  signature = get_signature(order)
+  if not signature:
+    return None, None
+
+  if order.status == OrderStatus.DELIVERED:
+    if order.anomaly:
+      return None, signature
+    return signature, None
+
+  return None, None
 
 
 def export_pdf(document):
