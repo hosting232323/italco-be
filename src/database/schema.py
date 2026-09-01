@@ -1,5 +1,7 @@
 from sqlalchemy.orm import relationship, declared_attr
 from sqlalchemy import (
+  Index,
+  text,
   Column,
   Enum,
   Date,
@@ -215,6 +217,9 @@ class Motivation(BaseItalcoEntity):
 
 class Schedule(BaseItalcoEntity):
   __tablename__ = 'schedule'
+  # Chiave con cui la pagina dei borderò sceglie gli ultimi N dell'attività:
+  # senza questo indice quella scelta scansiona tutto l'archivio (migration 055).
+  __table_args__ = (Index('ix_schedule_company_id_created_at', 'company_id', text('created_at DESC')),)
 
   date = Column(Date, nullable=False)
   transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
@@ -233,7 +238,7 @@ class ScheduleItem(BaseItalcoEntity):
   end_time_slot = Column(Time)
   start_time_slot = Column(Time)
   operation_type = Column(Enum(ScheduleType))
-  schedule_id = Column(ForeignKey('schedule.id'), nullable=False)
+  schedule_id = Column(ForeignKey('schedule.id'), nullable=False, index=True)
 
   schedule = relationship('Schedule', back_populates='schedule_item')
   schedule_item_order = relationship('ScheduleItemOrder', back_populates='schedule_item')
@@ -244,7 +249,7 @@ class ScheduleItemOrder(BaseItalcoEntity):
   __tablename__ = 'schedule_item_order'
 
   order_id = Column(ForeignKey('order.id'), nullable=False)
-  schedule_item_id = Column(ForeignKey('schedule_item.id'), nullable=False)
+  schedule_item_id = Column(ForeignKey('schedule_item.id'), nullable=False, index=True)
 
   order = relationship('Order', back_populates='schedule_item_order')
   schedule_item = relationship('ScheduleItem', back_populates='schedule_item_order')
@@ -253,7 +258,7 @@ class ScheduleItemOrder(BaseItalcoEntity):
 class ScheduleItemCollectionPoint(BaseItalcoEntity):
   __tablename__ = 'schedule_item_collection_point'
 
-  schedule_item_id = Column(ForeignKey('schedule_item.id'), nullable=False)
+  schedule_item_id = Column(ForeignKey('schedule_item.id'), nullable=False, index=True)
   collection_point_id = Column(ForeignKey('collection_point.id'), nullable=False)
 
   schedule_item = relationship('ScheduleItem', back_populates='schedule_item_collection_point')
@@ -334,7 +339,7 @@ class Product(BaseItalcoEntity):
   __tablename__ = 'product'
 
   name = Column(String, nullable=False)
-  order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
+  order_id = Column(Integer, ForeignKey('order.id'), nullable=False, index=True)
   transport_id = Column(Integer, ForeignKey('transport.id'), nullable=True)
   rae_product_id = Column(Integer, ForeignKey('rae_product.id'), nullable=True)
   service_user_id = Column(Integer, ForeignKey('service_user.id'), nullable=False)
