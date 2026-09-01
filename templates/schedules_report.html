@@ -37,7 +37,7 @@
         <td>
           {% for product_name, product in order.products.items() %}
             <strong>{{ product_name }}</strong>
-            [{{ product.collection_point.name }}]<br>
+            {% if product.get('collection_point') %}[{{ product.collection_point.name }}]{% endif %}<br>
             {{ service_list(product.services, inline=True) }}
             <br>
           {% endfor %}

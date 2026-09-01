@@ -45,7 +45,10 @@
     <tbody>
       {% for product_name, product in products.items() %}
       <tr>
-        <td>{{ product_name }} [{{ product.collection_point.name }}]</td>
+        <td>
+          {{ product_name }}
+          {% if product.get('collection_point') %}[{{ product.collection_point.name }}]{% endif %}
+        </td>
         <td>
           <ul style="margin: 0; padding-left: 16px;">
             {{ service_list(product.services) }}
