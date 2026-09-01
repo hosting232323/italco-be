@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
 from ...utils.date import handle_date
-from ...utils.query import limit_per_entity
 from ...database.enum import ScheduleType, ScheduleItemUserType, UserRole
 from database_api.operations import create, db_session_decorator
 from ...database.schema import (
@@ -22,6 +21,104 @@ from ...database.schema import (
   ServiceUser,
   Service,
 )
+
+
+# Le join che la query degli id sa aggiungere, con la loro clausola ON.
+_ID_QUERY_JOINS = {
+  'delivery_group': (DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id),
+  'user': (User, DeliveryGroup.user_id == User.id),
+  'schedule_item': (ScheduleItem, ScheduleItem.schedule_id == Schedule.id),
+  'schedule_item_order': (
+    ScheduleItemOrder,
+    and_(ScheduleItem.operation_type == ScheduleType.ORDER, ScheduleItemOrder.schedule_item_id == ScheduleItem.id),
+  ),
+  'order': (Order, ScheduleItemOrder.order_id == Order.id),
+  'product': (Product, Order.id == Product.order_id),
+  'schedule_item_collection_point': (
+    ScheduleItemCollectionPoint,
+    and_(
+      ScheduleItem.operation_type == ScheduleType.COLLECTIONPOINT,
+      ScheduleItemCollectionPoint.schedule_item_id == ScheduleItem.id,
+    ),
+  ),
+  'collection_point': (CollectionPoint, CollectionPoint.id == ScheduleItemCollectionPoint.collection_point_id),
+}
+
+# Per ogni modello filtrabile che non sta su schedule, le join da attraversare
+# per arrivarci, in ordine di dipendenza. Le chiavi sono i nomi che il frontend
+# manda dentro filter['model']; chi non compare qui si filtra su schedule.
+_FILTER_MODEL_JOINS = {
+  'DeliveryGroup': ('delivery_group',),
+  'User': ('delivery_group', 'user'),
+  'ScheduleItem': ('schedule_item',),
+  'ScheduleItemOrder': ('schedule_item', 'schedule_item_order'),
+  'Order': ('schedule_item', 'schedule_item_order', 'order'),
+  'Product': ('schedule_item', 'schedule_item_order', 'order', 'product'),
+  'ScheduleItemCollectionPoint': ('schedule_item', 'schedule_item_collection_point'),
+  'CollectionPoint': ('schedule_item', 'schedule_item_collection_point', 'collection_point'),
+}
+
+
+def _apply_filters(query, filters: list):
+  for filter in filters:
+    model = globals()[filter['model']]
+    field = getattr(model, filter['field'])
+    value = filter['value']
+
+    if field in [Schedule.created_at, Schedule.date, Schedule.updated_at] and type(value) is list:
+      query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
+    elif field in [Schedule.created_at, Schedule.updated_at]:
+      query = query.filter(cast(field, Date) == value)
+    else:
+      query = query.filter(field == value)
+
+  return query
+
+
+def query_schedule_ids(filters: list, limit: int, session: session_type) -> list[int]:
+  """Gli id dei borderò da mostrare, scelti senza passare dalla join di dettaglio.
+
+  La join di dettaglio moltiplica item x prodotti x utenti delivery: farla girare
+  su tutto lo storico dell'attività solo per scoprire quali sono gli ultimi
+  `limit` borderò costa quanto l'intero archivio, e su un'attività grande vuol
+  dire minuti di query e il worker ucciso da gunicorn. Qui resta solo quello che
+  serve a scegliere: transport, che è uno a uno con il borderò e non moltiplica
+  niente, e le tabelle nominate dai filtri.
+
+  Le inner join su schedule_item e delivery_group della query di dettaglio
+  scartano i borderò senza item o senza assegnatari: quel taglio va riprodotto,
+  ma come EXISTS, che non moltiplica le righe. Le outer join verso ordini,
+  prodotti e punti di ritiro invece non scartano niente, quindi qui non servono
+  e vengono aggiunte solo se un filtro le nomina.
+  """
+  query = session.query(Schedule.id).join(Transport, Schedule.transport_id == Transport.id)
+
+  joined = set()
+  for filter in filters:
+    for name in _FILTER_MODEL_JOINS.get(filter['model'], ()):
+      if name in joined:
+        continue
+      joined.add(name)
+      query = query.join(*_ID_QUERY_JOINS[name])
+
+  if 'schedule_item' not in joined:
+    query = query.filter(session.query(ScheduleItem).filter(ScheduleItem.schedule_id == Schedule.id).exists())
+  if 'delivery_group' not in joined:
+    query = query.filter(
+      session.query(DeliveryGroup)
+      .join(User, DeliveryGroup.user_id == User.id)
+      .filter(DeliveryGroup.schedule_id == Schedule.id)
+      .exists()
+    )
+
+  query = _apply_filters(query, filters)
+  # Il GROUP BY serve solo a deduplicare quello che moltiplicano le join dei
+  # filtri: senza join non ha niente da fare e impedisce a Postgres di prendere
+  # i primi `limit` borderò dall'indice invece di aggregare tutto l'archivio.
+  if joined:
+    query = query.group_by(Schedule.id)
+
+  return [row[0] for row in query.order_by(desc(Schedule.created_at)).limit(limit)]
 
 
 def query_schedules(
@@ -58,19 +155,17 @@ def query_schedules(
         Service, ServiceUser.service_id == Service.id
       )
 
-    for filter in filters:
-      model = globals()[filter['model']]
-      field = getattr(model, filter['field'])
-      value = filter['value']
+    query = _apply_filters(query, filters)
 
-      if field in [Schedule.created_at, Schedule.date, Schedule.updated_at] and type(value) is list:
-        query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
-      elif field in [Schedule.created_at, Schedule.updated_at]:
-        query = query.filter(cast(field, Date) == value)
-      else:
-        query = query.filter(field == value)
+    # Senza limite non c'è niente da scegliere: i filtri sulla query di dettaglio
+    # bastano già, e il giro sugli id sarebbe solo una query in più.
+    if limit is not None:
+      ids = query_schedule_ids(filters, limit, session)
+      if not ids:
+        return []
+      query = query.filter(Schedule.id.in_(ids))
 
-    return limit_per_entity(query.order_by(desc(Schedule.created_at)), Schedule.id, limit).all()
+    return query.order_by(desc(Schedule.created_at)).all()
 
 
 @db_session_decorator(commit=False)

@@ -12,10 +12,12 @@ from src.end_points.schedule.queries import (
   get_schedule_item_users,
   get_schedule_items,
   get_transports_by_date,
+  query_schedule_ids,
   query_schedules,
   query_schedules_count,
 )
 
+from database_api import Session
 from database_api.operations import create
 from src.database.schema import ScheduleItemCollectionPoint
 
@@ -85,6 +87,56 @@ def test_query_schedules_with_services(db):
 
   assert len(results[0]) == 8
   assert results[0][7].id == service.id
+
+
+def test_query_schedules_limit_counts_schedules_not_rows(db):
+  """Il limite conta borderò, non righe: ognuno ne produce già più di una."""
+  _, _, service_user, _ = customer_with_service()
+  for _ in range(3):
+    _full_schedule(service_user)
+
+  results = query_schedules([], 2)
+
+  assert len({row[0].id for row in results}) == 2
+
+
+def test_query_schedule_ids_takes_the_most_recent(db):
+  _, _, service_user, _ = customer_with_service()
+  _full_schedule(service_user)
+  _, recente, _, _ = _full_schedule(service_user)
+
+  with Session() as session:
+    assert query_schedule_ids([], 1, session) == [recente.id]
+
+
+def test_query_schedule_ids_skips_schedules_without_items_or_delivery(db):
+  """Le inner join della query di dettaglio scartano questi borderò: la scelta
+  degli id, che quelle join non le fa più, deve scartarli comunque."""
+  _, _, service_user, _ = customer_with_service()
+  _, completo, _, _ = _full_schedule(service_user)
+
+  senza_item = create_schedule()
+  create_delivery_group(create_user(UserRole.DELIVERY), senza_item)
+
+  senza_delivery = create_schedule()
+  create_schedule_item(senza_delivery)
+
+  with Session() as session:
+    ids = query_schedule_ids([], 10, session)
+
+  assert ids == [completo.id]
+
+
+def test_query_schedules_filter_on_joined_model(db):
+  """Un filtro su un modello raggiungibile solo per join (Order) deve valere
+  anche nella scelta degli id, non solo nella query di dettaglio."""
+  _, _, service_user, _ = customer_with_service()
+  order, schedule, _, _ = _full_schedule(service_user)
+  _full_schedule(service_user)
+
+  results = query_schedules([{'model': 'Order', 'field': 'id', 'value': order.id}], 10)
+
+  assert {row[0].id for row in results} == {schedule.id}
 
 
 def test_query_schedules_count(db):
