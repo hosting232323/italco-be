@@ -1,5 +1,5 @@
 {% extends "components/base.html" %}
-{% from "components/order.html" import info_table, products_table, signatures %}
+{% from "components/order.html" import info_table, products_table, order_export_signatures %}
 {% from "components/company.html" import company_header %}
 
 {% block content %}
@@ -22,5 +22,5 @@
 
 {{ products_table(products) }}
 
-{{ signatures(signature) }}
+{{ order_export_signatures(delivery_signature, anomaly_signature) }}
 {% endblock %}

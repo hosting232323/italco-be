@@ -3,16 +3,48 @@ import os
 from api.storage import get_full_path
 
 from src import STATIC_FOLDER
+from src.database.enum import OrderStatus
 from src.end_points.exportation.utils import (
   LOGO_SUBFOLDER,
   export_excel,
   export_pdf,
   get_company_logo,
   get_signature,
+  get_signature_slots,
   _ares_logo,
 )
 
 from tests.unit.factories import create_company, create_order
+
+
+def test_get_signature_slots_delivered_without_anomaly(db):
+  order = create_order(signature=b'\x89PNG-fake', status=OrderStatus.DELIVERED, anomaly=False)
+  delivery_sig, anomaly_sig = get_signature_slots(order)
+  assert delivery_sig is not None
+  assert delivery_sig.startswith('data:image/png;base64,')
+  assert anomaly_sig is None
+
+
+def test_get_signature_slots_delivered_with_anomaly(db):
+  order = create_order(signature=b'\x89PNG-fake', status=OrderStatus.DELIVERED, anomaly=True)
+  delivery_sig, anomaly_sig = get_signature_slots(order)
+  assert delivery_sig is None
+  assert anomaly_sig is not None
+  assert anomaly_sig.startswith('data:image/png;base64,')
+
+
+def test_get_signature_slots_other_status(db):
+  order = create_order(signature=b'\x89PNG-fake', status=OrderStatus.NOT_DELIVERED, anomaly=True)
+  delivery_sig, anomaly_sig = get_signature_slots(order)
+  assert delivery_sig is None
+  assert anomaly_sig is None
+
+
+def test_get_signature_slots_without_signature(db):
+  order = create_order(status=OrderStatus.DELIVERED, anomaly=False)
+  delivery_sig, anomaly_sig = get_signature_slots(order)
+  assert delivery_sig is None
+  assert anomaly_sig is None
 
 
 def test_get_signature_encodes_base64_data_uri(db):

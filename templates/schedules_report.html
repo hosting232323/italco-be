@@ -14,6 +14,37 @@
   ("Veicolo", transport)
 ]) }}
 
+<div class="section">
+  <h2>Distanza</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width: 50%;">KM Inizio</th>
+        <th style="width: 50%;">KM Fine</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section" style="margin-top: 30px">
+  <table class="info-table">
+    <tr>
+      <td style="width: 50%; vertical-align: top; border: none; padding-left: 0;"></td>
+      <td style="width: 50%; vertical-align: top; border: none; padding-left: 0;">
+        <div style="border: 1px solid #999; padding: 10px 10px 30px;">
+          <em>Firma Corriere</em>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+
 <div style="page-break-before: always; -pdf-next-page: landscape;"></div>
 <div class="section">
   <h2>Ordini</h2>
@@ -49,41 +80,8 @@
     </tbody>
   </table>
 </div>
-<div style="page-break-before: always; -pdf-next-page: body;"></div>
-
-<div class="section">
-  <h2>Distanza</h2>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th style="width: 50%;">KM Inizio</th>
-        <th style="width: 50%;">KM Fine</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-
-<div class="section" style="margin-top: 30px">
-  <table class="info-table">
-    <tr>
-      <td style="width: 50%; vertical-align: top; border: none; padding-left: 0;"></td>
-      <td style="width: 50%; vertical-align: top; border: none; padding-left: 0;">
-        <div style="border: 1px solid #999; padding: 10px 10px 30px;">
-          <em>Firma Corriere</em>
-        </div>
-      </td>
-    </tr>
-  </table>
-</div>
-
 {% for order in orders %}
-  <div style="page-break-before: always;"></div>
+  <div style="page-break-before: always;{% if loop.first %} -pdf-next-page: body;{% endif %}"></div>
   <h2>N° Ordine: {{ order.id }}</h2>
 
   {{ order_block(order) }}

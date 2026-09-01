@@ -3,7 +3,7 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from ...database.schema import Order
-from .utils import get_signature, export_pdf, company_context
+from .utils import get_signature_slots, export_pdf, company_context
 from database_api.operations import get_by_id
 from ..orders.queries import query_orders, format_query_result
 
@@ -14,6 +14,8 @@ def export_order(id, customer_id: int = None):
     orders = format_query_result(tupla, orders)
   if len(orders) != 1:
     return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
+
+  delivery_signature, anomaly_signature = get_signature_slots(get_by_id(Order, orders[0]['id']))
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
@@ -29,7 +31,8 @@ def export_order(id, customer_id: int = None):
       addressee_contact=orders[0].get('addressee_contact', '/'),
       products=orders[0]['products'],
       note=orders[0].get('customer_note', '/'),
-      signature=get_signature(get_by_id(Order, orders[0]['id'])),
+      delivery_signature=delivery_signature,
+      anomaly_signature=anomaly_signature,
       **company_context(),
     ),
     dest=result,
