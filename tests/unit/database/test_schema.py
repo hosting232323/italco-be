@@ -24,30 +24,30 @@ from tests.unit.factories import (
 
 
 def test_format_user_full_dict_for_admin_viewer(db):
-  user = create_user(UserRole.CUSTOMER, nickname='cliente-1', password='segreta')
+  user = create_user(UserRole.CUSTOMER, email='cliente-1', password='segreta')
 
   formatted = user.format_user(UserRole.ADMIN)
 
-  assert formatted['nickname'] == 'cliente-1'
+  assert formatted['email'] == 'cliente-1'
   assert 'password' not in formatted
   assert 'password_shadow' not in formatted
   assert formatted['role'] == 'Customer'
 
 
 def test_format_user_minimal_dict_for_other_viewers(db):
-  user = create_user(UserRole.CUSTOMER, nickname='cliente-2', password='segreta')
+  user = create_user(UserRole.CUSTOMER, email='cliente-2', password='segreta')
 
   formatted = user.format_user(UserRole.DELIVERY)
 
-  assert formatted == {'id': user.id, 'nickname': 'cliente-2', 'role': 'Customer'}
+  assert formatted == {'id': user.id, 'email': 'cliente-2', 'role': 'Customer'}
   assert 'password' not in formatted
 
 
-def test_nickname_must_be_unique(db):
-  create_user(UserRole.DELIVERY, nickname='doppione')
+def test_email_must_be_unique(db):
+  create_user(UserRole.DELIVERY, email='doppione')
 
   with pytest.raises(IntegrityError):
-    create_user(UserRole.DELIVERY, nickname='doppione')
+    create_user(UserRole.DELIVERY, email='doppione')
 
 
 def test_order_defaults(db):

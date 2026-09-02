@@ -69,13 +69,13 @@ def test_format_query_result_groups_duplicate_services(db):
   assert len(results[0]['users']) == 2  # il fan-out del join viene accodato per riga
 
 
-def test_format_service_user_adds_nickname(db):
-  customer = create_user(UserRole.CUSTOMER, nickname='pv-bari')
+def test_format_service_user_adds_email(db):
+  customer = create_user(UserRole.CUSTOMER, email='pv-bari')
   service_user = create_service_user(customer, create_service())
 
   formatted = format_service_user(service_user, customer)
 
-  assert formatted['nickname'] == 'pv-bari'
+  assert formatted['email'] == 'pv-bari'
   assert formatted['id'] == service_user.id
 
 

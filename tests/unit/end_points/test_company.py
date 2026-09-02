@@ -43,7 +43,7 @@ def _fake_upload(monkeypatch):
 def _create_payload(**overrides):
   return {
     'name': 'Nuova',
-    'admin_nickname': 'admin-nuova',
+    'admin_email': 'admin-nuova',
     'admin_password': 'pw',
     **BASE_LEGAL,
     **overrides,

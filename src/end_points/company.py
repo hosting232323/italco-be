@@ -10,7 +10,7 @@ from . import flask_session_authentication
 from .. import STATIC_FOLDER
 from ..database.enum import UserRole
 from ..database.schema import Company, User
-from ..database.queries import get_user_by_nickname
+from ..database.queries import get_user_by_email
 from .users.session import create_jwt_token
 from database_api import Session, scope
 from database_api.operations import create, get_by_id, update
@@ -104,15 +104,15 @@ def create_company(_):
   if not name:
     return {'status': 'ko', 'message': 'Nome obbligatorio'}
 
-  admin_nickname = (payload.get('admin_nickname') or '').strip()
+  admin_email = (payload.get('admin_email') or '').strip()
   admin_password = (payload.get('admin_password') or '').strip()
-  if not admin_nickname:
-    return {'status': 'ko', 'message': 'Nickname admin obbligatorio'}
+  if not admin_email:
+    return {'status': 'ko', 'message': 'Email admin obbligatoria'}
   if not admin_password:
     return {'status': 'ko', 'message': 'Password admin obbligatoria'}
 
-  if get_user_by_nickname(admin_nickname):
-    return {'status': 'ko', 'message': 'Nickname già in uso'}
+  if get_user_by_email(admin_email):
+    return {'status': 'ko', 'message': 'Email già in uso'}
 
   # bool() esplicito: dal client il flag può arrivare assente, ed è il caso
   # normale di un'attività appena creata. Il modulo RAEE nasce spento.
@@ -131,7 +131,7 @@ def create_company(_):
       User,
       {
         'role': UserRole.ADMIN,
-        'nickname': admin_nickname,
+        'email': admin_email,
         'password': hash_password(admin_password),
       },
     )

@@ -97,7 +97,7 @@ def _orders_over_time(start: str, end: str) -> list[dict]:
 def _top_customers(start: str, end: str) -> list[dict]:
   with Session() as session:
     query = (
-      session.query(User.nickname, func.count(distinct(Order.id)).label('orders'))
+      session.query(User.email, func.count(distinct(Order.id)).label('orders'))
       .select_from(Order)
       .join(Product, Product.order_id == Order.id)
       .join(ServiceUser, ServiceUser.id == Product.service_user_id)
@@ -105,8 +105,8 @@ def _top_customers(start: str, end: str) -> list[dict]:
       .filter(User.role == UserRole.CUSTOMER)
     )
     query = _filter_range(query, Order.created_at, start, end)
-    query = query.group_by(User.id, User.nickname).order_by(desc('orders')).limit(TOP_CUSTOMERS_LIMIT)
-    return [{'label': nickname, 'count': orders} for nickname, orders in query.all()]
+    query = query.group_by(User.id, User.email).order_by(desc('orders')).limit(TOP_CUSTOMERS_LIMIT)
+    return [{'label': email, 'count': orders} for email, orders in query.all()]
 
 
 def _rae_by_status(start: str, end: str) -> list[dict]:

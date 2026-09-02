@@ -66,7 +66,7 @@ class User(BaseItalcoEntity):
 
   password = Column(String)
   role = Column(Enum(UserRole), nullable=False)
-  nickname = Column(String, unique=True, nullable=False)
+  email = Column(String, unique=True, nullable=False)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
 
   rae_product = relationship('RaeProduct', back_populates='user')
@@ -83,7 +83,7 @@ class User(BaseItalcoEntity):
       hidden = {'password'}
       return {key: value for key, value in self.to_dict().items() if key not in hidden}
     else:
-      return {'id': self.id, 'nickname': self.nickname, 'role': self.role.value}
+      return {'id': self.id, 'email': self.email, 'role': self.role.value}
 
 
 class UserSession(BaseEntity):

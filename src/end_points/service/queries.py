@@ -44,7 +44,7 @@ def format_query_result(tupla: tuple[Service, ServiceUser, User], list: list[dic
 
 def format_service_user(service_user: ServiceUser, user: User) -> dict:
   output = service_user.to_dict()
-  output['nickname'] = user.nickname
+  output['email'] = user.email
   return output
 
 

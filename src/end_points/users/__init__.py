@@ -6,7 +6,7 @@ from ...database.enum import UserRole
 from .session import get_token_payload, refresh_access_token_response, replace_access_token
 from .. import auth, flask_session_authentication
 from api.users.security import hash_password, verify_password
-from ...database.queries import get_user_by_nickname
+from ...database.queries import get_user_by_email
 from database_api.operations import delete, get_by_id, create, update
 from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo
 from .queries import (
@@ -52,18 +52,18 @@ def create_user(_):
   if not role or role in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
     return {'status': 'error', 'message': 'Role not valid'}
 
-  # Il nickname è unico su tutto il database, non per company: il login avviene
-  # prima di sapere quale sia il tenant. get_user_by_nickname cerca fuori scope
-  # apposta, altrimenti un nickname già preso altrove sembrerebbe libero.
-  if get_user_by_nickname(request.json['nickname']):
-    return {'status': 'ko', 'message': 'Nickname già in uso'}
+  # L'email è unica su tutto il database, non per company: il login avviene
+  # prima di sapere quale sia il tenant. get_user_by_email cerca fuori scope
+  # apposta, altrimenti un'email già presa altrove sembrerebbe libera.
+  if get_user_by_email(request.json['email']):
+    return {'status': 'ko', 'message': 'Email già in uso'}
 
   password = request.json['password']
   create(
     User,
     {
       'role': role,
-      'nickname': request.json['nickname'],
+      'email': request.json['email'],
       'password': hash_password(password),
     },
   )
@@ -73,8 +73,8 @@ def create_user(_):
 @user_bp.route('login', methods=['POST'])
 def login():
   password = request.json['password']
-  user: User = get_user_by_nickname(request.json['email'])
-  if not user or user.nickname != request.json['email']:
+  user: User = get_user_by_email(request.json['email'])
+  if not user or user.email != request.json['email']:
     return {'status': 'ko', 'message': 'Credenziali errate'}
 
   def verify(fresh: User, session) -> bool:
@@ -95,6 +95,35 @@ def login():
 
 def check_password(user: User, password: str) -> bool:
   return verify_password(password, user.password)
+
+
+@user_bp.route('<id>', methods=['PUT'])
+@flask_session_authentication([UserRole.ADMIN])
+def update_user(_, id):
+  user: User = get_by_id(User, int(id))
+  if not user:
+    return {'status': 'ko', 'message': 'Utente non trovato'}
+  if user.role == UserRole.ADMIN:
+    return {'status': 'ko', 'message': 'Non è possibile modificare un admin'}
+
+  email = (request.json.get('email') or '').strip()
+  password = (request.json.get('password') or '').strip()
+
+  if email and email != user.email and get_user_by_email(email):
+    return {'status': 'ko', 'message': 'Email già in uso'}
+
+  with auth.user_session_lock(user.id) as session:
+    fresh = session.query(User).filter(User.id == user.id).one()
+    data = {}
+    if email:
+      data['email'] = email
+    if password:
+      data['password'] = hash_password(password)
+      auth.revoke_user_sessions(user.id, db=session)
+    if data:
+      update(fresh, data, session=session)
+
+  return {'status': 'ok', 'message': 'Utente aggiornato'}
 
 
 @user_bp.route('<id>/password', methods=['POST'])

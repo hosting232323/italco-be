@@ -116,13 +116,13 @@ WHERE s.company_id = 2
 
 
 -- Verifica: 43 servizi e 215 associazioni (43 x 5), una riga per punto vendita.
-SELECT u.id, u.nickname, count(*) AS associazioni, sum(su.price) AS totale_listino
+SELECT u.id, u.email, count(*) AS associazioni, sum(su.price) AS totale_listino
 FROM service_user su
 JOIN "user" u ON u.id = su.user_id
 JOIN service s ON s.id = su.service_id
 JOIN listino_mediamarket l ON l.name = s.name AND l.code = su.code AND l.price = su.price
 WHERE su.company_id = 2 AND su.user_id IN (71, 72, 73, 74, 75)
-GROUP BY u.id, u.nickname
+GROUP BY u.id, u.email
 ORDER BY u.id;
 
 COMMIT;

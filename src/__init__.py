@@ -46,7 +46,7 @@ else:
   CORS(app, origins=allowed_origins + EXTRA_ALLOWED_ORIGINS, supports_credentials=True)
 
 
-register_flask_hooks(app, STATIC_FOLDER, user_log_field='nickname')
+register_flask_hooks(app, STATIC_FOLDER, user_log_field='email')
 
 
 @app.route('/', methods=['GET'])

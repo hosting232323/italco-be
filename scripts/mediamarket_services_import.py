@@ -111,7 +111,7 @@ def validate(session) -> list[str]:
     if not user:
       errors.append(f'Utente {user_id} inesistente o fuori dalla company {COMPANY_ID}')
     elif user.role != UserRole.CUSTOMER:
-      errors.append(f'Utente {user_id} ({user.nickname}) ha ruolo {user.role.value}, atteso Customer')
+      errors.append(f'Utente {user_id} ({user.email}) ha ruolo {user.role.value}, atteso Customer')
 
   return errors
 

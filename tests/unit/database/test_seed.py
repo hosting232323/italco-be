@@ -30,7 +30,7 @@ def test_seed_data_populates_all_domains(db):
     users = session.query(User).all()
     roles = {user.role for user in users}
     assert {UserRole.ADMIN, UserRole.OPERATOR, UserRole.DELIVERY, UserRole.CUSTOMER} == roles
-    assert session.query(User).filter(User.nickname == 'admin').count() == 1
+    assert session.query(User).filter(User.email == 'admin').count() == 1
 
     assert session.query(Transport).count() == 10
     assert session.query(CollectionPoint).count() == 10
@@ -49,7 +49,7 @@ def test_seed_data_populates_all_domains(db):
     assert session.query(Service).filter(Service.professional.is_(False)).count() == 10
 
     # Le password del seed sono cifrate, mai in chiaro
-    admin = session.query(User).filter(User.nickname == 'admin').one()
+    admin = session.query(User).filter(User.email == 'admin').one()
     assert admin.password != '1234admin'
 
 

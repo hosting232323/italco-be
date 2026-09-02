@@ -45,10 +45,10 @@ def create_company(name: str = None, rae: bool = False, **extra) -> Company:
   return create(Company, {'name': name or unique('company'), 'rae': rae, **extra})
 
 
-def create_user(role: UserRole = UserRole.ADMIN, nickname: str = None, password: str = 'pw', **extra) -> User:
+def create_user(role: UserRole = UserRole.ADMIN, email: str = None, password: str = 'pw', **extra) -> User:
   return create(
     User,
-    {'nickname': nickname or unique(role.value.lower()), 'password': password, 'role': role, **extra},
+    {'email': email or unique(role.value.lower()), 'password': password, 'role': role, **extra},
   )
 
 

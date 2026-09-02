@@ -73,7 +73,7 @@
             <br>
           {% endfor %}
         </td>
-        <td>{{ order.user.nickname }}</td>
+        <td>{{ order.user.email }}</td>
         <td>{{ [order.customer_note, order.operator_note] | select | join(', ') or '/' }}</td>
       </tr>
       {% endfor %}

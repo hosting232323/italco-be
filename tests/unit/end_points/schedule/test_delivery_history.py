@@ -52,7 +52,7 @@ def _schedule_with_order(session, user, transport, schedule_date, addressee):
 def test_history_returns_past_borderos_desc(seeded_db):
   today = date.today()
   with database_api.Session() as session:
-    user = create(User, {'nickname': 'Elmy', 'password': 'x', 'role': UserRole.DELIVERY}, session=session)
+    user = create(User, {'email': 'Elmy', 'password': 'x', 'role': UserRole.DELIVERY}, session=session)
     transport = create(Transport, {'name': 'Furgone 1', 'plate': 'AA000AA', 'cap': '70100'}, session=session)
     _schedule_with_order(session, user, transport, today, 'Oggi')
     _schedule_with_order(session, user, transport, today - timedelta(days=1), 'Ieri')
@@ -75,7 +75,7 @@ def test_history_returns_past_borderos_desc(seeded_db):
 
 def test_history_empty_for_new_courier(seeded_db):
   with database_api.Session() as session:
-    user = create(User, {'nickname': 'Nuovo', 'password': 'x', 'role': UserRole.DELIVERY}, session=session)
+    user = create(User, {'email': 'Nuovo', 'password': 'x', 'role': UserRole.DELIVERY}, session=session)
     session.commit()
     user_id = user.id
 

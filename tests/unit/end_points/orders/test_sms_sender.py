@@ -63,4 +63,4 @@ def test_delay_sms_check_sends_message_with_slot(app, db, monkeypatch):
   assert (key, secret, sender, contact) == ('key', 'secret', 'Ares', '+391112223')
   assert 'riprogrammata' in message
   assert '09:00' in message and '11:00' in message
-  assert customer.nickname in message
+  assert customer.email in message

@@ -42,7 +42,7 @@ def test_get_services_aggregates_users(client):
   assert body['status'] == 'ok'
   assert len(body['services']) == 1
   assert {user['user_id'] for user in body['services'][0]['users']} == {first.id, second.id}
-  assert all('nickname' in user for user in body['services'][0]['users'])
+  assert all('email' in user for user in body['services'][0]['users'])
 
 
 def test_get_services_customer_sees_only_associated(client):
@@ -94,7 +94,7 @@ def test_create_service_user(client):
 
   body = response.get_json()
   assert body['status'] == 'ok'
-  assert body['service_user']['nickname'] == customer.nickname
+  assert body['service_user']['email'] == customer.email
   assert body['service_user']['price'] == 12.5
 
 

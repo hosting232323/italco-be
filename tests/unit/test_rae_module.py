@@ -58,7 +58,7 @@ def test_super_admin_creates_a_company_with_the_module_on(db, client):
     '/company',
     json={
       'name': 'Con RAEE',
-      'admin_nickname': 'admin-rae',
+      'admin_email': 'admin-rae',
       'admin_password': 'pw',
       'rae': True,
       **LEGAL_PAYLOAD,
@@ -77,7 +77,7 @@ def test_company_created_without_the_flag_has_it_off(db, client):
     '/company',
     json={
       'name': 'Senza RAEE',
-      'admin_nickname': 'admin-no-rae',
+      'admin_email': 'admin-no-rae',
       'admin_password': 'pw',
       'legal_name': 'Attività SRL',
       'vat_number': '11122233344',
@@ -142,7 +142,7 @@ def test_admin_cannot_switch_the_module(db, client):
 
 def test_login_carries_the_flag_to_the_frontend(db, client):
   """È il campo su cui il menù decide se mostrare le pagine RAEE."""
-  create_user(UserRole.ADMIN, nickname='login-rae', password=hash_password('pw'))
+  create_user(UserRole.ADMIN, email='login-rae', password=hash_password('pw'))
 
   body = client.post('/user/login', json={'email': 'login-rae', 'password': 'pw'}).get_json()
 

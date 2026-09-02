@@ -67,7 +67,7 @@ def _payload(schedule_id, item_id, order_id, transport_id, delivery_id, schedule
 def test_update_schedule_can_delete_and_readd_same_delivery(schedule_client, monkeypatch):
   monkeypatch.setattr(schedule_endpoints, 'save_info_to_euronics', lambda _: None)
   with Session() as session:
-    delivery = session.query(User).filter_by(nickname='delivery_1').one()
+    delivery = session.query(User).filter_by(email='delivery_1').one()
     delivery_id = delivery.id
   schedule_id, item_id, order_id, transport_id = _create_schedule_with_order(delivery)
 
@@ -85,8 +85,8 @@ def test_update_schedule_can_delete_and_readd_same_delivery(schedule_client, mon
 
 def test_update_schedule_conflict_rolls_back_deleted_delivery(schedule_client):
   with Session() as session:
-    old_delivery = session.query(User).filter_by(nickname='delivery_1').one()
-    busy_delivery = session.query(User).filter_by(nickname='delivery').one()
+    old_delivery = session.query(User).filter_by(email='delivery_1').one()
+    busy_delivery = session.query(User).filter_by(email='delivery').one()
     old_delivery_id = old_delivery.id
     busy_delivery_id = busy_delivery.id
   schedule_id, item_id, order_id, transport_id = _create_schedule_with_order(old_delivery)
@@ -113,7 +113,7 @@ def test_update_schedule_conflict_rolls_back_deleted_delivery(schedule_client):
 
 def test_update_schedule_date_change_detects_busy_kept_delivery(schedule_client):
   with Session() as session:
-    delivery = session.query(User).filter_by(nickname='delivery_1').one()
+    delivery = session.query(User).filter_by(email='delivery_1').one()
     delivery_id = delivery.id
   schedule_id, item_id, order_id, transport_id = _create_schedule_with_order(delivery)
   busy_date = date.today() + timedelta(days=1)
@@ -139,7 +139,7 @@ def test_update_schedule_date_change_detects_busy_kept_delivery(schedule_client)
 
 def test_update_schedule_date_change_checks_kept_delivery_omitted_from_payload(schedule_client):
   with Session() as session:
-    kept_delivery = session.query(User).filter_by(nickname='delivery_1').one()
+    kept_delivery = session.query(User).filter_by(email='delivery_1').one()
     kept_delivery_id = kept_delivery.id
   schedule_id, item_id, order_id, transport_id = _create_schedule_with_order(kept_delivery)
   new_delivery_id = create_user(UserRole.DELIVERY).id
@@ -183,7 +183,7 @@ def _create_payload(transport_id, order_id, delivery_ids, schedule_date):
 
 def test_create_schedule_rejects_non_delivery_user(schedule_client):
   with Session() as session:
-    customer_id = session.query(User).filter_by(nickname='customer').one().id
+    customer_id = session.query(User).filter_by(email='customer').one().id
     transport_id = session.query(Transport).first().id
     order_id = session.query(Order).first().id
 
@@ -201,7 +201,7 @@ def test_create_schedule_rejects_non_delivery_user(schedule_client):
 def test_create_schedule_deduplicates_delivery_users(schedule_client, monkeypatch):
   monkeypatch.setattr(schedule_endpoints, 'save_info_to_euronics', lambda _: None)
   with Session() as session:
-    delivery_id = session.query(User).filter_by(nickname='delivery_1').one().id
+    delivery_id = session.query(User).filter_by(email='delivery_1').one().id
     transport_id = session.query(Transport).first().id
     order_id = session.query(Order).first().id
 
@@ -222,7 +222,7 @@ def test_delivery_group_unique_constraint_blocks_duplicates(seeded_db):
   from sqlalchemy.exc import IntegrityError
 
   with Session() as session:
-    delivery_id = session.query(User).filter_by(nickname='delivery_1').one().id
+    delivery_id = session.query(User).filter_by(email='delivery_1').one().id
     transport_id = session.query(Transport).first().id
     schedule = create(
       Schedule, {'date': date.today() + timedelta(days=42), 'transport_id': transport_id}, session=session

@@ -129,7 +129,7 @@ def test_export_rae_card_index_shows_pickup_status(client):
   assert 'Grup.' in text
   assert 'Raggrupp.' not in text
   # Il punto vendita compare solo nel riquadro in testa, non su ogni riga.
-  assert text.count(customer.nickname) == 1
+  assert text.count(customer.email) == 1
 
 
 def test_export_rae_card_index_unknown_selling_point(client):

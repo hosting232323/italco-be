@@ -126,7 +126,7 @@
 {% macro order_block(order) %}
 
 {{ info_table("Informazioni", [
-  ("Committente", order.user.nickname),
+  ("Committente", order.user.email),
   ("Destinatario", order.addressee),
   ("Indirizzo", order.address),
   ("Recapito", order.addressee_contact),
