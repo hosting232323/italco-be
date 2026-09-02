@@ -65,7 +65,7 @@ def seed_company_data():
   create(
     User,
     {
-      'nickname': 'admin',
+      'email': 'admin',
       'password': _seed_password('1234admin'),
       'role': UserRole.ADMIN,
     },
@@ -73,7 +73,7 @@ def seed_company_data():
   create(
     User,
     {
-      'nickname': 'operator',
+      'email': 'operator',
       'password': _seed_password('1234operator'),
       'role': UserRole.OPERATOR,
     },
@@ -81,7 +81,7 @@ def seed_company_data():
   base_delivery_user = create(
     User,
     {
-      'nickname': 'delivery',
+      'email': 'delivery',
       'password': _seed_password('1234delivery'),
       'role': UserRole.DELIVERY,
     },
@@ -89,7 +89,7 @@ def seed_company_data():
   base_customer_user = create(
     User,
     {
-      'nickname': 'customer',
+      'email': 'customer',
       'password': _seed_password('1234customer'),
       'role': UserRole.CUSTOMER,
     },
@@ -106,7 +106,7 @@ def seed_company_data():
       create(
         User,
         {
-          'nickname': f'delivery_{index}',
+          'email': f'delivery_{index}',
           'password': _seed_password('1234delivery'),
           'role': UserRole.DELIVERY,
         },
@@ -116,7 +116,7 @@ def seed_company_data():
       create(
         User,
         {
-          'nickname': f'customer_{index}',
+          'email': f'customer_{index}',
           'password': _seed_password('1234customer'),
           'role': UserRole.CUSTOMER,
           'customer_group_id': customer_groups[index].id,
@@ -127,7 +127,7 @@ def seed_company_data():
   create(
     User,
     {
-      'nickname': 'customer_group_owner',
+      'email': 'customer_group_owner',
       'password': _seed_password('1234customer'),
       'role': UserRole.CUSTOMER,
       'customer_group_id': customer_groups[0].id,

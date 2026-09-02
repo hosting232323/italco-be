@@ -75,7 +75,7 @@
               {% if not loop.last %}<br>{% endif %}
             {% endfor %}
           </td>
-          <td>{{ order.user.company_name or order.user.nickname }}</td>
+          <td>{{ order.user.company_name or order.user.email or order.user.nickname }}</td>
           <td>{{ [order.customer_note, order.operator_note] | select | join(', ') or '/' }}</td>
         </tr>
         {% endfor %}

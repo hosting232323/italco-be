@@ -51,4 +51,4 @@ def test_schedule_sms_sends_programmed_message(app, db, monkeypatch):
   message = sent[0][4]
   assert 'programmata' in message
   assert '14:00' in message and '16:00' in message
-  assert customer.nickname in message
+  assert customer.email in message

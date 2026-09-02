@@ -24,8 +24,8 @@ from src.end_points.orders.crud import update_order
 
 
 def _seed_order_for_delivery(session):
-  user = create(User, {'nickname': 'Elmy', 'password': 'x', 'role': UserRole.DELIVERY}, session=session)
-  owner = create(User, {'nickname': 'cust', 'password': 'x', 'role': UserRole.CUSTOMER}, session=session)
+  user = create(User, {'email': 'Elmy', 'password': 'x', 'role': UserRole.DELIVERY}, session=session)
+  owner = create(User, {'email': 'cust', 'password': 'x', 'role': UserRole.CUSTOMER}, session=session)
   transport = create(Transport, {'name': 'Furgone 1', 'plate': 'AA000AA', 'cap': '70100'}, session=session)
   schedule = create(Schedule, {'date': date.today(), 'transport_id': transport.id}, session=session)
   create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user.id}, session=session)

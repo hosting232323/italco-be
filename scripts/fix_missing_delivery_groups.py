@@ -20,7 +20,7 @@ def get_sample_user() -> User:
   with Session() as session:
     return session.query(User).filter(
       User.role == UserRole.DELIVERY,
-      User.nickname == 'delivery',
+      User.email == 'delivery',
     ).first()
 
 

@@ -43,9 +43,11 @@ def export_orders_excel(order_ids: list):
         'Servizi': servizi,
         'Note Cliente': o.get('customer_note', '') or '',
         'Note Operatori': o.get('operator_note', '') or '',
-        'Anomalia': 'Si' if o.get('anomaly') else 'No',
-        'Ritardo': 'Si' if o.get('delay') else 'No',
-        'Punto Vendita': o.get('user', {}).get('company_name') or o.get('user', {}).get('nickname', ''),
+        'Punto Vendita': (
+          o.get('user', {}).get('company_name')
+          or o.get('user', {}).get('email')
+          or o.get('user', {}).get('nickname', '')
+        ),
       }
     )
 

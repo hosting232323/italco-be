@@ -61,11 +61,11 @@ def migrate_legacy_passwords(*, apply: bool) -> dict:
         plaintext = legacy_decrypt(user.password)
       except Exception as e:
         report['failed'].append(user.id)
-        print(f'  x utente {user.id} ({user.nickname}): decrittografia fallita ({e})')
+        print(f'  x utente {user.id} ({user.email}): decrittografia fallita ({e})')
         continue
 
       action = 'migrata' if apply else 'da migrare'
-      print(f'  + password {action} per utente {user.id} ({user.nickname})')
+      print(f'  + password {action} per utente {user.id} ({user.email})')
       if apply:
         update(user, {'password': hash_password(plaintext)}, session=session)
       report['migrated'].append(user.id)

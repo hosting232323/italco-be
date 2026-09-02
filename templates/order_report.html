@@ -12,7 +12,7 @@
   ("Recapito", addressee_contact),
   ("Note aggiuntive", note)
 ], [
-  ("Committente", customer.company_name or customer.nickname),
+  ("Committente", customer.company_name or customer.email or customer.nickname),
   ("Data prevista consegna", dpc),
   ("Data richiesta consegna", drc),
   ("Data consegna effettiva", booking_date)

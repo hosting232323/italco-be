@@ -24,7 +24,7 @@ def get_orders():
     ).join(
       Service, ServiceUser.service_id == Service.id
     ).join(
-      User, and_(ServiceUser.user_id == User.id, User.nickname == 'Euronics Bari Max')
+      User, and_(ServiceUser.user_id == User.id, User.email == 'Euronics Bari Max')
     ).all()
 
 

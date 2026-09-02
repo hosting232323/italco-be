@@ -62,7 +62,7 @@ def export_schedule(user: User, id):
       id=schedules[0]['id'],
       date=schedules[0]['date'],
       transport=schedules[0]['transport']['name'],
-      users=', '.join([user['nickname'] for user in schedules[0]['users']]),
+      users=', '.join([user.get('email') or user.get('nickname', '') for user in schedules[0]['users']]),
       orders=orders,
       order_pages=_paginate(orders, ORDERS_PER_TABLE_PAGE),
       **company_context(),

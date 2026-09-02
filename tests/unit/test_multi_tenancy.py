@@ -123,9 +123,9 @@ def test_super_admin_sees_the_company_it_selected(db, client):
 
   body = client.get('/user', headers=auth_header(super_admin, other.id)).get_json()
 
-  nicknames = [user['nickname'] for user in body['users']]
-  assert theirs.nickname in nicknames
-  assert mine.nickname not in nicknames
+  emails = [user['email'] for user in body['users']]
+  assert theirs.email in emails
+  assert mine.email not in emails
 
 
 def test_select_company_returns_a_token_carrying_it(db, client):
@@ -173,11 +173,11 @@ def test_normal_user_cannot_move_to_another_company_with_the_token(db, client):
 
   body = client.get('/user', headers=auth_header(admin, other.id)).get_json()
 
-  assert theirs.nickname not in [user['nickname'] for user in body['users']]
+  assert theirs.email not in [user['email'] for user in body['users']]
 
 
 def test_refreshed_token_keeps_the_selected_company(db, client):
-  create_super_admin(nickname='refresh-super', password=hash_password('pw'))
+  create_super_admin(email='refresh-super', password=hash_password('pw'))
   other = create_company()
   login = client.post('/user/login', json={'email': 'refresh-super', 'password': 'pw'}).get_json()
   selection = client.post(
@@ -193,7 +193,7 @@ def test_refreshed_token_keeps_the_selected_company(db, client):
 
 
 def test_login_returns_the_company_of_the_user(db, client):
-  create_user(UserRole.ADMIN, nickname='login-admin', password=hash_password('pw'))
+  create_user(UserRole.ADMIN, email='login-admin', password=hash_password('pw'))
 
   body = client.post('/user/login', json={'email': 'login-admin', 'password': 'pw'}).get_json()
 
@@ -202,7 +202,7 @@ def test_login_returns_the_company_of_the_user(db, client):
 
 
 def test_login_of_super_admin_has_no_company(db, client):
-  create_super_admin(nickname='login-super', password=hash_password('pw'))
+  create_super_admin(email='login-super', password=hash_password('pw'))
 
   body = client.post('/user/login', json={'email': 'login-super', 'password': 'pw'}).get_json()
 

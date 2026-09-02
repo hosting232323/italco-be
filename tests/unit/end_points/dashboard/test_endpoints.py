@@ -141,8 +141,8 @@ def test_top_customers_ranked_by_distinct_orders(client):
   _, body = _analytics(client, admin)
   rows = body['analytics']['top_customers']
 
-  assert rows[0] == {'label': big_customer.nickname, 'count': 3}
-  assert rows[1] == {'label': small_customer.nickname, 'count': 1}
+  assert rows[0] == {'label': big_customer.email, 'count': 3}
+  assert rows[1] == {'label': small_customer.email, 'count': 1}
 
 
 def test_top_customers_counts_each_order_once(client):
@@ -155,7 +155,7 @@ def test_top_customers_counts_each_order_once(client):
   _, body = _analytics(client, admin)
   rows = body['analytics']['top_customers']
 
-  assert rows == [{'label': customer.nickname, 'count': 1}]
+  assert rows == [{'label': customer.email, 'count': 1}]
 
 
 def test_rae_grouped_by_status_and_group(client):

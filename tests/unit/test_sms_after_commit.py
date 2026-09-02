@@ -49,7 +49,7 @@ def test_create_schedule_sends_sms_after_successful_commit(schedule_client, monk
   monkeypatch.setattr(schedule_endpoints, 'schedule_sms_check', lambda order, item: calls.append(('sms', order, item)))
   monkeypatch.setattr(schedule_endpoints, 'save_info_to_euronics', lambda _: calls.append(('euronics', None, None)))
   with Session() as session:
-    delivery_id = session.query(User).filter_by(nickname='delivery_1').one().id
+    delivery_id = session.query(User).filter_by(email='delivery_1').one().id
     transport_id = session.query(Transport).first().id
     order_id = session.query(Order).first().id
 
@@ -76,7 +76,7 @@ def test_create_schedule_does_not_send_sms_when_transaction_fails(schedule_clien
 
   monkeypatch.setattr(schedule_endpoints, 'handle_schedule_item', failing_handle_schedule_item)
   with Session() as session:
-    delivery_id = session.query(User).filter_by(nickname='delivery_1').one().id
+    delivery_id = session.query(User).filter_by(email='delivery_1').one().id
     transport_id = session.query(Transport).first().id
     order_id = session.query(Order).first().id
 

@@ -163,7 +163,7 @@
 {% macro order_block(order) %}
 
 {{ dual_info_table([
-  ("Committente", order.user.company_name or order.user.nickname),
+  ("Committente", order.user.company_name or order.user.email or order.user.nickname),
   ("Destinatario", order.addressee),
   ("Indirizzo", order.address),
   ("Recapito", order.addressee_contact),

@@ -16,7 +16,7 @@ def format_row(rae_product, rae_product_group, user, order) -> dict:
     'codice_cer': rae_product_group.cer_code,
     'raggruppamento': rae_product_group.group_code,
     'quantita': rae_product.quantity or 0,
-    'cliente': user.nickname,
+    'cliente': user.email,
     'destinatario': order.addressee,
   }
 
@@ -35,12 +35,12 @@ def export_disposal_attached_a(disposal_id: int):
     grouped.setdefault(u.id, {'user': u, 'rows': []})['rows'].append(format_row(rp, rpg, u, o))
 
   sections = []
-  for group in sorted(grouped.values(), key=lambda g: g['user'].nickname):
+  for group in sorted(grouped.values(), key=lambda g: g['user'].email):
     user = group['user']
     rows = sorted(group['rows'], key=lambda r: r['dtr'])
     sections.append(
       {
-        'punto_vendita': user.nickname,
+        'punto_vendita': user.email,
         'codice_afir': f'{user.id}-AFIR-{disposal_id}',
         'rows': rows,
         'total': sum(r['quantita'] for r in rows),
