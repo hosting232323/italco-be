@@ -75,6 +75,8 @@ def update_schedule_item(delivery_user: User, schedule_item_id: int, completed: 
       ]
     ):
       order: Order = get_by_id(Order, item['order_id'])
+      if order.status != OrderStatus.SCHEDULED:
+        continue
       update(order, {'status': OrderStatus.BOOKING})
 
   return {'status': 'ok', 'message': 'Operazione completata'}
