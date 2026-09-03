@@ -26,6 +26,13 @@ EXTRA_ALLOWED_ORIGINS = [
 DATABASE_URL = os.environ['DATABASE_URL']
 LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
+
+# Leva manuale: nessuna colonna, nessuna migration. Si alza a mano (commit o
+# variabile d'ambiente) solo quando una build vecchia dell'app corrieri va
+# davvero bloccata, non a ogni release - vedi CI_PIPELINE_IID in
+# gitlab/build-android.yml e build-ios.yml del repo delivery-app, che e' lo
+# stesso numero letto da PackageInfo.buildNumber nell'app.
+DELIVERY_APP_MIN_BUILD_NUMBER = os.environ.get('DELIVERY_APP_MIN_BUILD_NUMBER', None)
 STATIC_FOLDER = os.environ.get(
   'STATIC_FOLDER', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
 )
@@ -72,3 +79,15 @@ def trigger_backup_folder():
 @swagger_decorator
 def checks_endpoint():
   return trigger_checks(STATIC_FOLDER)
+
+
+@app.route('/delivery-app/min-version', methods=['GET'])
+def delivery_app_min_version():
+  # Chiamata all'avvio, prima del login: nessuna autenticazione. Un valore
+  # non impostato o non numerico significa "nessuna soglia", non un errore -
+  # l'app dei corrieri non deve mai bloccarsi per una svista di configurazione.
+  try:
+    min_build_number = int(DELIVERY_APP_MIN_BUILD_NUMBER)
+  except (TypeError, ValueError):
+    min_build_number = None
+  return {'status': 'ok', 'min_build_number': min_build_number}

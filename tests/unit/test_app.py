@@ -1,5 +1,6 @@
 """Test delle route registrate direttamente sull'app (src/__init__.py, src/__main__.py)."""
 
+import src as app_module
 import src.__main__ as main_module
 from src.database.enum import UserRole
 
@@ -62,3 +63,35 @@ def test_checks_endpoint_without_swagger_key_is_denied(client, monkeypatch):
 
   # Senza SwaggerAuthorization valido lo swagger_decorator nega l'accesso
   assert response.get_json()['status'] == 'ko'
+
+
+def test_delivery_app_min_version_reads_configured_threshold(client, monkeypatch):
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER', '190')
+
+  response = client.get('/delivery-app/min-version')
+
+  assert response.get_json() == {'status': 'ok', 'min_build_number': 190}
+
+
+def test_delivery_app_min_version_defaults_to_none_when_unset(client, monkeypatch):
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER', None)
+
+  response = client.get('/delivery-app/min-version')
+
+  assert response.get_json() == {'status': 'ok', 'min_build_number': None}
+
+
+def test_delivery_app_min_version_ignores_a_non_numeric_value(client, monkeypatch):
+  # Fail open: una svista in configurazione (typo nella variabile d'ambiente)
+  # non deve mai tradursi in un'app bloccata per tutti i corrieri.
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER', 'non-un-numero')
+
+  response = client.get('/delivery-app/min-version')
+
+  assert response.get_json() == {'status': 'ok', 'min_build_number': None}
+
+
+def test_delivery_app_min_version_requires_no_authentication(client):
+  response = client.get('/delivery-app/min-version')
+
+  assert response.status_code == 200
