@@ -179,6 +179,7 @@ class Order(BaseItalcoEntity):
   completion_date = Column(Date)
   customer_note = Column(String)
   operator_note = Column(String)
+  motivation = Column(String)
   signature = Column(LargeBinary)
   mark = Column(Float)
 
@@ -191,7 +192,6 @@ class Order(BaseItalcoEntity):
   photo = relationship('Photo', back_populates='order', cascade='all, delete-orphan')
   product = relationship('Product', back_populates='order', cascade='all, delete-orphan')
   histories = relationship('History', back_populates='order', cascade='all, delete-orphan')
-  motivations = relationship('Motivation', back_populates='order', cascade='all, delete-orphan')
 
 
 class History(BaseItalcoEntity):
@@ -201,18 +201,6 @@ class History(BaseItalcoEntity):
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
 
   order = relationship('Order', back_populates='histories')
-
-
-class Motivation(BaseItalcoEntity):
-  __tablename__ = 'motivation'
-
-  text = Column(String)
-  delay = Column(Boolean, default=False)
-  anomaly = Column(Boolean, default=False)
-  status = Column(Enum(OrderStatus), nullable=False)
-  order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
-
-  order = relationship('Order', back_populates='motivations')
 
 
 class Schedule(BaseItalcoEntity):

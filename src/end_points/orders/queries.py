@@ -19,7 +19,6 @@ from ...database.schema import (
   Schedule,
   DeliveryGroup,
   CustomerGroup,
-  Motivation,
   ScheduleItem,
   ScheduleItemOrder,
   Transport,
@@ -175,11 +174,6 @@ def add_service(
 def get_order_photos(order_id: int) -> list[Photo]:
   with Session() as session:
     return session.query(Photo).filter(Photo.order_id == order_id).all()
-
-
-def get_motivations_by_order_id(order_id: int) -> list[Motivation]:
-  with Session() as session:
-    return session.query(Motivation).filter(Motivation.order_id == order_id).all()
 
 
 def get_selling_point(order: Order) -> User:

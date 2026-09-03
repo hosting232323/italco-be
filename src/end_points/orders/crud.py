@@ -11,7 +11,7 @@ from .services import create_products, update_products
 from database_api.operations import create, update, get_by_id, delete
 from .queries import query_orders, format_query_result
 from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus, ScheduleItemUserType
-from ...database.schema import User, Order, Motivation, DeliveryUserInfo, ServiceUser
+from ...database.schema import User, Order, DeliveryUserInfo, ServiceUser
 from .clone import format_data_cloning_order, update_cloned_order, query_products, reschedule_products
 from ..schedule.queries import (
   get_schedule_item_by_order,
@@ -25,7 +25,6 @@ NON_UPDATABLE_ORDER_FIELDS = frozenset(
   {
     'products',
     'user_id',
-    'motivation',
     'start_time_slot',
     'end_time_slot',
     'version',
@@ -119,22 +118,8 @@ def delete_order(user: User, order_id: int):
 
 
 def update_order(user: User, order: Order, data: dict, session, pending_sms: list = None):
-  is_delay = data['delay'] if 'delay' in data else False
+  motivation = data.get('motivation')
   schedule_item = get_schedule_item_by_order(order, session=session)
-  if 'motivation' in data:
-    motivation = create(
-      Motivation,
-      {
-        'delay': is_delay,
-        'order_id': data['id'],
-        'status': OrderStatus(data['status']),
-        'anomaly': data['anomaly'] if 'delay' in data else False,
-        'text': data['motivation'],
-      },
-      session=session,
-    )
-  else:
-    motivation = None
 
   if 'status' in data:
     data['status'] = OrderStatus(data['status'])

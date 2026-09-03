@@ -3,7 +3,7 @@ from database_api import Session
 from database_api.operations import create, get_by_id
 
 from src.database.enum import OrderStatus, OrderType, UserRole
-from src.database.schema import Motivation, Order, Photo, Product
+from src.database.schema import Order, Photo, Product
 
 from tests.unit.factories import (
   auth_header,
@@ -200,22 +200,18 @@ def test_update_order_endpoint_with_motivation_and_status(client):
   refreshed = get_by_id(Order, order.id)
   assert refreshed.status == OrderStatus.NOT_DELIVERED
   assert refreshed.completion_date is not None
-  with Session() as session:
-    motivation = session.query(Motivation).filter_by(order_id=order.id).one()
-    assert motivation.text == 'Cliente assente'
+  assert refreshed.motivation == 'Cliente assente'
 
 
-def test_delivery_details_returns_motivations_and_photos(client):
+def test_delivery_details_returns_photos(client):
   admin = create_user(UserRole.ADMIN)
   order = create_order()
-  create(Motivation, {'order_id': order.id, 'status': OrderStatus.NOT_DELIVERED, 'text': 'assente'})
   create(Photo, {'order_id': order.id, 'link': 'http://example.com/1.jpg'})
 
   response = client.get(f'/order/delivery-details/{order.id}', headers=auth_header(admin))
 
   body = response.get_json()
   assert body['status'] == 'ok'
-  assert len(body['motivations']) == 1
   assert body['photos'] == ['http://example.com/1.jpg']
 
 

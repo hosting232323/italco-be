@@ -31,6 +31,7 @@ def export_order(id, customer_id: int = None):
       addressee_contact=orders[0].get('addressee_contact', '/'),
       products=orders[0]['products'],
       note=orders[0].get('customer_note', '/'),
+      motivation=orders[0].get('motivation'),
       delivery_signature=delivery_signature,
       anomaly_signature=anomaly_signature,
       **company_context(),

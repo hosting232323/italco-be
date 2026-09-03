@@ -45,41 +45,43 @@
   </table>
 </div>
 
-<div style="page-break-before: always; -pdf-next-page: landscape;"></div>
-<div class="section">
-  <h2>Ordini</h2>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th style="width: 10%;">Id</th>
-        <th style="width: 14%;">Tipo</th>
-        <th style="width: 22%;">Destinatario</th>
-        <th style="width: 31%;">Prodotti e Servizi</th>
-        <th style="width: 23%;">Punto Vendita</th>
-        <th style="width: 23%;">Note</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for order in orders %}
-      <tr>
-        <td>{{ order.id }}</td>
-        <td>{{ order.type }}</td>
-        <td>{{ order.addressee }}<br>{{ order.address }}, {{ order.cap }}<br>{{ order.addressee_contact }}</td>
-        <td>
-          {% for product_name, product in order.products.items() %}
-            <strong>{{ product_name }}</strong>
-            {% if product.get('collection_point') %}[{{ product.collection_point.name }}]{% endif %}<br>
-            {{ service_list(product.services, inline=True) }}
-            <br>
-          {% endfor %}
-        </td>
-        <td>{{ order.user.nickname }}</td>
-        <td>{{ [order.customer_note, order.operator_note] | select | join(', ') or '/' }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+{% for page in order_pages %}
+  <div style="page-break-before: always;{% if loop.first %} -pdf-next-page: landscape;{% endif %}"></div>
+  <div class="section">
+    <h2>Ordini</h2>
+    <table class="data-table card-index" repeat="1">
+      <thead>
+        <tr>
+          <th style="width: 7%;">Id</th>
+          <th style="width: 8%;">Tipo</th>
+          <th style="width: 24%;">Destinatario</th>
+          <th style="width: 25%;">Prodotti e Servizi</th>
+          <th style="width: 10%;">P. V.</th>
+          <th style="width: 26%;">Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in page %}
+        <tr>
+          <td style="padding-bottom: 2px;">{{ order.id }}</td>
+          <td style="padding-bottom: 2px;">{{ order.type }}</td>
+          <td style="padding-bottom: 2px;">{{ order.addressee }}<br>{{ order.address }}, {{ order.cap }}<br>{{ order.addressee_contact }}</td>
+          <td style="padding-bottom: 2px;">
+            {% for product_name, product in order.products.items() %}
+              <strong>{{ product_name }}</strong>
+              {% if product.get('collection_point') %}[{{ product.collection_point.name }}]{% endif %}<br>
+              {{ service_list(product.services, inline=True) }}
+              <br>
+            {% endfor %}
+          </td>
+          <td style="padding-bottom: 2px;">{{ order.user.nickname }}</td>
+          <td style="padding-bottom: 2px;">{{ [order.customer_note, order.operator_note] | select | join(', ') or '/' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endfor %}
 {% for order in orders %}
   <div style="page-break-before: always;{% if loop.first %} -pdf-next-page: body;{% endif %}"></div>
   <h2>N° Ordine: {{ order.id }}</h2>

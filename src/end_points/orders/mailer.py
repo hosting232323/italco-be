@@ -9,7 +9,7 @@ from database_api import Session
 from .queries import get_order_photos
 from ... import STATIC_FOLDER
 from ...database.enum import OrderStatus
-from ...database.schema import Order, Motivation, User, CustomerUserInfo, ServiceUser, Product
+from ...database.schema import Order, User, CustomerUserInfo, ServiceUser, Product
 
 
 MAILS = (
@@ -27,7 +27,7 @@ def get_mails(order: Order):
     return list(set(MAILS + ([user_info.email] if user_info and user_info.email else [])))
 
 
-def mailer_check(order: Order, data: dict, motivation: Motivation):
+def mailer_check(order: Order, data: dict, motivation: str | None):
   if IS_DEV:
     return
 
@@ -51,7 +51,7 @@ def mailer_check(order: Order, data: dict, motivation: Motivation):
       icons.append('⚠')
       states.append('con anomalia')
 
-    motivation_text = motivation.text if motivation else 'Nessuna motivazione fornita'
+    motivation_text = motivation or 'Nessuna motivazione fornita'
     subject = f'{" ".join(icons)} Ordine {order.id} {order.addressee} {" ".join(states)}'
     text = (
       f'{" ".join(icons)} Ordine {order.id} {" ".join(states)}.\n'

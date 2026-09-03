@@ -7,7 +7,6 @@ from src.database.schema import (
   Constraint,
   CustomerRule,
   GeographicZone,
-  Motivation,
   Order,
   Photo,
   Product,
@@ -42,7 +41,7 @@ def test_seed_data_populates_all_domains(db):
     assert session.query(Order).count() == 20
     assert session.query(Product).count() == 20
     assert session.query(Photo).count() == 10
-    assert session.query(Motivation).count() == 10
+    assert session.query(Order).filter(Order.motivation.isnot(None)).count() == 10
 
     # 3 servizi professional + 10 standard
     assert session.query(Service).filter(Service.professional.is_(True)).count() == 3

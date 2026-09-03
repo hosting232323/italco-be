@@ -7,7 +7,6 @@ from src.database.schema import CustomerGroup, History
 from src.end_points.orders.queries import (
   format_query_result,
   get_all_histories_by_order_id,
-  get_motivations_by_order_id,
   get_order_by_external_id,
   get_order_by_external_id_and_customer,
   get_order_photos,
@@ -219,15 +218,13 @@ def test_query_service_users_filters_by_type_and_user(db):
   assert wrong_type == []
 
 
-def test_get_order_photos_and_motivations(db):
-  from src.database.schema import Motivation, Photo
+def test_get_order_photos(db):
+  from src.database.schema import Photo
 
   order = create_order()
   create(Photo, {'order_id': order.id, 'link': 'http://x/1.jpg'})
-  create(Motivation, {'order_id': order.id, 'status': OrderStatus.NOT_DELIVERED, 'text': 'm'})
 
   assert [photo.link for photo in get_order_photos(order.id)] == ['http://x/1.jpg']
-  assert [motivation.text for motivation in get_motivations_by_order_id(order.id)] == ['m']
 
 
 def test_get_selling_point_returns_customer(db):
