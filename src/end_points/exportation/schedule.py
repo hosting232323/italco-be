@@ -3,12 +3,22 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from ...database.schema import User, Order
-from .utils import get_signature, export_pdf, company_context
+from .utils import get_signature_slots, export_pdf, company_context
 from .rae import get_rae_export_info_by_order
 from database_api.operations import get_by_id
 from ..users.queries import format_user_with_info
 from ..orders.queries import query_orders, format_query_result as format_order_query_result
 from ..schedule.queries import query_schedules, format_query_result as format_schedule_query_result
+
+
+# Massimo ordini per pagina della tabella "Ordini": se il contenuto di un
+# gruppo non ci sta fisicamente su una pagina, xhtml2pdf continua da sola
+# sulla successiva (ripetendo l'intestazione, vedi repeat="1" nel template).
+ORDERS_PER_TABLE_PAGE = 5
+
+
+def _paginate(items: list, page_size: int) -> list[list]:
+  return [items[index : index + page_size] for index in range(0, len(items), page_size)]
 
 
 def export_schedule(user: User, id):
@@ -32,6 +42,9 @@ def export_schedule(user: User, id):
   for order in orders:
     order['rae_products'] = get_rae_export_info_by_order(order)
     order['customer'] = format_user_with_info(get_by_id(User, order['user']['id']), user.role)
+    delivery_signature, anomaly_signature = get_signature_slots(get_by_id(Order, order['id']))
+    order['delivery_signature'] = delivery_signature
+    order['anomaly_signature'] = anomaly_signature
 
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
@@ -41,7 +54,8 @@ def export_schedule(user: User, id):
       date=schedules[0]['date'],
       transport=schedules[0]['transport']['name'],
       users=', '.join([user['nickname'] for user in schedules[0]['users']]),
-      orders=[{**order, 'signature': get_signature(get_by_id(Order, order['id']))} for order in orders],
+      orders=orders,
+      order_pages=_paginate(orders, ORDERS_PER_TABLE_PAGE),
       **company_context(),
     ),
     dest=result,

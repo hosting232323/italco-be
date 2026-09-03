@@ -2,14 +2,13 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from database_api import Session
-from database_api.operations import create, delete
+from database_api.operations import delete
 
 from src.database.enum import OrderStatus, UserRole
 from src.database.schema import (
   DtrDocument,
   FirFirstDocument,
   FirFourthDocument,
-  Motivation,
   Product,
   User,
 )
@@ -65,13 +64,11 @@ def test_order_cascade_deletes_children(db):
   service_user = create_service_user(customer, service)
   order = create_order()
   product = create_product(order, service_user)
-  motivation = create(Motivation, {'order_id': order.id, 'status': OrderStatus.NOT_DELIVERED, 'text': 'assente'})
 
   delete(order)
 
   with Session() as session:
     assert session.query(Product).filter_by(id=product.id).count() == 0
-    assert session.query(Motivation).filter_by(id=motivation.id).count() == 0
 
 
 def test_user_cascade_deletes_service_links(db):

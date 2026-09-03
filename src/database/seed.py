@@ -16,7 +16,6 @@ from .schema import (
   DeliveryUserInfo,
   GeographicCode,
   GeographicZone,
-  Motivation,
   Order,
   Photo,
   Product,
@@ -334,34 +333,34 @@ def seed_company_data():
 
   orders = []
   for index in range(20):
-    orders.append(
-      create(
-        Order,
-        {
-          'status': OrderStatus.BOOKED,
-          'type': service_types[index % len(service_types)],
-          'addressee': f'Destinatario {index + 1}',
-          'address': f'Via Consegna {index + 1}, Bari',
-          'cap': '70020',
-          'dpc': today,
-          'drc': today,
-          'anomaly': index % 6 == 0,
-          'delay': index % 5 == 0,
-          'confirmed': True,
-          'floor': (index % 4) + 1,
-          'elevator': index % 3 != 0,
-          'addressee_contact': f'+39080000{index + 1:03d}',
-          'booking_date': today,
-          'confirmation_date': None,
-          'completion_date': None,
-          'customer_note': f'Nota cliente {index + 1}',
-          'operator_note': 'Ordine seed per pianificazione admin',
-          'mark': float((index % 5) + 1),
-          'external_id': f'PLAN-{1000 + index}',
-          'external_status': EuronicsStatus.CONFIRMED,
-        },
-      )
-    )
+    order_data = {
+      'status': OrderStatus.BOOKED,
+      'type': service_types[index % len(service_types)],
+      'addressee': f'Destinatario {index + 1}',
+      'address': f'Via Consegna {index + 1}, Bari',
+      'cap': '70020',
+      'dpc': today,
+      'drc': today,
+      'anomaly': index % 6 == 0,
+      'delay': index % 5 == 0,
+      'confirmed': True,
+      'floor': (index % 4) + 1,
+      'elevator': index % 3 != 0,
+      'addressee_contact': f'+39080000{index + 1:03d}',
+      'booking_date': today,
+      'confirmation_date': None,
+      'completion_date': None,
+      'customer_note': f'Nota cliente {index + 1}',
+      'operator_note': 'Ordine seed per pianificazione admin',
+      'mark': float((index % 5) + 1),
+      'external_id': f'PLAN-{1000 + index}',
+      'external_status': EuronicsStatus.CONFIRMED,
+    }
+    # Solo i primi 10 ordini hanno una motivazione, come le vecchie righe
+    # Motivation create sotto per gli stessi indici.
+    if index < 10:
+      order_data['motivation'] = f'Motivazione {index + 1}'
+    orders.append(create(Order, order_data))
 
     if index < 3:
       # For the first three, force linking to professional services
@@ -402,16 +401,6 @@ def seed_company_data():
         'order_id': orders[index].id,
       },
     )
-    create(
-      Motivation,
-      {
-        'text': f'Motivazione {index + 1}',
-        'delay': index % 2 == 0,
-        'anomaly': index % 3 == 0,
-        'status': OrderStatus.NOT_DELIVERED if index % 2 == 0 else OrderStatus.DELIVERED,
-        'order_id': orders[index].id,
-      },
-    )
 
 
 def can_create() -> bool:
@@ -424,7 +413,6 @@ def can_create() -> bool:
     DeliveryGroup,
     Transport,
     Order,
-    Motivation,
     Schedule,
     ScheduleItem,
     ScheduleItemOrder,

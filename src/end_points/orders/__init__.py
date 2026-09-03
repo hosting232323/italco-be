@@ -17,7 +17,7 @@ from .api import save_order_status_to_euronics
 from .. import flask_session_authentication
 from api import swagger_decorator
 from ..collection_point import query_collection_points_available
-from .queries import get_order_photos, get_motivations_by_order_id
+from .queries import get_order_photos
 from .crud import create_order, update_order, filter_orders, get_order, delete_order, update_order_customer
 
 
@@ -85,7 +85,6 @@ def update_order_customer_endpoint(user: User):
 def get_delivery_details(_, order_id: int):
   return {
     'status': 'ok',
-    'motivations': [m.to_dict() for m in get_motivations_by_order_id(order_id)],
     'photos': [photo.link for photo in get_order_photos(order_id)],
   }
 

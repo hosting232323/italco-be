@@ -14,10 +14,6 @@ from tests.unit.factories import (
 )
 
 
-class FakeMotivation:
-  text = 'Cliente assente'
-
-
 def test_mailer_check_is_disabled_in_dev(monkeypatch):
   monkeypatch.setattr(mailer, 'IS_DEV', True)
   calls = []
@@ -52,7 +48,7 @@ def test_mailer_check_sends_for_not_delivered(db, monkeypatch, tmp_path):
   order = create_order(status=OrderStatus.NOT_DELIVERED, customer_note='citofonare due volte')
   create(Photo, {'order_id': order.id, 'link': 'http://x/foto.jpg'})
 
-  mailer_check(order, {'status': OrderStatus.NOT_DELIVERED}, FakeMotivation())
+  mailer_check(order, {'status': OrderStatus.NOT_DELIVERED}, 'Cliente assente')
 
   assert len(sent) == len(mailer.MAILS)
   _, content, subject, attachments = sent[0]
