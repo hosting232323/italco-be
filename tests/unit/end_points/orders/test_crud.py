@@ -1,6 +1,6 @@
 import pytest
 
-from database_api import Session
+from database_api import Session, scope
 from database_api.operations import get_by_id
 
 from src.database.enum import OrderStatus, OrderType, ScheduleItemUserType, UserRole
@@ -13,14 +13,18 @@ from src.end_points.orders.crud import (
   update_order,
   update_order_customer,
 )
+from src.end_points.orders.services import InvalidOrderProductsError
 
 from tests.unit.factories import (
   create_delivery_group,
   create_delivery_info,
+  create_company,
   create_order,
   create_product,
   create_schedule,
   create_schedule_item_user,
+  create_service,
+  create_service_user,
   create_user,
   customer_with_service,
   link_order_to_schedule,
@@ -53,14 +57,28 @@ def test_create_order_builds_products(db):
     assert product.name == 'Frigo'
 
 
-def test_create_order_ignores_services_of_wrong_type(db):
+def test_create_order_rejects_services_of_wrong_type(db):
   customer, service, _, collection_point = customer_with_service(order_type=OrderType.WITHDRAW)
 
-  # L'ordine è di tipo Delivery ma il servizio è Withdraw: nessun prodotto creato
-  result = crud_create_order(customer, _payload(service, collection_point))
+  with pytest.raises(InvalidOrderProductsError, match='servizi selezionati'):
+    crud_create_order(customer, _payload(service, collection_point))
 
-  assert result['status'] == 'ok'
   with Session() as session:
+    assert session.query(Order).count() == 0
+    assert session.query(Product).count() == 0
+
+
+def test_create_order_rejects_products_from_another_company(db):
+  admin = create_user(UserRole.ADMIN)
+  other_company = create_company()
+  with scope(company_id=other_company.id):
+    customer, service, _, collection_point = customer_with_service()
+
+  with pytest.raises(InvalidOrderProductsError, match='servizi selezionati'):
+    crud_create_order(admin, _payload(service, collection_point, user_id=customer.id))
+
+  with Session() as session:
+    assert session.query(Order).count() == 0
     assert session.query(Product).count() == 0
 
 
@@ -296,6 +314,41 @@ def test_update_order_type_and_confirmed(db):
   assert refreshed.confirmed is True
   assert refreshed.confirmation_date is not None
   assert refreshed.external_status is None  # external_status viene scartato
+
+
+def test_update_order_type_replaces_product_using_new_service_type(db):
+  admin = create_user(UserRole.ADMIN)
+  customer, _, delivery_service_user, collection_point = customer_with_service()
+  check_service = create_service(OrderType.CHECK)
+  check_service_user = create_service_user(customer, check_service, price=20)
+  order = create_order(order_type=OrderType.DELIVERY)
+  create_product(order, delivery_service_user, name='Lavatrice')
+
+  with Session() as session:
+    order_in_session = session.get(Order, order.id)
+    update_order(
+      admin,
+      order_in_session,
+      {
+        'id': order.id,
+        'type': 'Check',
+        'user_id': customer.id,
+        'products': {
+          'Lavatrice..': {
+            'services': [{'id': check_service.id}],
+            'collection_point': {'id': collection_point.id},
+          }
+        },
+      },
+      session,
+    )
+    session.commit()
+
+  with Session() as session:
+    refreshed = session.get(Order, order.id)
+    products = session.query(Product).filter(Product.order_id == order.id).all()
+    assert refreshed.type == OrderType.CHECK
+    assert [(product.name, product.service_user_id) for product in products] == [('Lavatrice..', check_service_user.id)]
 
 
 def test_update_order_customer_requires_same_services(db):

@@ -1,4 +1,4 @@
-from ...database.enum import RaeStatus
+from ...database.enum import OrderType, RaeStatus
 from ..rae.product import create_rae_product
 from ...database.queries import is_rae_enabled
 from .clone import format_data_cloning_product
@@ -7,14 +7,25 @@ from database_api.operations import create, delete, get_by_id
 from ...database.schema import Order, Product, RaeProduct, ServiceUser, Schedule
 
 
+class InvalidOrderProductsError(ValueError):
+  pass
+
+
 def create_products(order: Order, products: dict, customer_user_id: int, cloned_order: bool, session):
   service_users = get_service_users(order, products, customer_user_id, session=session)
   for product in products.keys():
     create_product(product, products[product], order, service_users, session=session, cloned_order=cloned_order)
 
 
-def update_products(order: Order, products: dict, customer_user_id: int, schedule: Schedule, session=None):
-  service_users = get_service_users(order, products, customer_user_id, session=session)
+def update_products(
+  order: Order,
+  products: dict,
+  customer_user_id: int,
+  schedule: Schedule,
+  session=None,
+  order_type: OrderType = None,
+):
+  service_users = get_service_users(order, products, customer_user_id, session=session, order_type=order_type)
   old_products = query_products(order, session=session)
 
   for product in products.keys():
@@ -77,13 +88,35 @@ def create_product(
         break
 
 
-def get_service_users(order: Order, products: dict, user_id: int, session=None):
+def get_service_users(order: Order, products: dict, user_id: int, session=None, order_type: OrderType = None):
+  if not isinstance(products, dict) or not products:
+    raise InvalidOrderProductsError('Inserire almeno un prodotto con almeno un servizio.')
+
+  service_ids = []
+  for product_name, product in products.items():
+    services = product.get('services') if isinstance(product, dict) else None
+    if not isinstance(services, list) or not services:
+      raise InvalidOrderProductsError(f'Il prodotto "{product_name}" deve avere almeno un servizio.')
+
+    for service in services:
+      service_id = service.get('id') if isinstance(service, dict) else None
+      if not isinstance(service_id, int):
+        raise InvalidOrderProductsError(f'Il prodotto "{product_name}" contiene un servizio non valido.')
+      service_ids.append(service_id)
+
   # session=None esplicito non è passabile: db_session_decorator inietta il proprio
   # kwarg session mantenendo quelli originali, e i due collirebbero (TypeError).
   session_kwargs = {'session': session} if session is not None else {}
-  return query_service_users(
-    list(set(service['id'] for product in products.values() for service in product['services'])),
+  service_users = query_service_users(
+    list(set(service_ids)),
     user_id,
-    order.type,
+    order_type or order.type,
     **session_kwargs,
   )
+  available_service_ids = {service_user.service_id for service_user in service_users}
+  if set(service_ids) - available_service_ids:
+    raise InvalidOrderProductsError(
+      'Uno o più servizi selezionati non sono disponibili per il cliente o per il tipo di ordine.'
+    )
+
+  return service_users

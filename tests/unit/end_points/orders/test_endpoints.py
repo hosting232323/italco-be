@@ -2,13 +2,15 @@ import pytest
 from database_api import Session
 from database_api.operations import create, get_by_id
 
-from src.database.enum import OrderStatus, UserRole
-from src.database.schema import Motivation, Order, Photo
+from src.database.enum import OrderStatus, OrderType, UserRole
+from src.database.schema import Motivation, Order, Photo, Product
 
 from tests.unit.factories import (
   auth_header,
   create_order,
   create_product,
+  create_service,
+  create_service_user,
   create_user,
   customer_with_service,
 )
@@ -58,6 +60,36 @@ def test_create_order_as_admin_is_confirmed_and_booked(client):
   assert body['order']['status'] == 'Booked'
   assert body['order']['confirmed'] is True
   assert 'confirmation_date' in body['order']
+
+
+def test_create_order_rejects_empty_products(client, monkeypatch):
+  from api import hooks
+
+  telegram_errors = []
+  monkeypatch.setattr(hooks, 'send_telegram_error', telegram_errors.append)
+  customer, service, _, collection_point = customer_with_service()
+  payload = _order_payload(service, collection_point)
+  payload['products'] = {}
+
+  response = client.post('/order', json=payload, headers=auth_header(customer))
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Errore generico'}
+  assert len(telegram_errors) == 1
+  assert 'InvalidOrderProductsError' in telegram_errors[0]
+  with Session() as session:
+    assert session.query(Order).count() == 0
+
+
+def test_create_order_rejects_product_without_services(client):
+  customer, service, _, collection_point = customer_with_service()
+  payload = _order_payload(service, collection_point)
+  payload['products']['Lavatrice']['services'] = []
+
+  response = client.post('/order', json=payload, headers=auth_header(customer))
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Errore generico'}
+  with Session() as session:
+    assert session.query(Order).count() == 0
 
 
 def test_filter_orders_as_customer_sees_only_own_orders(client):
@@ -285,6 +317,38 @@ def test_update_order_endpoint_deletes_product(client):
   )
 
   assert response.get_json()['status'] == 'ok'
+
+
+def test_update_order_endpoint_keeps_product_when_replacement_service_is_invalid(client):
+  admin = create_user(UserRole.ADMIN)
+  customer, _, service_user, collection_point = customer_with_service()
+  wrong_type_service = create_service(OrderType.CHECK)
+  create_service_user(customer, wrong_type_service)
+  order = create_order()
+  old_product = create_product(order, service_user, name='Lavatrice')
+
+  response = client.put(
+    f'/order/{order.id}',
+    json={
+      'id': order.id,
+      'version': 0,
+      'user_id': customer.id,
+      'products': {
+        'Lavatrice..': {
+          'services': [{'id': wrong_type_service.id}],
+          'collection_point': {'id': collection_point.id},
+        }
+      },
+      'delay': False,
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ko'
+  with Session() as session:
+    assert session.get(Order, order.id).version == 0
+    products = session.query(Product).filter(Product.order_id == order.id).all()
+    assert [(product.id, product.name) for product in products] == [(old_product.id, 'Lavatrice')]
 
 
 def _query_token(role: UserRole) -> str:
