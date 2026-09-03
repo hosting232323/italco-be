@@ -62,7 +62,7 @@ def create_order(user: User, data: dict):
     order: Order = create(Order, clean_data, session=session)
     create_products(
       order,
-      data['products'],
+      data.get('products'),
       user.id if user.role == UserRole.CUSTOMER else data['user_id'],
       cloned_order,
       session=session,
@@ -162,6 +162,7 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
         user.id if user.role == UserRole.CUSTOMER else data['user_id'],
         get_schedule_by_order(order.id, session=session) if schedule_item else None,
         session,
+        order_type=data.get('type', order.type),
       )
     if 'status' in data and data['status'] == OrderStatus.TO_RESCHEDULE and order.status != OrderStatus.TO_RESCHEDULE:
       reschedule_products(order, data['products'], session)
