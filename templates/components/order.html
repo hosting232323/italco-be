@@ -3,53 +3,79 @@
   {%- for service in services -%}
     {%- set _ = counter.update({ service.name: (counter.get(service.name, 0) + 1) }) -%}
   {%- endfor -%}
+  {%- set items = [] -%}
   {%- for name, count in counter.items() -%}
     {%- if count > 3 -%}
-      {%- if inline -%}{{ name }} x{{ count }}<br>
-      {%- else -%}<li>{{ name }} x{{ count }}</li>
-      {%- endif -%}
+      {%- set _ = items.append(name ~ ' x' ~ count) -%}
     {%- else -%}
       {%- for i in range(count) -%}
-        {%- if inline -%}{{ name }}<br>
-        {%- else -%}<li>{{ name }}</li>
-        {%- endif -%}
+        {%- set _ = items.append(name) -%}
       {%- endfor -%}
     {%- endif -%}
   {%- endfor -%}
+  {%- if inline -%}
+    {{ items | map('e') | join('<br>' | safe) }}
+  {%- else -%}
+    {%- for item in items -%}<li>{{ item }}</li>{%- endfor -%}
+  {%- endif -%}
 {% endmacro %}
 
-{% macro info_table(title, rows) %}
-<div class="section">
-  <h2>{{ title }}</h2>
+{% macro dual_info_table(left_rows, right_rows, section_style=None) %}
+{% set row_count = [left_rows|length, right_rows|length]|max %}
+<div class="section"{% if section_style %} style="{{ section_style }}"{% endif %}>
   <table class="info-table">
-    {% for label, value in rows %}
+    {% for i in range(row_count) %}
       <tr>
-        <td class="label">{{ label }}</td>
-        <td>{{ value or '/' }}</td>
+        {% if i < left_rows|length and i < right_rows|length %}
+          <td class="label" style="width: 20%; padding: 5px 8px 3px;">{{ left_rows[i][0] }}</td>
+          <td style="width: 30%; padding: 5px 8px 3px;">{{ left_rows[i][1] or '/' }}</td>
+          <td class="label" style="width: 20%; padding: 5px 8px 3px;">{{ right_rows[i][0] }}</td>
+          <td style="width: 30%; padding: 5px 8px 3px;">{{ right_rows[i][1] or '/' }}</td>
+        {% elif i < left_rows|length %}
+          <td class="label" style="width: 20%; padding: 5px 8px 3px;">{{ left_rows[i][0] }}</td>
+          <td colspan="3" style="padding: 5px 8px 3px;">{{ left_rows[i][1] or '/' }}</td>
+        {% else %}
+          <td class="label" style="width: 20%; padding: 5px 8px 3px;">{{ right_rows[i][0] }}</td>
+          <td colspan="3" style="padding: 5px 8px 3px;">{{ right_rows[i][1] or '/' }}</td>
+        {% endif %}
       </tr>
     {% endfor %}
   </table>
 </div>
 {% endmacro %}
 
-{% macro products_table(products) %}
-<div class="section">
-  <h2>Prodotti e Servizi</h2>
+{% macro info_table(title, rows, cell_padding=None, heading_style=None, section_style=None) %}
+<div class="section"{% if section_style %} style="{{ section_style }}"{% endif %}>
+  <h2{% if heading_style %} style="{{ heading_style }}"{% endif %}>{{ title }}</h2>
+  <table class="info-table">
+    {% for label, value in rows %}
+      <tr>
+        <td class="label"{% if cell_padding %} style="padding: {{ cell_padding }};"{% endif %}>{{ label }}</td>
+        <td{% if cell_padding %} style="padding: {{ cell_padding }};"{% endif %}>{{ value or '/' }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endmacro %}
+
+{% macro products_table(products, cell_padding=None, heading_style=None, section_style=None) %}
+<div class="section"{% if section_style %} style="{{ section_style }}"{% endif %}>
+  <h2{% if heading_style %} style="{{ heading_style }}"{% endif %}>Prodotti e Servizi</h2>
   <table class="data-table">
     <thead>
       <tr>
-        <th>Prodotto</th>
-        <th>Servizi associati</th>
+        <th{% if cell_padding %} style="padding: {{ cell_padding }};"{% endif %}>Prodotto</th>
+        <th{% if cell_padding %} style="padding: {{ cell_padding }};"{% endif %}>Servizi associati</th>
       </tr>
     </thead>
     <tbody>
       {% for product_name, product in products.items() %}
       <tr>
-        <td>
+        <td{% if cell_padding %} style="padding: {{ cell_padding }};"{% endif %}>
           {{ product_name }}
           {% if product.get('collection_point') %}[{{ product.collection_point.name }}]{% endif %}
         </td>
-        <td>
+        <td{% if cell_padding %} style="padding: {{ cell_padding }};"{% endif %}>
           <ul style="margin: 0; padding-left: 16px;">
             {{ service_list(product.services) }}
           </ul>
@@ -61,28 +87,34 @@
 </div>
 {% endmacro %}
 
-{% macro signature_row(signature=None) %}
-<table class="info-table" style="margin-bottom: 14px;">
+{% macro signature_row(signature=None, margin_bottom="14px") %}
+<table class="info-table" style="margin-top: 0; margin-bottom: {{ margin_bottom }};">
   <tr>
     <td style="width: 50%; border: none; padding-left: 0; padding-right: 5px;">
-      <table style="width: 100%; border-collapse: collapse;">
+      <table style="width: 100%; border-collapse: collapse; margin: 0;">
         <tr>
-          <td style="border: 1px solid #999; padding: 8px; height: 93px; vertical-align: top; font-size: 13px;">
+          <td style="border: 1px solid #999; padding: 8px; height: 60px; vertical-align: top; font-size: 13px;">
             <em>Firma trasportatore</em>
           </td>
         </tr>
       </table>
     </td>
     <td style="width: 50%; border: none; padding-left: 5px; padding-right: 0;">
-      <table style="width: 100%; border-collapse: collapse;">
+      <table style="width: 100%; border-collapse: collapse; margin: 0;">
         <tr>
-          <td style="border: 1px solid #999; padding: 8px; height: 93px; vertical-align: top; font-size: 13px;">
-            <em>Firma destinatario</em>
-            {% if signature %}
-              <br>
-              <img src="{{ signature }}" style="width: 80px; height: 40px;">
-            {% endif %}
-          </td>
+          {% if signature %}
+            <td style="border: 1px solid #999; border-right: none; padding: 8px 4px 8px 8px; height: 60px; vertical-align: top; font-size: 13px; width: 35%;">
+              <em>Firma destinatario</em>
+            </td>
+            <td style="border-top: 1px solid #999; border-bottom: 1px solid #999; border-left: none; border-right: none; padding: 8px 4px; height: 60px; vertical-align: top; width: 19%;">
+              <img src="{{ signature }}" style="width: 60px; height: 26px; border: none;">
+            </td>
+            <td style="border: 1px solid #999; border-left: none; height: 60px; width: 46%;"></td>
+          {% else %}
+            <td style="border: 1px solid #999; padding: 8px; height: 60px; vertical-align: top; font-size: 13px;">
+              <em>Firma destinatario</em>
+            </td>
+          {% endif %}
         </tr>
       </table>
     </td>
@@ -90,18 +122,20 @@
 </table>
 {% endmacro %}
 
-{% macro order_export_signatures(delivery_signature=None, anomaly_signature=None, motivation=None) %}
+{% macro order_export_signatures(delivery_signature=None, anomaly_signature=None, motivation=None, heading_style=None, block_gap=None) %}
+{% set p1_style = 'text-align: justify; margin-top: 0; margin-bottom: 0;' if block_gap else 'text-align: justify; margin-top: 0;' %}
+{% set p2_style = 'text-align: justify; margin-top: 0; margin-bottom: ' ~ block_gap ~ ';' if block_gap else 'text-align: justify;' %}
+{% set table_gap = block_gap if block_gap else '14px' %}
 <div class="section">
-  <h2>Firme</h2>
+  <h2{% if heading_style %} style="{{ heading_style }}"{% endif %}>Alla cortese attenzione del Destinatario</h2>
 
-  <p style="text-align: center; text-decoration: underline; margin-bottom: 8px;">Alla cortese attenzione del Destinatario</p>
-  <p style="text-align: justify; margin-top: 0;">Con la firma il destinatario dichiara che i prodotti sono integri e di aver ricevuto i servizi previsti e descritti nella sezione &ldquo;Prodotti e Servizi&rdquo;.</p>
+  <p style="{{ p1_style }}">Con la firma il destinatario dichiara che i prodotti sono integri e di aver ricevuto i servizi previsti e descritti nella sezione &ldquo;Prodotti e Servizi&rdquo;.</p>
 
-  {{ signature_row(delivery_signature) }}
+  {{ signature_row(delivery_signature, margin_bottom=table_gap) }}
 
-  <p style="text-align: justify;">Nel caso in cui alcuni o tutti i prodotti o servizi non siano stati consegnati o eseguiti, vi chiediamo di volere fare apposita segnalazione nello &ldquo;Spazio riservato alle note per anomalie&rdquo;.</p>
+  <p style="{{ p2_style }}">Nel caso in cui alcuni o tutti i prodotti o servizi non siano stati consegnati o eseguiti, vi chiediamo di volere fare apposita segnalazione nello &ldquo;Spazio riservato alle note per anomalie&rdquo;.</p>
 
-  <table style="width: 100%; border-collapse: collapse; margin-bottom: 14px;">
+  <table style="width: 100%; border-collapse: collapse; margin-top: 0; margin-bottom: {{ table_gap }};">
     {% if motivation %}
       <tr>
         <td style="border: 1px solid #999; border-bottom: none; padding: 8px 8px 4px; vertical-align: top; text-align: center; font-size: 13px;">
@@ -122,29 +156,27 @@
     {% endif %}
   </table>
 
-  {{ signature_row(anomaly_signature) }}
+  {{ signature_row(anomaly_signature, margin_bottom=table_gap) }}
 </div>
 {% endmacro %}
 
 {% macro order_block(order) %}
 
-{{ info_table("Informazioni", [
+{{ dual_info_table([
   ("Committente", order.user.nickname),
   ("Destinatario", order.addressee),
   ("Indirizzo", order.address),
   ("Recapito", order.addressee_contact),
   ("Note", order.customer_note)
-]) }}
-
-{{ info_table("Dettagli Consegna", [
+], [
   ("Data prevista consegna", order.dpc),
   ("Data richiesta consegna", order.drc),
   ("Data consegna effettiva", order.booking_date),
   ("Note aggiuntive", order.operator_note)
-]) }}
+], section_style="margin-bottom: 16px;") }}
 
-{{ products_table(order.products) }}
+{{ products_table(order.products, cell_padding="5px 8px 3px", heading_style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;", section_style="margin-bottom: 16px;") }}
 
-{{ order_export_signatures(order.delivery_signature, order.anomaly_signature, order.motivation) }}
+{{ order_export_signatures(order.delivery_signature, order.anomaly_signature, order.motivation, heading_style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;", block_gap="16px") }}
 
 {% endmacro %}
