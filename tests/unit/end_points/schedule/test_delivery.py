@@ -88,6 +88,36 @@ def test_update_schedule_item_completes_order_when_collection_points_done(db):
   assert get_by_id(Order, order.id).status == OrderStatus.BOOKING
 
 
+def test_update_schedule_item_does_not_reopen_already_closed_order(db):
+  customer, _, service_user, _ = customer_with_service()
+  delivery, schedule = _delivery_with_schedule()
+
+  # Punto di ritiro del mattino, già completato: l'ordine collegato è già stato consegnato.
+  early_cp = create_collection_point(customer)
+  early_cp_item = create_schedule_item(schedule, ScheduleType.COLLECTIONPOINT, index=0, completed=True)
+  create(ScheduleItemCollectionPoint, {'schedule_item_id': early_cp_item.id, 'collection_point_id': early_cp.id})
+
+  delivered_order = create_order(status=OrderStatus.DELIVERED)
+  create_product(delivered_order, service_user, collection_point_id=early_cp.id)
+  link_order_to_schedule(delivered_order, schedule, index=1)
+
+  # Secondo punto di ritiro, pomeridiano, non ancora completato: appartiene a un altro ordine del giro.
+  late_cp = create_collection_point(customer)
+  late_cp_item = create_schedule_item(schedule, ScheduleType.COLLECTIONPOINT, index=2)
+  create(ScheduleItemCollectionPoint, {'schedule_item_id': late_cp_item.id, 'collection_point_id': late_cp.id})
+
+  scheduled_order = create_order(status=OrderStatus.SCHEDULED)
+  create_product(scheduled_order, service_user, collection_point_id=late_cp.id)
+  link_order_to_schedule(scheduled_order, schedule, index=3)
+
+  # Il corriere completa solo il ritiro pomeridiano: non deve toccare l'ordine già consegnato al mattino.
+  result = update_schedule_item(delivery, late_cp_item.id, True)
+
+  assert result['status'] == 'ok'
+  assert get_by_id(Order, delivered_order.id).status == OrderStatus.DELIVERED
+  assert get_by_id(Order, scheduled_order.id).status == OrderStatus.BOOKING
+
+
 def test_update_schedule_item_keeps_order_when_collection_point_pending(db):
   customer, _, service_user, _ = customer_with_service()
   collection_point = create_collection_point(customer)
