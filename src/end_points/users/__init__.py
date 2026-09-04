@@ -5,7 +5,6 @@ from flask import Blueprint, request
 from ...database.enum import UserRole
 from .session import get_token_payload, refresh_access_token_response, replace_access_token
 from .. import auth, flask_session_authentication
-from api.users.auth import TRANSPORT_HEADER
 from api.users.security import hash_password, verify_password
 from ...database.queries import get_user_by_nickname
 from database_api.operations import delete, get_by_id, create, update
@@ -77,14 +76,6 @@ def login():
   user: User = get_user_by_nickname(request.json['email'])
   if not user or user.nickname != request.json['email']:
     return {'status': 'ko', 'message': 'Credenziali errate'}
-
-  # Il ruolo Delivery vive solo nell'app mobile, che dichiara sempre il
-  # trasporto bearer (vedi TRANSPORT_HEADER in generic-lib). Il gestionale
-  # web non lo dichiara mai: è lo stesso segnale che la libreria usa per
-  # instradare il refresh token, qui basta per bloccare l'accesso web che
-  # il frontend (refactor/drop-delivery-web-ui) non offre più.
-  if user.role == UserRole.DELIVERY and request.headers.get(TRANSPORT_HEADER, '').strip().lower() != 'bearer':
-    return {'status': 'ko', 'message': "Accesso Delivery non disponibile dal gestionale: usa l'app Ares Delivery"}
 
   def verify(fresh: User, session) -> bool:
     # Verifica sotto lo stesso lock che crea la sessione, così un reset
