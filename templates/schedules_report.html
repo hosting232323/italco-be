@@ -12,21 +12,21 @@
   ("Data", date),
   ("Utenti Delivery", users),
   ("Veicolo", transport)
-]) }}
+], cell_padding="5px 8px 3px", heading_style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;", section_style="margin-bottom: 16px;") }}
 
-<div class="section">
-  <h2>Distanza</h2>
+<div class="section" style="margin-bottom: 16px;">
+  <h2 style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;">Distanza</h2>
   <table class="data-table">
     <thead>
       <tr>
-        <th style="width: 50%;">KM Inizio</th>
-        <th style="width: 50%;">KM Fine</th>
+        <th style="width: 50%; padding: 5px 8px 3px;">KM Inizio</th>
+        <th style="width: 50%; padding: 5px 8px 3px;">KM Fine</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
+        <td style="padding: 5px 8px 3px;">&nbsp;</td>
+        <td style="padding: 5px 8px 3px;">&nbsp;</td>
       </tr>
     </tbody>
   </table>
@@ -48,34 +48,34 @@
 {% for page in order_pages %}
   <div style="page-break-before: always;{% if loop.first %} -pdf-next-page: landscape;{% endif %}"></div>
   <div class="section">
-    <h2>Ordini</h2>
+    <h2 style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;">Ordini</h2>
     <table class="data-table card-index" repeat="1">
       <thead>
         <tr>
-          <th style="width: 7%;">Id</th>
-          <th style="width: 8%;">Tipo</th>
-          <th style="width: 24%;">Destinatario</th>
-          <th style="width: 25%;">Prodotti e Servizi</th>
-          <th style="width: 10%;">P. V.</th>
-          <th style="width: 26%;">Note</th>
+          <th style="width: 7%; padding: 4px 5px 2px;">Id</th>
+          <th style="width: 8%; padding: 4px 5px 2px;">Tipo</th>
+          <th style="width: 24%; padding: 4px 5px 2px;">Destinatario</th>
+          <th style="width: 25%; padding: 4px 5px 2px;">Prodotti e Servizi</th>
+          <th style="width: 10%; padding: 4px 5px 2px;">P. V.</th>
+          <th style="width: 26%; padding: 4px 5px 2px;">Note</th>
         </tr>
       </thead>
       <tbody>
         {% for order in page %}
         <tr>
-          <td style="padding-bottom: 2px;">{{ order.id }}</td>
-          <td style="padding-bottom: 2px;">{{ order.type }}</td>
-          <td style="padding-bottom: 2px;">{{ order.addressee }}<br>{{ order.address }}, {{ order.cap }}<br>{{ order.addressee_contact }}</td>
-          <td style="padding-bottom: 2px;">
+          <td style="padding: 4px 5px 2px;">{{ order.id }}</td>
+          <td style="padding: 4px 5px 2px;">{{ order.type }}</td>
+          <td style="padding: 4px 5px 2px;">{{ order.addressee }}<br>{{ order.address }}, {{ order.cap }}<br>{{ order.addressee_contact }}</td>
+          <td style="padding: 4px 5px 2px;">
             {% for product_name, product in order.products.items() %}
               <strong>{{ product_name }}</strong>
               {% if product.get('collection_point') %}[{{ product.collection_point.name }}]{% endif %}<br>
               {{ service_list(product.services, inline=True) }}
-              <br>
+              {% if not loop.last %}<br>{% endif %}
             {% endfor %}
           </td>
-          <td style="padding-bottom: 2px;">{{ order.user.nickname }}</td>
-          <td style="padding-bottom: 2px;">{{ [order.customer_note, order.operator_note] | select | join(', ') or '/' }}</td>
+          <td style="padding: 4px 5px 2px;">{{ order.user.nickname }}</td>
+          <td style="padding: 4px 5px 2px;">{{ [order.customer_note, order.operator_note] | select | join(', ') or '/' }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -84,7 +84,7 @@
 {% endfor %}
 {% for order in orders %}
   <div style="page-break-before: always;{% if loop.first %} -pdf-next-page: body;{% endif %}"></div>
-  <h2>N° Ordine: {{ order.id }}</h2>
+  <h1 style="margin-bottom: 6px;">N° Ordine: {{ order.id }}</h1>
 
   {{ order_block(order) }}
 
