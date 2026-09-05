@@ -23,7 +23,7 @@
   ("Indirizzo", customer.customer_user_info.address)
 ]) }}
 
-<div class="section">
+<div class="rae-section">
   <h2 class="rae-h2">Trasportatore del rifiuto (RAEE)</h2>
   <table class="rae-info-table">
     <tr>
@@ -53,7 +53,7 @@
   )
 ]) }}
 
-<div class="section">
+<div class="rae-section">
   <h2 class="rae-h2">Destinatario finale</h2>
   <table class="rae-info-table">
     <tr>
@@ -86,7 +86,7 @@
   ("Quantità", rae_product.quantity)
 ]) }}
 
-<div class="section">
+<div class="rae-section">
   <table class="rae-info-table">
     <tr>
       <td class="label" colspan="2">FIRMA UTENTE</td><td colspan="2">&nbsp;</td>
@@ -101,7 +101,7 @@
 {% endmacro %}
 
 {% macro info_table(title, rows) %}
-<div class="section">
+<div class="rae-section">
   <h2 class="rae-h2">{{ title }}</h2>
   <table class="rae-info-table">
     {% for label, value in rows %}
