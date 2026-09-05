@@ -51,16 +51,15 @@ class Company(BaseEntity):
   # Dati legali dell'attività, stampati nei PDF al posto dei valori un tempo
   # scritti a mano nei template. A DB restano tutti nullable: l'unico vincolo
   # NOT NULL di company è name, e l'obbligatorietà (legal_name/address/city
-  # sempre, i due campi rae_ solo con modulo RAEE acceso) la impone l'endpoint,
-  # come già fa per name. tax_code e logo sono opzionali anche lì.
+  # sempre) la impone l'endpoint, come già fa per name. tax_code e logo sono
+  # opzionali anche lì. I dati RAE (iscrizione Albo/luogo di raggruppamento)
+  # vivono ora su RaeDisposalPlace: una company può avere N luoghi.
   logo = Column(String)
   legal_name = Column(String)
   vat_number = Column(String)
   tax_code = Column(String)
   address = Column(String)
   city = Column(String)
-  rae_registration = Column(String)
-  rae_grouping_place = Column(String)
 
 
 class User(BaseItalcoEntity):
@@ -462,6 +461,20 @@ class CollectionCenter(BaseEntity):
   disposals = relationship('Disposal', back_populates='collection_center')
 
 
+class RaeDisposalPlace(BaseItalcoEntity):
+  __tablename__ = 'rae_disposal_place'
+
+  # Dati un tempo su company (rae_registration/rae_grouping_place), ora per
+  # luogo: un'attività può smaltire da più sedi, ciascuna con la propria
+  # iscrizione all'Albo Gestori Ambientali. Nullable a DB come le altre
+  # anagrafiche legali: l'obbligatorietà la impone l'endpoint.
+  name = Column(String)
+  rae_registration = Column(String)
+  rae_grouping_place = Column(String)
+
+  disposals = relationship('Disposal', back_populates='rae_disposal_place')
+
+
 class Disposal(BaseItalcoEntity):
   __tablename__ = 'disposal'
 
@@ -471,10 +484,12 @@ class Disposal(BaseItalcoEntity):
 
   carrier_id = Column(Integer, ForeignKey('carrier.id'), nullable=False)
   collection_center_id = Column(Integer, ForeignKey('collection_center.id'), nullable=False)
+  rae_disposal_place_id = Column(Integer, ForeignKey('rae_disposal_place.id'), nullable=False)
 
   carrier = relationship('Carrier', back_populates='disposals')
   rae_products = relationship('RaeProduct', back_populates='disposal')
   collection_center = relationship('CollectionCenter', back_populates='disposals')
+  rae_disposal_place = relationship('RaeDisposalPlace', back_populates='disposals')
   fir_first_documents = relationship('FirFirstDocument', back_populates='disposal', cascade='all, delete-orphan')
   fir_fourth_documents = relationship('FirFourthDocument', back_populates='disposal', cascade='all, delete-orphan')
 

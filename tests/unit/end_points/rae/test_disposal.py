@@ -12,6 +12,7 @@ from tests.unit.factories import (
   create_collection_center,
   create_disposal,
   create_order,
+  create_rae_disposal_place,
   create_rae_product,
   create_rae_product_group,
   create_user,
@@ -31,6 +32,7 @@ def test_create_disposal_links_rae_products(client):
   operator = create_user(UserRole.OPERATOR)
   carrier = create_carrier()
   center = create_collection_center()
+  place = create_rae_disposal_place()
   customer = create_user(UserRole.CUSTOMER)
   rae_product = create_rae_product(create_order(), customer, status=RaeStatus.LDR)
 
@@ -41,6 +43,7 @@ def test_create_disposal_links_rae_products(client):
       'code': 'SM-1',
       'carrier_id': carrier.id,
       'collection_center_id': center.id,
+      'rae_disposal_place_id': place.id,
       'rae_product_ids': [rae_product.id],
     },
     headers=auth_header(operator),

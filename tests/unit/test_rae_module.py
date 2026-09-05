@@ -9,17 +9,19 @@ import pytest
 from api.users.security import hash_password
 
 from database_api import Session, scope
-from database_api.operations import update
+from database_api.operations import get_by_id, update
 
 from src.database.enum import UserRole
 from src.database.queries import is_rae_enabled
 from src.database.schema import Company, RaeProduct
+from src.end_points.company import RAE_WITHOUT_PLACE_ERROR
 from src.end_points.orders.services import create_products
 
 from tests.unit.factories import (
   auth_header,
   create_company,
   create_order,
+  create_rae_disposal_place,
   create_rae_product_group,
   create_super_admin,
   create_user,
@@ -29,15 +31,12 @@ from tests.unit.factories import (
 
 RAE_OFF_MESSAGE = 'Modulo RAEE non attivo per questa attività'
 
-# Dati legali obbligatori in creazione: legal_name/vat_number/address/city
-# sempre, i due campi rae_ solo quando l'attività nasce con il modulo acceso.
+# Dati legali obbligatori in creazione: legal_name/vat_number/address/city.
 LEGAL_PAYLOAD = {
   'legal_name': 'Attività SRL',
   'vat_number': '11122233344',
   'address': 'Via Test 1',
   'city': 'Bari (BA)',
-  'rae_registration': 'RD000S00000000 del 01/01/26',
-  'rae_grouping_place': 'Via Deposito 1, Bari (BA)',
 }
 
 
@@ -51,7 +50,9 @@ def test_new_company_starts_without_the_module(db):
   assert create_company().rae is False
 
 
-def test_super_admin_creates_a_company_with_the_module_on(db, client):
+def test_creating_a_company_with_the_module_on_is_refused(db, client):
+  """Una company appena creata non ha ancora un luogo di smaltimento: non
+  può nascere con rae=true, non essendoci nulla su cui attivarlo."""
   super_admin = create_super_admin()
 
   body = client.post(
@@ -64,6 +65,33 @@ def test_super_admin_creates_a_company_with_the_module_on(db, client):
       **LEGAL_PAYLOAD,
     },
     headers=auth_header(super_admin),
+  ).get_json()
+
+  assert body['status'] == 'ko'
+  assert body['message'] == RAE_WITHOUT_PLACE_ERROR
+
+
+def test_switching_the_module_on_requires_a_disposal_place(db, client):
+  super_admin = create_super_admin()
+  company = create_company()
+
+  refused = client.put(
+    f'/company/{company.id}', json={'name': company.name, 'rae': True}, headers=auth_header(super_admin)
+  ).get_json()
+
+  assert refused['status'] == 'ko'
+  assert refused['message'] == RAE_WITHOUT_PLACE_ERROR
+  assert get_by_id(Company, company.id).rae is False
+
+
+def test_switching_the_module_on_succeeds_once_a_disposal_place_exists(db, client):
+  super_admin = create_super_admin()
+  company = create_company()
+  with scope(company_id=company.id):
+    create_rae_disposal_place()
+
+  body = client.put(
+    f'/company/{company.id}', json={'name': company.name, 'rae': True}, headers=auth_header(super_admin)
   ).get_json()
 
   assert body['status'] == 'ok'
@@ -93,6 +121,8 @@ def test_company_created_without_the_flag_has_it_off(db, client):
 def test_super_admin_switches_the_module(db, client):
   super_admin = create_super_admin()
   company = create_company()
+  with scope(company_id=company.id):
+    create_rae_disposal_place()
 
   turned_on = client.put(
     f'/company/{company.id}', json={'name': company.name, 'rae': True}, headers=auth_header(super_admin)
@@ -159,6 +189,7 @@ def test_login_carries_the_flag_to_the_frontend(db, client):
     ('get', '/rae/collection-center'),
     ('get', '/rae/disposal'),
     ('post', '/rae/disposal'),
+    ('get', '/rae/disposal-place'),
     ('get', '/export/rae/1'),
     ('get', '/export/rae/product/1'),
     ('get', '/export/disposal/1/attached-1'),

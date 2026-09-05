@@ -1,9 +1,11 @@
 """Endpoint company: dati legali stampati nei PDF e logo aziendale.
 
-legal_name/vat_number/address/city sono sempre obbligatori in creazione; i due
-campi rae_ lo diventano solo con il modulo RAEE acceso. tax_code e logo restano
-opzionali. In modifica la validazione tocca solo i campi che arrivano, così un
-rename non deve rispedire l'anagrafica intera.
+legal_name/vat_number/address/city sono sempre obbligatori in creazione.
+tax_code e logo restano opzionali. In modifica la validazione tocca solo i
+campi che arrivano, così un rename non deve rispedire l'anagrafica intera.
+
+Il modulo RAEE (rae=true) richiede almeno un RaeDisposalPlace: si prova in
+test_rae_module.py, insieme al resto del comportamento del flag.
 """
 
 import os
@@ -27,10 +29,6 @@ BASE_LEGAL = {
   'vat_number': '11122233344',
   'address': 'Via Test 1',
   'city': 'Bari (BA)',
-}
-RAE_LEGAL = {
-  'rae_registration': 'RD000S00000000 del 01/01/26',
-  'rae_grouping_place': 'Via Deposito 1, Bari (BA)',
 }
 
 
@@ -72,15 +70,6 @@ def test_create_company_requires_vat_number(db, client):
   assert 'Partita IVA' in body['message']
 
 
-def test_create_company_with_rae_requires_rae_legal_fields(db, client):
-  super_admin = create_super_admin()
-
-  body = client.post('/company', json=_create_payload(rae=True), headers=auth_header(super_admin)).get_json()
-
-  assert body['status'] == 'ko'
-  assert 'Luogo di raggruppamento RAEE' in body['message']
-
-
 def test_create_company_persists_legal_fields_with_optional_tax_code_empty(db, client):
   super_admin = create_super_admin()
 
@@ -94,20 +83,16 @@ def test_create_company_persists_legal_fields_with_optional_tax_code_empty(db, c
   assert company.tax_code is None
 
 
-def test_create_company_with_rae_and_full_legal_data(db, client):
+def test_create_company_persists_optional_tax_code(db, client):
   super_admin = create_super_admin()
 
   body = client.post(
-    '/company',
-    json=_create_payload(rae=True, tax_code='02735550747', **RAE_LEGAL),
-    headers=auth_header(super_admin),
+    '/company', json=_create_payload(tax_code='02735550747'), headers=auth_header(super_admin)
   ).get_json()
 
   assert body['status'] == 'ok'
   company = get_by_id(Company, body['company']['id'])
   assert company.tax_code == '02735550747'
-  assert company.rae_registration == 'RD000S00000000 del 01/01/26'
-  assert company.rae_grouping_place == 'Via Deposito 1, Bari (BA)'
 
 
 def test_create_company_stores_logo(db, client, monkeypatch):

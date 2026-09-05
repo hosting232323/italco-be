@@ -12,6 +12,7 @@ from ...database.schema import (
   Disposal,
   Order,
   Product,
+  RaeDisposalPlace,
   RaeProduct,
   DtrDocument,
   RaeProductGroup,
@@ -143,3 +144,22 @@ def get_disposal_for_export(disposal_id: int, session: session_type = None) -> d
     'carrier': carrier.to_dict(),
     'collection_center': collection_center.to_dict(),
   }
+
+
+@db_session_decorator(commit=False)
+def get_disposal_places_by_disposal_ids(disposal_ids: set[int], session: session_type = None) -> dict[int, dict]:
+  """Luogo di smaltimento per disposal_id, per popolare il DDT RAEE.
+
+  Un rae_product senza disposal_id ancora (non smaltito) semplicemente non
+  compare qui: il template stampa '/' per lui, come già fa oggi.
+  """
+  if not disposal_ids:
+    return {}
+
+  rows = (
+    session.query(Disposal.id, RaeDisposalPlace)
+    .join(RaeDisposalPlace, Disposal.rae_disposal_place_id == RaeDisposalPlace.id)
+    .filter(Disposal.id.in_(disposal_ids))
+    .all()
+  )
+  return {disposal_id: place.to_dict() for disposal_id, place in rows}

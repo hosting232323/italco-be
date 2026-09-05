@@ -1,6 +1,6 @@
 {% from "components/company.html" import company_header %}
 
-{% macro rae_block(rae_product, customer, addressee, address, company=None, company_logo=None, powered_tag=None) %}
+{% macro rae_block(rae_product, customer, addressee, address, company=None, company_logo=None, powered_tag=None, disposal_place=None) %}
 
 {{ company_header(company, company_logo, powered_tag) }}
 <h1 class="rae-h1" style="margin-bottom: -15px;">Documento di trasporto raee</h1>
@@ -31,7 +31,7 @@
       <td class="short-label">Codice Fiscale</td><td>{{ company and company.tax_code or '/' }}</td>
     </tr>
     <tr>
-      <td class="short-label">Estremi Iscrizione Ecc Raee</td><td colspan="2">{{ company and company.rae_registration or '/' }}</td>
+      <td class="short-label">Estremi Iscrizione Ecc Raee</td><td colspan="2">{{ disposal_place and disposal_place.rae_registration or '/' }}</td>
       <td class="short-label">Targa</td><td>nd</td>
     </tr>
     <tr>
@@ -49,7 +49,7 @@
 {{ info_table("Primo destinatario", [
   (
     "Eventuale diverso Luogo di Raggruppamento dei RAEE",
-    company and company.rae_grouping_place or '/'
+    disposal_place and disposal_place.rae_grouping_place or '/'
   )
 ]) }}
 
@@ -57,11 +57,11 @@
   <h2 class="rae-h2">Destinatario finale</h2>
   <table class="rae-info-table">
     <tr>
-      <td class="label">Codice Distribuzione</td><td>{{ company and company.rae_registration or '/' }}</td>
+      <td class="label">Codice Distribuzione</td><td>{{ disposal_place and disposal_place.rae_registration or '/' }}</td>
       <td class="label">Codice Fiscale</td><td>{{ company and company.tax_code or '/' }}</td>
     </tr>
     <tr>
-      <td class="label">Luogo di destino</td><td>{{ company and company.rae_grouping_place or '/' }}</td>
+      <td class="label">Luogo di destino</td><td>{{ disposal_place and disposal_place.rae_grouping_place or '/' }}</td>
       <td class="label">Ragione Sociale</td><td>{{ company and company.legal_name or '/' }}</td>
     </tr>
     <tr>

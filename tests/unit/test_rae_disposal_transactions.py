@@ -8,6 +8,7 @@ from src.database.schema import (
   CollectionCenter,
   Disposal,
   Order,
+  RaeDisposalPlace,
   RaeProduct,
   RaeProductGroup,
   User,
@@ -20,6 +21,7 @@ def test_create_disposal_rolls_back_all_changes_on_product_failure(seeded_db, mo
   with Session() as session:
     carrier = create(Carrier, {'company_name': 'Carrier'}, session=session)
     center = create(CollectionCenter, {'company_name': 'Center'}, session=session)
+    place = create(RaeDisposalPlace, {'name': 'Deposito'}, session=session)
     user_id = session.query(User.id).first()[0]
     order_id = session.query(Order.id).first()[0]
     group_id = session.query(RaeProductGroup.id).first()[0]
@@ -39,6 +41,7 @@ def test_create_disposal_rolls_back_all_changes_on_product_failure(seeded_db, mo
     product_ids = [product.id for product in products]
     carrier_id = carrier.id
     center_id = center.id
+    place_id = place.id
     session.commit()
 
   update_calls = 0
@@ -55,6 +58,7 @@ def test_create_disposal_rolls_back_all_changes_on_product_failure(seeded_db, mo
     'code': code,
     'carrier_id': carrier_id,
     'collection_center_id': center_id,
+    'rae_disposal_place_id': place_id,
     'rae_product_ids': product_ids,
   }
 

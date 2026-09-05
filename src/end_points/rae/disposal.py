@@ -10,6 +10,7 @@ from ...database.schema import (
   Disposal,
   FirFirstDocument,
   FirFourthDocument,
+  RaeDisposalPlace,
   RaeProduct,
   RaeProductGroup,
 )
@@ -91,6 +92,7 @@ def format_query_result(
     Disposal,
     Carrier,
     CollectionCenter,
+    RaeDisposalPlace,
     FirFirstDocument | None,
     FirFourthDocument | None,
     str | None,
@@ -98,7 +100,7 @@ def format_query_result(
   ],
   rae_disposals: list[dict],
 ):
-  disposal, carrier, collection_center, fir_first, fir_fourth, group_code, quantity = row
+  disposal, carrier, collection_center, rae_disposal_place, fir_first, fir_fourth, group_code, quantity = row
   for element in rae_disposals:
     if element['id'] == disposal.id:
       if group_code is not None:
@@ -113,6 +115,7 @@ def format_query_result(
     'fourth_copy_document_fir': fir_fourth.link if fir_fourth else None,
     'carrier': carrier.to_dict(),
     'collection_center': collection_center.to_dict(),
+    'rae_disposal_place': rae_disposal_place.to_dict(),
     'group_quantities': {},
   }
   if group_code is not None:
@@ -128,6 +131,7 @@ def query_rae_disposals(
     Disposal,
     Carrier,
     CollectionCenter,
+    RaeDisposalPlace,
     FirFirstDocument | None,
     FirFourthDocument | None,
     str | None,
@@ -140,6 +144,7 @@ def query_rae_disposals(
         Disposal,
         Carrier,
         CollectionCenter,
+        RaeDisposalPlace,
         FirFirstDocument,
         FirFourthDocument,
         RaeProductGroup.group_code,
@@ -147,6 +152,7 @@ def query_rae_disposals(
       )
       .join(Carrier, Disposal.carrier_id == Carrier.id)
       .join(CollectionCenter, Disposal.collection_center_id == CollectionCenter.id)
+      .join(RaeDisposalPlace, Disposal.rae_disposal_place_id == RaeDisposalPlace.id)
       .outerjoin(FirFirstDocument, FirFirstDocument.disposal_id == Disposal.id)
       .outerjoin(FirFourthDocument, FirFourthDocument.disposal_id == Disposal.id)
       .outerjoin(RaeProduct, Disposal.id == RaeProduct.disposal_id)

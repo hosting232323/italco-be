@@ -56,7 +56,7 @@ _prepare_test_database(DATABASE_URL)
 import database_api  # noqa: E402
 import src.__main__  # noqa: E402,F401
 from src import app as flask_app  # noqa: E402
-from src.database.schema import Company  # noqa: E402
+from src.database.schema import Company, RaeDisposalPlace  # noqa: E402
 from src.database.seed import seed_data  # noqa: E402
 from database_api.operations import create  # noqa: E402
 
@@ -72,13 +72,19 @@ def _truncate_all_tables():
 TEST_COMPANY_NAME = 'Test Company'
 
 # Dati legali dell'attività: la fixture li popola così i PDF che li stampano
-# (il DDT RAEE) hanno qualcosa di reale da rendere, come in produzione.
+# hanno qualcosa di reale da rendere, come in produzione. I dati RAE specifici
+# (iscrizione Albo, luogo di raggruppamento) non sono più qui: vivono su
+# RaeDisposalPlace, popolato subito sotto per la stessa ragione.
 TEST_COMPANY_LEGAL = {
   'legal_name': 'Test Company SRL',
   'vat_number': '09876543210',
   'tax_code': '01234567890',
   'address': 'Via delle Prove 1',
   'city': 'Bari (BA)',
+}
+
+TEST_DISPOSAL_PLACE = {
+  'name': 'Sede principale',
   'rae_registration': 'RD999S00099999 del 01/01/26',
   'rae_grouping_place': 'Via Deposito 9, Bari (BA)',
 }
@@ -98,10 +104,14 @@ def db():
   quella da subire: i test del modulo disattivo se lo mettono a False da soli.
   Stesso discorso per automatic_planning, che i suoi endpoint (le proposte di
   schedulazione) richiedono acceso.
+
+  Le porta dietro anche un luogo di smaltimento, altrimenti il vincolo "almeno
+  uno con rae=true" sarebbe già violato dalla fixture stessa.
   """
   _truncate_all_tables()
   company = create(Company, {'name': TEST_COMPANY_NAME, 'rae': True, 'automatic_planning': True, **TEST_COMPANY_LEGAL})
   with database_api.scope(company_id=company.id):
+    create(RaeDisposalPlace, TEST_DISPOSAL_PLACE)
     yield company
 
 

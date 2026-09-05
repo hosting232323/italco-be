@@ -33,7 +33,6 @@ def test_letterhead_shows_identity_vat_and_tax_code_on_one_line(app, db):
     tax_code='ACMLGS80A01H501Z',
     address='Via Roma 1',
     city='Bari (BA)',
-    rae_registration='RD123S00012345 del 01/01/26',
   )
 
   html = _render(

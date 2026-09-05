@@ -23,6 +23,7 @@ from src.database.schema import (
   DtrDocument,
   Order,
   Product,
+  RaeDisposalPlace,
   RaeProduct,
   RaeProductGroup,
   Schedule,
@@ -199,14 +200,25 @@ def create_collection_center(**extra) -> CollectionCenter:
   return create(CollectionCenter, {'company_name': unique('center'), **extra})
 
 
-def create_disposal(carrier: Carrier = None, collection_center: CollectionCenter = None, **extra) -> Disposal:
+def create_rae_disposal_place(**extra) -> RaeDisposalPlace:
+  return create(RaeDisposalPlace, {'name': unique('disposal-place'), **extra})
+
+
+def create_disposal(
+  carrier: Carrier = None,
+  collection_center: CollectionCenter = None,
+  rae_disposal_place: RaeDisposalPlace = None,
+  **extra,
+) -> Disposal:
   carrier = carrier or create_carrier()
   collection_center = collection_center or create_collection_center()
+  rae_disposal_place = rae_disposal_place or create_rae_disposal_place()
   return create(
     Disposal,
     {
       'carrier_id': carrier.id,
       'collection_center_id': collection_center.id,
+      'rae_disposal_place_id': rae_disposal_place.id,
       'date': extra.pop('date', date.today()),
       **extra,
     },
