@@ -2,6 +2,7 @@ import json
 from io import BytesIO
 
 import pandas as pd
+import pytest
 
 from database_api import Session
 
@@ -78,7 +79,7 @@ def test_build_order_maps_fields():
   assert order['addressee'] == 'Mario Rossi'
   assert order['address'] == 'Via Roma 1, Bari, BA'
   assert order['cap'] == '70121'
-  assert order['floor'] == '2'
+  assert order['floor'] == 2
   assert order['external_id'] == 'ORD-1'
 
 
@@ -86,6 +87,19 @@ def test_build_order_handles_empty_floor():
   order = build_order(_base_row(Piano=''))
 
   assert order['floor'] is None
+
+
+@pytest.mark.parametrize('piano, atteso', [('2', 2), ('2.0', 2), (' 3 ', 3), ('0', 0)])
+def test_build_order_accepts_integer_floors(piano, atteso):
+  assert build_order(_base_row(Piano=piano))['floor'] == atteso
+
+
+@pytest.mark.parametrize('piano', ['1.5', '1,5', 'PT', 'Piano terra', '-1', '2.5.1'])
+def test_build_order_discards_non_integer_floors(piano):
+  # Scartato, non arrotondato: un piano inventato e' peggio di un piano mancante.
+  # Senza questo controllo la cella arriva alla colonna intera e l'INSERT fallisce,
+  # interrompendo l'import dopo gli ordini gia' committati.
+  assert build_order(_base_row(Piano=piano))['floor'] is None
 
 
 def test_get_collection_point_trims_names(db):
