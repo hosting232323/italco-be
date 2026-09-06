@@ -24,4 +24,4 @@ RUN pip install --no-cache-dir .
 
 COPY . .
 
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8080", "--access-logfile", "-", "--error-logfile", "-", "src.__main__:app"]
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8080", "--timeout", "180", "--access-logfile", "-", "--error-logfile", "-", "src.__main__:app"]
