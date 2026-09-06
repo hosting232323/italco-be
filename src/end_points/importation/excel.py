@@ -27,6 +27,9 @@ REQUIRED_COLUMNS = [
   'Note MW + Note',
 ]
 
+# Un Piano valido e' un intero: '2' e '2.0' sono lo stesso piano, '1.5' non e' un piano.
+FLOOR_INTEGER = re.compile(r'^\d+(\.0+)?$')
+
 # Campi del payload di conflitto letti da build_order.
 BUILD_ORDER_FIELDS = [
   'Rif. Com',
@@ -191,6 +194,24 @@ def parse_orders(file, customer_id):
   return orders, None
 
 
+def parse_floor(value) -> int:
+  """Ritorna il Piano come intero, oppure None se non lo e' gia'.
+
+  Il foglio e' compilato a mano e `read_excel(dtype=str)` consegna ogni cella
+  come stringa: 'PT', '1,5' o un decimale non sono piani, e su `Order.floor`,
+  che e' una colonna intera, farebbero fallire l'INSERT. Il ciclo di import non
+  gestisce l'eccezione, quindi una sola cella cosi' interrompe l'importazione
+  dopo gli ordini gia' committati. Il valore viene scartato e non reinterpretato:
+  meglio un piano mancante, che l'operatore vede e corregge, di un piano
+  inventato arrotondando.
+  """
+  text = str(value).strip() if value is not None else ''
+  if not FLOOR_INTEGER.match(text):
+    return None
+
+  return int(text.split('.')[0])
+
+
 def build_order(order: dict):
   return {
     'type': OrderType.DELIVERY,
@@ -200,7 +221,7 @@ def build_order(order: dict):
     'cap': order['CAP'],
     'dpc': order['Booking'],
     'drc': order['DRC'],
-    'floor': order['Piano'] if order['Piano'] != '' else None,
+    'floor': parse_floor(order['Piano']),
     'operator_note': 'Ordine importato da file',
     'customer_note': order['Note MW + Note'],
     'external_id': order['Rif. Com'],
