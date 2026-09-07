@@ -1,3 +1,5 @@
+from ...order_integrity import split_order_by_service_type, lock_order_service_integrity
+
 import random
 import requests
 from datetime import datetime, timedelta
@@ -54,6 +56,7 @@ def save_orders_by_euronics():
     # L'import Euronics non passa da una sessione utente: il tenant si deduce dal
     # punto vendita destinatario dell'ordine.
     with scope(company_id=result[0].company_id), Session() as session:
+      lock_order_service_integrity(session)
       if product_service_user_handler(
         imported_order,
         result[0],
@@ -129,8 +132,9 @@ def product_service_user_handler(
       create(Product, product_dict, session=session)
     else:
       for service_user in product['services']:
-        product_dict['service_user_id'] = (service_user.id,)
+        product_dict['service_user_id'] = service_user.id
         create(Product, product_dict, session=session)
+  split_order_by_service_type(created_order, session)
   return True
 
 

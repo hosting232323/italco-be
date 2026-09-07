@@ -1,3 +1,5 @@
+from ...order_integrity import split_order_by_service_type, lock_order_service_integrity
+
 import re
 import camelot
 import pdfplumber
@@ -24,6 +26,7 @@ def order_import_by_pdf(files, customer_id):
 
   orders_count = 0
   with Session() as session:
+    lock_order_service_integrity(session)
     for file in files.values():
       text = ''
       tables = []
@@ -34,11 +37,11 @@ def order_import_by_pdf(files, customer_id):
       if not tables:
         tables = [table.df.values.tolist() for table in camelot.read_pdf(file, pages='all', flavor='stream')]
 
-      orders_count += 1
       order = pdf_create_order(text, session=session)
       error = pdf_create_product(tables, order.id, collection_point.id, customer_id, session=session)
       if error:
         return {'status': 'ko', 'message': error}
+      orders_count += len(split_order_by_service_type(order, session))
 
     session.commit()
   return {'status': 'ok', 'imported_orders_count': orders_count}

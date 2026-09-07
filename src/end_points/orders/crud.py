@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from ...order_integrity import assert_order_service_types, lock_order_service_integrity
+
 from .utils import parse_time
 from database_api import Session
 from ... import STATIC_FOLDER
@@ -49,6 +51,7 @@ def create_order(user: User, data: dict):
       clean_data['status'] = OrderStatus.BOOKED
 
   with Session() as session:
+    lock_order_service_integrity(session)
     cloned_order = False
     if 'cloned_order_id' in data and data['cloned_order_id']:
       cloned_order = True
@@ -66,6 +69,7 @@ def create_order(user: User, data: dict):
       cloned_order,
       session=session,
     )
+    assert_order_service_types(order, session)
     if cloned_order:
       update_cloned_order(order, data['cloned_order_id'], session=session)
 
@@ -118,6 +122,7 @@ def delete_order(user: User, order_id: int):
 
 
 def update_order(user: User, order: Order, data: dict, session, pending_sms: list = None):
+  lock_order_service_integrity(session)
   motivation = data.get('motivation')
   schedule_item = get_schedule_item_by_order(order, session=session)
 
@@ -172,11 +177,13 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
     {key: value for key, value in data.items() if key not in NON_UPDATABLE_ORDER_FIELDS},
     session=session,
   )
+  assert_order_service_types(order, session)
   return motivation
 
 
 def update_order_customer(user: User, user_id: int, order_id: int):
   with Session() as session:
+    lock_order_service_integrity(session)
     updates = []
     service_users = get_service_users(user_id, session=session)
     order = get_by_id(Order, order_id, session=session)
@@ -193,5 +200,6 @@ def update_order_customer(user: User, user_id: int, order_id: int):
 
     for product, service_user in updates:
       update(product, {'service_user_id': service_user.id}, session=session)
+    assert_order_service_types(order, session)
     session.commit()
   return {'status': 'ok', 'message': 'Operazione completata'}

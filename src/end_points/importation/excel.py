@@ -1,3 +1,5 @@
+from ...order_integrity import split_order_by_service_type, lock_order_service_integrity
+
 import re
 
 import pandas as pd
@@ -47,7 +49,7 @@ BUILD_ORDER_FIELDS = [
 DATE_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}')
 
 
-def validate_conflict_order(order_data, session) -> str:
+def validate_conflict_order(order_data, session, customer_id=None) -> str:
   """Valida struttura, campi e riferimenti di un ordine del conflict prima di
   toccare il DB. Ritorna il messaggio d'errore per failed_orders, o None."""
   if not isinstance(order_data, dict):
@@ -65,6 +67,7 @@ def validate_conflict_order(order_data, session) -> str:
   if not isinstance(products, dict) or len(products) == 0:
     return 'Prodotti mancanti o in formato non valido'
 
+  customer_ids = set()
   for product_name, product in products.items():
     if not isinstance(product, dict):
       return f'Prodotto "{product_name}" in formato non valido'
@@ -83,8 +86,16 @@ def validate_conflict_order(order_data, session) -> str:
     if session.query(ServiceUser.id).filter(ServiceUser.id.in_(services)).count() != len(set(services)):
       return f'Servizi inesistenti per il prodotto "{product_name}"'
 
-    if session.query(CollectionPoint.id).filter(CollectionPoint.id == collection_point['id']).first() is None:
+    point = session.query(CollectionPoint).filter(CollectionPoint.id == collection_point['id']).first()
+    if point is None:
       return f'Punto di ritiro inesistente per il prodotto "{product_name}"'
+    owners = {row.user_id for row in session.query(ServiceUser).filter(ServiceUser.id.in_(services)).all()}
+    customer_ids.update(owners)
+    if owners != {point.user_id}:
+      return f'Servizi e punto di ritiro di clienti differenti per il prodotto "{product_name}"'
+
+  if len(customer_ids) != 1 or (customer_id is not None and customer_ids != {int(customer_id)}):
+    return 'I servizi devono appartenere tutti al punto vendita selezionato'
 
   return None
 
@@ -118,6 +129,7 @@ def order_import_by_excel(file, customer_id):
       continue
 
     with Session() as session:
+      lock_order_service_integrity(session)
       order = create(Order, build_order(order_data['rows'][0]), session=session)
       for service_user in order_data['services']:
         create(
@@ -130,17 +142,19 @@ def order_import_by_excel(file, customer_id):
           },
           session=session,
         )
+      created_orders = split_order_by_service_type(order, session)
       session.commit()
-    imported_orders_count += 1
+    imported_orders_count += len(created_orders)
   return {'status': 'ok', 'imported_orders_count': imported_orders_count, 'conflicted_orders': conflicted_orders}
 
 
-def handle_excel_conflict(orders):
+def handle_excel_conflict(orders, customer_id=None):
   failed_orders = []
   imported_orders_count = 0
   for order_data in orders:
     with Session() as session:
-      error = validate_conflict_order(order_data, session)
+      lock_order_service_integrity(session)
+      error = validate_conflict_order(order_data, session, customer_id=customer_id)
       if error:
         external_id = order_data.get('Rif. Com') if isinstance(order_data, dict) else None
         failed_orders.append({'external_id': external_id, 'error': error})
@@ -159,8 +173,9 @@ def handle_excel_conflict(orders):
             },
             session=session,
           )
+      created_orders = split_order_by_service_type(order, session)
       session.commit()
-    imported_orders_count += 1
+    imported_orders_count += len(created_orders)
   return {'status': 'ok', 'imported_orders_count': imported_orders_count, 'failed_orders': failed_orders}
 
 

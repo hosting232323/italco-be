@@ -12,6 +12,7 @@ from api.storage.files import validate_files, IMAGE_EXTENSIONS
 from ...database.schema import User, Order
 from api.storage.session import SessionWithStorage
 from .utils import get_statuses_by_order_id
+from ...order_integrity import lock_order_service_integrity
 from database_api.operations import get_by_id
 from .api import save_order_status_to_euronics
 from .. import flask_session_authentication
@@ -55,6 +56,7 @@ def update_order_endpoint(user: User, id):
     return {'status': 'ko', 'message': error}
 
   with SessionWithStorage() as session:
+    lock_order_service_integrity(session)
     order: Order = get_by_id(Order, int(id), session=session)
     if isinstance(request.form.get('data'), str):
       data = handle_photos(json.loads(request.form.get('data')), order, session=session)

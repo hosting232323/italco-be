@@ -14,12 +14,16 @@ class StubEntity:
   def __init__(self, id=1, version=1):
     self.id = id
     self.version = version
+    self.type = OrderType.DELIVERY
 
   def to_dict(self):
     return {'id': self.id}
 
 
 class StubSession:
+  def execute(self, _statement):
+    return None
+
   def __enter__(self):
     return self
 
@@ -116,9 +120,9 @@ def test_service_create_keeps_request_payload_unchanged(monkeypatch):
 def test_service_update_keeps_request_payload_unchanged(monkeypatch):
   app = Flask(__name__)
   captured = {}
-  monkeypatch.setattr(service_module, 'get_by_id', lambda *_args: StubEntity())
+  monkeypatch.setattr(service_module, 'get_by_id', lambda *_args, **_kwargs: StubEntity())
 
-  def update(_entity, data):
+  def update(_entity, data, session=None):
     captured.update(data)
     return StubEntity()
 

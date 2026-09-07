@@ -335,7 +335,7 @@ def seed_company_data():
   for index in range(20):
     order_data = {
       'status': OrderStatus.BOOKED,
-      'type': service_types[index % len(service_types)],
+      'type': service_types[index] if index < 3 else services[index % 10].type,
       'addressee': f'Destinatario {index + 1}',
       'address': f'Via Consegna {index + 1}, Bari',
       'cap': '70020',
