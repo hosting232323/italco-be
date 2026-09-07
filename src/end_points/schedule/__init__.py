@@ -148,12 +148,14 @@ def update_schedule(user: User, id):
 @schedule_bp.route('suggestions', methods=['GET'])
 @flask_session_authentication([UserRole.ADMIN], automatic_planning_required=True)
 def get_schedule_suggestions(user: User):
+  # strategy: 'rules' (default, motore deterministico) o 'ai' (spike LLM via CLI).
   return execute_schedulation(
     user,
     datetime.strptime(request.args['work_date'], '%Y-%m-%d'),
     int(request.args['min_size_group']),
     int(request.args['max_size_group']),
     int(request.args['max_distance_km']),
+    request.args.get('strategy', 'rules'),
   )
 
 
