@@ -43,6 +43,11 @@ class Company(BaseEntity):
   # pagine rae spariscono dal frontend e gli endpoint rae rispondono ko.
   rae = Column(Boolean, nullable=False, default=False, server_default='false')
 
+  # Pianificazione automatica degli ordini dell'attività: spenta di default,
+  # la accende il super admin dalla gestione della company. Come 'rae' è un
+  # semplice interruttore per attività.
+  automatic_planning = Column(Boolean, nullable=False, default=False, server_default='false')
+
   # Dati legali dell'attività, stampati nei PDF al posto dei valori un tempo
   # scritti a mano nei template. A DB restano tutti nullable: l'unico vincolo
   # NOT NULL di company è name, e l'obbligatorietà (legal_name/address/city
