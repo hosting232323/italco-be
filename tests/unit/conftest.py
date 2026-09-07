@@ -100,9 +100,7 @@ def db():
   schedulazione) richiedono acceso.
   """
   _truncate_all_tables()
-  company = create(
-    Company, {'name': TEST_COMPANY_NAME, 'rae': True, 'automatic_planning': True, **TEST_COMPANY_LEGAL}
-  )
+  company = create(Company, {'name': TEST_COMPANY_NAME, 'rae': True, 'automatic_planning': True, **TEST_COMPANY_LEGAL})
   with database_api.scope(company_id=company.id):
     yield company
 
