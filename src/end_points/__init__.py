@@ -4,7 +4,7 @@ from api.users.auth import build_auth
 from database_api import scope
 
 from ..database.enum import UserRole
-from ..database.queries import get_user_by_id_unscoped, is_rae_enabled
+from ..database.queries import get_user_by_id_unscoped, is_rae_enabled, is_automatic_planning_enabled
 from ..database.schema import User, UserSession
 
 
@@ -16,6 +16,7 @@ def flask_session_authentication(
   allow_query_token: bool = False,
   tenant_required: bool = True,
   rae_required: bool = False,
+  automatic_planning_required: bool = False,
 ):
   """Autenticazione access/refresh e risoluzione del tenant attivo.
 
@@ -29,6 +30,9 @@ def flask_session_authentication(
   modulo RAEE acceso. Nascondere le pagine nel frontend è cosmetica: il flag
   vale qualcosa solo se l'endpoint lo controlla da sé, e questo è il punto in
   cui la company attiva è già risolta per tutti i ruoli.
+
+  automatic_planning_required=True fa lo stesso per la pianificazione automatica
+  degli ordini: l'endpoint risponde ko se l'attività non ha il flag acceso.
   """
 
   def decorator(func):
@@ -46,6 +50,9 @@ def flask_session_authentication(
 
       if rae_required and not is_rae_enabled(company_id):
         return {'status': 'ko', 'message': 'Modulo RAEE non attivo per questa attività'}
+
+      if automatic_planning_required and not is_automatic_planning_enabled(company_id):
+        return {'status': 'ko', 'message': 'Pianificazione automatica non attiva per questa attività'}
 
       with scope(company_id=company_id):
         return func(user, *args, **kwargs)
