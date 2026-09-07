@@ -17,17 +17,23 @@ class ClaudeCliError(RuntimeError):
   """La CLI non e' disponibile, e' uscita male o non ha risposto come atteso."""
 
 
-DEFAULT_TIMEOUT_SECONDS = 120
+DEFAULT_TIMEOUT_SECONDS = 180
 
 
-def run_claude(prompt: str, *, system: str | None = None, timeout: int = DEFAULT_TIMEOUT_SECONDS) -> str:
+def run_claude(prompt: str, *, system: str | None = None, timeout: int | None = None) -> str:
   """Esegue `claude -p` con il prompt su stdin e restituisce il testo di risposta.
 
   system, se passato, viene aggiunto al system prompt della CLI. Nessun tool e'
   abilitato e il giro e' a turno singolo: vogliamo solo la risposta del modello.
+  `--strict-mcp-config` senza `--mcp-config` fa partire la CLI senza caricare
+  alcun server MCP dell'utente: e' il grosso del cold start in headless.
+  Timeout: argomento esplicito, altrimenti CLAUDE_CLI_TIMEOUT, altrimenti 180s.
   """
+  if timeout is None:
+    timeout = int(os.environ.get('CLAUDE_CLI_TIMEOUT', DEFAULT_TIMEOUT_SECONDS))
+
   binary = _resolve_binary()
-  args = [binary, '-p', '--output-format', 'json', '--max-turns', '1']
+  args = [binary, '-p', '--output-format', 'json', '--max-turns', '1', '--strict-mcp-config']
   model = os.environ.get('CLAUDE_CLI_MODEL')
   if model:
     args += ['--model', model]
