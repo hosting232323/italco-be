@@ -28,6 +28,7 @@ def create_history(session: Session, obj, field, value):
   session.add(
     History(
       order=obj,
+      company_id=obj.company_id,
       status={
         'type': field,
         'value': value,

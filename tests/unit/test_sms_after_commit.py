@@ -111,6 +111,9 @@ def test_update_order_queues_sms_instead_of_sending_in_transaction(db):
 
 
 class StubSession:
+  def execute(self, _statement):
+    return None
+
   def __init__(self, fail_commit=False):
     self.fail_commit = fail_commit
 

@@ -5,10 +5,7 @@ from .clone import format_data_cloning_product
 from .queries import query_service_users, query_products
 from database_api.operations import create, delete, get_by_id
 from ...database.schema import Order, Product, RaeProduct, ServiceUser, Schedule
-
-
-class InvalidOrderProductsError(ValueError):
-  pass
+from ...order_integrity import InvalidOrderProductsError
 
 
 def create_products(order: Order, products: dict, customer_user_id: int, cloned_order: bool, session):

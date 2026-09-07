@@ -10,6 +10,7 @@ from .database.schema import (
   Order,
   Product,
   ServiceUser,
+  Service,
   Schedule,
   Photo,
   History,
@@ -65,6 +66,12 @@ def get_all_documents(model) -> list[str]:
 
 def get_checks():
   return [
+    {
+      'name': 'Ordini con servizi di tipo incompatibile',
+      'query_fn': check_order_service_types,
+      'formatter': format_order_service_types,
+      'empty_msg': 'Tutti i servizi coincidono con il tipo del proprio ordine.',
+    },
     {
       'name': '⚠️ Schedules con problemi',
       'query_fn': check_schedules,
@@ -150,3 +157,36 @@ def format_order(o):
 
 def format_history_invalid(h):
   return f'- History ID {h.id} | Order ID: {h.order_id} | Status: {h.status}'
+
+
+def check_order_service_types(session):
+  rows = (
+    session.query(Order, Product, ServiceUser, Service)
+    .join(Product, Product.order_id == Order.id)
+    .join(ServiceUser, ServiceUser.id == Product.service_user_id)
+    .join(Service, Service.id == ServiceUser.service_id)
+    .filter(Order.type != Service.type)
+    .order_by(Order.company_id, Order.id, Product.id)
+    .all()
+  )
+  return [
+    {
+      'company_id': order.company_id,
+      'order_id': order.id,
+      'status': order.status.name,
+      'order_type': order.type.name,
+      'product_id': product.id,
+      'service_user_id': service_user.id,
+      'service_id': service.id,
+      'service_type': service.type.name,
+    }
+    for order, product, service_user, service in rows
+  ]
+
+
+def format_order_service_types(row):
+  return (
+    f'- Company {row["company_id"]} | Order {row["order_id"]} ({row["status"]}, {row["order_type"]})'
+    f' | Product {row["product_id"]} | ServiceUser {row["service_user_id"]}'
+    f' | Service {row["service_id"]}: {row["service_type"]}'
+  )

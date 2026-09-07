@@ -1,9 +1,11 @@
 from flask import Blueprint, request
+from database_api import Session
+from ...order_integrity import lock_order_service_integrity
 
 from ..users import query_users
 from ...database.enum import UserRole, OrderType
 from .. import flask_session_authentication
-from ...database.schema import Service, ServiceUser, User
+from ...database.schema import Service, ServiceUser, User, Order, Product
 from database_api.operations import create, update, get_by_id, delete
 from .queries import query_services, query_service_user, format_query_result, format_service_user
 
@@ -30,9 +32,26 @@ def get_services(user: User):
 @service_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_service(_, id):
-  service: Service = get_by_id(Service, int(id))
-  data = {**request.json, 'type': OrderType(request.json['type'])}
-  return {'status': 'ok', 'order': update(service, data).to_dict()}
+  with Session() as session:
+    lock_order_service_integrity(session)
+    service = get_by_id(Service, int(id), session=session)
+    data = {**request.json, 'type': OrderType(request.json['type'])}
+    if data['type'] != service.type:
+      incompatible = (
+        session.query(Order.id)
+        .join(Product, Product.order_id == Order.id)
+        .join(ServiceUser, Product.service_user_id == ServiceUser.id)
+        .filter(ServiceUser.service_id == service.id, Order.type != data['type'])
+        .first()
+      )
+      if incompatible:
+        return {
+          'status': 'ko',
+          'message': f'Tipo incompatibile con ordine {incompatible.id}: bonificare prima gli ordini.',
+        }
+    service = update(service, data, session=session)
+    session.commit()
+    return {'status': 'ok', 'order': service.to_dict()}
 
 
 @service_bp.route('<id>', methods=['DELETE'])
@@ -58,11 +77,22 @@ def create_service_user(_):
 @service_bp.route('customer/<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_service_user(_, id):
-  service_user: ServiceUser = update(get_by_id(ServiceUser, int(id)), request.json)
-  return {
-    'status': 'ok',
-    'service_user': format_service_user(service_user, get_by_id(User, service_user.user_id)),
-  }
+  with Session() as session:
+    lock_order_service_integrity(session)
+    service_user = get_by_id(ServiceUser, int(id), session=session)
+    # Repointing an in-use price-list row would silently change historic orders.
+    changed_reference = any(
+      field in request.json and int(request.json[field]) != getattr(service_user, field)
+      for field in ('service_id', 'user_id', 'company_id')
+    )
+    if changed_reference and session.query(Product.id).filter(Product.service_user_id == service_user.id).first():
+      return {'status': 'ko', 'message': 'Associazione utilizzata da ordini: creare una nuova voce di listino.'}
+    service_user = update(service_user, request.json, session=session)
+    session.commit()
+    return {
+      'status': 'ok',
+      'service_user': format_service_user(service_user, get_by_id(User, service_user.user_id, session=session)),
+    }
 
 
 @service_bp.route('customer/<id>', methods=['DELETE'])

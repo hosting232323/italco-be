@@ -29,8 +29,11 @@ def _order_data(service_user_id, collection_point_id, rif):
 
 def _seed_refs():
   with Session() as session:
-    service_user_id = session.query(ServiceUser.id).first()[0]
-    collection_point_id = session.query(CollectionPoint.id).first()[0]
+    service_user_id, collection_point_id = (
+      session.query(ServiceUser.id, CollectionPoint.id)
+      .join(CollectionPoint, CollectionPoint.user_id == ServiceUser.user_id)
+      .first()
+    )
   return service_user_id, collection_point_id
 
 

@@ -49,7 +49,7 @@ def excel_order_import(_):
 @import_bp.route('excel/conflict', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def handle_conflict(_):
-  return handle_excel_conflict(request.json['orders'])
+  return handle_excel_conflict(request.json['orders'], customer_id=request.json.get('customer_id'))
 
 
 @import_bp.route('pdf', methods=['POST'])
