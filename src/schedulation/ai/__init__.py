@@ -14,7 +14,24 @@ ai_execute_schedulation, cosi' sostituire la CLI con l'API domani tocca un solo
 modulo.
 """
 
-from .planner import AiPlanningError, ai_execute_schedulation
+import logging
+import sys
 
 
-__all__ = ['AiPlanningError', 'ai_execute_schedulation']
+# Logger dedicato allo spike: durante i test manuali si vuole vedere sulla
+# console del server cosa succede (CLI lanciata, tempi, risposta grezza, esito
+# della validazione). Handler proprio cosi' e' visibile anche se l'app non
+# configura il logging; propagate=False per non sporcare gli altri log.
+logger = logging.getLogger('italco.schedulation.ai')
+if not logger.handlers:
+  _handler = logging.StreamHandler(sys.stderr)
+  _handler.setFormatter(logging.Formatter('[AI-PLANNING %(asctime)s] %(message)s', datefmt='%H:%M:%S'))
+  logger.addHandler(_handler)
+  logger.setLevel(logging.INFO)
+  logger.propagate = False
+
+
+from .planner import AiPlanningError, ai_execute_schedulation  # noqa: E402
+
+
+__all__ = ['AiPlanningError', 'ai_execute_schedulation', 'logger']

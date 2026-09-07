@@ -8,6 +8,7 @@ alza AiPlanningError con il motivo preciso.
 """
 
 import itertools
+import logging
 from typing import Any
 
 from geopy.distance import geodesic
@@ -17,6 +18,9 @@ from ..clustering_rules.professional_services_limit import MAX_PROFESSIONAL_ORDE
 from .caps import order_coordinates
 from .cli import ClaudeCliError, run_claude
 from .prompt import SYSTEM_PROMPT, build_user_prompt, parse_response
+
+
+logger = logging.getLogger('italco.schedulation.ai')
 
 
 class AiPlanningError(RuntimeError):
@@ -29,6 +33,14 @@ def ai_execute_schedulation(
   transports: list[dict[str, Any]],
   context: Any,
 ) -> list[dict[str, Any]]:
+  logger.info(
+    'pianificazione AI: %d ordini, %d corrieri, vincoli min=%d max=%d distanza=%dkm',
+    len(orders),
+    len(delivery_users),
+    context.min_size_group,
+    context.max_size_group,
+    context.max_distance_km,
+  )
   prompt = build_user_prompt(orders, delivery_users, context, max_professional_orders=MAX_PROFESSIONAL_ORDERS)
 
   try:
@@ -39,9 +51,15 @@ def ai_execute_schedulation(
   try:
     response = parse_response(raw)
   except ValueError as error:
+    logger.warning('risposta non interpretabile: %s', error)
     raise AiPlanningError(str(error)) from error
 
-  groups = _validated_groups(response, orders, delivery_users, context)
+  try:
+    groups = _validated_groups(response, orders, delivery_users, context)
+  except AiPlanningError as error:
+    logger.warning('proposta rifiutata: %s', error)
+    raise
+  logger.info('proposta accettata: %d gruppi', len(groups))
   orders_by_id = {order['id']: order for order in orders}
   users_by_id = {user['id']: user for user in delivery_users}
 

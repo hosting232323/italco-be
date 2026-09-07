@@ -8,9 +8,14 @@ solo lanciare il processo e riportare errori con un tipo dedicato.
 """
 
 import json
+import logging
 import os
 import shutil
 import subprocess
+import time
+
+
+logger = logging.getLogger('italco.schedulation.ai')
 
 
 class ClaudeCliError(RuntimeError):
@@ -40,6 +45,14 @@ def run_claude(prompt: str, *, system: str | None = None, timeout: int | None = 
   if system:
     args += ['--append-system-prompt', system]
 
+  logger.info(
+    'lancio la CLI: %s%s  (prompt su stdin, %d caratteri, timeout %ds)',
+    os.path.basename(binary),
+    f' --model {model}' if model else '',
+    len(prompt),
+    timeout,
+  )
+  started = time.monotonic()
   try:
     completed = subprocess.run(
       args,
@@ -50,15 +63,22 @@ def run_claude(prompt: str, *, system: str | None = None, timeout: int | None = 
       check=False,
     )
   except subprocess.TimeoutExpired as error:
+    logger.warning('la CLI non ha risposto entro %ds (interrotta)', timeout)
     raise ClaudeCliError(f'La CLI Claude non ha risposto entro {timeout}s') from error
   except OSError as error:
+    logger.warning('impossibile eseguire la CLI: %s', error)
     raise ClaudeCliError(f'Impossibile eseguire la CLI Claude: {error}') from error
 
+  elapsed = time.monotonic() - started
   if completed.returncode != 0:
     detail = (completed.stderr or completed.stdout or '').strip()
+    logger.warning("la CLI e' uscita con codice %d dopo %.1fs: %s", completed.returncode, elapsed, detail[:300])
     raise ClaudeCliError(f"La CLI Claude e' uscita con codice {completed.returncode}: {detail[:500]}")
 
-  return _extract_result(completed.stdout)
+  result = _extract_result(completed.stdout)
+  logger.info('la CLI ha risposto in %.1fs (%d caratteri di testo)', elapsed, len(result))
+  logger.info('risposta grezza del modello: %s', result[:1000] + (' [...]' if len(result) > 1000 else ''))
+  return result
 
 
 def _resolve_binary() -> str:
