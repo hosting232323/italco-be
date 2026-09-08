@@ -53,7 +53,9 @@ def seed_data():
   if current_scope().get('company_id'):
     return seed_company_data()
 
-  with scope(company_id=create(Company, {'name': SEED_COMPANY_NAME}).id):
+  # La company di seed accende la pianificazione automatica: è la demo su cui
+  # gira anche l'e2e delle proposte di borderò, che parte dal bottone in Ordini.
+  with scope(company_id=create(Company, {'name': SEED_COMPANY_NAME, 'automatic_planning': True}).id):
     return seed_company_data()
 
 

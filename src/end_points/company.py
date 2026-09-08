@@ -115,14 +115,16 @@ def create_company(_):
     return {'status': 'ko', 'message': 'Nickname già in uso'}
 
   # bool() esplicito: dal client il flag può arrivare assente, ed è il caso
-  # normale di un'attività appena creata. Il modulo RAEE nasce spento.
+  # normale di un'attività appena creata. Il modulo RAEE nasce spento, e così
+  # la pianificazione automatica degli ordini.
   rae = bool(payload.get('rae'))
+  automatic_planning = bool(payload.get('automatic_planning'))
   legal = _clean_legal(payload, only_present=False)
   legal_error = _legal_error(legal, rae)
   if legal_error:
     return {'status': 'ko', 'message': legal_error}
 
-  company = create(Company, {'name': name, 'rae': rae, **legal})
+  company = create(Company, {'name': name, 'rae': rae, 'automatic_planning': automatic_planning, **legal})
 
   # Crea l'admin nella company appena nata usando lo scope tenant
   # così il listener set_company_on_insert timbra automaticamente la company_id.
@@ -160,6 +162,8 @@ def update_company(_, id):
     return {'status': 'ko', 'message': 'Nome obbligatorio'}
   if 'rae' in payload and not isinstance(payload['rae'], bool):
     return {'status': 'ko', 'message': 'Il flag RAEE deve essere booleano'}
+  if 'automatic_planning' in payload and not isinstance(payload['automatic_planning'], bool):
+    return {'status': 'ko', 'message': 'Il flag di pianificazione automatica deve essere booleano'}
 
   logo_file = request.files.get('logo')
 
@@ -179,6 +183,8 @@ def update_company(_, id):
     changes = {'name': name, **legal}
     if 'rae' in payload:
       changes['rae'] = payload['rae']
+    if 'automatic_planning' in payload:
+      changes['automatic_planning'] = payload['automatic_planning']
     if logo_file:
       changes['logo'] = _store_logo(int(id), logo_file, session)
 
