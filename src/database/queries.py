@@ -52,3 +52,19 @@ def is_rae_enabled(company_id: int = None) -> bool:
   with Session() as session:
     company: Company = session.get(Company, company_id)
     return bool(company and company.rae)
+
+
+def is_automatic_planning_enabled(company_id: int = None) -> bool:
+  """Pianificazione automatica degli ordini dell'attività su cui si sta operando.
+
+  Stessa logica di is_rae_enabled: tenant dallo scope quando non passato,
+  sessione propria, e senza company attiva non c'è nulla da accendere.
+  """
+  if company_id is None:
+    company_id = current_scope().get('company_id')
+  if not company_id:
+    return False
+
+  with Session() as session:
+    company: Company = session.get(Company, company_id)
+    return bool(company and company.automatic_planning)
