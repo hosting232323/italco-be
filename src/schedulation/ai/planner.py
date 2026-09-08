@@ -17,7 +17,7 @@ from ..building import build_schedule_items
 from ..clustering_rules.professional_services_limit import MAX_PROFESSIONAL_ORDERS
 from .caps import order_coordinates
 from .cli import ClaudeCliError, run_claude
-from .prompt import SYSTEM_PROMPT, build_user_prompt, parse_response
+from .prompt import RESPONSE_JSON_SCHEMA, SYSTEM_PROMPT, build_user_prompt, parse_response
 
 
 logger = logging.getLogger('italco.schedulation.ai')
@@ -25,6 +25,15 @@ logger = logging.getLogger('italco.schedulation.ai')
 
 class AiPlanningError(RuntimeError):
   """La proposta del modello non e' utilizzabile (chiamata fallita o non valida)."""
+
+
+# Anche con --json-schema il modello puo' concludere con un testo libero
+# invece che con l'output strutturato (osservato in prova): la CLI in quel
+# caso non segnala errore, restituisce solo una risposta non interpretabile.
+# Un paio di ritentativi assorbono la parte stocastica senza mascherare un
+# problema persistente (CLI irraggiungibile, vincoli infattibili, ecc.), che
+# dopo MAX_ATTEMPTS torna comunque come AiPlanningError.
+MAX_ATTEMPTS = 3
 
 
 def ai_execute_schedulation(
@@ -43,22 +52,30 @@ def ai_execute_schedulation(
   )
   prompt = build_user_prompt(orders, delivery_users, context, max_professional_orders=MAX_PROFESSIONAL_ORDERS)
 
-  try:
-    raw = run_claude(prompt, system=SYSTEM_PROMPT)
-  except ClaudeCliError as error:
-    raise AiPlanningError(f'Chiamata al modello fallita: {error}') from error
+  groups = None
+  last_error: AiPlanningError | None = None
+  for attempt in range(1, MAX_ATTEMPTS + 1):
+    try:
+      raw = run_claude(prompt, system=SYSTEM_PROMPT, json_schema=RESPONSE_JSON_SCHEMA)
+    except ClaudeCliError as error:
+      raise AiPlanningError(f'Chiamata al modello fallita: {error}') from error
 
-  try:
-    response = parse_response(raw)
-  except ValueError as error:
-    logger.warning('risposta non interpretabile: %s', error)
-    raise AiPlanningError(str(error)) from error
+    try:
+      groups = _validated_groups(parse_response(raw), orders, delivery_users, context)
+      break
+    except (ValueError, AiPlanningError) as error:
+      last_error = error if isinstance(error, AiPlanningError) else AiPlanningError(str(error))
+      logger.warning(
+        "tentativo %d/%d: proposta non utilizzabile (%s) - %s",
+        attempt,
+        MAX_ATTEMPTS,
+        last_error,
+        'ritento' if attempt < MAX_ATTEMPTS else 'rinuncio',
+      )
 
-  try:
-    groups = _validated_groups(response, orders, delivery_users, context)
-  except AiPlanningError as error:
-    logger.warning('proposta rifiutata: %s', error)
-    raise
+  if groups is None:
+    raise last_error
+
   logger.info('proposta accettata: %d gruppi', len(groups))
   orders_by_id = {order['id']: order for order in orders}
   users_by_id = {user['id']: user for user in delivery_users}

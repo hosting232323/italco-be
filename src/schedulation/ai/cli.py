@@ -13,6 +13,7 @@ import os
 import shutil
 import subprocess
 import time
+from typing import Any
 
 
 logger = logging.getLogger('italco.schedulation.ai')
@@ -25,25 +26,46 @@ class ClaudeCliError(RuntimeError):
 DEFAULT_TIMEOUT_SECONDS = 180
 
 
-def run_claude(prompt: str, *, system: str | None = None, timeout: int | None = None) -> str:
+def run_claude(
+  prompt: str,
+  *,
+  system: str | None = None,
+  timeout: int | None = None,
+  json_schema: dict[str, Any] | None = None,
+) -> str:
   """Esegue `claude -p` con il prompt su stdin e restituisce il testo di risposta.
 
-  system, se passato, viene aggiunto al system prompt della CLI. Nessun tool e'
-  abilitato e il giro e' a turno singolo: vogliamo solo la risposta del modello.
-  `--strict-mcp-config` senza `--mcp-config` fa partire la CLI senza caricare
-  alcun server MCP dell'utente: e' il grosso del cold start in headless.
+  system, se passato, sostituisce per intero il system prompt della CLI
+  (--system-prompt, non --append-system-prompt): con l'append il prompt di
+  default dell'agente di coding restava attivo insieme al nostro e tirava il
+  modello a scrivere un report invece del solo JSON richiesto, con fallimenti
+  intermittenti di parsing osservati in prova.
+
+  json_schema, se passato, usa --json-schema per forzare output strutturato:
+  molto piu' affidabile della sola istruzione a testo "rispondi con solo
+  JSON" (osservati ancora fallimenti intermittenti con quella da sola). La
+  validazione a schema della CLI passa da una tool call interna, per questo
+  qui servono 2 turni e non 1 (con un solo turno la CLI si ferma proprio sulla
+  richiesta di quella tool, con error_max_turns).
+
+  Nessun altro tool e' abilitato. `--strict-mcp-config` senza `--mcp-config`
+  fa partire la CLI senza caricare alcun server MCP dell'utente: e' il grosso
+  del cold start in headless.
   Timeout: argomento esplicito, altrimenti CLAUDE_CLI_TIMEOUT, altrimenti 180s.
   """
   if timeout is None:
     timeout = int(os.environ.get('CLAUDE_CLI_TIMEOUT', DEFAULT_TIMEOUT_SECONDS))
 
   binary = _resolve_binary()
-  args = [binary, '-p', '--output-format', 'json', '--max-turns', '1', '--strict-mcp-config']
+  max_turns = '2' if json_schema else '1'
+  args = [binary, '-p', '--output-format', 'json', '--max-turns', max_turns, '--strict-mcp-config', '--tools', '']
   model = os.environ.get('CLAUDE_CLI_MODEL')
   if model:
     args += ['--model', model]
   if system:
-    args += ['--append-system-prompt', system]
+    args += ['--system-prompt', system]
+  if json_schema:
+    args += ['--json-schema', json.dumps(json_schema)]
 
   logger.info(
     'lancio la CLI: %s%s  (prompt su stdin, %d caratteri, timeout %ds)',
@@ -59,6 +81,7 @@ def run_claude(prompt: str, *, system: str | None = None, timeout: int | None = 
       input=prompt,
       capture_output=True,
       text=True,
+      encoding='utf-8',
       timeout=timeout,
       check=False,
     )

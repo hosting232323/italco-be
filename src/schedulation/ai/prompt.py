@@ -33,6 +33,28 @@ SYSTEM_PROMPT = (
   '"stringa breve"}]}'
 )
 
+# Passato a run_claude come --json-schema: forza la CLI a restituire un
+# oggetto conforme, molto piu' affidabile della sola istruzione a testo nel
+# SYSTEM_PROMPT (osservati in prova report a testo libero anche con quella).
+RESPONSE_JSON_SCHEMA = {
+  'type': 'object',
+  'properties': {
+    'groups': {
+      'type': 'array',
+      'items': {
+        'type': 'object',
+        'properties': {
+          'order_ids': {'type': 'array', 'items': {'type': 'integer'}},
+          'delivery_user_id': {'type': ['integer', 'null']},
+          'reason': {'type': 'string'},
+        },
+        'required': ['order_ids', 'delivery_user_id', 'reason'],
+      },
+    },
+  },
+  'required': ['groups'],
+}
+
 
 def build_user_prompt(
   orders: list[dict[str, Any]],
