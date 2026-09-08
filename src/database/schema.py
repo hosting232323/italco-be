@@ -84,7 +84,8 @@ class User(BaseItalcoEntity):
   collection_point = relationship('CollectionPoint', back_populates='user', cascade='all, delete-orphan')
 
   def format_user(self, role: UserRole = None):
-    if role == UserRole.ADMIN:
+    # Il super admin che opera in una company vede i dati come un admin.
+    if role in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
       hidden = {'password'}
       return {key: value for key, value in self.to_dict().items() if key not in hidden}
     else:

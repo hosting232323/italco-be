@@ -100,6 +100,25 @@ def test_format_user_with_info_adds_customer_info_for_operator(db):
   assert formatted['customer_user_info']['city'] == 'Bari'
 
 
+def test_format_user_with_info_treats_super_admin_as_admin(db):
+  # Il super admin che opera in una company deve vedere i dati completi e le
+  # info collegate, come un admin: la tabella Punti Vendita ne dipende.
+  customer = create_user(UserRole.CUSTOMER)
+  create_customer_info(customer, city='Bari', import_code='PV-042')
+  delivery = create_user(UserRole.DELIVERY)
+  create_delivery_info(delivery, cap='70020')
+
+  formatted_customer = format_user_with_info(customer, UserRole.SUPER_ADMIN)
+  formatted_delivery = format_user_with_info(delivery, UserRole.SUPER_ADMIN)
+
+  # dict completo (non il ridotto id/nickname/role dei viewer non-admin)
+  assert 'company_id' in formatted_customer
+  assert 'password' not in formatted_customer
+  assert formatted_customer['customer_user_info']['city'] == 'Bari'
+  assert formatted_customer['customer_user_info']['import_code'] == 'PV-042'
+  assert formatted_delivery['delivery_user_info']['cap'] == '70020'
+
+
 def test_format_user_with_info_empty_dict_when_no_info(db):
   delivery = create_user(UserRole.DELIVERY)
 
