@@ -44,7 +44,10 @@ def create_order(user: User, data: dict):
   clean_data['type'] = OrderType(clean_data['type'])
   if 'external_status' in clean_data:
     clean_data['external_status'] = EuronicsStatus(clean_data['external_status'])
-  if user.role in [UserRole.ADMIN, UserRole.OPERATOR]:
+  # Il super admin che opera dentro una company vale quanto un admin: l'ordine
+  # che crea nasce confermato, come per admin e operatori (stesso bypass che
+  # flask_session_authentication fa sul controllo di ruolo).
+  if user.role in [UserRole.ADMIN, UserRole.OPERATOR, UserRole.SUPER_ADMIN]:
     clean_data['confirmed'] = True
     clean_data['confirmation_date'] = datetime.now()
     if 'booking_date' in clean_data and clean_data['booking_date'] is not None:

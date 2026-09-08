@@ -11,6 +11,7 @@ from tests.unit.factories import (
   create_product,
   create_service,
   create_service_user,
+  create_super_admin,
   create_user,
   customer_with_service,
 )
@@ -54,6 +55,22 @@ def test_create_order_as_admin_is_confirmed_and_booked(client):
 
   payload = _order_payload(service, collection_point, booking_date='2026-07-19', user_id=customer.id)
   response = client.post('/order', json=payload, headers=auth_header(admin))
+
+  body = response.get_json()
+  assert body['status'] == 'ok'
+  assert body['order']['status'] == 'Booked'
+  assert body['order']['confirmed'] is True
+  assert 'confirmation_date' in body['order']
+
+
+def test_create_order_as_super_admin_is_confirmed_and_booked(client, db):
+  # Un super admin che opera dentro una company crea ordini come un admin:
+  # confermati e, con la data consegna, portati a Booked.
+  super_admin = create_super_admin()
+  customer, service, _, collection_point = customer_with_service()
+
+  payload = _order_payload(service, collection_point, booking_date='2026-07-19', user_id=customer.id)
+  response = client.post('/order', json=payload, headers=auth_header(super_admin, db.id))
 
   body = response.get_json()
   assert body['status'] == 'ok'
