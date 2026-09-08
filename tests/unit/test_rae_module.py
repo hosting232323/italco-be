@@ -14,7 +14,7 @@ from database_api.operations import get_by_id, update
 from src.database.enum import UserRole
 from src.database.queries import is_rae_enabled
 from src.database.schema import Company, RaeProduct
-from src.end_points.company import RAE_WITHOUT_PLACE_ERROR
+from src.end_points.company import RAE_WITHOUT_PLACE_ERROR, RAE_WITHOUT_REGISTRATION_ERROR
 from src.end_points.orders.services import create_products
 
 from tests.unit.factories import (
@@ -31,13 +31,17 @@ from tests.unit.factories import (
 
 RAE_OFF_MESSAGE = 'Modulo RAEE non attivo per questa attività'
 
-# Dati legali obbligatori in creazione: legal_name/vat_number/address/city.
+# Dati legali obbligatori in creazione: legal_name/vat_number/address/city
+# sempre, rae_registration solo quando l'attività nasce con il modulo acceso.
 LEGAL_PAYLOAD = {
   'legal_name': 'Attività SRL',
   'vat_number': '11122233344',
   'address': 'Via Test 1',
   'city': 'Bari (BA)',
+  'rae_registration': 'RD000S00000000 del 01/01/26',
 }
+
+RAE_REGISTRATION = 'RD000S00000000 del 01/01/26'
 
 
 @pytest.fixture
@@ -71,9 +75,25 @@ def test_creating_a_company_with_the_module_on_is_refused(db, client):
   assert body['message'] == RAE_WITHOUT_PLACE_ERROR
 
 
-def test_switching_the_module_on_requires_a_disposal_place(db, client):
+def test_switching_the_module_on_requires_rae_registration(db, client):
+  """Con un luogo ma senza iscrizione all'Albo il modulo non si accende."""
   super_admin = create_super_admin()
   company = create_company()
+  with scope(company_id=company.id):
+    create_rae_disposal_place()
+
+  refused = client.put(
+    f'/company/{company.id}', json={'name': company.name, 'rae': True}, headers=auth_header(super_admin)
+  ).get_json()
+
+  assert refused['status'] == 'ko'
+  assert refused['message'] == RAE_WITHOUT_REGISTRATION_ERROR
+  assert get_by_id(Company, company.id).rae is False
+
+
+def test_switching_the_module_on_requires_a_disposal_place(db, client):
+  super_admin = create_super_admin()
+  company = create_company(rae_registration=RAE_REGISTRATION)
 
   refused = client.put(
     f'/company/{company.id}', json={'name': company.name, 'rae': True}, headers=auth_header(super_admin)
@@ -84,18 +104,21 @@ def test_switching_the_module_on_requires_a_disposal_place(db, client):
   assert get_by_id(Company, company.id).rae is False
 
 
-def test_switching_the_module_on_succeeds_once_a_disposal_place_exists(db, client):
+def test_switching_the_module_on_succeeds_with_registration_and_a_disposal_place(db, client):
   super_admin = create_super_admin()
   company = create_company()
   with scope(company_id=company.id):
     create_rae_disposal_place()
 
   body = client.put(
-    f'/company/{company.id}', json={'name': company.name, 'rae': True}, headers=auth_header(super_admin)
+    f'/company/{company.id}',
+    json={'name': company.name, 'rae': True, 'rae_registration': RAE_REGISTRATION},
+    headers=auth_header(super_admin),
   ).get_json()
 
   assert body['status'] == 'ok'
   assert body['company']['rae'] is True
+  assert get_by_id(Company, company.id).rae_registration == RAE_REGISTRATION
 
 
 def test_company_created_without_the_flag_has_it_off(db, client):
@@ -120,7 +143,7 @@ def test_company_created_without_the_flag_has_it_off(db, client):
 
 def test_super_admin_switches_the_module(db, client):
   super_admin = create_super_admin()
-  company = create_company()
+  company = create_company(rae_registration=RAE_REGISTRATION)
   with scope(company_id=company.id):
     create_rae_disposal_place()
 

@@ -34,20 +34,26 @@ company_bp = Blueprint('company_bp', __name__)
 LOGO_SUBFOLDER = 'company-logos'
 
 # Dati legali dell'attività stampati nei PDF (oggi il DDT RAEE). A DB sono tutti
-# nullable: qui vive il vincolo, come già per 'name'. Sempre obbligatori, col
-# modulo RAEE acceso o no: i dati specifici RAEE (iscrizione Albo, luogo di
-# raggruppamento) non sono più qui, vivono su RaeDisposalPlace perché una
-# company può averne N. tax_code e logo restano opzionali.
+# nullable: qui vive il vincolo, come già per 'name'. legal_name/vat_number/
+# address/city sono sempre obbligatori; rae_registration (iscrizione Albo
+# Gestori Ambientali) lo diventa solo col modulo RAEE acceso, perché compare
+# unicamente nel DDT RAEE. Il luogo di raggruppamento non è qui: vive su
+# RaeDisposalPlace perché una company può averne N. tax_code e logo opzionali.
 ALWAYS_REQUIRED_LEGAL = ('legal_name', 'vat_number', 'address', 'city')
-LEGAL_FIELDS = ALWAYS_REQUIRED_LEGAL + ('tax_code',)
+RAE_REQUIRED_LEGAL = ('rae_registration',)
+LEGAL_FIELDS = ALWAYS_REQUIRED_LEGAL + RAE_REQUIRED_LEGAL + ('tax_code',)
 
 LEGAL_LABELS = {
   'legal_name': 'Ragione sociale',
   'vat_number': 'Partita IVA',
   'address': 'Indirizzo sede legale',
   'city': 'Città',
+  'rae_registration': 'Estremi iscrizione Albo Gestori Ambientali',
 }
 
+RAE_WITHOUT_REGISTRATION_ERROR = (
+  "Inserisci gli estremi di iscrizione all'Albo Gestori Ambientali prima di attivare il modulo"
+)
 RAE_WITHOUT_PLACE_ERROR = 'Configura almeno un luogo di smaltimento RAEE prima di attivare il modulo'
 
 
@@ -65,13 +71,14 @@ def _clean_legal(payload: dict, *, only_present: bool) -> dict:
   return {field: ((payload.get(field) or '').strip() or None) for field in fields}
 
 
-def _legal_error(legal: dict) -> str | None:
+def _legal_error(legal: dict, rae: bool) -> str | None:
+  required = set(ALWAYS_REQUIRED_LEGAL) | (set(RAE_REQUIRED_LEGAL) if rae else set())
   missing = [
     LEGAL_LABELS[field]
-    for field in ALWAYS_REQUIRED_LEGAL
+    for field in ALWAYS_REQUIRED_LEGAL + RAE_REQUIRED_LEGAL
     # In creazione i campi ci sono tutti; in modifica si valida solo ciò che
     # arriva, così un rename non deve rispedire l'anagrafica intera.
-    if field in legal and not legal[field]
+    if field in required and field in legal and not legal[field]
   ]
   if missing:
     return f'Campi obbligatori mancanti: {", ".join(missing)}'
@@ -125,7 +132,7 @@ def create_company(_):
   rae = bool(payload.get('rae'))
   automatic_planning = bool(payload.get('automatic_planning'))
   legal = _clean_legal(payload, only_present=False)
-  legal_error = _legal_error(legal)
+  legal_error = _legal_error(legal, rae)
   if legal_error:
     return {'status': 'ko', 'message': legal_error}
   # Una company appena creata non può ancora avere un luogo di smaltimento
@@ -186,11 +193,19 @@ def update_company(_, id):
 
     rae = payload['rae'] if 'rae' in payload else company.rae
     legal = _clean_legal(payload, only_present=True)
-    legal_error = _legal_error(legal)
+    legal_error = _legal_error(legal, rae)
     if legal_error:
       return {'status': 'ko', 'message': legal_error}
-    if rae and count_rae_disposal_places(int(id)) == 0:
-      return {'status': 'ko', 'message': RAE_WITHOUT_PLACE_ERROR}
+    if rae:
+      # Il modulo si accende solo con l'iscrizione all'Albo compilata (payload
+      # o valore già su company) e almeno un luogo di raggruppamento: in
+      # modifica _legal_error valida solo i campi che arrivano, quindi qui va
+      # ricontrollato il valore effettivo.
+      registration = legal['rae_registration'] if 'rae_registration' in legal else company.rae_registration
+      if not registration:
+        return {'status': 'ko', 'message': RAE_WITHOUT_REGISTRATION_ERROR}
+      if count_rae_disposal_places(int(id)) == 0:
+        return {'status': 'ko', 'message': RAE_WITHOUT_PLACE_ERROR}
 
     changes = {'name': name, **legal}
     if 'rae' in payload:

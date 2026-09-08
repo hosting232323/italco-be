@@ -1,11 +1,13 @@
 """Endpoint company: dati legali stampati nei PDF e logo aziendale.
 
-legal_name/vat_number/address/city sono sempre obbligatori in creazione.
-tax_code e logo restano opzionali. In modifica la validazione tocca solo i
-campi che arrivano, così un rename non deve rispedire l'anagrafica intera.
+legal_name/vat_number/address/city sono sempre obbligatori in creazione;
+rae_registration lo diventa solo con il modulo RAEE acceso. tax_code e logo
+restano opzionali. In modifica la validazione tocca solo i campi che arrivano,
+così un rename non deve rispedire l'anagrafica intera.
 
-Il modulo RAEE (rae=true) richiede almeno un RaeDisposalPlace: si prova in
-test_rae_module.py, insieme al resto del comportamento del flag.
+Il modulo RAEE (rae=true) richiede rae_registration compilato e almeno un
+RaeDisposalPlace: si prova in test_rae_module.py, insieme al resto del
+comportamento del flag.
 """
 
 import os

@@ -31,7 +31,7 @@
       <td class="short-label">Codice Fiscale</td><td>{{ company and company.tax_code or '/' }}</td>
     </tr>
     <tr>
-      <td class="short-label">Estremi Iscrizione Ecc Raee</td><td colspan="2">{{ disposal_place and disposal_place.rae_registration or '/' }}</td>
+      <td class="short-label">Estremi Iscrizione Ecc Raee</td><td colspan="2">{{ company and company.rae_registration or '/' }}</td>
       <td class="short-label">Targa</td><td>nd</td>
     </tr>
     <tr>
@@ -57,7 +57,7 @@
   <h2 class="rae-h2">Destinatario finale</h2>
   <table class="rae-info-table">
     <tr>
-      <td class="label">Codice Distribuzione</td><td>{{ disposal_place and disposal_place.rae_registration or '/' }}</td>
+      <td class="label">Codice Distribuzione</td><td>{{ company and company.rae_registration or '/' }}</td>
       <td class="label">Codice Fiscale</td><td>{{ company and company.tax_code or '/' }}</td>
     </tr>
     <tr>

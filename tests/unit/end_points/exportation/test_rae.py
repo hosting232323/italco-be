@@ -48,38 +48,38 @@ def test_export_rae_by_order_prints_company_legal_data(client):
 
   assert response.status_code == 200
   text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
-  # I valori un tempo hardcoded ora arrivano dalla company (fixture db).
+  # I valori un tempo hardcoded ora arrivano dalla company (fixture db):
+  # ragione sociale e iscrizione all'Albo Gestori Ambientali.
   assert 'Test Company SRL' in text
+  assert 'RD999S00099999 del 01/01/26' in text
 
 
-def test_export_rae_by_order_hides_disposal_place_before_disposal(client):
-  """Prima dello smaltimento non c'è ancora un luogo scelto: l'area
-  'Trasportatore del rifiuto' resta vuota ('/'), non prende dati a caso."""
+def test_export_rae_by_order_hides_the_grouping_place_before_disposal(client):
+  """Il luogo di raggruppamento lo sceglie lo smaltimento: prima non c'è, e
+  l'area 'Primo destinatario' resta vuota ('/'), non prende dati a caso.
+  L'iscrizione all'Albo invece è della company e si stampa sempre."""
   admin = create_user(UserRole.ADMIN)
   _, order, _ = _order_with_emitted_rae()
 
   response = client.get(f'/export/rae/{order.id}', headers=auth_header(admin))
 
   text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
-  assert 'RD999S00099999 del 01/01/26' not in text
   assert 'Via Deposito 9, Bari (BA)' not in text
+  assert 'RD999S00099999 del 01/01/26' in text
 
 
-def test_export_rae_by_order_prints_disposal_place_after_disposal(client):
-  """Una volta smaltito, l'area 'Trasportatore del rifiuto' prende i dati
-  del luogo scelto in quel momento, non più quelli fissi della company."""
+def test_export_rae_by_order_prints_the_grouping_place_after_disposal(client):
+  """Una volta smaltito, l'area 'Primo destinatario' prende il luogo di
+  raggruppamento scelto in quel momento."""
   admin = create_user(UserRole.ADMIN)
   _, order, rae_product = _order_with_emitted_rae()
-  place = create_rae_disposal_place(
-    rae_registration='RD-ABC00000 del 02/02/26', rae_grouping_place='Via Prova 5, Bari (BA)'
-  )
+  place = create_rae_disposal_place(rae_grouping_place='Via Prova 5, Bari (BA)')
   disposal = create_disposal(rae_disposal_place=place)
   update(rae_product, {'disposal_id': disposal.id})
 
   response = client.get(f'/export/rae/{order.id}', headers=auth_header(admin))
 
   text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
-  assert 'RD-ABC00000 del 02/02/26' in text
   assert 'Via Prova 5, Bari (BA)' in text
 
 

@@ -72,20 +72,21 @@ def _truncate_all_tables():
 TEST_COMPANY_NAME = 'Test Company'
 
 # Dati legali dell'attività: la fixture li popola così i PDF che li stampano
-# hanno qualcosa di reale da rendere, come in produzione. I dati RAE specifici
-# (iscrizione Albo, luogo di raggruppamento) non sono più qui: vivono su
-# RaeDisposalPlace, popolato subito sotto per la stessa ragione.
+# (il DDT RAEE) hanno qualcosa di reale da rendere, come in produzione.
+# rae_registration (iscrizione Albo) è dell'attività, una sola; il luogo di
+# raggruppamento vive su RaeDisposalPlace, popolato subito sotto per la stessa
+# ragione.
 TEST_COMPANY_LEGAL = {
   'legal_name': 'Test Company SRL',
   'vat_number': '09876543210',
   'tax_code': '01234567890',
   'address': 'Via delle Prove 1',
   'city': 'Bari (BA)',
+  'rae_registration': 'RD999S00099999 del 01/01/26',
 }
 
 TEST_DISPOSAL_PLACE = {
   'name': 'Sede principale',
-  'rae_registration': 'RD999S00099999 del 01/01/26',
   'rae_grouping_place': 'Via Deposito 9, Bari (BA)',
 }
 

@@ -51,15 +51,18 @@ class Company(BaseEntity):
   # Dati legali dell'attività, stampati nei PDF al posto dei valori un tempo
   # scritti a mano nei template. A DB restano tutti nullable: l'unico vincolo
   # NOT NULL di company è name, e l'obbligatorietà (legal_name/address/city
-  # sempre) la impone l'endpoint, come già fa per name. tax_code e logo sono
-  # opzionali anche lì. I dati RAE (iscrizione Albo/luogo di raggruppamento)
-  # vivono ora su RaeDisposalPlace: una company può avere N luoghi.
+  # sempre, rae_registration solo col modulo RAEE acceso) la impone l'endpoint,
+  # come già fa per name. tax_code e logo sono opzionali anche lì.
+  # rae_registration (iscrizione Albo Gestori Ambientali) è dell'attività, una
+  # sola; il luogo di raggruppamento invece vive su RaeDisposalPlace perché una
+  # company può averne N.
   logo = Column(String)
   legal_name = Column(String)
   vat_number = Column(String)
   tax_code = Column(String)
   address = Column(String)
   city = Column(String)
+  rae_registration = Column(String)
 
 
 class User(BaseItalcoEntity):
@@ -464,12 +467,12 @@ class CollectionCenter(BaseEntity):
 class RaeDisposalPlace(BaseItalcoEntity):
   __tablename__ = 'rae_disposal_place'
 
-  # Dati un tempo su company (rae_registration/rae_grouping_place), ora per
-  # luogo: un'attività può smaltire da più sedi, ciascuna con la propria
-  # iscrizione all'Albo Gestori Ambientali. Nullable a DB come le altre
-  # anagrafiche legali: l'obbligatorietà la impone l'endpoint.
+  # Il luogo di raggruppamento RAEE, un tempo unico su company: ora per riga,
+  # perché un'attività può raccogliere i RAEE in più sedi e lo smaltimento
+  # sceglie quella usata. Nullable a DB come le altre anagrafiche legali:
+  # l'obbligatorietà la impone l'endpoint. L'iscrizione all'Albo Gestori
+  # Ambientali resta invece su company (rae_registration), una per attività.
   name = Column(String)
-  rae_registration = Column(String)
   rae_grouping_place = Column(String)
 
   disposals = relationship('Disposal', back_populates='rae_disposal_place')

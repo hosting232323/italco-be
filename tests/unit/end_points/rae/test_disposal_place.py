@@ -20,7 +20,7 @@ def test_create_company_disposal_place(db, client):
 
   response = client.post(
     f'/company/{db.id}/rae-disposal-place',
-    json={'name': 'Deposito Bari', 'rae_registration': 'RD1', 'rae_grouping_place': 'Via Bari 1'},
+    json={'name': 'Deposito Bari', 'rae_grouping_place': 'Via Bari 1'},
     headers=auth_header(super_admin),
   )
 
