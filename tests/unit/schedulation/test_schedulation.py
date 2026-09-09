@@ -21,6 +21,10 @@ def test_assign_orders_to_groups_end_to_end():
       {'id': 11, 'delivery_user_info': {'cap': '70122'}},
       {'id': 22, 'delivery_user_info': {'cap': '71011'}},
     ],
+    transports=[
+      {'id': 101, 'cap': '70122'},
+      {'id': 202, 'cap': '71011'},
+    ],
     min_size_group=1,
     max_size_group=2,
     max_distance_km=5,
@@ -33,6 +37,14 @@ def test_assign_orders_to_groups_end_to_end():
     for group in groups
   }
   assert assignment == {(1,): [11], (2,): [22]}
+
+  transports_by_orders = {
+    tuple(item['order_id'] for item in group['schedule_items'] if item['operation_type'] == 'Order'): [
+      transport['id'] for transport in group['transports']
+    ]
+    for group in groups
+  }
+  assert transports_by_orders == {(1,): [101], (2,): [202]}
 
 
 def test_execute_schedulation_returns_ko_without_orders(app, db):
@@ -52,7 +64,7 @@ def test_execute_schedulation_builds_groups(app, db):
   create_product(order, service_user, collection_point_id=collection_point.id)
   delivery = create_user(UserRole.DELIVERY)
   create_delivery_info(delivery, cap='70121')
-  transport = create_transport()
+  transport = create_transport(cap='70121')
 
   with app.test_request_context():
     result = execute_schedulation(admin, datetime(2026, 7, 15), 1, 5, 10)
@@ -62,3 +74,4 @@ def test_execute_schedulation_builds_groups(app, db):
   assert [t['id'] for t in result['transports']] == [transport.id]
   assert len(result['groups']) == 1
   assert result['groups'][0]['delivery_users'][0]['id'] == delivery.id
+  assert [t['id'] for t in result['groups'][0]['transports']] == [transport.id]

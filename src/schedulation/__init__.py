@@ -29,15 +29,18 @@ def execute_schedulation(
   delivery_users = [
     format_user_with_info(delivery_user, user.role) for delivery_user in get_delivery_users_by_date(work_date)
   ]
+  transports = [transport.to_dict() for transport in get_transports_by_date(work_date)]
   return {
     'status': 'ok',
     'delivery_users': delivery_users,
-    'transports': [transport.to_dict() for transport in get_transports_by_date(work_date)],
-    'groups': assign_orders_to_groups(orders, delivery_users, min_size_group, max_size_group, max_distance_km),
+    'transports': transports,
+    'groups': assign_orders_to_groups(
+      orders, delivery_users, transports, min_size_group, max_size_group, max_distance_km
+    ),
   }
 
 
-def assign_orders_to_groups(orders, delivery_users, min_size_group, max_size_group, max_distance_km):
+def assign_orders_to_groups(orders, delivery_users, transports, min_size_group, max_size_group, max_distance_km):
   return assign_delivery_users_to_schedule_items(
     build_clustered_schedule_item_groups(
       orders,
@@ -46,4 +49,5 @@ def assign_orders_to_groups(orders, delivery_users, min_size_group, max_size_gro
       max_distance_km,
     ),
     delivery_users,
+    transports,
   )

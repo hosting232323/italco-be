@@ -49,3 +49,43 @@ def test_assign_ignores_users_without_cap():
   result = assign_delivery_users_to_schedule_items(groups, delivery_users)
 
   assert result[0]['delivery_users'] == []
+
+
+def test_assign_matches_closest_transport():
+  groups = [[_schedule_item('70121')], [_schedule_item('71010')]]
+  delivery_users = [
+    {'id': 11, 'delivery_user_info': {'cap': '70122'}},
+    {'id': 22, 'delivery_user_info': {'cap': '71011'}},
+  ]
+  transports = [{'id': 101, 'cap': '70122'}, {'id': 202, 'cap': '71011'}]
+
+  result = assign_delivery_users_to_schedule_items(groups, delivery_users, transports)
+
+  assignment = {
+    tuple(order_ids(group['schedule_items'])): [transport['id'] for transport in group['transports']]
+    for group in result
+  }
+  assert assignment == {(21,): [101], (10,): [202]}
+
+
+def test_assign_ignores_transports_without_cap():
+  groups = [[_schedule_item('70121')]]
+  transports = [{'id': 1, 'cap': None}, {'id': 2}]
+
+  result = assign_delivery_users_to_schedule_items(groups, [], transports)
+
+  assert result[0]['transports'] == []
+
+
+def test_assign_transports_even_without_delivery_users():
+  groups = [[_schedule_item('70121')], [_schedule_item('71010')]]
+  transports = [{'id': 101, 'cap': '70122'}, {'id': 202, 'cap': '71011'}]
+
+  result = assign_delivery_users_to_schedule_items(groups, [], transports)
+
+  assignment = {
+    tuple(order_ids(group['schedule_items'])): [transport['id'] for transport in group['transports']]
+    for group in result
+  }
+  assert assignment == {(21,): [101], (10,): [202]}
+  assert all(group['delivery_users'] == [] for group in result)
