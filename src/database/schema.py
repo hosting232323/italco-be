@@ -110,8 +110,12 @@ class DeliveryUserInfo(BaseItalcoEntity):
   lat = Column(Numeric(11, 8))
   lon = Column(Numeric(11, 8))
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+  # Un utente delivery sta su un solo veicolo; un veicolo ne raccoglie molti.
+  # NULL = utente non ancora assegnato a nessun veicolo.
+  transport_id = Column(Integer, ForeignKey('transport.id'), nullable=True)
 
   user = relationship('User', back_populates='delivery_user_info')
+  transport = relationship('Transport', back_populates='delivery_user_info')
 
 
 class CustomerUserInfo(BaseItalcoEntity):
@@ -155,6 +159,7 @@ class Transport(BaseItalcoEntity):
   name = Column(String, nullable=False)
   plate = Column(String, nullable=False)
 
+  delivery_user_info = relationship('DeliveryUserInfo', back_populates='transport')
   schedule = relationship('Schedule', back_populates='transport')
   product = relationship('Product', foreign_keys='Product.transport_id', back_populates='transport')
   release_product = relationship(
