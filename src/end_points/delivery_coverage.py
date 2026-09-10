@@ -45,9 +45,7 @@ def _delivery_user_or_none(user_id) -> User | None:
 def get_delivery_coverage(_):
   return {
     'status': 'ok',
-    'delivery_users': [
-      {'id': user.id, 'nickname': user.nickname} for user in query_delivery_users()
-    ],
+    'delivery_users': [{'id': user.id, 'nickname': user.nickname} for user in query_delivery_users()],
     'coverages': query_coverages(),
     'absences': [absence.to_dict() for absence in query_absences()],
   }
@@ -225,10 +223,7 @@ def format_coverage(coverage: DeliveryCoverage) -> dict:
   # istanza scollegata solleverebbe.
   return {
     **coverage.to_dict(),
-    'days': [
-      day.to_dict()
-      for day in sorted(coverage.days, key=lambda day: (day.day_of_week, day.start_time))
-    ],
+    'days': [day.to_dict() for day in sorted(coverage.days, key=lambda day: (day.day_of_week, day.start_time))],
   }
 
 
@@ -245,12 +240,7 @@ def get_coverage_dict(coverage_id: int) -> dict:
 
 def query_delivery_users() -> list[User]:
   with Session() as session:
-    return (
-      session.query(User)
-      .filter(User.role == UserRole.DELIVERY)
-      .order_by(asc(User.nickname))
-      .all()
-    )
+    return session.query(User).filter(User.role == UserRole.DELIVERY).order_by(asc(User.nickname)).all()
 
 
 def query_coverages() -> list[dict]:
