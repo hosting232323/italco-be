@@ -144,6 +144,26 @@ deploy_test:
     EURONICS_API_PASSWORD_PIPELINE: 0
     IS_DEV: 1
 
+# Ambiente dedicato ai lavori lunghi (es. pianificazione automatica): stessa
+# meccanica di deploy_test ma su un container/host/DB separati, cosi' il branch
+# resta online per giorni senza calpestare test. Il DB usa il suffisso _demo
+# dove test usa _test.
+deploy_demo:
+  extends: .deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "demo/pianificazione-automatica"'
+      when: manual
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "trigger"'
+      when: manual
+  variables:
+    SERVICE: "${PROJECT_NAME}-demo"
+    PUBLIC_HOST_PIPELINE: "demo.${PUBLIC_HOST}"
+    DATABASE_URL_PIPELINE: "${DATABASE_URL}_demo"
+    EURONICS_API_PASSWORD_PIPELINE: 0
+    IS_DEV: 1
+
 deploy_prod:
   extends: .deploy
   rules:
