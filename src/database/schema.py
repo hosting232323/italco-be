@@ -114,6 +114,53 @@ class DeliveryUserInfo(BaseItalcoEntity):
   user = relationship('User', back_populates='delivery_user_info')
 
 
+class DeliveryCoverage(BaseItalcoEntity):
+  """Copertura fissa di un corriere: una finestra di date e i giorni della
+  settimana lavorati al suo interno, ciascuno con la propria fascia oraria.
+
+  Le assenze puntuali (ferie, permessi) vivono a parte in DeliveryAbsence e
+  ritagliano dei buchi in questa copertura: la pagina a calendario mostra un
+  giorno come coperto solo se cade in una copertura, è uno dei giorni previsti
+  e non è toccato da un'assenza.
+  """
+
+  __tablename__ = 'delivery_coverage'
+
+  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+  start_date = Column(Date, nullable=False)
+  end_date = Column(Date, nullable=False)
+
+  user = relationship('User')
+  days = relationship('DeliveryCoverageDay', back_populates='coverage', cascade='all, delete-orphan')
+
+
+class DeliveryCoverageDay(BaseItalcoEntity):
+  __tablename__ = 'delivery_coverage_day'
+  # Un solo orario per giorno della settimana dentro la stessa copertura:
+  # due righe sullo stesso day_of_week sarebbero due fasce sovrapposte.
+  __table_args__ = (UniqueConstraint('coverage_id', 'day_of_week', name='uq_delivery_coverage_day'),)
+
+  # Lunedì = 0 ... Domenica = 6, la stessa convenzione di Constraint e
+  # CustomerRule (date.weekday()).
+  day_of_week = Column(Integer, nullable=False)
+  start_time = Column(Time, nullable=False)
+  end_time = Column(Time, nullable=False)
+  coverage_id = Column(Integer, ForeignKey('delivery_coverage.id'), nullable=False, index=True)
+
+  coverage = relationship('DeliveryCoverage', back_populates='days')
+
+
+class DeliveryAbsence(BaseItalcoEntity):
+  __tablename__ = 'delivery_absence'
+
+  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+  start_date = Column(Date, nullable=False)
+  end_date = Column(Date, nullable=False)
+  note = Column(String)
+
+  user = relationship('User')
+
+
 class CustomerUserInfo(BaseItalcoEntity):
   __tablename__ = 'customer_user_info'
 
