@@ -218,8 +218,14 @@ class Schedule(BaseItalcoEntity):
 
   date = Column(Date, nullable=False)
   transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
+  # Luogo di smaltimento RAEE del borderò: lo sceglie l'operatore quando il
+  # borderò contiene ordini con prodotti RAE, e lo smaltimento lo eredita da
+  # qui invece di richiederlo di nuovo. Nullable: i borderò senza RAE non lo
+  # valorizzano; l'obbligatorietà condizionata la impone l'endpoint.
+  rae_disposal_place_id = Column(Integer, ForeignKey('rae_disposal_place.id'))
 
   transport = relationship('Transport', back_populates='schedule')
+  rae_disposal_place = relationship('RaeDisposalPlace')
   schedule_item = relationship('ScheduleItem', back_populates='schedule')
   delivery_group = relationship('DeliveryGroup', back_populates='schedule')
   schedule_item_user = relationship('ScheduleItemUser', back_populates='schedule')

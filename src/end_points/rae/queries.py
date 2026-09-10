@@ -147,6 +147,32 @@ def get_disposal_for_export(disposal_id: int, session: session_type = None) -> d
 
 
 @db_session_decorator(commit=False)
+def get_schedule_disposal_place_ids_for_rae_products(rae_product_ids: list[int], session: session_type = None) -> list[int]:
+  """Luoghi di smaltimento dei borderò che raccolgono gli ordini di questi
+  prodotti RAE.
+
+  Il luogo non lo sceglie più lo smaltimento: lo prende dal borderò
+  (RaeProduct -> Order -> ScheduleItemOrder -> ScheduleItem -> Schedule).
+  Ritorna gli id distinti e non nulli trovati: zero se nessun ordine è a
+  borderò o il borderò non l'ha impostato, più di uno se i prodotti vengono da
+  borderò con luoghi diversi. La scelta la fa il chiamante.
+  """
+  if not rae_product_ids:
+    return []
+
+  rows = (
+    session.query(Schedule.rae_disposal_place_id)
+    .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
+    .join(ScheduleItemOrder, ScheduleItemOrder.schedule_item_id == ScheduleItem.id)
+    .join(RaeProduct, RaeProduct.order_id == ScheduleItemOrder.order_id)
+    .filter(RaeProduct.id.in_(rae_product_ids), Schedule.rae_disposal_place_id.isnot(None))
+    .distinct()
+    .all()
+  )
+  return [row[0] for row in rows]
+
+
+@db_session_decorator(commit=False)
 def get_disposal_places_by_disposal_ids(disposal_ids: set[int], session: session_type = None) -> dict[int, dict]:
   """Luogo di smaltimento per disposal_id, per popolare il DDT RAEE.
 

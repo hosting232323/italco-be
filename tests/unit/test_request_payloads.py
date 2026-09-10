@@ -78,11 +78,15 @@ def test_rae_disposal_keeps_input_payload_unchanged(monkeypatch):
   monkeypatch.setattr(disposal_module, 'Session', StubSession)
   monkeypatch.setattr(disposal_module, 'create', create)
   monkeypatch.setattr(disposal_module, 'get_by_ids', lambda *_args, **_kwargs: [])
+  # Il luogo di smaltimento lo ricava dal borderò: qui lo stubbiamo.
+  monkeypatch.setattr(
+    disposal_module, 'get_schedule_disposal_place_ids_for_rae_products', lambda *_args, **_kwargs: [7]
+  )
 
   disposal_module.create_rae_disposal(payload)
 
   assert payload == {'carrier_id': 3, 'rae_product_ids': [10, 11]}
-  assert captured['data'] == {'carrier_id': 3}
+  assert captured['data'] == {'carrier_id': 3, 'rae_disposal_place_id': 7}
 
 
 def test_collection_point_create_keeps_request_payload_unchanged(monkeypatch):

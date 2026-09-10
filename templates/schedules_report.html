@@ -47,6 +47,7 @@
 
 {% for page in order_pages %}
   <div style="page-break-before: always;{% if loop.first %} -pdf-next-page: landscape;{% endif %}"></div>
+  {{ company_header(company, company_logo, powered_tag) }}
   <div class="section">
     <h2 style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;">Ordini</h2>
     <table class="data-table card-index" repeat="1">
@@ -80,10 +81,25 @@
         {% endfor %}
       </tbody>
     </table>
+    {% if loop.last %}
+    <div style="margin-top: 30px">
+      <table class="info-table">
+        <tr>
+          <td style="width: 50%; vertical-align: top; border: none; padding-left: 0;"></td>
+          <td style="width: 50%; vertical-align: top; border: none; padding-left: 0;">
+            <div style="border: 1px solid #999; padding: 10px 10px 30px;">
+              <em>Firma trasportatore</em>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+    {% endif %}
   </div>
 {% endfor %}
 {% for order in orders %}
   <div style="page-break-before: always;{% if loop.first %} -pdf-next-page: body;{% endif %}"></div>
+  {{ company_header(company, company_logo, powered_tag) }}
   <h1 style="margin-bottom: 6px;">N° Ordine: {{ order.id }}</h1>
 
   {{ order_block(order) }}

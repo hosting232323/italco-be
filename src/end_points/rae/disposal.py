@@ -16,11 +16,26 @@ from ...database.schema import (
 )
 from api.storage.session import SessionWithStorage
 from .document import handle_document_by_name
+from .queries import get_schedule_disposal_place_ids_for_rae_products
+
+
+NO_DISPOSAL_PLACE_ERROR = 'Nessun luogo di smaltimento: impostalo nel borderò degli ordini'
+MIXED_DISPOSAL_PLACES_ERROR = 'I prodotti selezionati appartengono a borderò con luoghi di smaltimento diversi'
 
 
 def create_rae_disposal(data: dict):
   rae_product_ids = data.get('rae_product_ids', [])
+
+  # Il luogo di smaltimento non arriva più dal form: lo si ricava dal borderò
+  # che raccoglie gli ordini di questi prodotti RAE.
+  place_ids = get_schedule_disposal_place_ids_for_rae_products(rae_product_ids)
+  if len(place_ids) > 1:
+    return {'status': 'ko', 'message': MIXED_DISPOSAL_PLACES_ERROR}
+  if not place_ids:
+    return {'status': 'ko', 'message': NO_DISPOSAL_PLACE_ERROR}
+
   disposal_data = {key: value for key, value in data.items() if key != 'rae_product_ids'}
+  disposal_data['rae_disposal_place_id'] = place_ids[0]
   with Session() as session:
     disposal = create(Disposal, disposal_data, session=session)
     for rp in get_by_ids(RaeProduct, rae_product_ids, session=session):
