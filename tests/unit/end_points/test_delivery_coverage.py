@@ -167,6 +167,117 @@ def test_update_coverage_dates(client):
   assert get_by_id(DeliveryCoverage, coverage.id).end_date == date(2027, 1, 31)
 
 
+def test_update_coverage_not_found(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.put('/delivery-coverage/999', json={'end_date': '2027-01-31'}, headers=auth_header(admin))
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Copertura non trovata'}
+
+
+def test_update_coverage_rejects_reversed_dates(client):
+  admin = create_user(UserRole.ADMIN)
+  coverage = _coverage(create_user(UserRole.DELIVERY), start=date(2026, 9, 1), end=date(2026, 12, 31))
+
+  response = client.put(
+    f'/delivery-coverage/{coverage.id}',
+    json={'start_date': '2026-11-01', 'end_date': '2026-10-01'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ko'
+
+
+def test_delete_coverage_not_found(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.delete('/delivery-coverage/999', headers=auth_header(admin))
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Copertura non trovata'}
+
+
+def test_add_coverage_day_coverage_not_found(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.post(
+    '/delivery-coverage/999/day',
+    json={'day_of_week': 0, 'start_time': '08:00', 'end_time': '18:00'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Copertura non trovata'}
+
+
+def test_add_coverage_day_rejects_unparsable_time(client):
+  admin = create_user(UserRole.ADMIN)
+  coverage = _coverage(create_user(UserRole.DELIVERY))
+
+  response = client.post(
+    f'/delivery-coverage/{coverage.id}/day',
+    json={'day_of_week': 0, 'start_time': 'mezzogiorno', 'end_time': '18:00'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Errore generico'}
+
+
+def test_update_coverage_day(client):
+  admin = create_user(UserRole.ADMIN)
+  coverage = _coverage(create_user(UserRole.DELIVERY))
+  day = _day(coverage, day_of_week=0)
+
+  response = client.put(
+    f'/delivery-coverage/day/{day.id}',
+    json={'start_time': '07:30:00', 'end_time': '16:00:00'},
+    headers=auth_header(admin),
+  )
+
+  body = response.get_json()
+  assert body['status'] == 'ok'
+  assert body['day']['start_time'] == '07:30:00'
+  assert get_by_id(DeliveryCoverageDay, day.id).end_time.hour == 16
+
+
+def test_update_coverage_day_not_found(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.put('/delivery-coverage/day/999', json={'start_time': '09:00'}, headers=auth_header(admin))
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Giorno non trovato'}
+
+
+def test_update_coverage_day_rejects_reversed_times(client):
+  admin = create_user(UserRole.ADMIN)
+  coverage = _coverage(create_user(UserRole.DELIVERY))
+  day = _day(coverage, day_of_week=0, start='08:00:00', end='17:00:00')
+
+  response = client.put(
+    f'/delivery-coverage/day/{day.id}',
+    json={'start_time': '18:00'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ko'
+
+
+def test_delete_coverage_day(client):
+  admin = create_user(UserRole.ADMIN)
+  day = _day(_coverage(create_user(UserRole.DELIVERY)))
+
+  response = client.delete(f'/delivery-coverage/day/{day.id}', headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ok'
+  assert get_by_id(DeliveryCoverageDay, day.id) is None
+
+
+def test_delete_coverage_day_not_found(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.delete('/delivery-coverage/day/999', headers=auth_header(admin))
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Giorno non trovato'}
+
+
 def test_absence_crud(client):
   admin = create_user(UserRole.ADMIN)
   delivery = create_user(UserRole.DELIVERY)
@@ -189,6 +300,83 @@ def test_absence_crud(client):
   deleted = client.delete(f'/delivery-coverage/absence/{absence_id}', headers=auth_header(admin))
   assert deleted.get_json()['status'] == 'ok'
   assert get_by_id(DeliveryAbsence, absence_id) is None
+
+
+def test_create_absence_rejects_non_delivery_user(client):
+  admin = create_user(UserRole.ADMIN)
+  customer = create_user(UserRole.CUSTOMER)
+
+  response = client.post(
+    '/delivery-coverage/absence',
+    json={'user_id': customer.id, 'start_date': '2026-09-10', 'end_date': '2026-09-14'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Utente delivery non trovato'}
+
+
+def test_create_absence_rejects_reversed_dates(client):
+  admin = create_user(UserRole.ADMIN)
+  delivery = create_user(UserRole.DELIVERY)
+
+  response = client.post(
+    '/delivery-coverage/absence',
+    json={'user_id': delivery.id, 'start_date': '2026-09-20', 'end_date': '2026-09-10'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ko'
+
+
+def test_update_absence_dates(client):
+  admin = create_user(UserRole.ADMIN)
+  delivery = create_user(UserRole.DELIVERY)
+  absence = create(
+    DeliveryAbsence,
+    {'user_id': delivery.id, 'start_date': date(2026, 9, 10), 'end_date': date(2026, 9, 12)},
+  )
+
+  response = client.put(
+    f'/delivery-coverage/absence/{absence.id}',
+    json={'start_date': '2026-09-11', 'end_date': '2026-09-15'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+  assert get_by_id(DeliveryAbsence, absence.id).end_date == date(2026, 9, 15)
+
+
+def test_update_absence_not_found(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.put('/delivery-coverage/absence/999', json={'note': 'x'}, headers=auth_header(admin))
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Assenza non trovata'}
+
+
+def test_update_absence_rejects_reversed_dates(client):
+  admin = create_user(UserRole.ADMIN)
+  delivery = create_user(UserRole.DELIVERY)
+  absence = create(
+    DeliveryAbsence,
+    {'user_id': delivery.id, 'start_date': date(2026, 9, 10), 'end_date': date(2026, 9, 12)},
+  )
+
+  response = client.put(
+    f'/delivery-coverage/absence/{absence.id}',
+    json={'start_date': '2026-09-20'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ko'
+
+
+def test_delete_absence_not_found(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.delete('/delivery-coverage/absence/999', headers=auth_header(admin))
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Assenza non trovata'}
 
 
 def test_coverage_endpoints_forbid_delivery_role(client):

@@ -53,9 +53,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('coverage_id', 'day_of_week', name='uq_delivery_coverage_day'),
   )
-  op.create_index(
-    op.f('ix_delivery_coverage_day_coverage_id'), 'delivery_coverage_day', ['coverage_id'], unique=False
-  )
+  op.create_index(op.f('ix_delivery_coverage_day_coverage_id'), 'delivery_coverage_day', ['coverage_id'], unique=False)
 
   op.create_table(
     'delivery_absence',
