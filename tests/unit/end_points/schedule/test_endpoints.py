@@ -20,6 +20,8 @@ from tests.unit.factories import (
   create_delivery_info,
   create_order,
   create_product,
+  create_rae_disposal_place,
+  create_rae_product,
   create_schedule,
   create_schedule_item_user,
   create_transport,
@@ -56,6 +58,13 @@ def _schedule_payload(transport, order, collection_point, users):
 def _booked_order(service_user):
   order = create_order(status=OrderStatus.BOOKED)
   create_product(order, service_user)
+  return order
+
+
+def _rae_order(service_user, customer):
+  order = create_order(status=OrderStatus.BOOKED)
+  rae_product = create_rae_product(order, customer)
+  create_product(order, service_user, rae_product_id=rae_product.id)
   return order
 
 
@@ -101,6 +110,29 @@ def test_create_schedule_marks_booking_when_products_have_transport(client):
 
   assert response.get_json()['status'] == 'ok'
   assert get_by_id(Order, order.id).status == OrderStatus.BOOKING
+
+
+def test_create_schedule_requires_disposal_place_for_rae_orders(client):
+  operator = create_user(UserRole.OPERATOR)
+  customer, _, service_user, collection_point = customer_with_service()
+  order = _rae_order(service_user, customer)
+  transport = create_transport()
+  delivery = create_user(UserRole.DELIVERY)
+  payload = _schedule_payload(transport, order, collection_point, [delivery])
+
+  refused = client.post('/schedule', json=payload, headers=auth_header(operator))
+  body = refused.get_json()
+  assert body['status'] == 'ko'
+  assert 'RAE' in body['message']
+  with Session() as session:
+    assert session.query(Schedule).count() == 0
+
+  place = create_rae_disposal_place()
+  payload['rae_disposal_place_id'] = place.id
+  accepted = client.post('/schedule', json=payload, headers=auth_header(operator))
+  accepted_body = accepted.get_json()
+  assert accepted_body['status'] == 'ok'
+  assert get_by_id(Schedule, accepted_body['schedule']['id']).rae_disposal_place_id == place.id
 
 
 def test_create_schedule_rejects_already_assigned_delivery(client):

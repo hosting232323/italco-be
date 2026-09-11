@@ -1,15 +1,22 @@
+from datetime import date
+
 from database_api import Session
 from database_api.operations import create, update as database_update
 import pytest
 
-from src.database.enum import RaeStatus
+from src.database.enum import RaeStatus, ScheduleType
 from src.database.schema import (
   Carrier,
   CollectionCenter,
   Disposal,
   Order,
+  RaeDisposalPlace,
   RaeProduct,
   RaeProductGroup,
+  Schedule,
+  ScheduleItem,
+  ScheduleItemOrder,
+  Transport,
   User,
 )
 from src.end_points.rae import disposal as disposal_module
@@ -20,9 +27,24 @@ def test_create_disposal_rolls_back_all_changes_on_product_failure(seeded_db, mo
   with Session() as session:
     carrier = create(Carrier, {'company_name': 'Carrier'}, session=session)
     center = create(CollectionCenter, {'company_name': 'Center'}, session=session)
+    place = create(RaeDisposalPlace, {'name': 'Deposito'}, session=session)
     user_id = session.query(User.id).first()[0]
     order_id = session.query(Order.id).first()[0]
     group_id = session.query(RaeProductGroup.id).first()[0]
+    # Il luogo di smaltimento ora si eredita dal borderò dell'ordine: senza
+    # questo aggancio create_rae_disposal si fermerebbe prima del loop prodotti.
+    transport = create(Transport, {'name': 'T-atomic', 'plate': 'AA000AA'}, session=session)
+    schedule = create(
+      Schedule,
+      {'date': date.today(), 'transport_id': transport.id, 'rae_disposal_place_id': place.id},
+      session=session,
+    )
+    schedule_item = create(
+      ScheduleItem,
+      {'index': 0, 'schedule_id': schedule.id, 'operation_type': ScheduleType.ORDER},
+      session=session,
+    )
+    create(ScheduleItemOrder, {'order_id': order_id, 'schedule_item_id': schedule_item.id}, session=session)
     products = [
       create(
         RaeProduct,
@@ -39,6 +61,7 @@ def test_create_disposal_rolls_back_all_changes_on_product_failure(seeded_db, mo
     product_ids = [product.id for product in products]
     carrier_id = carrier.id
     center_id = center.id
+    place_id = place.id
     session.commit()
 
   update_calls = 0
@@ -55,6 +78,7 @@ def test_create_disposal_rolls_back_all_changes_on_product_failure(seeded_db, mo
     'code': code,
     'carrier_id': carrier_id,
     'collection_center_id': center_id,
+    'rae_disposal_place_id': place_id,
     'rae_product_ids': product_ids,
   }
 

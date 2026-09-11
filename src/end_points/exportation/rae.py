@@ -5,7 +5,12 @@ from flask import render_template
 from .utils import export_pdf, company_context
 from ...database.enum import RaeStatus, UserRole
 from database_api.operations import get_by_id
-from ..rae.queries import get_product_and_group, query_rae_products
+from ..rae.queries import (
+  get_disposal_places_by_disposal_ids,
+  get_product_and_group,
+  get_schedule_disposal_places_by_rae_product,
+  query_rae_products,
+)
 from ..users.queries import format_user_with_info
 from ...database.schema import User, RaeProduct, Order
 from ..orders.queries import query_orders, format_query_result
@@ -31,7 +36,7 @@ def export_rae(user: User, order_id):
   if len(rae_products) == 0:
     return {'status': 'ko', 'message': 'Nessun prodotto rae identificato'}
 
-  return _render_rae_pdf(rae_products, order, get_by_id(User, order['user']['id']), user.role)
+  return _render_rae_pdf(_attach_disposal_places(rae_products), order, get_by_id(User, order['user']['id']), user.role)
 
 
 def export_rae_by_product(user: User, rae_product_id: int):
@@ -51,7 +56,7 @@ def export_rae_by_product(user: User, rae_product_id: int):
     return {'status': 'ko', 'message': 'Errore nel recupero dati ordine'}
 
   return _render_rae_pdf(
-    [get_product_and_group(rae_product.id)],
+    _attach_disposal_places([get_product_and_group(rae_product.id)]),
     order_dict,
     get_by_id(User, rae_product.user_id),
     user.role,
@@ -114,6 +119,27 @@ def _has_long_word(text: str | None) -> bool:
   taglio a fine parola resta piu' leggibile.
   """
   return max((len(word) for word in (text or '').split()), default=0) > MAX_ADDRESSEE_WORD
+
+
+def _attach_disposal_places(rae_products: list[dict]) -> list[dict]:
+  """Aggancia a ogni rae_product il luogo di smaltimento da stampare nel DDT.
+
+  Il luogo si sceglie ormai una volta sola sul borderò, non più al momento
+  dello smaltimento: se il prodotto è già stato smaltito (disposal_id) si usa
+  quello del Disposal (immutabile, è la fotografia di cosa è successo
+  davvero); altrimenti si ripiega su quello del borderò che raccoglie
+  l'ordine, così il DDT lo mostra da subito invece di aspettare uno
+  smaltimento che ormai non fa che confermarlo. Se l'ordine non è ancora in
+  un borderò con luogo impostato resta None (il template stampa '/').
+  """
+  disposal_ids = {rp['disposal_id'] for rp in rae_products if rp.get('disposal_id')}
+  places = get_disposal_places_by_disposal_ids(disposal_ids)
+  schedule_places = get_schedule_disposal_places_by_rae_product(
+    [rp['id'] for rp in rae_products if not rp.get('disposal_id')]
+  )
+  for rae_product in rae_products:
+    rae_product['disposal_place'] = places.get(rae_product.get('disposal_id')) or schedule_places.get(rae_product['id'])
+  return rae_products
 
 
 def get_rae_export_info_by_order(order: dict) -> list[dict]:

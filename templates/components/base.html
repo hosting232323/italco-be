@@ -120,6 +120,18 @@
       font-size: 12px;
     }
 
+    /* Tabella "Ordini" delle pagine orizzontali del borderò: il cliente vuole
+       fino a 5 ordini per pagina, con il blocco firma sotto ogni gruppo. Font
+       e padding ridotti quel tanto che basta perché 5 righe + intestazione +
+       firma stiano su una sola A4 landscape restando leggibili; le note lunghe
+       e l'elenco prodotti li accorcia il template. */
+    .data-table.bordero-orders td,
+    .data-table.bordero-orders th {
+      padding: 3px 5px 2px;
+      font-size: 10px;
+      line-height: 1.3;
+    }
+
     /* I cognomi composti sono parole singole troppo lunghe per la cella e
        sborderebbero su Stato: qui si spezza a caratteri, non a parole. */
     .data-table.card-index td.wrap-anywhere {
@@ -156,6 +168,11 @@
       margin-bottom: -7px;
       padding-bottom: 0 !important;
     }
+
+    /* Il DDT RAEE ha 7 sezioni in una pagina sola: la .section generica (30px,
+       pensata per documenti piu' corti) le farebbe sborare su una seconda
+       pagina quasi vuota. Stesso ruolo, margine ridotto solo qui. */
+    .rae-section { margin-bottom: 12px; }
 
     .rae-info-table {
       width: 100%;

@@ -313,6 +313,11 @@ def format_schedule_item(
     elif product.transport_id:
       product_dict = {'transport': {'id': product.transport_id}}
 
+    # Marca i prodotti RAE così la modifica del borderò sa se mostrare il
+    # selettore del luogo di smaltimento, come già fa la lista ordini.
+    if product.rae_product_id:
+      product_dict['rae_product'] = {'id': product.rae_product_id}
+
     if service:
       product_dict['services'] = [service.name]
     if not schedule_item_order:

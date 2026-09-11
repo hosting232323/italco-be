@@ -4,17 +4,23 @@ from datetime import date
 
 from pypdf import PdfReader
 
+from database_api.operations import update
+
 from src.database.enum import RaeStatus, UserRole
 from src.end_points.exportation.rae import _has_long_word, get_rae_export_info_by_order
 
 from tests.unit.factories import (
   auth_header,
+  create_disposal,
   create_dtr_document,
   create_order,
   create_product,
+  create_rae_disposal_place,
   create_rae_product,
+  create_schedule,
   create_user,
   customer_with_service,
+  link_order_to_schedule,
 )
 
 
@@ -44,10 +50,55 @@ def test_export_rae_by_order_prints_company_legal_data(client):
 
   assert response.status_code == 200
   text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
-  # I valori un tempo hardcoded ora arrivano dalla company (fixture db).
+  # I valori un tempo hardcoded ora arrivano dalla company (fixture db):
+  # ragione sociale e iscrizione all'Albo Gestori Ambientali.
   assert 'Test Company SRL' in text
   assert 'RD999S00099999 del 01/01/26' in text
-  assert 'Via Deposito 9, Bari (BA)' in text
+
+
+def test_export_rae_by_order_hides_the_grouping_place_before_disposal(client):
+  """Il luogo di raggruppamento lo sceglie lo smaltimento: prima non c'è, e
+  l'area 'Primo destinatario' resta vuota ('/'), non prende dati a caso.
+  L'iscrizione all'Albo invece è della company e si stampa sempre."""
+  admin = create_user(UserRole.ADMIN)
+  _, order, _ = _order_with_emitted_rae()
+
+  response = client.get(f'/export/rae/{order.id}', headers=auth_header(admin))
+
+  text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
+  assert 'Via Deposito 9, Bari (BA)' not in text
+  assert 'RD999S00099999 del 01/01/26' in text
+
+
+def test_export_rae_by_order_prints_the_grouping_place_after_disposal(client):
+  """Una volta smaltito, l'area 'Primo destinatario' prende il luogo di
+  raggruppamento scelto in quel momento."""
+  admin = create_user(UserRole.ADMIN)
+  _, order, rae_product = _order_with_emitted_rae()
+  place = create_rae_disposal_place(rae_grouping_place='Via Prova 5, Bari (BA)')
+  disposal = create_disposal(rae_disposal_place=place)
+  update(rae_product, {'disposal_id': disposal.id})
+
+  response = client.get(f'/export/rae/{order.id}', headers=auth_header(admin))
+
+  text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
+  assert 'Via Prova 5, Bari (BA)' in text
+
+
+def test_export_rae_by_order_prints_the_schedule_place_before_disposal(client):
+  """Da quando il luogo si sceglie sul borderò, il DDT lo mostra da subito:
+  non serve più aspettare che il rifiuto venga effettivamente smaltito
+  (Disposal) per sapere dove sta andando."""
+  admin = create_user(UserRole.ADMIN)
+  _, order, _ = _order_with_emitted_rae()
+  place = create_rae_disposal_place(rae_grouping_place='Via Bordero 3, Bari (BA)')
+  schedule = create_schedule(rae_disposal_place_id=place.id)
+  link_order_to_schedule(order, schedule)
+
+  response = client.get(f'/export/rae/{order.id}', headers=auth_header(admin))
+
+  text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
+  assert 'Via Bordero 3, Bari (BA)' in text
 
 
 def test_export_rae_by_order_without_rae_products(client):

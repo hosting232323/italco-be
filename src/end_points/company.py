@@ -11,6 +11,13 @@ from .. import STATIC_FOLDER
 from ..database.enum import UserRole
 from ..database.schema import Company, User
 from ..database.queries import get_user_by_nickname
+from .rae.disposal_place import (
+  count_rae_disposal_places,
+  create_rae_disposal_place,
+  delete_rae_disposal_place,
+  get_rae_disposal_places,
+  update_rae_disposal_place,
+)
 from .users.session import create_jwt_token
 from database_api import Session, scope
 from database_api.operations import create, get_by_id, update
@@ -27,12 +34,13 @@ company_bp = Blueprint('company_bp', __name__)
 LOGO_SUBFOLDER = 'company-logos'
 
 # Dati legali dell'attività stampati nei PDF (oggi il DDT RAEE). A DB sono tutti
-# nullable: qui vive il vincolo, come già per 'name'. legal_name/address/city
-# sono sempre obbligatori; rae_registration/rae_grouping_place lo diventano solo
-# con il modulo RAEE acceso, perché compaiono unicamente nel DDT RAEE. tax_code
-# e logo restano opzionali.
+# nullable: qui vive il vincolo, come già per 'name'. legal_name/vat_number/
+# address/city sono sempre obbligatori; rae_registration (iscrizione Albo
+# Gestori Ambientali) lo diventa solo col modulo RAEE acceso, perché compare
+# unicamente nel DDT RAEE. Il luogo di raggruppamento non è qui: vive su
+# RaeDisposalPlace perché una company può averne N. tax_code e logo opzionali.
 ALWAYS_REQUIRED_LEGAL = ('legal_name', 'vat_number', 'address', 'city')
-RAE_REQUIRED_LEGAL = ('rae_registration', 'rae_grouping_place')
+RAE_REQUIRED_LEGAL = ('rae_registration',)
 LEGAL_FIELDS = ALWAYS_REQUIRED_LEGAL + RAE_REQUIRED_LEGAL + ('tax_code',)
 
 LEGAL_LABELS = {
@@ -41,8 +49,12 @@ LEGAL_LABELS = {
   'address': 'Indirizzo sede legale',
   'city': 'Città',
   'rae_registration': 'Estremi iscrizione Albo Gestori Ambientali',
-  'rae_grouping_place': 'Luogo di raggruppamento RAEE',
 }
+
+RAE_WITHOUT_REGISTRATION_ERROR = (
+  "Inserisci gli estremi di iscrizione all'Albo Gestori Ambientali prima di attivare il modulo"
+)
+RAE_WITHOUT_PLACE_ERROR = 'Configura almeno un luogo di smaltimento RAEE prima di attivare il modulo'
 
 
 def _payload() -> dict:
@@ -123,6 +135,11 @@ def create_company(_):
   legal_error = _legal_error(legal, rae)
   if legal_error:
     return {'status': 'ko', 'message': legal_error}
+  # Una company appena creata non può ancora avere un luogo di smaltimento
+  # (ci vuole il suo id): con rae=true in creazione il modulo si accenderebbe
+  # senza che nessun luogo esista.
+  if rae:
+    return {'status': 'ko', 'message': RAE_WITHOUT_PLACE_ERROR}
 
   company = create(Company, {'name': name, 'rae': rae, 'automatic_planning': automatic_planning, **legal})
 
@@ -179,6 +196,16 @@ def update_company(_, id):
     legal_error = _legal_error(legal, rae)
     if legal_error:
       return {'status': 'ko', 'message': legal_error}
+    if rae:
+      # Il modulo si accende solo con l'iscrizione all'Albo compilata (payload
+      # o valore già su company) e almeno un luogo di raggruppamento: in
+      # modifica _legal_error valida solo i campi che arrivano, quindi qui va
+      # ricontrollato il valore effettivo.
+      registration = legal['rae_registration'] if 'rae_registration' in legal else company.rae_registration
+      if not registration:
+        return {'status': 'ko', 'message': RAE_WITHOUT_REGISTRATION_ERROR}
+      if count_rae_disposal_places(int(id)) == 0:
+        return {'status': 'ko', 'message': RAE_WITHOUT_PLACE_ERROR}
 
     changes = {'name': name, **legal}
     if 'rae' in payload:
@@ -199,6 +226,30 @@ def update_company(_, id):
 @flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False, allow_query_token=True)
 def serve_company_logo(_, filename):
   return send_from_directory(get_full_path(STATIC_FOLDER, LOGO_SUBFOLDER), filename)
+
+
+@company_bp.route('<company_id>/rae-disposal-place', methods=['GET'])
+@flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
+def get_company_rae_disposal_places(_, company_id):
+  return get_rae_disposal_places(int(company_id))
+
+
+@company_bp.route('<company_id>/rae-disposal-place', methods=['POST'])
+@flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
+def create_company_rae_disposal_place(_, company_id):
+  return create_rae_disposal_place(int(company_id), request.json)
+
+
+@company_bp.route('<company_id>/rae-disposal-place/<id>', methods=['PUT'])
+@flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
+def update_company_rae_disposal_place(_, company_id, id):
+  return update_rae_disposal_place(int(company_id), int(id), request.json)
+
+
+@company_bp.route('<company_id>/rae-disposal-place/<id>', methods=['DELETE'])
+@flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
+def delete_company_rae_disposal_place(_, company_id, id):
+  return delete_rae_disposal_place(int(company_id), int(id))
 
 
 @company_bp.route('select', methods=['POST'])

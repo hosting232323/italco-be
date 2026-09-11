@@ -2,7 +2,7 @@ from io import BytesIO
 from xhtml2pdf import pisa
 from flask import render_template
 
-from ...database.schema import User, Order
+from ...database.schema import User, Order, RaeDisposalPlace
 from .utils import get_signature_slots, export_pdf, company_context
 from .rae import get_rae_export_info_by_order
 from database_api.operations import get_by_id
@@ -28,6 +28,13 @@ def export_schedule(user: User, id):
   if len(schedules) != 1:
     return {'status': 'ko', 'message': 'Numero di borderò trovati non valido'}
 
+  # Il luogo di smaltimento è quello scelto una volta sola sul borderò (non
+  # quello del Disposal, che a questo punto non esiste ancora: lo smaltimento
+  # vero e proprio è un passo successivo e separato): lo stesso valore per
+  # tutti i prodotti RAE che il borderò raccoglie.
+  disposal_place_id = schedules[0].get('rae_disposal_place_id')
+  disposal_place = get_by_id(RaeDisposalPlace, disposal_place_id).to_dict() if disposal_place_id else None
+
   orders = []
   for tupla in query_orders(
     [
@@ -41,6 +48,8 @@ def export_schedule(user: User, id):
     orders = format_order_query_result(tupla, orders)
   for order in orders:
     order['rae_products'] = get_rae_export_info_by_order(order)
+    for rae_product in order['rae_products']:
+      rae_product['disposal_place'] = disposal_place
     order['customer'] = format_user_with_info(get_by_id(User, order['user']['id']), user.role)
     delivery_signature, anomaly_signature = get_signature_slots(get_by_id(Order, order['id']))
     order['delivery_signature'] = delivery_signature

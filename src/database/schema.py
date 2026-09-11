@@ -51,8 +51,11 @@ class Company(BaseEntity):
   # Dati legali dell'attività, stampati nei PDF al posto dei valori un tempo
   # scritti a mano nei template. A DB restano tutti nullable: l'unico vincolo
   # NOT NULL di company è name, e l'obbligatorietà (legal_name/address/city
-  # sempre, i due campi rae_ solo con modulo RAEE acceso) la impone l'endpoint,
+  # sempre, rae_registration solo col modulo RAEE acceso) la impone l'endpoint,
   # come già fa per name. tax_code e logo sono opzionali anche lì.
+  # rae_registration (iscrizione Albo Gestori Ambientali) è dell'attività, una
+  # sola; il luogo di raggruppamento invece vive su RaeDisposalPlace perché una
+  # company può averne N.
   logo = Column(String)
   legal_name = Column(String)
   vat_number = Column(String)
@@ -60,7 +63,6 @@ class Company(BaseEntity):
   address = Column(String)
   city = Column(String)
   rae_registration = Column(String)
-  rae_grouping_place = Column(String)
 
 
 class User(BaseItalcoEntity):
@@ -217,8 +219,14 @@ class Schedule(BaseItalcoEntity):
 
   date = Column(Date, nullable=False)
   transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False)
+  # Luogo di smaltimento RAEE del borderò: lo sceglie l'operatore quando il
+  # borderò contiene ordini con prodotti RAE, e lo smaltimento lo eredita da
+  # qui invece di richiederlo di nuovo. Nullable: i borderò senza RAE non lo
+  # valorizzano; l'obbligatorietà condizionata la impone l'endpoint.
+  rae_disposal_place_id = Column(Integer, ForeignKey('rae_disposal_place.id'))
 
   transport = relationship('Transport', back_populates='schedule')
+  rae_disposal_place = relationship('RaeDisposalPlace')
   schedule_item = relationship('ScheduleItem', back_populates='schedule')
   delivery_group = relationship('DeliveryGroup', back_populates='schedule')
   schedule_item_user = relationship('ScheduleItemUser', back_populates='schedule')
@@ -463,6 +471,20 @@ class CollectionCenter(BaseEntity):
   disposals = relationship('Disposal', back_populates='collection_center')
 
 
+class RaeDisposalPlace(BaseItalcoEntity):
+  __tablename__ = 'rae_disposal_place'
+
+  # Il luogo di raggruppamento RAEE, un tempo unico su company: ora per riga,
+  # perché un'attività può raccogliere i RAEE in più sedi e lo smaltimento
+  # sceglie quella usata. Nullable a DB come le altre anagrafiche legali:
+  # l'obbligatorietà la impone l'endpoint. L'iscrizione all'Albo Gestori
+  # Ambientali resta invece su company (rae_registration), una per attività.
+  name = Column(String)
+  rae_grouping_place = Column(String)
+
+  disposals = relationship('Disposal', back_populates='rae_disposal_place')
+
+
 class Disposal(BaseItalcoEntity):
   __tablename__ = 'disposal'
 
@@ -472,10 +494,12 @@ class Disposal(BaseItalcoEntity):
 
   carrier_id = Column(Integer, ForeignKey('carrier.id'), nullable=False)
   collection_center_id = Column(Integer, ForeignKey('collection_center.id'), nullable=False)
+  rae_disposal_place_id = Column(Integer, ForeignKey('rae_disposal_place.id'), nullable=False)
 
   carrier = relationship('Carrier', back_populates='disposals')
   rae_products = relationship('RaeProduct', back_populates='disposal')
   collection_center = relationship('CollectionCenter', back_populates='disposals')
+  rae_disposal_place = relationship('RaeDisposalPlace', back_populates='disposals')
   fir_first_documents = relationship('FirFirstDocument', back_populates='disposal', cascade='all, delete-orphan')
   fir_fourth_documents = relationship('FirFourthDocument', back_populates='disposal', cascade='all, delete-orphan')
 
