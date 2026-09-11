@@ -11,6 +11,8 @@ from datetime import date, datetime
 from enum import Enum
 from pathlib import Path
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
@@ -34,6 +36,18 @@ from src.order_integrity import (
 
 
 FORMAT_VERSION = 2
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def head_revision():
+  """Revisione alembic piu' recente nota al checkout corrente.
+
+  Calcolata dai file di migrazione invece che da un valore fisso, cosi'
+  il controllo resta valido anche quando altri branch aggiungono migrazioni.
+  """
+  script = ScriptDirectory.from_config(Config(str(PROJECT_ROOT / 'alembic.ini')))
+  return script.get_current_head()
 
 
 def json_default(value):
@@ -175,10 +189,11 @@ def main():
     engine = create_engine(os.environ['DATABASE_URL'])
     try:
       with Session(engine, expire_on_commit=False) as session:
-        # 059 aggiunge solo l'unicità delle schede utente: ordini, prodotti e
-        # servizi toccati dalla bonifica restano quelli della 058.
-        if session.execute(text('SELECT version_num FROM alembic_version')).scalar_one() not in ('058', '059'):
-          raise ValueError('Eseguire con schema alla revisione 058 o 059; la bonifica non applica migrazioni.')
+        expected_revision = head_revision()
+        if session.execute(text('SELECT version_num FROM alembic_version')).scalar_one() != expected_revision:
+          raise ValueError(
+            f'Eseguire con schema alla revisione {expected_revision}; la bonifica non applica migrazioni.'
+          )
         session.rollback()
         if args.apply:
           plan = json.loads(args.apply.read_text(encoding='utf-8'))
