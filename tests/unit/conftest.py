@@ -1,6 +1,5 @@
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -12,9 +11,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
   sys.path.insert(0, str(PROJECT_ROOT))
 
-# Lo storage locale deve essere isolato PRIMA dell'import di src:
-# STATIC_FOLDER viene letto a livello di modulo in src/__init__.py.
-os.environ.setdefault('STATIC_FOLDER', tempfile.mkdtemp(prefix='italco-test-static-'))
+# L'isolamento di STATIC_FOLDER vive in tests/conftest.py: deve avvenire
+# PRIMA di qualunque `import src` in qualunque conftest, e tests/e2e/conftest.py
+# importa src.database.schema senza passare da qui.
 
 
 def _assert_test_database_url(url: str) -> str:

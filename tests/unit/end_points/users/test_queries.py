@@ -91,6 +91,18 @@ def test_format_user_with_info_adds_delivery_info_for_admin(db):
   assert formatted['delivery_user_info']['cap'] == '70020'
 
 
+def test_format_user_with_info_exposes_assigned_transport(db):
+  from tests.unit.factories import create_transport
+
+  delivery = create_user(UserRole.DELIVERY)
+  transport = create_transport()
+  create_delivery_info(delivery, cap='70020', transport_id=transport.id)
+
+  formatted = format_user_with_info(delivery, UserRole.ADMIN)
+
+  assert formatted['delivery_user_info']['transport_id'] == transport.id
+
+
 def test_format_user_with_info_adds_customer_info_for_operator(db):
   customer = create_user(UserRole.CUSTOMER)
   create_customer_info(customer, city='Bari')
