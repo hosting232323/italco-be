@@ -120,6 +120,40 @@ class DeliveryUserInfo(BaseItalcoEntity):
   user = relationship('User', back_populates='delivery_user_info')
 
 
+class DeliveryCoverageEntry(BaseItalcoEntity):
+  """Schedulazione settimanale della copertura corrieri: non più legata a un
+  utente delivery, ma a un giorno della settimana con un veicolo, una fascia
+  oraria e i CAP coperti in quel blocco. Più blocchi sullo stesso giorno
+  (fasce orarie diverse, veicoli diversi) sono normali, quindi qui non c'è
+  vincolo di unicità sul day_of_week. La pagina a calendario proietta questi
+  blocchi sulla settimana corrente (e su quella successiva).
+  """
+
+  __tablename__ = 'delivery_coverage_entry'
+
+  # Lunedì = 0 ... Domenica = 6, la stessa convenzione di Constraint e
+  # CustomerRule (date.weekday()).
+  day_of_week = Column(Integer, nullable=False)
+  start_time = Column(Time, nullable=False)
+  end_time = Column(Time, nullable=False)
+  transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False, index=True)
+
+  transport = relationship('Transport')
+  caps = relationship('DeliveryCoverageCap', back_populates='entry', cascade='all, delete-orphan')
+
+
+class DeliveryCoverageCap(BaseItalcoEntity):
+  __tablename__ = 'delivery_coverage_cap'
+  # Un CAP può comparire una sola volta nello stesso blocco: due righe uguali
+  # non aggiungerebbero informazione.
+  __table_args__ = (UniqueConstraint('entry_id', 'cap', name='uq_delivery_coverage_cap'),)
+
+  entry_id = Column(Integer, ForeignKey('delivery_coverage_entry.id'), nullable=False, index=True)
+  cap = Column(String, nullable=False)
+
+  entry = relationship('DeliveryCoverageEntry', back_populates='caps')
+
+
 class CustomerUserInfo(BaseItalcoEntity):
   __tablename__ = 'customer_user_info'
   # Come DeliveryUserInfo: una sola scheda anagrafica per punto vendita.
