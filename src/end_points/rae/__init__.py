@@ -10,6 +10,7 @@ from ...database.enum import UserRole
 from .product import get_rae_products, update_rae_product
 from .. import flask_session_authentication
 from .disposal import create_rae_disposal, get_rae_disposals, update_rae_disposal
+from .disposal_place import get_rae_disposal_places
 from .carrier import create_rae_carrier, update_rae_carrier, delete_rae_carrier, get_rae_carriers
 from .product_group import (
   create_rae_product_group,
@@ -114,6 +115,12 @@ def update_collection_center(_, id):
 @flask_session_authentication([UserRole.ADMIN], rae_required=True)
 def delete_collection_center(_, id):
   return delete_rae_collection_center(int(id))
+
+
+@rae_bp.route('disposal-place', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR], rae_required=True)
+def get_disposal_places(_):
+  return get_rae_disposal_places()
 
 
 @rae_bp.route('disposal', methods=['POST'])

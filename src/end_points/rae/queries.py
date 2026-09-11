@@ -12,6 +12,7 @@ from ...database.schema import (
   Disposal,
   Order,
   Product,
+  RaeDisposalPlace,
   RaeProduct,
   DtrDocument,
   RaeProductGroup,
@@ -143,3 +144,77 @@ def get_disposal_for_export(disposal_id: int, session: session_type = None) -> d
     'carrier': carrier.to_dict(),
     'collection_center': collection_center.to_dict(),
   }
+
+
+@db_session_decorator(commit=False)
+def get_schedule_disposal_place_ids_for_rae_products(
+  rae_product_ids: list[int], session: session_type = None
+) -> list[int]:
+  """Luoghi di smaltimento dei borderò che raccolgono gli ordini di questi
+  prodotti RAE.
+
+  Il luogo non lo sceglie più lo smaltimento: lo prende dal borderò
+  (RaeProduct -> Order -> ScheduleItemOrder -> ScheduleItem -> Schedule).
+  Ritorna gli id distinti e non nulli trovati: zero se nessun ordine è a
+  borderò o il borderò non l'ha impostato, più di uno se i prodotti vengono da
+  borderò con luoghi diversi. La scelta la fa il chiamante.
+  """
+  if not rae_product_ids:
+    return []
+
+  rows = (
+    session.query(Schedule.rae_disposal_place_id)
+    .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
+    .join(ScheduleItemOrder, ScheduleItemOrder.schedule_item_id == ScheduleItem.id)
+    .join(RaeProduct, RaeProduct.order_id == ScheduleItemOrder.order_id)
+    .filter(RaeProduct.id.in_(rae_product_ids), Schedule.rae_disposal_place_id.isnot(None))
+    .distinct()
+    .all()
+  )
+  return [row[0] for row in rows]
+
+
+@db_session_decorator(commit=False)
+def get_schedule_disposal_places_by_rae_product(
+  rae_product_ids: list[int], session: session_type = None
+) -> dict[int, dict]:
+  """Luogo di smaltimento del borderò per ogni prodotto RAE, da usare nel DDT
+  finché non esiste ancora un Disposal vero e proprio (lo smaltimento è un
+  passo separato e successivo alla creazione del borderò).
+
+  RaeProduct -> Order -> ScheduleItemOrder -> ScheduleItem -> Schedule ->
+  RaeDisposalPlace. Un prodotto il cui ordine non è (ancora) in un borderò, o
+  il cui borderò non ha un luogo impostato, semplicemente non compare qui.
+  """
+  if not rae_product_ids:
+    return {}
+
+  rows = (
+    session.query(RaeProduct.id, RaeDisposalPlace)
+    .join(ScheduleItemOrder, ScheduleItemOrder.order_id == RaeProduct.order_id)
+    .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+    .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
+    .join(RaeDisposalPlace, Schedule.rae_disposal_place_id == RaeDisposalPlace.id)
+    .filter(RaeProduct.id.in_(rae_product_ids))
+    .all()
+  )
+  return {rae_product_id: place.to_dict() for rae_product_id, place in rows}
+
+
+@db_session_decorator(commit=False)
+def get_disposal_places_by_disposal_ids(disposal_ids: set[int], session: session_type = None) -> dict[int, dict]:
+  """Luogo di smaltimento per disposal_id, per popolare il DDT RAEE.
+
+  Un rae_product senza disposal_id ancora (non smaltito) semplicemente non
+  compare qui: il template stampa '/' per lui, come già fa oggi.
+  """
+  if not disposal_ids:
+    return {}
+
+  rows = (
+    session.query(Disposal.id, RaeDisposalPlace)
+    .join(RaeDisposalPlace, Disposal.rae_disposal_place_id == RaeDisposalPlace.id)
+    .filter(Disposal.id.in_(disposal_ids))
+    .all()
+  )
+  return {disposal_id: place.to_dict() for disposal_id, place in rows}

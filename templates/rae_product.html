@@ -3,7 +3,7 @@
 
 {% block content %}
 {% for rae_product in rae_products %}
-  {{ rae_block(rae_product, customer, addressee, address, company, company_logo, powered_tag) }}
+  {{ rae_block(rae_product, customer, addressee, address, company, company_logo, powered_tag, rae_product.disposal_place) }}
   {% if not loop.last %}
   <div style="page-break-before: always;"></div>
   {% endif %}
