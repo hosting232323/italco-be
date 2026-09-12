@@ -41,17 +41,31 @@
       vertical-align: middle;
     }
 
-    /* Il logo riempie la colonna di sinistra da bordo a bordo: niente
-       padding, e l'altezza fissa dell'immagine detta l'altezza dell'intero
-       rettangolo (il blocco dati e' sempre piu' basso). Il filetto grigio a
-       destra lo separa dal resto dell'intestazione. */
+    /* Il logo e' un quadrato che riempie la sua colonna da bordo a bordo:
+       52px e' il lato "storico" (bastava per una riga sola di ragione
+       sociale), ma company_header (components/company.html) lo sovrascrive
+       inline - su td E img, entrambe width E height - con
+       letterhead_height_portrait/landscape, calcolata in
+       exportation/utils.py replicando l'a capo reale del testo. Va sui due
+       assi apposta: se il nome va a capo su piu' righe la riga cresce, e il
+       logo deve restare un quadrato invece di diventare un rettangolo
+       (altezza maggiore, larghezza ferma a 52px) - quindi e' la colonna
+       stessa ad allargarsi con lui, non solo l'immagine dentro. Senza
+       questo width sull'img, un'altezza diversa da quella naturale
+       dell'immagine farebbe comunque ricalcolare la larghezza per
+       mantenerne le proporzioni, sbordando dalla colonna. vertical-align:top
+       resta come fallback per le chiamate dirette del macro senza altezza
+       calcolata (es. i test): meglio attaccato in alto che centrato con
+       vuoto sui due lati. Il filetto grigio a destra separa il logo dal
+       resto dell'intestazione. */
     .letterhead td.letterhead-logo {
       width: 52px;
       padding: 0;
       border-right: 1px solid #ccc;
+      vertical-align: top;
     }
 
-    .letterhead-logo img { height: 52px; }
+    .letterhead-logo img { width: 52px; height: 52px; }
 
     .letterhead-info {
       font-size: 10px;
@@ -67,10 +81,18 @@
       color: #000;
     }
 
-    /* La targhetta e' un SVG alto quanto l'intestazione che disegna il
-       riquadro grigio solo in fondo, cosi' si incastra nei bordi del
-       rettangolo come se ne fosse un prolungamento. */
-    .letterhead td.letterhead-powered { width: 96px; padding: 0; }
+    /* La targhetta e' un SVG (96x52, vedi exportation/powered_tag.svg) che
+       disegna il riquadro grigio solo nella meta' inferiore del suo canvas,
+       cosi' si incastra nei bordi del rettangolo come un prolungamento:
+       scalarne solo l'altezza (width fissa, come sopra per il logo) lo
+       stira ma tiene il fondo del riquadro sempre a contatto col bordo
+       inferiore, qualunque sia l'altezza. 52px e' quella "storica"; come
+       per il logo, company_header la sovrascrive inline con
+       letterhead_height_portrait/landscape perche' combaci col blocco dati
+       quando il nome va a capo. vertical-align:bottom e' il fallback per le
+       chiamate senza altezza calcolata: il riquadro resta comunque
+       incastrato in basso invece di fluttuare centrato. */
+    .letterhead td.letterhead-powered { width: 96px; padding: 0; vertical-align: bottom; }
 
     .powered-tag { width: 96px; height: 52px; }
 
@@ -162,28 +184,44 @@
     /* RAE */
     .rae-h1 { font-size: 20px; margin-bottom: 8px; }
 
+    /* margin-top e' stato ridotto insieme a quello di .rae-section qui sotto
+       (12-Set-2026): sono gli stessi 12px a dettare lo stacco fra due
+       sezioni via margin-collapse (il piu' grande dei due vince, non la
+       somma - vedi il commento su .section/h2 piu' in basso), quindi vanno
+       tagliati insieme o il secondo non si vede finche' non scende sotto
+       il primo. */
     .rae-h2 {
       font-size: 15px;
-      margin-top: 10px;
+      margin-top: 6px;
       margin-bottom: -7px;
       padding-bottom: 0 !important;
     }
 
     /* Il DDT RAEE ha 7 sezioni in una pagina sola: la .section generica (30px,
        pensata per documenti piu' corti) le farebbe sborare su una seconda
-       pagina quasi vuota. Stesso ruolo, margine ridotto solo qui. */
-    .rae-section { margin-bottom: 12px; }
+       pagina quasi vuota. Stesso ruolo, margine ridotto solo qui.
+       Sceso ulteriormente da 12 a 8px (12-Set-2026) insieme al margin-top
+       di .rae-h2 qui sopra: con una ragione sociale lunghissima la carta
+       intestata (components/company.html) cresce e il margine compensativo
+       che le sta sotto non recupera comunque abbastanza spazio da solo -
+       verificato rigenerando il documento vero, sfora ancora sulla seconda
+       pagina solo per la tabella firme finale. */
+    .rae-section { margin-bottom: 8px; }
 
     .rae-info-table {
       width: 100%;
       border-collapse: collapse;
     }
 
+    /* padding sceso da 2 a 1px (12-Set-2026), insieme ai margini di
+       .rae-section/.rae-h2 qui sopra: 21 righe di celle sul DDT RAEE,
+       0.75pt recuperati per lato fanno la differenza fra 1 e 2 pagine
+       quando la ragione sociale e' lunghissima (vedi .rae-section). */
     .rae-info-table td,
     .rae-data-table td,
     .rae-data-table th {
       border: 1px solid #ccc;
-      padding: 2px;
+      padding: 1px;
       vertical-align: top;
     }
 
