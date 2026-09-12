@@ -5,13 +5,36 @@
    nell'angolo in basso a destra. Il logo c'e' sempre: quello dell'attivita'
    se caricato, altrimenti quello di Ares. La targhetta e' un SVG (vedi
    exportation/powered_tag.svg) perche' xhtml2pdf non sa arrotondare gli
-   angoli in CSS. Se non c'e' nessuna company non stampa nulla. #}
-{% macro company_header(company, company_logo, powered_tag=None) %}
+   angoli in CSS. Se non c'e' nessuna company non stampa nulla.
+
+   letterhead_height_portrait/landscape (da utils.letterhead_heights, via
+   company_context) sono l'altezza in pt a cui forzare la carta intestata
+   perche' combaci sempre col blocco dati anche quando la ragione sociale va
+   a capo su piu' righe, invece di restare fissa a 52px (l'altezza che basta
+   per una riga sola) e fluttuare centrata con vuoto sopra e sotto. È anche
+   il lato del logo: e' un quadrato, quindi quando la riga cresce non si
+   allunga solo lui (diventando un rettangolo), si allarga la sua colonna
+   con lui. La targhetta invece resta larga 96px fissi (e' una targhetta
+   rettangolare, non un logo): solo la sua altezza segue la riga.
+   orientation seleziona quale dei due usare: serve perche' lo stesso header
+   si ripete anche sulle pagine orizzontali del bordero' (schedules_report.html),
+   dove l'a capo del testo e' diverso avendo piu' spazio disponibile. Senza
+   queste altezze (chiamata diretta, come nei test) si ricade sui 52px fissi
+   del CSS.
+
+   letterhead_margin_bottom_portrait/landscape e' il margine sotto la carta
+   intestata, ridotto esattamente di quanto lei e' cresciuta oltre i 52px
+   storici: cosi' un nome lungo non spinge il resto del documento in giu',
+   rischiando di farlo sbordare su una pagina in piu' (succede sui documenti
+   RAE, gia' compressi al millimetro per stare su una sola pagina). #}
+{% macro company_header(company, company_logo, powered_tag=None, letterhead_height_portrait=None, letterhead_height_landscape=None, letterhead_margin_bottom_portrait=None, letterhead_margin_bottom_landscape=None, orientation='portrait') %}
 {% if company %}
-<table class="letterhead">
+{% set letterhead_height = letterhead_height_landscape if orientation == 'landscape' else letterhead_height_portrait %}
+{% set letterhead_margin_bottom = letterhead_margin_bottom_landscape if orientation == 'landscape' else letterhead_margin_bottom_portrait %}
+<table class="letterhead"{% if letterhead_margin_bottom %} style="margin-bottom: {{ letterhead_margin_bottom }}pt;"{% endif %}>
   <tr>
-    <td class="letterhead-logo">
-      {% if company_logo %}<img src="{{ company_logo }}">{% endif %}
+    <td class="letterhead-logo"{% if letterhead_height %} style="width: {{ letterhead_height }}pt;"{% endif %}>
+      {% if company_logo %}<img src="{{ company_logo }}"{% if letterhead_height %} style="width: {{ letterhead_height }}pt; height: {{ letterhead_height }}pt;"{% endif %}>{% endif %}
     </td>
     <td class="letterhead-info">
       {% set place = [company.address, company.city] | select | join(', ') %}
@@ -28,7 +51,7 @@
       {% for line in extra_lines %}<br>{{ line }}{% endfor %}
     </td>
     <td class="letterhead-powered">
-      {% if powered_tag %}<img class="powered-tag" src="{{ powered_tag }}">{% endif %}
+      {% if powered_tag %}<img class="powered-tag" src="{{ powered_tag }}"{% if letterhead_height %} style="height: {{ letterhead_height }}pt;"{% endif %}>{% endif %}
     </td>
   </tr>
 </table>

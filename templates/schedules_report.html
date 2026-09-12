@@ -4,7 +4,7 @@
 {% from "components/company.html" import company_header %}
 
 {% block content %}
-{{ company_header(company, company_logo, powered_tag) }}
+{{ company_header(company, company_logo, powered_tag, letterhead_height_portrait, letterhead_margin_bottom_portrait=letterhead_margin_bottom_portrait) }}
 <h1>N° Borderò: {{ id }}</h1>
 
 {{ info_table("Informazioni", [
@@ -47,7 +47,7 @@
 
 {% for page in order_pages %}
   <div style="page-break-before: always;{% if loop.first %} -pdf-next-page: landscape;{% endif %}"></div>
-  {{ company_header(company, company_logo, powered_tag) }}
+  {{ company_header(company, company_logo, powered_tag, letterhead_height_portrait, letterhead_height_landscape, letterhead_margin_bottom_portrait, letterhead_margin_bottom_landscape, 'landscape') }}
   <div class="section">
     <h2 style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;">Ordini</h2>
     <table class="data-table bordero-orders" repeat="1">
@@ -98,14 +98,14 @@
 {% endfor %}
 {% for order in orders %}
   <div style="page-break-before: always;{% if loop.first %} -pdf-next-page: body;{% endif %}"></div>
-  {{ company_header(company, company_logo, powered_tag) }}
+  {{ company_header(company, company_logo, powered_tag, letterhead_height_portrait, letterhead_margin_bottom_portrait=letterhead_margin_bottom_portrait) }}
   <h1 style="margin-bottom: 6px;">N° Ordine: {{ order.id }}</h1>
 
   {{ order_block(order) }}
 
   {% for rae_product in order.rae_products %}
     <div style="page-break-before: always;"></div>
-    {{ rae_block(rae_product, order.customer, order.addressee, order.address, company, company_logo, powered_tag, rae_product.disposal_place) }}
+    {{ rae_block(rae_product, order.customer, order.addressee, order.address, company, company_logo, powered_tag, rae_product.disposal_place, letterhead_height_portrait, letterhead_margin_bottom_portrait) }}
   {% endfor %}
 {% endfor %}
 {% endblock %}
