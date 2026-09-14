@@ -13,8 +13,9 @@ def calculate_order_service_duration(order: Order) -> int:
   total = 0
   for product in getattr(order, 'product', []) or []:
     service_user = getattr(product, 'service_user', None)
-    if service_user and getattr(service_user, 'service', None) and getattr(service_user.service, 'duration', None) is not None:
-      total += service_user.service.duration
+    service = getattr(service_user, 'service', None) if service_user else None
+    if service and getattr(service, 'duration', None) is not None:
+      total += service.duration
   return total
 
 
