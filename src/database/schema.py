@@ -219,6 +219,10 @@ class Order(BaseItalcoEntity):
   cap = Column(String, nullable=False)
   dpc = Column(Date, nullable=False)
   drc = Column(Date, nullable=False)
+  # Fascia oraria assegnata automaticamente dalla copertura corrieri quando
+  # il cliente sceglie la dpc: vedi assign_delivery_slot in delivery_coverage.py.
+  delivery_slot_start = Column(Time)
+  delivery_slot_end = Column(Time)
   anomaly = Column(Boolean, default=False)
   delay = Column(Boolean, default=False)
   confirmed = Column(Boolean, default=False)
