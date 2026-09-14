@@ -19,9 +19,7 @@ def calculate_order_service_duration(order: Order) -> int:
   return total
 
 
-def calculate_payload_service_duration(
-  payload: dict, user: User = None, session: session_type = None
-) -> int:
+def calculate_payload_service_duration(payload: dict, user: User = None, session: session_type = None) -> int:
   """Calcola la durata totale dei servizi a partire da un payload di richiesta
 
   (es. check-constraints, creazione ordine con 'products' o 'services_id').
@@ -81,15 +79,12 @@ def query_slot_orders(
   entry: DeliveryCoverageEntry, dpc: date, exclude_order_id: int = None, session: session_type = None
 ) -> list[Order]:
   """Restituisce gli ordini che impegnano la fascia oraria dell'entry nella data dpc."""
+
   def _query(sess: session_type):
     caps = [cap_obj.cap for cap_obj in getattr(entry, 'caps', [])]
     query = (
       sess.query(Order)
-      .options(
-        joinedload(Order.product)
-        .joinedload(Product.service_user)
-        .joinedload(ServiceUser.service)
-      )
+      .options(joinedload(Order.product).joinedload(Product.service_user).joinedload(ServiceUser.service))
       .filter(
         Order.dpc == dpc,
         Order.delivery_slot_start == entry.start_time,
@@ -126,6 +121,7 @@ def entry_occupied_duration(
 
   if new_address and new_cap:
     from .travel import calculate_travel_overhead_minutes
+
     travel_overhead = calculate_travel_overhead_minutes(orders, new_address, new_cap)
   else:
     travel_overhead = 0

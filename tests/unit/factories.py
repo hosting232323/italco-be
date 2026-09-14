@@ -246,4 +246,3 @@ def customer_with_service(
   service_user = create_service_user(customer, service, price=price)
   collection_point = create_collection_point(customer, cap=cap)
   return customer, service, service_user, collection_point
-
