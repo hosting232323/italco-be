@@ -10,6 +10,7 @@ from api.storage.session import SessionWithStorage
 from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_products, update_products
+from ..delivery_coverage import resolve_delivery_slot
 from database_api.operations import create, update, get_by_id, delete
 from .queries import query_orders, format_query_result
 from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus, ScheduleItemUserType
@@ -63,6 +64,19 @@ def create_order(user: User, data: dict):
     missing = [field for field in ('type', 'addressee', 'address', 'cap', 'dpc', 'drc') if not clean_data.get(field)]
     if missing:
       return {'status': 'ko', 'message': f'Campi obbligatori mancanti: {", ".join(missing)}'}
+
+    # Solo il cliente sceglie la dpc dal calendario vincolato alla copertura
+    # corrieri: operatori/admin non hanno questo automatismo (come oggi non
+    # avevano il check-constraints). Se il cliente ha scelto anche la fascia
+    # sul calendario, resolve_delivery_slot la valida e la usa al posto del
+    # bilanciamento automatico.
+    if user.role == UserRole.CUSTOMER:
+      clean_data['delivery_slot_start'], clean_data['delivery_slot_end'] = resolve_delivery_slot(
+        clean_data.get('cap'),
+        clean_data.get('dpc'),
+        requested_start=clean_data.get('delivery_slot_start'),
+        requested_end=clean_data.get('delivery_slot_end'),
+      )
 
     order: Order = create(Order, clean_data, session=session)
     create_products(
@@ -139,6 +153,19 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
         close_schedule_position_if_done(schedule_item, session=session)
   if order.status == OrderStatus.ACQUIRED and 'booking_date' in data and order.booking_date != data['booking_date']:
     data['status'] = OrderStatus.BOOKED
+
+  # Il cliente può riaprire il form date su un ordine esistente (il campo non
+  # è disabilitato per lui come per l'operatore): se tocca dpc o cap, la
+  # fascia va ricalcolata sulla copertura corrieri, escludendo l'ordine
+  # stesso dal conteggio per non farlo competere con sé stesso.
+  if user.role == UserRole.CUSTOMER and ('dpc' in data or 'cap' in data):
+    data['delivery_slot_start'], data['delivery_slot_end'] = resolve_delivery_slot(
+      data.get('cap', order.cap),
+      data.get('dpc', order.dpc),
+      requested_start=data.get('delivery_slot_start'),
+      requested_end=data.get('delivery_slot_end'),
+      exclude_order_id=order.id,
+    )
 
   if 'type' in data:
     data['type'] = OrderType(data['type'])
