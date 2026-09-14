@@ -1,5 +1,4 @@
 import logging
-from datetime import time as time_type
 
 import requests
 from geopy.geocoders import Nominatim

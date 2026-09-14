@@ -315,7 +315,6 @@ def resolve_delivery_slot(
     calculate_order_service_duration,
     calculate_payload_service_duration,
     get_entry_capacity_minutes,
-    entry_occupied_duration,
     query_slot_orders,
   )
 
@@ -348,7 +347,8 @@ def resolve_delivery_slot(
       has_capacity = cap_minutes == 0 or (total_occupied + required_duration <= cap_minutes)
       entry_stats.append((has_capacity, total_occupied, order_count, entry))
 
-  # Priorità ai blocchi con capienza residua, poi minor tempo occupato (incluso travel), minor numero ordini, poi start_time
+  # Priorità ai blocchi con capienza residua, poi minor tempo occupato (incluso travel),
+  # minor numero ordini, poi start_time
   entry_stats.sort(key=lambda s: (not s[0], s[1], s[2], s[3].start_time, s[3].id))
   chosen = entry_stats[0][3]
   return chosen.start_time, chosen.end_time
