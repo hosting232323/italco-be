@@ -17,20 +17,28 @@ from .end_points.importation import import_bp
 from .end_points.exportation import export_bp
 from .end_points.transport import transport_bp
 from .end_points.dashboard import dashboard_bp
-from .end_points.delivery_coverage import delivery_coverage_bp
 from .end_points.customer_group import customer_group_bp
 from .end_points.collection_point import collection_point_bp
 from .end_points.service.constraint import check_services_date
 from .end_points.customer_rule import customer_rules_bp, check_customer_rules
-from .end_points.geographic_zone import geographic_zone_bp, check_geographic_zone
+from .end_points.geographic_zone import geographic_zone_bp
+from .end_points.delivery_coverage import delivery_coverage_bp, check_delivery_coverage, check_delivery_coverage_slots
 
 
 @app.route('/check-constraints', methods=['POST'])
 @flask_session_authentication([UserRole.CUSTOMER])
 def check_constraints(user: User):
+  # Il vincolo geografico (Constraint su GeographicZone) è sostituito dalla
+  # copertura corrieri: le date disponibili sono quelle coperte da un blocco
+  # per il CAP del cliente, incrociate coi vincoli per cliente e per servizio.
+  dates = sorted(list(set(check_customer_rules(user)) & set(check_delivery_coverage()) & set(check_services_date())))
+  # Le fasce orarie viaggiano solo per le date effettivamente ammesse: il
+  # calendario le mostra per farle scegliere al cliente al posto della dpc.
+  slots = check_delivery_coverage_slots()
   return {
     'status': 'ok',
-    'dates': sorted(list(set(check_customer_rules(user)) & set(check_geographic_zone()) & set(check_services_date()))),
+    'dates': dates,
+    'slots': {day: slots[day] for day in dates},
   }
 
 
