@@ -1,11 +1,18 @@
-from datetime import time
+from datetime import date, time, timedelta
 
 from database_api.operations import create, get_by_id, get_by_params
 
 from src.database.enum import UserRole
 from src.database.schema import DeliveryCoverageCap, DeliveryCoverageEntry
+from src.end_points.delivery_coverage import (
+  available_slots,
+  available_slots_by_date,
+  check_delivery_coverage,
+  check_delivery_coverage_slots,
+  resolve_delivery_slot,
+)
 
-from tests.unit.factories import auth_header, create_transport, create_user
+from tests.unit.factories import auth_header, create_order, create_transport, create_user
 
 
 def _entry(transport, day_of_week=0, start='08:00:00', end='17:00:00', caps=('70051',)):
@@ -291,3 +298,177 @@ def test_coverage_endpoints_forbid_delivery_role(client):
 
   assert response.status_code == 403
   assert response.get_json()['status'] == 'forbidden'
+
+
+def test_check_delivery_coverage_without_entries_returns_no_dates(app, db):
+  with app.test_request_context(json={'cap': '70051'}):
+    allowed = check_delivery_coverage()
+
+  assert allowed == []
+
+
+def test_check_delivery_coverage_allows_covered_weekday(app, db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), caps=('70051',))
+
+  with app.test_request_context(json={'cap': '70051'}):
+    allowed = check_delivery_coverage()
+
+  assert target.strftime('%Y-%m-%d') in allowed
+  # Solo i giorni coperti sono ammessi
+  assert all(date.fromisoformat(day).weekday() == target.weekday() for day in allowed)
+
+
+def test_check_delivery_coverage_ignores_entries_for_other_caps(app, db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), caps=('70099',))
+
+  with app.test_request_context(json={'cap': '70051'}):
+    allowed = check_delivery_coverage()
+
+  assert allowed == []
+
+
+def test_check_delivery_coverage_has_no_order_count_limit(app, db):
+  # A differenza del vecchio vincolo geografico (Constraint.max_orders), la
+  # copertura non satura: tanti ordini quanti arrivano nello stesso giorno
+  # per lo stesso CAP restano ammessi.
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), caps=('70051',))
+  create_order(cap='70051', dpc=target)
+  create_order(cap='70051', dpc=target)
+
+  with app.test_request_context(json={'cap': '70051'}):
+    allowed = check_delivery_coverage()
+
+  assert target.strftime('%Y-%m-%d') in allowed
+
+
+def test_available_slots_lists_distinct_slots_sorted(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _entry(transport, day_of_week=target.weekday(), start='13:00:00', end='18:00:00', caps=('70051',))
+  _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  assert available_slots('70051', target) == [
+    {'start': '08:00', 'end': '12:00'},
+    {'start': '13:00', 'end': '18:00'},
+  ]
+
+
+def test_available_slots_dedupes_same_slot_from_different_vehicles(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  assert available_slots('70051', target) == [{'start': '08:00', 'end': '12:00'}]
+
+
+def test_available_slots_empty_without_coverage(db):
+  assert available_slots('70051', date.today()) == []
+  assert available_slots(None, date.today()) == []
+  assert available_slots('70051', None) == []
+
+
+def test_available_slots_by_date_only_lists_covered_dates(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  result = available_slots_by_date('70051')
+
+  assert result[target.strftime('%Y-%m-%d')] == [{'start': '08:00', 'end': '12:00'}]
+  assert all(date.fromisoformat(day).weekday() == target.weekday() for day in result)
+
+
+def test_check_delivery_coverage_slots_matches_check_delivery_coverage_dates(app, db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  with app.test_request_context(json={'cap': '70051'}):
+    dates = check_delivery_coverage()
+    slots = check_delivery_coverage_slots()
+
+  assert sorted(slots.keys()) == sorted(dates)
+  assert slots[target.strftime('%Y-%m-%d')] == [{'start': '08:00', 'end': '12:00'}]
+
+
+def test_resolve_delivery_slot_returns_none_without_coverage(db):
+  assert resolve_delivery_slot('70051', date.today()) == (None, None)
+
+
+def test_resolve_delivery_slot_returns_none_for_missing_cap_or_date(db):
+  assert resolve_delivery_slot(None, date.today()) == (None, None)
+  assert resolve_delivery_slot('70051', None) == (None, None)
+
+
+def test_resolve_delivery_slot_returns_none_for_unparsable_string_date(db):
+  assert resolve_delivery_slot('70051', 'non-una-data') == (None, None)
+
+
+def test_resolve_delivery_slot_single_entry(db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  assert resolve_delivery_slot('70051', target) == (entry.start_time, entry.end_time)
+
+
+def test_resolve_delivery_slot_accepts_iso_string_date(db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  assert resolve_delivery_slot('70051', target.strftime('%Y-%m-%d')) == (entry.start_time, entry.end_time)
+
+
+def test_resolve_delivery_slot_picks_least_loaded_slot(db):
+  target = date.today() + timedelta(days=3)
+  busy = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  quiet = _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='18:00:00', caps=('70051',))
+  create_order(cap='70051', dpc=target, delivery_slot_start=busy.start_time, delivery_slot_end=busy.end_time)
+
+  assert resolve_delivery_slot('70051', target) == (quiet.start_time, quiet.end_time)
+
+
+def test_resolve_delivery_slot_uses_requested_slot_when_it_matches_coverage(db):
+  target = date.today() + timedelta(days=3)
+  busy = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  # La fascia più scarica (13-18) esiste ma il cliente ha scelto busy sul
+  # calendario: senza scelta esplicita vincerebbe l'altra (meno carico).
+  _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='18:00:00', caps=('70051',))
+  create_order(cap='70051', dpc=target, delivery_slot_start=busy.start_time, delivery_slot_end=busy.end_time)
+
+  result = resolve_delivery_slot('70051', target, requested_start=busy.start_time, requested_end=busy.end_time)
+
+  assert result == (busy.start_time, busy.end_time)
+
+
+def test_resolve_delivery_slot_accepts_requested_slot_as_string(db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  result = resolve_delivery_slot('70051', target, requested_start='08:00', requested_end='12:00')
+
+  assert result == (entry.start_time, entry.end_time)
+
+
+def test_resolve_delivery_slot_falls_back_when_requested_slot_not_covered(db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  result = resolve_delivery_slot('70051', target, requested_start='20:00', requested_end='22:00')
+
+  assert result == (entry.start_time, entry.end_time)
+
+
+def test_resolve_delivery_slot_excludes_given_order_from_count(db):
+  # Con lo slot del proprio ordine escluso dal conteggio, busy torna in
+  # parità con quiet (0 a 0): a parità vince lo start_time più basso.
+  target = date.today() + timedelta(days=3)
+  busy = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='18:00:00', caps=('70051',))
+  own_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=busy.start_time, delivery_slot_end=busy.end_time
+  )
+
+  result = resolve_delivery_slot('70051', target, exclude_order_id=own_order.id)
+
+  assert result == (busy.start_time, busy.end_time)

@@ -39,14 +39,29 @@ def test_all_blueprints_are_registered(app):
 def test_check_constraints_intersects_rule_sets(client, monkeypatch):
   customer = create_user(UserRole.CUSTOMER)
   monkeypatch.setattr(main_module, 'check_customer_rules', lambda user: ['2026-07-15', '2026-07-16', '2026-07-17'])
-  monkeypatch.setattr(main_module, 'check_geographic_zone', lambda: ['2026-07-16', '2026-07-17', '2026-07-18'])
+  monkeypatch.setattr(main_module, 'check_delivery_coverage', lambda: ['2026-07-16', '2026-07-17', '2026-07-18'])
   monkeypatch.setattr(main_module, 'check_services_date', lambda: ['2026-07-16', '2026-07-17'])
+  monkeypatch.setattr(
+    main_module,
+    'check_delivery_coverage_slots',
+    lambda: {
+      '2026-07-16': [{'start': '08:00', 'end': '12:00'}],
+      '2026-07-17': [{'start': '08:00', 'end': '12:00'}],
+      '2026-07-18': [{'start': '08:00', 'end': '12:00'}],
+    },
+  )
 
   response = client.post('/check-constraints', json={}, headers=auth_header(customer))
 
   body = response.get_json()
   assert body['status'] == 'ok'
   assert body['dates'] == ['2026-07-16', '2026-07-17']
+  # Le fasce viaggiano solo per le date effettivamente ammesse dall'intersezione,
+  # anche se check_delivery_coverage_slots ne restituisce di più (es. 07-18).
+  assert body['slots'] == {
+    '2026-07-16': [{'start': '08:00', 'end': '12:00'}],
+    '2026-07-17': [{'start': '08:00', 'end': '12:00'}],
+  }
 
 
 def test_check_constraints_requires_customer_role(client):
