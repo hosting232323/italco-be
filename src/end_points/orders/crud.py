@@ -76,6 +76,8 @@ def create_order(user: User, data: dict):
         clean_data.get('dpc'),
         requested_start=clean_data.get('delivery_slot_start'),
         requested_end=clean_data.get('delivery_slot_end'),
+        products=data.get('products'),
+        user_id=user.id,
       )
 
     order: Order = create(Order, clean_data, session=session)
@@ -165,6 +167,8 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
       requested_start=data.get('delivery_slot_start'),
       requested_end=data.get('delivery_slot_end'),
       exclude_order_id=order.id,
+      products=data.get('products'),
+      user_id=user.id,
     )
 
   if 'type' in data:
