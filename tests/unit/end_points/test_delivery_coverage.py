@@ -529,8 +529,12 @@ def test_resolve_delivery_slot_prefers_unsaturated_slot_and_balances_minutes(db)
   target = date.today() + timedelta(days=3)
   customer, service, service_user, _ = customer_with_service(duration=60)
   # Due fasce: Mattina (08-10 = 120 min) e Pomeriggio (14-16 = 120 min)
-  morning = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='10:00:00', caps=('70051',))
-  afternoon = _entry(create_transport(), day_of_week=target.weekday(), start='14:00:00', end='16:00:00', caps=('70051',))
+  morning = _entry(
+    create_transport(), day_of_week=target.weekday(), start='08:00:00', end='10:00:00', caps=('70051',)
+  )
+  afternoon = _entry(
+    create_transport(), day_of_week=target.weekday(), start='14:00:00', end='16:00:00', caps=('70051',)
+  )
 
   # Mattina ha già un ordine da 60 min (rimangono 60 min)
   order_morning = create_order(
