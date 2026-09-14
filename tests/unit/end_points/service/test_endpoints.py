@@ -168,4 +168,3 @@ def test_set_all_users_should_skip_already_associated_customers(client):
   body = response.get_json()
   # Comportamento corretto atteso: solo il cliente senza il servizio viene associato
   assert [entry['user_id'] for entry in body['service_users']] == [missing.id]
-

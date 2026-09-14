@@ -203,7 +203,8 @@ def available_slots(
     for entry in entries:
       capacity = get_entry_capacity_minutes(entry)
       occupied = entry_occupied_duration(
-        entry, dpc,
+        entry,
+        dpc,
         exclude_order_id=exclude_order_id,
         session=session,
         new_address=new_address,
@@ -234,7 +235,8 @@ def available_slots_by_date(
   while start <= end:
     if start.weekday() in covered_days:
       slots = available_slots(
-        cap, start,
+        cap,
+        start,
         required_duration=required_duration,
         exclude_order_id=exclude_order_id,
         new_address=new_address,
@@ -339,6 +341,7 @@ def resolve_delivery_slot(
       # Includi travel overhead nella valutazione della fascia migliore
       if address and cap:
         from .service.travel import calculate_travel_overhead_minutes
+
         travel_overhead = calculate_travel_overhead_minutes(orders, address, cap)
       else:
         travel_overhead = 0
