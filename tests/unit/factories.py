@@ -229,15 +229,21 @@ def create_dtr_document(rae_product: RaeProduct, **extra) -> DtrDocument:
   return create(DtrDocument, {'link': unique('dtr-link'), 'rae_product_id': rae_product.id, **extra})
 
 
+def create_product_row(order: Order, service_user: ServiceUser, name: str = 'Prodotto', **extra) -> Product:
+  return create(Product, {'order_id': order.id, 'service_user_id': service_user.id, 'name': name, **extra})
+
+
 def customer_with_service(
   order_type: OrderType = OrderType.DELIVERY,
   price: float = 10.0,
   cap: str = '70020',
   professional: bool = False,
+  duration: int = None,
 ):
   """Cliente completo di servizio, associazione e punto di ritiro."""
   customer = create_user(UserRole.CUSTOMER)
-  service = create_service(order_type, professional=professional)
+  service = create_service(order_type, professional=professional, duration=duration)
   service_user = create_service_user(customer, service, price=price)
   collection_point = create_collection_point(customer, cap=cap)
   return customer, service, service_user, collection_point
+

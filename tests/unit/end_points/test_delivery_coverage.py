@@ -12,7 +12,16 @@ from src.end_points.delivery_coverage import (
   resolve_delivery_slot,
 )
 
-from tests.unit.factories import auth_header, create_order, create_transport, create_user
+from tests.unit.factories import (
+  auth_header,
+  create_order,
+  create_product_row,
+  create_service,
+  create_service_user,
+  create_transport,
+  create_user,
+  customer_with_service,
+)
 
 
 def _entry(transport, day_of_week=0, start='08:00:00', end='17:00:00', caps=('70051',)):
@@ -472,3 +481,64 @@ def test_resolve_delivery_slot_excludes_given_order_from_count(db):
   result = resolve_delivery_slot('70051', target, exclude_order_id=own_order.id)
 
   assert result == (busy.start_time, busy.end_time)
+
+
+def test_available_slots_filters_saturated_slot_based_on_service_duration(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=40)
+  # Fascia da 1 ora (60 minuti)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  
+  # Ordine esistente di 40 minuti nella fascia
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time
+  )
+  create_product_row(existing_order, service_user)
+
+  # Richiesta con 30 minuti di servizio -> 40 + 30 = 70 > 60: slot saturo
+  assert available_slots('70051', target, required_duration=30) == []
+
+  # Richiesta con 15 minuti di servizio -> 40 + 15 = 55 <= 60: slot disponibile
+  assert available_slots('70051', target, required_duration=15) == [{'start': '08:00', 'end': '09:00'}]
+
+
+def test_available_slots_sums_multiple_products_durations(db):
+  target = date.today() + timedelta(days=3)
+  customer = create_user(UserRole.CUSTOMER)
+  service1 = create_service(duration=20)
+  service2 = create_service(duration=30)
+  su1 = create_service_user(customer, service1)
+  su2 = create_service_user(customer, service2)
+
+  # Fascia da 60 minuti
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time
+  )
+  # Ordine ha 2 prodotti: 20 + 30 = 50 min occupati
+  create_product_row(existing_order, su1, name='P1')
+  create_product_row(existing_order, su2, name='P2')
+
+  # Con 50 min occupati su 60 min, una richiesta da 20 min sfora (50 + 20 = 70 > 60)
+  assert available_slots('70051', target, required_duration=20) == []
+  # Una richiesta da 10 min ci sta (50 + 10 = 60 <= 60)
+  assert available_slots('70051', target, required_duration=10) == [{'start': '08:00', 'end': '09:00'}]
+
+
+def test_resolve_delivery_slot_prefers_unsaturated_slot_and_balances_minutes(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=60)
+  # Due fasce: Mattina (08-10 = 120 min) e Pomeriggio (14-16 = 120 min)
+  morning = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='10:00:00', caps=('70051',))
+  afternoon = _entry(create_transport(), day_of_week=target.weekday(), start='14:00:00', end='16:00:00', caps=('70051',))
+
+  # Mattina ha già un ordine da 60 min (rimangono 60 min)
+  order_morning = create_order(
+    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+  )
+  create_product_row(order_morning, service_user)
+
+  # Nuovo ordine da 90 min: Mattina non ha spazio (60 + 90 = 150 > 120), Pomeriggio sì (0 + 90 = 90 <= 120)
+  chosen_start, chosen_end = resolve_delivery_slot('70051', target, required_duration=90)
+  assert (chosen_start, chosen_end) == (afternoon.start_time, afternoon.end_time)
+

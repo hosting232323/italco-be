@@ -176,57 +176,89 @@ def _as_date(value):
   return value
 
 
-def available_slots(cap: str, dpc) -> list[dict]:
-  """Fasce orarie distinte coperte dal CAP nel giorno della settimana di dpc,
-  per il calendario di selezione data+fascia lato cliente: più blocchi
-  (veicoli) sulla stessa fascia contano come un'unica fascia selezionabile.
+def available_slots(cap: str, dpc, required_duration: int = 0, exclude_order_id: int = None) -> list[dict]:
+  """Fasce orarie distinte coperte dal CAP nel giorno della settimana di dpc con
+
+  capienza residua sufficiente per la durata richiesta dei servizi dell'ordine.
   """
   dpc = _as_date(dpc)
   if not cap or not dpc:
     return []
   entries = [entry for entry in query_entries_for_cap(cap) if entry.day_of_week == dpc.weekday()]
-  slots = sorted({(entry.start_time, entry.end_time) for entry in entries})
+  if not entries:
+    return []
+
+  from .service.duration import get_entry_capacity_minutes, entry_occupied_duration
+
+  available = []
+  with Session() as session:
+    for entry in entries:
+      capacity = get_entry_capacity_minutes(entry)
+      occupied = entry_occupied_duration(entry, dpc, exclude_order_id=exclude_order_id, session=session)
+      if capacity == 0 or (occupied + required_duration <= capacity):
+        available.append((entry.start_time, entry.end_time))
+
+  slots = sorted(set(available))
   return [{'start': start.strftime('%H:%M'), 'end': end.strftime('%H:%M')} for start, end in slots]
 
 
-def available_slots_by_date(cap: str) -> dict:
+def available_slots_by_date(cap: str, required_duration: int = 0, exclude_order_id: int = None) -> dict:
   # Sostituisce il vecchio check_geographic_zone in /check-constraints: la
   # data prevista dal cliente è selezionabile se il suo CAP è coperto da
-  # almeno un blocco di copertura corrieri in quel giorno della settimana.
-  # Nessun conteggio ordini/giorno qui: la copertura non ha (ancora) un tetto
-  # massimo, a differenza del vecchio Constraint.max_orders.
+  # almeno un blocco di copertura corrieri con capienza residua per i servizi
+  # dell'ordine in quel giorno della settimana.
   covered_days = {entry.day_of_week for entry in query_entries_for_cap(cap)}
   start = datetime.today().date()
   end = start + relativedelta(months=2)
   result = {}
   while start <= end:
     if start.weekday() in covered_days:
-      result[start.strftime('%Y-%m-%d')] = available_slots(cap, start)
+      slots = available_slots(cap, start, required_duration=required_duration, exclude_order_id=exclude_order_id)
+      if slots:
+        result[start.strftime('%Y-%m-%d')] = slots
     start += timedelta(days=1)
   return result
 
 
-def check_delivery_coverage() -> list[str]:
-  return list(available_slots_by_date(request.json['cap']).keys())
+def check_delivery_coverage(*args, **kwargs) -> list[str]:
+  payload = request.json or {}
+  from .service.duration import calculate_payload_service_duration
+
+  user = kwargs.get('user') or (args[0] if args else None)
+  required_duration = calculate_payload_service_duration(payload, user=user)
+  exclude_order_id = payload.get('order_id')
+  return list(
+    available_slots_by_date(
+      payload.get('cap'), required_duration=required_duration, exclude_order_id=exclude_order_id
+    ).keys()
+  )
 
 
-def check_delivery_coverage_slots() -> dict:
-  return available_slots_by_date(request.json['cap'])
+def check_delivery_coverage_slots(*args, **kwargs) -> dict:
+  payload = request.json or {}
+  from .service.duration import calculate_payload_service_duration
+
+  user = kwargs.get('user') or (args[0] if args else None)
+  required_duration = calculate_payload_service_duration(payload, user=user)
+  exclude_order_id = payload.get('order_id')
+  return available_slots_by_date(
+    payload.get('cap'), required_duration=required_duration, exclude_order_id=exclude_order_id
+  )
 
 
 def resolve_delivery_slot(
-  cap: str, dpc, requested_start=None, requested_end=None, exclude_order_id: int = None
+  cap: str,
+  dpc,
+  requested_start=None,
+  requested_end=None,
+  exclude_order_id: int = None,
+  required_duration: int = 0,
+  products: dict = None,
+  user_id: int = None,
 ) -> tuple:
   """CAP + data prevista dal cliente -> fascia oraria (start_time, end_time)
-  da assegnare all'ordine, in base alla copertura corrieri. Se il cliente ha
-  scelto esplicitamente una fascia dal calendario (requested_start/end), la
-  usa se corrisponde a un blocco di copertura reale. Altrimenti (client non
-  aggiornato, scelta non valida, o ordine creato da un operatore/admin che
-  non passa dal calendario) ricade sull'automatismo storico: se più blocchi
-  coprono lo stesso CAP nello stesso giorno (veicoli/fasce diversi), sceglie
-  quello con meno ordini già presenti su quel CAP+giorno+fascia, per
-  bilanciare il carico tra i veicoli. Ritorna (None, None) se il CAP non è
-  coperto quel giorno: niente fascia, come oggi.
+
+  da assegnare all'ordine, in base alla copertura corrieri e al tempo dei servizi.
   """
   if not cap or not dpc:
     return None, None
@@ -239,6 +271,17 @@ def resolve_delivery_slot(
   if not entries:
     return None, None
 
+  from .service.duration import (
+    calculate_order_service_duration,
+    calculate_payload_service_duration,
+    get_entry_capacity_minutes,
+    entry_occupied_duration,
+    query_slot_orders,
+  )
+
+  if required_duration == 0 and products:
+    required_duration = calculate_payload_service_duration({'products': products, 'user_id': user_id})
+
   if requested_start and requested_end:
     start_time = _parse_time(requested_start) if isinstance(requested_start, str) else requested_start
     end_time = _parse_time(requested_end) if isinstance(requested_end, str) else requested_end
@@ -248,10 +291,19 @@ def resolve_delivery_slot(
   if len(entries) == 1:
     return entries[0].start_time, entries[0].end_time
 
-  slots = [(entry.start_time, entry.end_time) for entry in entries]
-  counts = count_orders_by_slot(cap, dpc, slots, exclude_order_id)
-  entries.sort(key=lambda entry: (counts[(entry.start_time, entry.end_time)], entry.start_time, entry.id))
-  chosen = entries[0]
+  with Session() as session:
+    entry_stats = []
+    for entry in entries:
+      cap_minutes = get_entry_capacity_minutes(entry)
+      orders = query_slot_orders(entry, dpc, exclude_order_id=exclude_order_id, session=session)
+      occupied = sum(calculate_order_service_duration(o) for o in orders)
+      order_count = len(orders)
+      has_capacity = cap_minutes == 0 or (occupied + required_duration <= cap_minutes)
+      entry_stats.append((has_capacity, occupied, order_count, entry))
+
+  # Priorità ai blocchi con capienza residua, poi minor tempo occupato, minor numero ordini, poi start_time
+  entry_stats.sort(key=lambda s: (not s[0], s[1], s[2], s[3].start_time, s[3].id))
+  chosen = entry_stats[0][3]
   return chosen.start_time, chosen.end_time
 
 
@@ -259,6 +311,7 @@ def query_entries_for_cap(cap: str) -> list[DeliveryCoverageEntry]:
   with Session() as session:
     return (
       session.query(DeliveryCoverageEntry)
+      .options(joinedload(DeliveryCoverageEntry.caps))
       .join(DeliveryCoverageCap, DeliveryCoverageCap.entry_id == DeliveryCoverageEntry.id)
       .filter(DeliveryCoverageCap.cap == cap)
       .all()
