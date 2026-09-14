@@ -30,7 +30,8 @@ from .end_points.delivery_coverage import delivery_coverage_bp, check_delivery_c
 def check_constraints(user: User):
   # Il vincolo geografico (Constraint su GeographicZone) è sostituito dalla
   # copertura corrieri: le date disponibili sono quelle coperte da un blocco
-  # per il CAP del cliente, incrociate coi vincoli per cliente e per servizio.
+  # per il CAP del cliente con capienza per i servizi, incrociate coi vincoli
+  # per cliente e per servizio.
   dates = sorted(list(set(check_customer_rules(user)) & set(check_delivery_coverage()) & set(check_services_date())))
   # Le fasce orarie viaggiano solo per le date effettivamente ammesse: il
   # calendario le mostra per farle scegliere al cliente al posto della dpc.
@@ -38,7 +39,7 @@ def check_constraints(user: User):
   return {
     'status': 'ok',
     'dates': dates,
-    'slots': {day: slots[day] for day in dates},
+    'slots': {day: slots[day] for day in dates if day in slots},
   }
 
 
