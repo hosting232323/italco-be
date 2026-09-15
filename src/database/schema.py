@@ -107,6 +107,9 @@ class UserSession(BaseEntity):
 
 class DeliveryUserInfo(BaseItalcoEntity):
   __tablename__ = 'delivery_user_info'
+  # Una sola scheda per utente: chi la legge ne prende una, e con due righe
+  # l'app mostrerebbe a caso quella vuota (vedi migrazione 059).
+  __table_args__ = (UniqueConstraint('user_id', name='uq_delivery_user_info_user_id'),)
 
   cap = Column(String)
   lat = Column(Numeric(11, 8))
@@ -118,6 +121,8 @@ class DeliveryUserInfo(BaseItalcoEntity):
 
 class CustomerUserInfo(BaseItalcoEntity):
   __tablename__ = 'customer_user_info'
+  # Come DeliveryUserInfo: una sola scheda anagrafica per punto vendita.
+  __table_args__ = (UniqueConstraint('user_id', name='uq_customer_user_info_user_id'),)
 
   city = Column(String)
   email = Column(String)

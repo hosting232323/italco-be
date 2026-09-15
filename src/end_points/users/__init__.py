@@ -1,19 +1,21 @@
 import secrets
 import string
 from flask import Blueprint, request
+from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert
 
 from ...database.enum import UserRole
 from .session import get_token_payload, refresh_access_token_response, replace_access_token
 from .. import auth, flask_session_authentication
 from api.users.security import hash_password, verify_password
 from ...database.queries import get_user_by_nickname
+from database_api import Session
 from database_api.operations import delete, get_by_id, create, update
 from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo
 from .queries import (
   query_users,
   format_user_with_info,
   count_user_dependencies,
-  get_user_info,
 )
 
 
@@ -135,17 +137,43 @@ def update_position(user: User):
 @user_bp.route('info', methods=['POST'])
 @flask_session_authentication([UserRole.ADMIN])
 def save_user_info_endpoint(_):
-  save_user_info(
+  saved = save_user_info(
     request.json['user_id'],
     request.json['data'],
     DeliveryUserInfo if request.json['class'] == 'Delivery' else CustomerUserInfo,
   )
+  if not saved:
+    return {'status': 'ko', 'message': 'Utente non trovato'}
   return {'status': 'ok', 'message': 'Informazioni utente aggiornate'}
 
 
-def save_user_info(user_id: int, params: dict, klass):
-  user_info = get_user_info(user_id, klass)
-  if not user_info:
-    create(klass, {**params, 'user_id': user_id})
-  else:
-    update(user_info, params)
+# Chiavi che il form rimanda indietro con la scheda letta, ma che identificano la
+# riga: non si scrivono mai dal payload.
+PROTECTED_INFO_FIELDS = {'id', 'user_id', 'company_id', 'created_at', 'updated_at'}
+
+
+def save_user_info(user_id: int, params: dict, klass) -> bool:
+  """Crea o aggiorna l'unica scheda dell'utente in un solo statement.
+
+  Leggere e poi creare lasciava una finestra: due posizioni GPS simultanee
+  trovavano entrambe "nessuna scheda" e ne creavano due. L'upsert si appoggia
+  al vincolo uq_<tabella>_user_id, quindi la seconda richiesta aggiorna.
+
+  L'utente va riletto nello scope del tenant: la company della scheda è la
+  sua, e un id di un'altra company risulta inesistente invece di finire
+  scritto dall'admin sbagliato.
+  """
+  owner: User = get_by_id(User, int(user_id))
+  if not owner:
+    return False
+
+  columns = {column.name for column in klass.__table__.columns} - PROTECTED_INFO_FIELDS
+  values = {key: value for key, value in params.items() if key in columns}
+
+  with Session() as session:
+    statement = insert(klass).values(**values, user_id=owner.id, company_id=owner.company_id)
+    session.execute(
+      statement.on_conflict_do_update(index_elements=['user_id'], set_={**values, 'updated_at': func.now()})
+    )
+    session.commit()
+  return True
