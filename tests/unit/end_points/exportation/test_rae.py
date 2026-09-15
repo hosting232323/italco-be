@@ -11,6 +11,7 @@ from src.end_points.exportation.rae import _has_long_word, get_rae_export_info_b
 
 from tests.unit.factories import (
   auth_header,
+  create_customer_info,
   create_disposal,
   create_dtr_document,
   create_order,
@@ -18,6 +19,7 @@ from tests.unit.factories import (
   create_rae_disposal_place,
   create_rae_product,
   create_schedule,
+  create_super_admin,
   create_user,
   customer_with_service,
   link_order_to_schedule,
@@ -130,6 +132,23 @@ def test_export_rae_by_product_returns_pdf(client):
 
   assert response.status_code == 200
   assert response.headers['Content-Type'] == 'application/pdf'
+
+
+def test_export_rae_by_product_as_super_admin_prints_the_selling_point(client, db):
+  """Il DDT scaricato dal super admin dentro una company deve riportare i dati
+  del distributore: prima il template non trovava customer_user_info e la
+  richiesta finiva in 'Errore generico'."""
+  super_admin = create_super_admin()
+  customer, _, rae_product = _order_with_emitted_rae()
+  create_customer_info(customer, company_name='Punto Vendita SRL', rae_code='26Z01', city='Bari')
+
+  response = client.get(f'/export/rae/product/{rae_product.id}', headers=auth_header(super_admin, company_id=db.id))
+
+  assert response.status_code == 200
+  assert response.headers['Content-Type'] == 'application/pdf'
+  text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
+  assert 'Punto Vendita SRL' in text
+  assert '26Z01' in text
 
 
 def test_export_rae_by_product_rejects_generated_status(client):

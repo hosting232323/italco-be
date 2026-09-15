@@ -1,7 +1,10 @@
 import threading
 import time
 
-from database_api import Session
+import pytest
+from sqlalchemy.exc import IntegrityError
+
+from database_api import Session, scope
 from api.users.security import hash_password
 from database_api.operations import get_by_id, update
 
@@ -12,8 +15,12 @@ from src.database.schema import CustomerUserInfo, DeliveryUserInfo, User, UserSe
 from tests.unit.factories import (
   auth_header,
   create_collection_point,
+  create_company,
+  create_customer_info,
+  create_delivery_info,
   create_service,
   create_service_user,
+  create_super_admin,
   create_user,
 )
 
@@ -28,6 +35,22 @@ def test_get_users_as_admin_returns_all_users(client):
   assert response.status_code == 200
   assert body['status'] == 'ok'
   assert len(body['users']) == 3
+
+
+def test_get_users_as_super_admin_includes_customer_info(client, db):
+  """Il super admin dentro una company vede la tabella Punti Vendita come un
+  admin: senza le info collegate le colonne risultavano tutte vuote."""
+  super_admin = create_super_admin()
+  customer = create_user(UserRole.CUSTOMER)
+  create_customer_info(customer, company_name='Punto Vendita SRL', rae_code='26Z01')
+
+  response = client.get('/user', headers=auth_header(super_admin, company_id=db.id))
+
+  body = response.get_json()
+  assert body['status'] == 'ok'
+  listed = next(user for user in body['users'] if user['id'] == customer.id)
+  assert listed['customer_user_info']['company_name'] == 'Punto Vendita SRL'
+  assert listed['customer_user_info']['rae_code'] == '26Z01'
 
 
 def test_get_users_as_delivery_sees_only_customers(client):
@@ -518,3 +541,101 @@ def test_save_user_info_helper_is_idempotent(db):
     infos = session.query(DeliveryUserInfo).filter_by(user_id=delivery.id).all()
     assert len(infos) == 1
     assert infos[0].cap == '70121'
+
+
+def test_save_user_info_keeps_the_other_fields(db):
+  customer = create_user(UserRole.CUSTOMER)
+  create_customer_info(customer, company_name='Negozio SRL', city='Bari')
+
+  users_endpoints.save_user_info(customer.id, {'city': 'Molfetta'}, CustomerUserInfo)
+
+  with Session() as session:
+    info = session.query(CustomerUserInfo).filter_by(user_id=customer.id).one()
+    assert info.city == 'Molfetta'
+    assert info.company_name == 'Negozio SRL'
+
+
+def test_concurrent_positions_leave_a_single_delivery_info(app, db):
+  """Due posizioni GPS simultanee dello stesso corriere non devono creare due
+  schede: leggere e poi creare lasciava entrambe convinte che mancasse.
+
+  L'upsert si appoggia al vincolo di unicità, quindi una sola insert vince e
+  l'altra aggiorna. Otto thread allineati dalla barriera allargano la corsa.
+  """
+  delivery = create_user(UserRole.DELIVERY)
+  workers = 8
+  barrier = threading.Barrier(workers)
+  errors = []
+
+  def send_position(index):
+    try:
+      barrier.wait()
+      users_endpoints.save_user_info(delivery.id, {'lat': 41.0 + index, 'lon': 16.0}, DeliveryUserInfo)
+    except Exception as error:
+      errors.append(error)
+
+  threads = [threading.Thread(target=send_position, args=(index,)) for index in range(workers)]
+  for thread in threads:
+    thread.start()
+  for thread in threads:
+    thread.join(timeout=20)
+
+  assert errors == []
+  with Session() as session:
+    assert session.query(DeliveryUserInfo).filter_by(user_id=delivery.id).count() == 1
+
+
+def test_user_info_allows_a_single_row_per_user(db):
+  customer = create_user(UserRole.CUSTOMER)
+  create_customer_info(customer, city='Bari')
+
+  with pytest.raises(IntegrityError):
+    create_customer_info(customer, email='doppione@example.com')
+
+  delivery = create_user(UserRole.DELIVERY)
+  create_delivery_info(delivery, cap='70020')
+
+  with pytest.raises(IntegrityError):
+    create_delivery_info(delivery, cap='70121')
+
+
+def test_save_user_info_ignores_the_row_identifiers_in_the_payload(client, db):
+  """Il form rimanda la scheda letta, id e company compresi: non devono
+  spostare la riga su un altro utente o un'altra company."""
+  admin = create_user(UserRole.ADMIN)
+  customer = create_user(UserRole.CUSTOMER)
+  other_company = create_company()
+
+  response = client.post(
+    '/user/info',
+    json={
+      'user_id': customer.id,
+      'class': 'Customer',
+      'data': {'id': 424242, 'user_id': 999999, 'company_id': other_company.id, 'city': 'Bari'},
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+  with scope(company_id=None), Session() as session:
+    info = session.query(CustomerUserInfo).filter_by(city='Bari').one()
+    assert info.user_id == customer.id
+    assert info.company_id == db.id
+    assert info.id != 424242
+
+
+def test_save_user_info_rejects_a_user_of_another_company(client, db):
+  admin = create_user(UserRole.ADMIN)
+  other_company = create_company()
+  with scope(company_id=other_company.id):
+    foreign_customer = create_user(UserRole.CUSTOMER)
+
+  response = client.post(
+    '/user/info',
+    json={'user_id': foreign_customer.id, 'class': 'Customer', 'data': {'city': 'Bari'}},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Utente non trovato'}
+  with scope(company_id=None), Session() as session:
+    assert session.query(CustomerUserInfo).filter_by(user_id=foreign_customer.id).count() == 0

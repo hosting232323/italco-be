@@ -175,8 +175,10 @@ def main():
     engine = create_engine(os.environ['DATABASE_URL'])
     try:
       with Session(engine, expire_on_commit=False) as session:
-        if session.execute(text('SELECT version_num FROM alembic_version')).scalar_one() != '058':
-          raise ValueError('Eseguire con schema alla revisione 058; la bonifica non applica migrazioni.')
+        # 059 aggiunge solo l'unicità delle schede utente: ordini, prodotti e
+        # servizi toccati dalla bonifica restano quelli della 058.
+        if session.execute(text('SELECT version_num FROM alembic_version')).scalar_one() not in ('058', '059'):
+          raise ValueError('Eseguire con schema alla revisione 058 o 059; la bonifica non applica migrazioni.')
         session.rollback()
         if args.apply:
           plan = json.loads(args.apply.read_text(encoding='utf-8'))
