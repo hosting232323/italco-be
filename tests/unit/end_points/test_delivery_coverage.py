@@ -205,6 +205,113 @@ def test_multiple_entries_same_day_allowed(client):
   assert response.get_json()['status'] == 'ok'
 
 
+def test_create_entry_rejects_overlap_same_vehicle(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _entry(transport, day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': '11:00',
+      'end_time': '14:00',
+      'caps': ['70053'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Il veicolo ha già una fascia sovrapposta in quel giorno'}
+
+
+def test_create_entry_allows_back_to_back_same_vehicle(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _entry(transport, day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': '12:00',
+      'end_time': '16:00',
+      'caps': ['70053'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+
+
+def test_create_entry_allows_overlap_different_vehicle(client):
+  admin = create_user(UserRole.ADMIN)
+  _entry(create_transport(), day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 0,
+      'transport_id': create_transport().id,
+      'start_time': '08:00',
+      'end_time': '12:00',
+      'caps': ['70053'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+
+
+def test_create_entry_allows_overlap_same_vehicle_different_day(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _entry(transport, day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 1,
+      'transport_id': transport.id,
+      'start_time': '08:00',
+      'end_time': '12:00',
+      'caps': ['70053'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+
+
+def test_update_entry_rejects_overlap_same_vehicle(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _entry(transport, day_of_week=0, start='08:00:00', end='12:00:00')
+  entry = _entry(transport, day_of_week=0, start='13:00:00', end='16:00:00')
+
+  response = client.put(
+    f'/delivery-coverage/{entry.id}',
+    json={'start_time': '11:00'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Il veicolo ha già una fascia sovrapposta in quel giorno'}
+
+
+def test_update_entry_allows_overlap_with_itself(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport(), day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.put(
+    f'/delivery-coverage/{entry.id}',
+    json={'start_time': '09:00'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+
+
 def test_update_entry(client):
   admin = create_user(UserRole.ADMIN)
   other_transport = create_transport()

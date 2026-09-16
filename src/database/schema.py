@@ -127,10 +127,12 @@ class DeliveryUserInfo(BaseItalcoEntity):
 class DeliveryCoverageEntry(BaseItalcoEntity):
   """Schedulazione settimanale della copertura corrieri: non più legata a un
   utente delivery, ma a un giorno della settimana con un veicolo, una fascia
-  oraria e i CAP coperti in quel blocco. Più blocchi sullo stesso giorno
-  (fasce orarie diverse, veicoli diversi) sono normali, quindi qui non c'è
-  vincolo di unicità sul day_of_week. La pagina a calendario proietta questi
-  blocchi sulla settimana corrente (e su quella successiva).
+  oraria e i CAP coperti in quel blocco. Più blocchi sullo stesso giorno sono
+  normali, anche con la stessa fascia oraria, purché su veicoli diversi: lo
+  stesso veicolo non può avere due fasce sovrapposte nello stesso giorno
+  (vincolo applicato in end_points/delivery_coverage._has_overlapping_entry,
+  non a livello di DB). La pagina a calendario proietta questi blocchi sulla
+  settimana corrente (e su quella successiva).
   """
 
   __tablename__ = 'delivery_coverage_entry'
