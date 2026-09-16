@@ -555,8 +555,8 @@ def test_available_slots_filters_saturated_slot_based_on_travel_overhead(mock_ge
   create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
 
   mock_geocode.return_value = (41.0, 16.0)
-  # baseline (solo l'esistente): 20 min. Con il nuovo ordine aggiunto: 70 min -> overhead 50 min.
-  mock_sequential.side_effect = lambda coords: 20 if len(coords) == 1 else 70
+  # baseline (solo l'esistente): 20 min. Con il nuovo ordine aggiunto: 90 min -> overhead 70 min.
+  mock_sequential.side_effect = lambda coords: 20 if len(coords) == 1 else 90
 
   assert available_slots('70051', target, new_cap='70051') == []
 
