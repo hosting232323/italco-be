@@ -1,16 +1,31 @@
+from datetime import time
+
 from database_api import Session
-from database_api.operations import get_by_id
+from database_api.operations import create, get_by_id
 
 from src.database.enum import UserRole
-from src.database.schema import Transport, DeliveryUserInfo
+from src.database.schema import Transport, DeliveryCoverageEntry, DeliveryUserInfo
 from src.end_points.transport import query_transports, sync_transport_users
 
 from tests.unit.factories import (
   auth_header,
   create_delivery_info,
+  create_schedule,
   create_transport,
   create_user,
 )
+
+
+def _coverage_entry(transport: Transport) -> DeliveryCoverageEntry:
+  return create(
+    DeliveryCoverageEntry,
+    {
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': time.fromisoformat('08:00:00'),
+      'end_time': time.fromisoformat('12:00:00'),
+    },
+  )
 
 
 def _info_for(user):
@@ -61,6 +76,31 @@ def test_delete_transport(client):
 
   assert response.get_json()['status'] == 'ok'
   assert get_by_id(Transport, transport.id) is None
+
+
+def test_delete_transport_rejects_when_schedule_attached(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  create_schedule(transport=transport)
+
+  response = client.delete(f'/transport/{transport.id}', headers=auth_header(admin))
+
+  assert response.get_json() == {
+    'status': 'ko',
+    'message': "Il veicolo ha ancora dei borderò associati: rimuovili prima di procedere con l'eliminazione",
+  }
+  assert get_by_id(Transport, transport.id) is not None
+
+
+def test_delete_transport_rejects_when_coverage_entry_attached(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _coverage_entry(transport)
+
+  response = client.delete(f'/transport/{transport.id}', headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
+  assert get_by_id(Transport, transport.id) is not None
 
 
 def test_transport_endpoints_require_admin(client):
