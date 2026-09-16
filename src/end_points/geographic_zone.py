@@ -7,7 +7,7 @@ from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
 from database_api.operations import create, delete, get_by_id
-from ..utils.caps import get_cap_data_by_province, get_province_by_cap
+from ..utils.caps import get_province_by_cap
 from ..database.schema import GeographicZone, Constraint, GeographicCode, Order
 
 
@@ -53,16 +53,14 @@ def delete_constraint(_, entity, id):
 
 def check_geographic_zone() -> list[datetime]:
   province = get_province_by_cap(request.json['cap'])
-  caps = get_cap_data_by_province(province)
-  for cap in query_special_caps_by_geographic_zone(province):
-    if cap.type:
-      caps.append(cap.code)
-    else:
-      caps.remove(cap.code)
+  added_codes = set()
+  removed_codes = set()
+  for code in query_special_caps_by_geographic_zone(province):
+    (added_codes if code.type else removed_codes).add(code.code)
 
   zones = execute_query_and_format_result(province)
   constraints = zones[0]['constraints'] if zones else []
-  orders = get_orders_by_cap(caps)
+  orders = get_orders_in_zone(province, added_codes, removed_codes)
   constraint_days = [constraint['day_of_week'] for constraint in constraints]
   start = datetime.today().date()
   allowed_dates = []
@@ -137,10 +135,24 @@ def query_special_caps_by_geographic_zone(province: str) -> list[GeographicCode]
     )
 
 
-def get_orders_by_cap(caps: list[str]) -> list[Order]:
+def get_orders_in_zone(province: str, added_codes: set[str], removed_codes: set[str]) -> list[Order]:
   with Session() as session:
-    return (
+    candidates = (
       session.query(Order)
-      .filter(Order.cap.in_(caps), Order.dpc > datetime.today(), Order.dpc < datetime.today() + relativedelta(months=2))
+      .filter(Order.dpc > datetime.today(), Order.dpc < datetime.today() + relativedelta(months=2))
       .all()
     )
+  return [
+    order
+    for order in candidates
+    if order.cap not in removed_codes and (order.cap in added_codes or _is_order_in_province(order.cap, province))
+  ]
+
+
+def _is_order_in_province(cap: str, province: str) -> bool:
+  # Un CAP storico non risolvibile non deve bloccare il conteggio per tutti gli altri ordini:
+  # lo trattiamo come "fuori zona" invece di propagare l'errore.
+  try:
+    return get_province_by_cap(cap) == province
+  except ValueError:
+    return False

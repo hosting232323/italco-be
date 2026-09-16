@@ -1,45 +1,43 @@
-import os
-import json
+from functools import lru_cache
+
+import requests
+
+NOMINATIM_SEARCH_URL = 'https://nominatim.fastsite.it/search'
+REQUEST_TIMEOUT = 5
 
 
-caps_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets', 'caps.json')
-with open(caps_file_path, 'r') as file:
-  CAPS_DATA: dict = json.load(file)
+def _search(**params) -> list[dict]:
+  response = requests.get(
+    NOMINATIM_SEARCH_URL,
+    params={**params, 'format': 'json', 'addressdetails': 1, 'country': 'Italy'},
+    headers={'User-Agent': 'italco-be'},
+    timeout=REQUEST_TIMEOUT,
+  )
+  response.raise_for_status()
+  return response.json()
 
 
+@lru_cache(maxsize=None)
 def get_province_by_cap(cap: str) -> str:
-  for province, caps in CAPS_DATA.items():
-    if cap in caps:
-      return province
+  results = _search(postalcode=cap)
+  province = results[0].get('address', {}).get('county') if results else None
+  if not province:
+    raise ValueError(f'CAP {cap} not found')
+  return province
 
-  raise ValueError(f'CAP {cap} not found in any province')
 
-
+@lru_cache(maxsize=None)
 def get_cap_by_name(city_name: str) -> str:
-  city_name_lower = city_name.lower()
-  for _, caps in CAPS_DATA.items():
-    for cap, info in caps.items():
-      if isinstance(info, list):
-        for city in info:
-          if city['name'].lower() == city_name_lower:
-            return cap
-      else:
-        if info['name'].lower() == city_name_lower:
-          return cap
-
-  raise ValueError(f'City name {city_name} not found in any CAP')
+  results = _search(city=city_name)
+  postcode = results[0].get('address', {}).get('postcode') if results else None
+  if not postcode:
+    raise ValueError(f'City name {city_name} not found in any CAP')
+  return postcode
 
 
-def get_lat_lon_by_cap(cap: str) -> tuple[float, float]:
-  for province in CAPS_DATA.keys():
-    if cap in CAPS_DATA[province]:
-      cap_data = CAPS_DATA[province][cap]
-      if type(cap_data) is list:
-        cap_data = cap_data[0]
-      return cap_data['lat'], cap_data['lon']
-
-  raise ValueError(f'CAP {cap} not found')
-
-
-def get_cap_data_by_province(province: str) -> dict:
-  return CAPS_DATA[province].copy().keys() if province in CAPS_DATA else []
+@lru_cache(maxsize=None)
+def get_lat_lon_by_cap(cap: str) -> tuple[float, float] | tuple[None, None]:
+  results = _search(postalcode=cap)
+  if not results:
+    return None, None
+  return float(results[0]['lat']), float(results[0]['lon'])

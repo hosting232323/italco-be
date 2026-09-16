@@ -3,11 +3,21 @@ from datetime import date, timedelta
 import pytest
 from database_api.operations import create, get_by_id
 
+import src.end_points.geographic_zone as geographic_zone_module
 from src.database.enum import UserRole
 from src.database.schema import Constraint, GeographicCode, GeographicZone
 from src.end_points.geographic_zone import check_geographic_zone, get_class
 
 from tests.unit.factories import auth_header, create_order, create_user
+
+
+def _stub_province(monkeypatch, mapping: dict):
+  def fake_get_province_by_cap(cap):
+    if cap not in mapping:
+      raise ValueError(f'CAP {cap} not found')
+    return mapping[cap]
+
+  monkeypatch.setattr(geographic_zone_module, 'get_province_by_cap', fake_get_province_by_cap)
 
 
 def _zone_with(name='Bari', day_of_week=None, max_orders=5, code=None, code_type=True):
@@ -103,14 +113,17 @@ def test_get_class_mapping():
     get_class('other')
 
 
-def test_check_geographic_zone_without_zone_returns_no_dates(app, db):
+def test_check_geographic_zone_without_zone_returns_no_dates(app, db, monkeypatch):
+  _stub_province(monkeypatch, {'70020': 'Bari'})
+
   with app.test_request_context(json={'cap': '70020'}):
     allowed = check_geographic_zone()
 
   assert allowed == []
 
 
-def test_check_geographic_zone_allows_constraint_day_under_limit(app, db):
+def test_check_geographic_zone_allows_constraint_day_under_limit(app, db, monkeypatch):
+  _stub_province(monkeypatch, {'70020': 'Bari'})
   target = date.today() + timedelta(days=3)
   _zone_with(name='Bari', day_of_week=target.weekday(), max_orders=2)
 
@@ -122,7 +135,8 @@ def test_check_geographic_zone_allows_constraint_day_under_limit(app, db):
   assert all(date.fromisoformat(day).weekday() == target.weekday() for day in allowed)
 
 
-def test_check_geographic_zone_blocks_saturated_day(app, db):
+def test_check_geographic_zone_blocks_saturated_day(app, db, monkeypatch):
+  _stub_province(monkeypatch, {'70020': 'Bari'})
   target = date.today() + timedelta(days=3)
   _zone_with(name='Bari', day_of_week=target.weekday(), max_orders=1)
   create_order(cap='70020', dpc=target)
@@ -133,18 +147,25 @@ def test_check_geographic_zone_blocks_saturated_day(app, db):
   assert target.strftime('%Y-%m-%d') not in allowed
 
 
-@pytest.mark.xfail(
-  strict=True,
-  reason=(
-    'Bug sorgente: get_cap_data_by_province restituisce dict_keys (immutabile), '
-    'ma check_geographic_zone chiama caps.append()/remove() quando esistono codici '
-    'speciali, sollevando AttributeError.'
-  ),
-)
-def test_check_geographic_zone_special_codes_extend_and_reduce(app, db):
+def test_check_geographic_zone_ignores_unresolvable_order_caps(app, db, monkeypatch):
+  _stub_province(monkeypatch, {'70020': 'Bari'})
+  target = date.today() + timedelta(days=3)
+  _zone_with(name='Bari', day_of_week=target.weekday(), max_orders=2)
+  create_order(cap='70020', dpc=target)
+  # CAP storico non risolvibile da Nominatim: non deve far crashare il controllo né contare nel limite
+  create_order(cap='99999', dpc=target)
+
+  with app.test_request_context(json={'cap': '70020'}):
+    allowed = check_geographic_zone()
+
+  assert target.strftime('%Y-%m-%d') in allowed
+
+
+def test_check_geographic_zone_special_codes_extend_and_reduce(app, db, monkeypatch):
+  _stub_province(monkeypatch, {'70020': 'Bari'})
   target = date.today() + timedelta(days=3)
   zone = _zone_with(name='Bari', day_of_week=target.weekday(), max_orders=1)
-  # Il codice speciale aggiunge un CAP fuori provincia al conteggio
+  # Il codice speciale aggiunge un CAP fuori provincia al conteggio, senza bisogno di risolverne la provincia
   create(GeographicCode, {'zone_id': zone.id, 'code': '00042', 'type': True})
   create_order(cap='00042', dpc=target)
 

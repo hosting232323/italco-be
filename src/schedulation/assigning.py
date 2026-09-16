@@ -40,4 +40,8 @@ def assign_delivery_users_to_schedule_items(schedule_item_groups, delivery_users
 
 def calculate_group_cost(user, schedule_items):
   user_coord = get_lat_lon_by_cap(user['delivery_user_info']['cap'])
-  return sum(geodesic(get_lat_lon_by_cap(item['cap']), user_coord).meters for item in schedule_items)
+  if user_coord[0] is None:
+    return 0
+
+  item_coords = (get_lat_lon_by_cap(item['cap']) for item in schedule_items)
+  return sum(geodesic(coord, user_coord).meters for coord in item_coords if coord[0] is not None)
