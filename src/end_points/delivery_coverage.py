@@ -181,7 +181,6 @@ def available_slots(
   dpc,
   required_duration: int = 0,
   exclude_order_id: int = None,
-  new_address: str = None,
   new_cap: str = None,
 ) -> list[dict]:
   """Fasce orarie distinte coperte dal CAP nel giorno della settimana di dpc con
@@ -207,7 +206,6 @@ def available_slots(
         dpc,
         exclude_order_id=exclude_order_id,
         session=session,
-        new_address=new_address,
         new_cap=new_cap,
       )
       if capacity == 0 or (occupied + required_duration <= capacity):
@@ -221,7 +219,6 @@ def available_slots_by_date(
   cap: str,
   required_duration: int = 0,
   exclude_order_id: int = None,
-  new_address: str = None,
   new_cap: str = None,
 ) -> dict:
   # Sostituisce il vecchio check_geographic_zone in /check-constraints: la
@@ -239,7 +236,6 @@ def available_slots_by_date(
         start,
         required_duration=required_duration,
         exclude_order_id=exclude_order_id,
-        new_address=new_address,
         new_cap=new_cap,
       )
       if slots:
@@ -255,14 +251,12 @@ def check_delivery_coverage(*args, **kwargs) -> list[str]:
   user = kwargs.get('user') or (args[0] if args else None)
   required_duration = calculate_payload_service_duration(payload, user=user)
   exclude_order_id = payload.get('order_id')
-  new_address = payload.get('address')
   new_cap = payload.get('cap')
   return list(
     available_slots_by_date(
       new_cap,
       required_duration=required_duration,
       exclude_order_id=exclude_order_id,
-      new_address=new_address,
       new_cap=new_cap,
     ).keys()
   )
@@ -275,13 +269,11 @@ def check_delivery_coverage_slots(*args, **kwargs) -> dict:
   user = kwargs.get('user') or (args[0] if args else None)
   required_duration = calculate_payload_service_duration(payload, user=user)
   exclude_order_id = payload.get('order_id')
-  new_address = payload.get('address')
   new_cap = payload.get('cap')
   return available_slots_by_date(
     new_cap,
     required_duration=required_duration,
     exclude_order_id=exclude_order_id,
-    new_address=new_address,
     new_cap=new_cap,
   )
 
