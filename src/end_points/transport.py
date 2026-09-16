@@ -4,8 +4,8 @@ from sqlalchemy import desc
 from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
-from ..database.schema import Transport, DeliveryUserInfo, User
-from database_api.operations import create, delete, get_by_id, update
+from ..database.schema import Transport, DeliveryCoverageEntry, DeliveryUserInfo, Schedule, User
+from database_api.operations import create, delete, get_by_id, get_by_params, update
 
 
 transport_bp = Blueprint('transport_bp', __name__)
@@ -26,9 +26,28 @@ def create_transport(_):
 @transport_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
 def delete_transport(_, id):
+  transport_id = int(id)
+  # schedule.transport_id e delivery_coverage_entry.transport_id sono NOT
+  # NULL con FK NO ACTION: senza questo controllo la delete fallirebbe
+  # comunque a livello DB, ma con un errore secco invece che un messaggio
+  # comprensibile (stesso pattern di delete_order).
+  if get_by_params(Schedule, [('transport_id', transport_id)]):
+    return {
+      'status': 'ko',
+      'message': "Il veicolo ha ancora dei borderò associati: rimuovili prima di procedere con l'eliminazione",
+    }
+  if get_by_params(DeliveryCoverageEntry, [('transport_id', transport_id)]):
+    return {
+      'status': 'ko',
+      'message': (
+        'Il veicolo è ancora usato in uno o più blocchi di copertura corrieri: '
+        "rimuovili prima di procedere con l'eliminazione"
+      ),
+    }
+
   # Gli utenti restano, tornano solo senza veicolo: stacca prima la FK.
-  sync_transport_users(int(id), [])
-  delete(get_by_id(Transport, int(id)))
+  sync_transport_users(transport_id, [])
+  delete(get_by_id(Transport, transport_id))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 

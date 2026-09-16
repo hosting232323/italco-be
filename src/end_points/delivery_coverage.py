@@ -28,6 +28,22 @@ def _parse_time(value: str):
   raise ValueError(f'Formato orario non riconosciuto: {value}')
 
 
+def _has_overlapping_entry(transport_id: int, day_of_week: int, start_time, end_time, exclude_id: int = None) -> bool:
+  # Stesso veicolo non può coprire due fasce sovrapposte nello stesso giorno;
+  # veicoli diversi possono invece coprire la stessa fascia (vedi
+  # test_multiple_entries_same_day_allowed / query_entries_for_cap).
+  with Session() as session:
+    query = session.query(DeliveryCoverageEntry).filter(
+      DeliveryCoverageEntry.transport_id == transport_id,
+      DeliveryCoverageEntry.day_of_week == day_of_week,
+      DeliveryCoverageEntry.start_time < end_time,
+      DeliveryCoverageEntry.end_time > start_time,
+    )
+    if exclude_id is not None:
+      query = query.filter(DeliveryCoverageEntry.id != exclude_id)
+    return session.query(query.exists()).scalar()
+
+
 def _clean_caps(raw) -> list[str]:
   # Dedup preservando l'ordine di inserimento: due CAP uguali nello stesso
   # blocco non aggiungerebbero informazione e romperebbero il vincolo sotto.
@@ -60,6 +76,9 @@ def create_delivery_coverage_entry(_):
   end_time = _parse_time(request.json['end_time'])
   if end_time <= start_time:
     return {'status': 'ko', 'message': "L'orario di fine deve essere successivo a quello di inizio"}
+
+  if _has_overlapping_entry(transport.id, day_of_week, start_time, end_time):
+    return {'status': 'ko', 'message': 'Il veicolo ha già una fascia sovrapposta in quel giorno'}
 
   caps = _clean_caps(request.json.get('caps'))
   if not caps:
@@ -103,6 +122,11 @@ def update_delivery_coverage_entry(_, id):
   end_time = data.get('end_time', entry.end_time)
   if end_time <= start_time:
     return {'status': 'ko', 'message': "L'orario di fine deve essere successivo a quello di inizio"}
+
+  transport_id = data.get('transport_id', entry.transport_id)
+  day_of_week = data.get('day_of_week', entry.day_of_week)
+  if _has_overlapping_entry(transport_id, day_of_week, start_time, end_time, exclude_id=entry.id):
+    return {'status': 'ko', 'message': 'Il veicolo ha già una fascia sovrapposta in quel giorno'}
 
   if data:
     update(entry, data)
