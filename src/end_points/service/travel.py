@@ -1,41 +1,21 @@
 import logging
 
 import requests
-from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
 
 from ...database.schema import Order
+from ...utils.caps import get_lat_lon_by_cap
 
 logger = logging.getLogger(__name__)
-
-_geolocator = Nominatim(user_agent='italco-slot-filling')
 
 # Velocità media urbana per fallback Haversine (km/h)
 _FALLBACK_SPEED_KMH = 30.0
 
-# Timeout per OSRM e geocoding (secondi)
-_GEOCODE_TIMEOUT = 5
+# Timeout per OSRM (secondi)
 _OSRM_TIMEOUT = 5
 
 # Endpoint OSRM public (table API per matrice durate)
 _OSRM_TABLE_URL = 'http://router.project-osrm.org/table/v1/driving/{coords}?annotations=duration'
-
-
-def geocode_address(address: str, cap: str) -> tuple[float, float] | None:
-  """Geocodifica un indirizzo + CAP in (lat, lon) via Nominatim.
-
-  Ritorna None se il geocoding fallisce o l'indirizzo è vuoto.
-  """
-  if not address or not cap:
-    return None
-  query = f'{address}, {cap}, Italia'
-  try:
-    location = _geolocator.geocode(query, timeout=_GEOCODE_TIMEOUT)
-    if location:
-      return location.latitude, location.longitude
-  except Exception as e:
-    logger.warning('Geocoding fallito per "%s": %s', query, e)
-  return None
 
 
 def travel_time_matrix_osrm(coords: list[tuple[float, float]]) -> list[list[float]] | None:
@@ -85,10 +65,13 @@ def sequential_travel_minutes(coords: list[tuple[float, float]]) -> int:
 
 def calculate_travel_overhead_minutes(
   existing_orders: list[Order],
-  new_address: str,
   new_cap: str,
 ) -> int:
   """Delta di minuti di percorso aggiunto dal nuovo ordine rispetto alla fascia esistente.
+
+  Le coordinate sono a livello di CAP (get_lat_lon_by_cap, self-hosted e cachata),
+  non di indirizzo esatto: precisione sufficiente per stimare l'overhead tra
+  consegne vicine, senza chiamare Nominatim/OSRM per ogni indirizzo univoco.
 
   Calcola:
   - durata percorso sequenziale degli ordini esistenti (baseline)
@@ -97,22 +80,23 @@ def calculate_travel_overhead_minutes(
 
   Ritorna 0 se:
   - la fascia è vuota
-  - il geocoding del nuovo ordine fallisce
-  - tutti gli indirizzi esistenti falliscono il geocoding
+  - il geocoding del CAP del nuovo ordine fallisce
+  - tutti i CAP esistenti falliscono il geocoding
   """
-  if not existing_orders or not new_address or not new_cap:
+  if not existing_orders or not new_cap:
     return 0
 
-  new_coord = geocode_address(new_address, new_cap)
-  if new_coord is None:
-    logger.warning('Geocoding fallito per nuovo ordine: %s %s', new_address, new_cap)
+  new_lat, new_lon = get_lat_lon_by_cap(new_cap)
+  if new_lat is None:
+    logger.warning('Geocoding fallito per il CAP del nuovo ordine: %s', new_cap)
     return 0
+  new_coord = (new_lat, new_lon)
 
   existing_coords = []
   for order in sorted(existing_orders, key=lambda o: o.id):
-    coord = geocode_address(getattr(order, 'address', '') or '', getattr(order, 'cap', '') or '')
-    if coord is not None:
-      existing_coords.append(coord)
+    lat, lon = get_lat_lon_by_cap(getattr(order, 'cap', '') or '')
+    if lat is not None:
+      existing_coords.append((lat, lon))
 
   if not existing_coords:
     # Nessun ordine esistente geocodificabile: overhead = 0 (primo ordine nella fascia)
