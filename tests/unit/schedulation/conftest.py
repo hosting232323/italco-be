@@ -2,7 +2,42 @@
 
 I test di clustering lavorano su dizionari (non entità DB), quindi non
 dipendono dal database: costruiscono ordini fittizi con CAP reali.
+
+La geocodifica dei CAP passa ora da Nominatim (chiamata di rete), quindi
+qui la sostituiamo con coordinate fisse note per i CAP usati nei test,
+per tenere la suite deterministica e senza dipendenze di rete.
 """
+
+import pytest
+
+# Coordinate reali (già verificate) per i CAP usati nei test di clustering.
+_CAP_COORDINATES = {
+  '70020': (40.9735386, 16.6173415),
+  '70056': (41.1766334, 16.5701927),
+  '70121': (41.1201889, 16.8753662),
+  '70122': (41.1239663, 16.8665147),
+  '70123': (41.1218456, 16.8561884),
+  '70124': (41.0913466, 16.8473377),
+  '70125': (41.0938196, 16.879792),
+  '70126': (41.0985084, 16.9299579),
+  '71010': (41.8128435, 15.1726816),
+  '71011': (41.7908288, 15.4771084),
+}
+
+
+def _fake_get_lat_lon_by_cap(cap):
+  return _CAP_COORDINATES.get(cap, (None, None))
+
+
+@pytest.fixture(autouse=True)
+def stub_cap_geocoding(monkeypatch):
+  import src.schedulation.assigning as assigning_module
+  import src.schedulation.clustering_rules.merge_small_group as merge_module
+  import src.schedulation.clustering_rules.split_large_group as split_module
+
+  monkeypatch.setattr(assigning_module, 'get_lat_lon_by_cap', _fake_get_lat_lon_by_cap)
+  monkeypatch.setattr(merge_module, 'get_lat_lon_by_cap', _fake_get_lat_lon_by_cap)
+  monkeypatch.setattr(split_module, 'get_lat_lon_by_cap', _fake_get_lat_lon_by_cap)
 
 
 def make_order(order_id, cap, collection_point_id=None, services=None, address=None):

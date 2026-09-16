@@ -37,7 +37,11 @@ def test_get_collection_point_returns_first_for_customer(db):
   assert get_collection_point(customer.id + 999) is None
 
 
-def test_pdf_create_order_extracts_fields(db):
+def test_pdf_create_order_extracts_fields(db, monkeypatch):
+  import src.end_points.importation.pdf as pdf_module
+
+  monkeypatch.setattr(pdf_module, 'get_cap_by_name', lambda city: '70056' if city == 'Molfetta' else None)
+
   with Session() as session:
     order = pdf_create_order(SAMPLE_TEXT, session=session)
     session.commit()

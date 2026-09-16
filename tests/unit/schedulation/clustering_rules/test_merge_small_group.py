@@ -27,11 +27,8 @@ def test_get_group_centroid_none_for_empty_group():
   assert get_group_centroid([]) == (None, None)
 
 
-def test_get_group_centroid_raises_for_unknown_cap():
-  import pytest
-
-  with pytest.raises(ValueError, match='CAP 00000 not found'):
-    get_group_centroid([{'cap': '00000'}])
+def test_get_group_centroid_none_for_unresolvable_cap():
+  assert get_group_centroid([{'cap': '00000'}]) == (None, None)
 
 
 def test_merge_small_groups_combines_nearby_small_groups():

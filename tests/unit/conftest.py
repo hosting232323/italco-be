@@ -92,6 +92,23 @@ TEST_DISPOSAL_PLACE = {
 
 
 @pytest.fixture(autouse=True)
+def _clear_caps_cache():
+  """Isola i test dalla cache di src.utils.caps.
+
+  Le funzioni di geocodifica sono cachate per evitare di richiamare
+  Nominatim ad ogni lookup (vedi src/utils/caps.py); senza reset, un test
+  che chiama la funzione reale (rete vera o mockata) inquina la cache per
+  tutti i test successivi che si aspettano di controllare la chiamata.
+  """
+  from src.utils import caps as caps_module
+
+  caps_module.get_province_by_cap.cache_clear()
+  caps_module.get_cap_by_name.cache_clear()
+  caps_module.get_lat_lon_by_cap.cache_clear()
+  yield
+
+
+@pytest.fixture(autouse=True)
 def db():
   """Database vuoto (schema creato dalle migrazioni) e una company attiva.
 
