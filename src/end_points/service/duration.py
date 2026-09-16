@@ -108,21 +108,20 @@ def entry_occupied_duration(
   dpc: date,
   exclude_order_id: int = None,
   session: session_type = None,
-  new_address: str = None,
   new_cap: str = None,
 ) -> int:
   """Calcola il totale dei minuti occupati dagli ordini nella fascia/giorno.
 
   Include la durata dei servizi di ciascun ordine più il tempo di percorso
-  aggiuntivo introdotto dal nuovo ordine (new_address/new_cap), se fornito.
+  aggiuntivo introdotto dal nuovo ordine (new_cap), se fornito.
   """
   orders = query_slot_orders(entry, dpc, exclude_order_id=exclude_order_id, session=session)
   service_minutes = sum(calculate_order_service_duration(order) for order in orders)
 
-  if new_address and new_cap:
+  if new_cap:
     from .travel import calculate_travel_overhead_minutes
 
-    travel_overhead = calculate_travel_overhead_minutes(orders, new_address, new_cap)
+    travel_overhead = calculate_travel_overhead_minutes(orders, new_cap)
   else:
     travel_overhead = 0
 
