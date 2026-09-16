@@ -334,7 +334,7 @@ def resolve_delivery_slot(
       if address and cap:
         from .service.travel import calculate_travel_overhead_minutes
 
-        travel_overhead = calculate_travel_overhead_minutes(orders, address, cap)
+        travel_overhead = calculate_travel_overhead_minutes(orders, cap)
       else:
         travel_overhead = 0
       total_occupied = occupied + travel_overhead
