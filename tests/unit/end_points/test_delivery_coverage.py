@@ -1,4 +1,5 @@
 from datetime import date, time, timedelta
+from unittest.mock import patch
 
 from database_api.operations import create, get_by_id, get_by_params
 
@@ -543,3 +544,37 @@ def test_resolve_delivery_slot_prefers_unsaturated_slot_and_balances_minutes(db)
   # Nuovo ordine da 90 min: Mattina non ha spazio (60 + 90 = 150 > 120), Pomeriggio sì (0 + 90 = 90 <= 120)
   chosen_start, chosen_end = resolve_delivery_slot('70051', target, required_duration=90)
   assert (chosen_start, chosen_end) == (afternoon.start_time, afternoon.end_time)
+
+
+@patch('src.end_points.service.travel.sequential_travel_minutes')
+@patch('src.end_points.service.travel.get_lat_lon_by_cap')
+def test_available_slots_filters_saturated_slot_based_on_travel_overhead(mock_geocode, mock_sequential, db):
+  target = date.today() + timedelta(days=3)
+  # Fascia da 1 ora (60 minuti), nessuna durata di servizio: satura solo per via del percorso.
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
+
+  mock_geocode.return_value = (41.0, 16.0)
+  # baseline (solo l'esistente): 20 min. Con il nuovo ordine aggiunto: 70 min -> overhead 50 min.
+  mock_sequential.side_effect = lambda coords: 20 if len(coords) == 1 else 70
+
+  assert available_slots('70051', target, new_cap='70051') == []
+
+
+@patch('src.end_points.service.travel.get_lat_lon_by_cap')
+def test_available_slots_ignores_travel_overhead_when_new_cap_unresolvable(mock_geocode, db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
+
+  mock_geocode.return_value = (None, None)
+
+  assert available_slots('70051', target, new_cap='70051') == [{'start': '08:00', 'end': '09:00'}]
+
+
+def test_available_slots_without_new_cap_skips_travel_overhead(db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
+
+  assert available_slots('70051', target) == [{'start': '08:00', 'end': '09:00'}]
