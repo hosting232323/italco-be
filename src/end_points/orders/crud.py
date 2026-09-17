@@ -22,6 +22,7 @@ from ..schedule.queries import (
   close_schedule_position_if_done,
   get_latest_schedule_item_user,
 )
+from ...database.queries import is_automatic_planning_enabled
 
 
 NON_UPDATABLE_ORDER_FIELDS = frozenset(
@@ -93,8 +94,27 @@ def create_order(user: User, data: dict):
     if cloned_order:
       update_cloned_order(order, data['cloned_order_id'], session=session)
 
+    # Pianificazione automatica del borderò: se la company ha il flag attivo
+    # e l'ordine ha una fascia oraria assegnata, crea o aggiorna il borderò
+    # nella stessa transazione. Il flush rende disponibile l'id dell'ordine
+    # senza ancora committare, così un'eventuale eccezione fa rollback di tutto.
+    pending_auto_sms = []
+    if is_automatic_planning_enabled() and order.delivery_slot_start:
+      from ...schedulation.auto_planning import auto_plan_order
+
+      session.flush()
+      pending_auto_sms = auto_plan_order(order, session)
+
     session.commit()
     save_order_status_to_euronics(order)
+
+    # SMS post-commit per le tappe aggiunte automaticamente al borderò
+    if pending_auto_sms:
+      from ..schedule.sms_sender import schedule_sms_check
+
+      for sms_order, sms_item in pending_auto_sms:
+        schedule_sms_check(sms_order, sms_item)
+
   return {'status': 'ok', 'order': order.to_dict()}
 
 
