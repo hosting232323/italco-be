@@ -4,7 +4,7 @@ import requests
 from geopy.distance import geodesic
 
 from ...database.schema import Order
-from ...utils.caps import get_lat_lon_by_cap
+from ...utils.caps import get_lat_lon_by_address, get_lat_lon_by_cap
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,13 @@ _OSRM_TIMEOUT = 5
 
 # Endpoint OSRM public (table API per matrice durate)
 _OSRM_TABLE_URL = 'http://router.project-osrm.org/table/v1/driving/{coords}?annotations=duration'
+
+# Endpoint OSRM public (trip API, risolve il TSP su un percorso aperto: nessun
+# vincolo di partenza/arrivo, OSRM sceglie gli estremi che minimizzano il costo
+# totale). Istanza demo pubblica non pensata per produzione: vedi
+# docs/spunti_e_bug_trovati.md per la nota sul rischio e l'eventuale migrazione
+# a un'istanza self-hosted.
+_OSRM_TRIP_URL = 'http://router.project-osrm.org/trip/v1/driving/{coords}?roundtrip=false&source=any&destination=any'
 
 
 def travel_time_matrix_osrm(coords: list[tuple[float, float]]) -> list[list[float]] | None:
@@ -36,6 +43,32 @@ def travel_time_matrix_osrm(coords: list[tuple[float, float]]) -> list[list[floa
         return data['durations']
   except Exception as e:
     logger.warning('OSRM non disponibile: %s', e)
+  return None
+
+
+def trip_order_osrm(coords: list[tuple[float, float]]) -> list[int] | None:
+  """Ordine di visita ottimale per ``coords`` via OSRM Trip Service (TSP, percorso aperto).
+
+  coords: lista di (lat, lon). Ritorna gli indici originali di ``coords`` nell'ordine di
+  visita ottimale (es. [2, 0, 1] = si visita prima coords[2], poi coords[0], poi coords[1]),
+  o None se la chiamata fallisce o OSRM non trova soluzione.
+  """
+  if len(coords) < 2:
+    return None
+  # OSRM vuole lon,lat (ordine invertito rispetto a geopy)
+  coords_str = ';'.join(f'{lon},{lat}' for lat, lon in coords)
+  url = _OSRM_TRIP_URL.format(coords=coords_str)
+  try:
+    resp = requests.get(url, timeout=_OSRM_TIMEOUT)
+    if resp.status_code == 200:
+      data = resp.json()
+      if data.get('code') == 'Ok':
+        waypoints = data['waypoints']
+        # waypoints[i] descrive coords[i] e porta 'waypoint_index' = sua posizione
+        # nel percorso ottimizzato: ordiniamo gli indici originali per quella posizione.
+        return sorted(range(len(waypoints)), key=lambda i: waypoints[i]['waypoint_index'])
+  except Exception as e:
+    logger.warning('OSRM /trip non disponibile: %s', e)
   return None
 
 
@@ -63,15 +96,33 @@ def sequential_travel_minutes(coords: list[tuple[float, float]]) -> int:
   return _haversine_travel_minutes(coords)
 
 
+def get_lat_lon_for_order(order: Order) -> tuple[float, float] | tuple[None, None]:
+  """Coordinate dell'ordine: indirizzo completo se geocodificabile, altrimenti centroide del CAP.
+
+  Il CAP è un fallback per quando l'indirizzo non è geocodificabile (via non
+  normalizzata, indirizzo incompleto, Nominatim senza risultati), non
+  un'alternativa equivalente: usarlo come prima scelta reintrodurrebbe
+  l'errore di trattare come "vicini" indirizzi lontani nello stesso CAP.
+  """
+  address = getattr(order, 'address', None)
+  if address:
+    lat, lon = get_lat_lon_by_address(address)
+    if lat is not None:
+      return lat, lon
+  return get_lat_lon_by_cap(getattr(order, 'cap', '') or '')
+
+
 def calculate_travel_overhead_minutes(
   existing_orders: list[Order],
   new_cap: str,
+  new_address: str = None,
 ) -> int:
   """Delta di minuti di percorso aggiunto dal nuovo ordine rispetto alla fascia esistente.
 
-  Le coordinate sono a livello di CAP (get_lat_lon_by_cap, self-hosted e cachata),
-  non di indirizzo esatto: precisione sufficiente per stimare l'overhead tra
-  consegne vicine, senza chiamare Nominatim/OSRM per ogni indirizzo univoco.
+  Le coordinate usano l'indirizzo completo quando disponibile (get_lat_lon_by_address),
+  con fallback al centroide del CAP: due indirizzi nello stesso CAP possono
+  distare chilometri, specialmente nei CAP che coprono più comuni o zone rurali,
+  e usare solo il CAP sottostimerebbe (o sovrastimerebbe) l'overhead reale.
 
   Calcola:
   - durata percorso sequenziale degli ordini esistenti (baseline)
@@ -80,21 +131,25 @@ def calculate_travel_overhead_minutes(
 
   Ritorna 0 se:
   - la fascia è vuota
-  - il geocoding del CAP del nuovo ordine fallisce
-  - tutti i CAP esistenti falliscono il geocoding
+  - il geocoding del nuovo ordine (indirizzo e CAP) fallisce
+  - tutti gli ordini esistenti falliscono il geocoding
   """
   if not existing_orders or not new_cap:
     return 0
 
-  new_lat, new_lon = get_lat_lon_by_cap(new_cap)
+  new_lat, new_lon = (None, None)
+  if new_address:
+    new_lat, new_lon = get_lat_lon_by_address(new_address)
   if new_lat is None:
-    logger.warning('Geocoding fallito per il CAP del nuovo ordine: %s', new_cap)
+    new_lat, new_lon = get_lat_lon_by_cap(new_cap)
+  if new_lat is None:
+    logger.warning('Geocoding fallito per il nuovo ordine (indirizzo=%s, cap=%s)', new_address, new_cap)
     return 0
   new_coord = (new_lat, new_lon)
 
   existing_coords = []
   for order in sorted(existing_orders, key=lambda o: o.id):
-    lat, lon = get_lat_lon_by_cap(getattr(order, 'cap', '') or '')
+    lat, lon = get_lat_lon_for_order(order)
     if lat is not None:
       existing_coords.append((lat, lon))
 

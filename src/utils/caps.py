@@ -54,3 +54,22 @@ def get_lat_lon_by_cap(cap: str) -> tuple[float, float] | tuple[None, None]:
   if not results:
     return None, None
   return float(results[0]['lat']), float(results[0]['lon'])
+
+
+@lru_cache(maxsize=2048)
+def get_lat_lon_by_address(address: str) -> tuple[float, float] | tuple[None, None]:
+  """Geocodifica un indirizzo completo (via, civico, città), non il solo CAP.
+
+  Il centroide del CAP (get_lat_lon_by_cap) è una stima grossolana: due
+  indirizzi nello stesso CAP possono distare chilometri, specialmente nei CAP
+  che coprono zone rurali o più comuni. Qui il risultato riflette la
+  posizione reale della via.
+
+  Cache limitata (a differenza delle funzioni sopra, che non lo sono): gli
+  indirizzi hanno una cardinalità molto più alta dei CAP, una cache senza
+  limite crescerebbe senza controllo su un processo long-running.
+  """
+  results = _search(q=address)
+  if not results:
+    return None, None
+  return float(results[0]['lat']), float(results[0]['lon'])
