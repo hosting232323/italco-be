@@ -207,10 +207,15 @@ def available_slots(
   exclude_order_id: int = None,
   new_cap: str = None,
 ) -> list[dict]:
-  """Fasce orarie distinte coperte dal CAP nel giorno della settimana di dpc con
+  """Fasce orarie coperte dal CAP nel giorno della settimana di dpc con capienza residua
 
-  capienza residua sufficiente per la durata richiesta dei servizi dell'ordine.
-  Include il travel overhead (tempo percorso aggiuntivo) nel calcolo dei minuti occupati.
+  sufficiente per la durata richiesta dei servizi dell'ordine. Include il travel overhead
+  (tempo percorso aggiuntivo) nel calcolo dei minuti occupati.
+
+  Una riga per blocco di copertura, non deduplicata per orario: blocchi di veicoli diversi
+  che coprono la stessa fascia restano entrambi in lista (resolve_delivery_slot sceglie poi
+  il veicolo migliore alla creazione dell'ordine), distinti dai CAP che coprono così il
+  cliente non si trova davanti due opzioni identiche senza sapere perché sono separate.
   """
   dpc = _as_date(dpc)
   if not cap or not dpc:
@@ -233,10 +238,17 @@ def available_slots(
         new_cap=new_cap,
       )
       if capacity == 0 or (occupied + required_duration <= capacity):
-        available.append((entry.start_time, entry.end_time))
+        available.append(entry)
 
-  slots = sorted(set(available))
-  return [{'start': start.strftime('%H:%M'), 'end': end.strftime('%H:%M')} for start, end in slots]
+  available.sort(key=lambda entry: (entry.start_time, entry.end_time, sorted(c.cap for c in entry.caps)))
+  return [
+    {
+      'start': entry.start_time.strftime('%H:%M'),
+      'end': entry.end_time.strftime('%H:%M'),
+      'caps': sorted(c.cap for c in entry.caps),
+    }
+    for entry in available
+  ]
 
 
 def available_slots_by_date(
