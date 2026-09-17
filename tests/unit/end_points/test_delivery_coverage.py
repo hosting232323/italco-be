@@ -468,17 +468,34 @@ def test_available_slots_lists_distinct_slots_sorted(db):
   _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
 
   assert available_slots('70051', target) == [
-    {'start': '08:00', 'end': '12:00'},
-    {'start': '13:00', 'end': '18:00'},
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051']},
+    {'start': '13:00', 'end': '18:00', 'caps': ['70051']},
   ]
 
 
-def test_available_slots_dedupes_same_slot_from_different_vehicles(db):
+def test_available_slots_does_not_dedupe_same_slot_from_different_vehicles(db):
+  # Deciso 2026-09-17: niente scelta automatica nascosta lato lista, il FE mostra tutte
+  # le fasce sovrapposte (una per blocco di copertura) così l'operatore/cliente vede che
+  # sono due opzioni distinte, anche quando orario e CAP coincidono.
   target = date.today() + timedelta(days=3)
   _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
   _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
 
-  assert available_slots('70051', target) == [{'start': '08:00', 'end': '12:00'}]
+  assert available_slots('70051', target) == [
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051']},
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051']},
+  ]
+
+
+def test_available_slots_distinguishes_overlapping_entries_by_caps(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051', '70056'))
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051', '76011'))
+
+  assert available_slots('70051', target) == [
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051', '70056']},
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051', '76011']},
+  ]
 
 
 def test_available_slots_empty_without_coverage(db):
@@ -493,7 +510,7 @@ def test_available_slots_by_date_only_lists_covered_dates(db):
 
   result = available_slots_by_date('70051')
 
-  assert result[target.strftime('%Y-%m-%d')] == [{'start': '08:00', 'end': '12:00'}]
+  assert result[target.strftime('%Y-%m-%d')] == [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]
   assert all(date.fromisoformat(day).weekday() == target.weekday() for day in result)
 
 
@@ -506,7 +523,7 @@ def test_check_delivery_coverage_slots_matches_check_delivery_coverage_dates(app
     slots = check_delivery_coverage_slots()
 
   assert sorted(slots.keys()) == sorted(dates)
-  assert slots[target.strftime('%Y-%m-%d')] == [{'start': '08:00', 'end': '12:00'}]
+  assert slots[target.strftime('%Y-%m-%d')] == [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]
 
 
 def test_resolve_delivery_slot_returns_none_without_coverage(db):
@@ -607,7 +624,9 @@ def test_available_slots_filters_saturated_slot_based_on_service_duration(db):
   assert available_slots('70051', target, required_duration=30) == []
 
   # Richiesta con 15 minuti di servizio -> 40 + 15 = 55 <= 60: slot disponibile
-  assert available_slots('70051', target, required_duration=15) == [{'start': '08:00', 'end': '09:00'}]
+  assert available_slots('70051', target, required_duration=15) == [
+    {'start': '08:00', 'end': '09:00', 'caps': ['70051']}
+  ]
 
 
 def test_available_slots_sums_multiple_products_durations(db):
@@ -630,7 +649,9 @@ def test_available_slots_sums_multiple_products_durations(db):
   # Con 50 min occupati su 60 min, una richiesta da 20 min sfora (50 + 20 = 70 > 60)
   assert available_slots('70051', target, required_duration=20) == []
   # Una richiesta da 10 min ci sta (50 + 10 = 60 <= 60)
-  assert available_slots('70051', target, required_duration=10) == [{'start': '08:00', 'end': '09:00'}]
+  assert available_slots('70051', target, required_duration=10) == [
+    {'start': '08:00', 'end': '09:00', 'caps': ['70051']}
+  ]
 
 
 def test_resolve_delivery_slot_prefers_unsaturated_slot_and_balances_minutes(db):
@@ -676,7 +697,7 @@ def test_available_slots_ignores_travel_overhead_when_new_cap_unresolvable(mock_
 
   mock_geocode.return_value = (None, None)
 
-  assert available_slots('70051', target, new_cap='70051') == [{'start': '08:00', 'end': '09:00'}]
+  assert available_slots('70051', target, new_cap='70051') == [{'start': '08:00', 'end': '09:00', 'caps': ['70051']}]
 
 
 def test_available_slots_without_new_cap_skips_travel_overhead(db):
@@ -684,4 +705,4 @@ def test_available_slots_without_new_cap_skips_travel_overhead(db):
   entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
   create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
 
-  assert available_slots('70051', target) == [{'start': '08:00', 'end': '09:00'}]
+  assert available_slots('70051', target) == [{'start': '08:00', 'end': '09:00', 'caps': ['70051']}]
