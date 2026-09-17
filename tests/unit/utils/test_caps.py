@@ -2,7 +2,13 @@ from unittest.mock import patch
 
 import pytest
 
-from src.utils.caps import NOMINATIM_REVERSE_URL, get_cap_by_name, get_lat_lon_by_cap, get_province_by_cap
+from src.utils.caps import (
+    NOMINATIM_REVERSE_URL,
+    get_cap_by_name,
+    get_lat_lon_by_address,
+    get_lat_lon_by_cap,
+    get_province_by_cap,
+)
 
 
 def _nominatim_response(results):
@@ -88,3 +94,21 @@ def test_get_lat_lon_by_cap_returns_none_when_unresolvable(mock_get):
   mock_get.return_value = _nominatim_response([])
 
   assert get_lat_lon_by_cap('99999') == (None, None)
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_returns_coordinates(mock_get):
+  mock_get.return_value = _nominatim_response([{'lat': '41.2016', 'lon': '16.6008', 'address': {}}])
+
+  lat, lon = get_lat_lon_by_address('Via Andrea Doria, 15, Molfetta, BA')
+
+  assert lat == pytest.approx(41.2016)
+  assert lon == pytest.approx(16.6008)
+  assert mock_get.call_args.kwargs['params']['q'] == 'Via Andrea Doria, 15, Molfetta, BA'
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_returns_none_when_unresolvable(mock_get):
+  mock_get.return_value = _nominatim_response([])
+
+  assert get_lat_lon_by_address('Via Inesistente 0, Nessundove') == (None, None)

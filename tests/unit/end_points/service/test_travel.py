@@ -87,8 +87,13 @@ def test_calculate_travel_overhead_minutes_is_zero_when_new_cap_unresolvable(moc
   assert calculate_travel_overhead_minutes([order], '99999') == 0
 
 
+@patch('src.end_points.service.travel.get_lat_lon_by_address')
 @patch('src.end_points.service.travel.get_lat_lon_by_cap')
-def test_calculate_travel_overhead_minutes_is_zero_when_no_existing_cap_resolves(mock_geocode):
+def test_calculate_travel_overhead_minutes_is_zero_when_no_existing_cap_resolves(mock_geocode, mock_geocode_address):
+  # L'indirizzo dell'ordine esistente non risolve mai: forza il fallback al CAP,
+  # che è quello che questo test vuole verificare.
+  mock_geocode_address.return_value = (None, None)
+
   def fake_geocode(cap):
     return (None, None) if cap == '70020' else BARI
 
@@ -99,8 +104,11 @@ def test_calculate_travel_overhead_minutes_is_zero_when_no_existing_cap_resolves
 
 
 @patch('src.end_points.service.travel.sequential_travel_minutes')
+@patch('src.end_points.service.travel.get_lat_lon_by_address')
 @patch('src.end_points.service.travel.get_lat_lon_by_cap')
-def test_calculate_travel_overhead_minutes_returns_the_added_delta(mock_geocode, mock_sequential):
+def test_calculate_travel_overhead_minutes_returns_the_added_delta(mock_geocode, mock_geocode_address, mock_sequential):
+  # L'indirizzo non risolve: il test verifica il percorso via CAP (coords_by_cap).
+  mock_geocode_address.return_value = (None, None)
   coords_by_cap = {'70020': BARI, '70056': MOLFETTA}
   mock_geocode.side_effect = lambda cap: coords_by_cap[cap]
   # baseline (solo l'esistente): 10 min. Con il nuovo ordine aggiunto: 25 min.
@@ -111,8 +119,10 @@ def test_calculate_travel_overhead_minutes_returns_the_added_delta(mock_geocode,
 
 
 @patch('src.end_points.service.travel.sequential_travel_minutes')
+@patch('src.end_points.service.travel.get_lat_lon_by_address')
 @patch('src.end_points.service.travel.get_lat_lon_by_cap')
-def test_calculate_travel_overhead_minutes_never_negative(mock_geocode, mock_sequential):
+def test_calculate_travel_overhead_minutes_never_negative(mock_geocode, mock_geocode_address, mock_sequential):
+  mock_geocode_address.return_value = (None, None)
   mock_geocode.return_value = BARI
   # Il nuovo ordine "accorcia" il percorso sequenziale: l'overhead resta 0, non negativo.
   mock_sequential.side_effect = lambda coords: 30 if len(coords) == 1 else 20

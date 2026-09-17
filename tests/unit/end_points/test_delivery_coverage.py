@@ -675,13 +675,19 @@ def test_resolve_delivery_slot_prefers_unsaturated_slot_and_balances_minutes(db)
 
 
 @patch('src.end_points.service.travel.sequential_travel_minutes')
+@patch('src.end_points.service.travel.get_lat_lon_by_address')
 @patch('src.end_points.service.travel.get_lat_lon_by_cap')
-def test_available_slots_filters_saturated_slot_based_on_travel_overhead(mock_geocode, mock_sequential, db):
+def test_available_slots_filters_saturated_slot_based_on_travel_overhead(
+  mock_geocode, mock_geocode_address, mock_sequential, db
+):
   target = date.today() + timedelta(days=3)
   # Fascia da 1 ora (60 minuti), nessuna durata di servizio: satura solo per via del percorso.
   entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
   create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
 
+  # L'indirizzo dell'ordine esistente non deve risolvere: il test guida le
+  # coordinate via CAP.
+  mock_geocode_address.return_value = (None, None)
   mock_geocode.return_value = (41.0, 16.0)
   # baseline (solo l'esistente): 20 min. Con il nuovo ordine aggiunto: 90 min -> overhead 70 min.
   mock_sequential.side_effect = lambda coords: 20 if len(coords) == 1 else 90
