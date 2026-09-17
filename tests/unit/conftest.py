@@ -104,6 +104,7 @@ def _clear_caps_cache():
   caps_module.get_province_by_cap.cache_clear()
   caps_module.get_cap_by_name.cache_clear()
   caps_module.get_lat_lon_by_cap.cache_clear()
+  caps_module.get_lat_lon_by_address.cache_clear()
   yield
 
 

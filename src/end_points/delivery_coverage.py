@@ -206,6 +206,7 @@ def available_slots(
   required_duration: int = 0,
   exclude_order_id: int = None,
   new_cap: str = None,
+  new_address: str = None,
 ) -> list[dict]:
   """Fasce orarie coperte dal CAP nel giorno della settimana di dpc con capienza residua
 
@@ -236,6 +237,7 @@ def available_slots(
         exclude_order_id=exclude_order_id,
         session=session,
         new_cap=new_cap,
+        new_address=new_address,
       )
       if capacity == 0 or (occupied + required_duration <= capacity):
         available.append(entry)
@@ -256,6 +258,7 @@ def available_slots_by_date(
   required_duration: int = 0,
   exclude_order_id: int = None,
   new_cap: str = None,
+  new_address: str = None,
 ) -> dict:
   # Sostituisce il vecchio check_geographic_zone in /check-constraints: la
   # data prevista dal cliente è selezionabile se il suo CAP è coperto da
@@ -273,6 +276,7 @@ def available_slots_by_date(
         required_duration=required_duration,
         exclude_order_id=exclude_order_id,
         new_cap=new_cap,
+        new_address=new_address,
       )
       if slots:
         result[start.strftime('%Y-%m-%d')] = slots
@@ -294,6 +298,7 @@ def check_delivery_coverage(*args, **kwargs) -> list[str]:
       required_duration=required_duration,
       exclude_order_id=exclude_order_id,
       new_cap=new_cap,
+      new_address=payload.get('address'),
     ).keys()
   )
 
@@ -311,6 +316,7 @@ def check_delivery_coverage_slots(*args, **kwargs) -> dict:
     required_duration=required_duration,
     exclude_order_id=exclude_order_id,
     new_cap=new_cap,
+    new_address=payload.get('address'),
   )
 
 
@@ -370,7 +376,7 @@ def resolve_delivery_slot(
       if address and cap:
         from .service.travel import calculate_travel_overhead_minutes
 
-        travel_overhead = calculate_travel_overhead_minutes(orders, cap)
+        travel_overhead = calculate_travel_overhead_minutes(orders, cap, new_address=address)
       else:
         travel_overhead = 0
       total_occupied = occupied + travel_overhead

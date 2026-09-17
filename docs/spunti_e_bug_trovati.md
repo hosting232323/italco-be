@@ -60,6 +60,19 @@ Gli SMS ora partono dopo il commit (niente più invii su transazioni poi annulla
 se Vonage fallisce il client riceve 500 con dati già committati. La soluzione completa è una coda
 outbox processata fuori richiesta.
 
+## SPUNTO BE: OSRM /trip su istanza demo pubblica (decisione temporanea)
+
+L'ottimizzazione del percorso del borderò (src/schedulation/auto_planning.py, branch
+feat/automatic-planning-bordero-optimization) chiama l'endpoint `/trip` di
+`router.project-osrm.org`, lo stesso demo pubblico già usato per `/table` in
+src/end_points/service/travel.py. Non è un'istanza pensata per produzione: nessuna garanzia di SLA,
+rate limit non documentati, dati OSM non aggiornati a piacere. Decisione presa il 2026-09-17: usarla
+comunque per ora per non bloccare la feature su un lavoro di deploy separato. Se in futuro l'auto
+planning diventa affidamento primario (non più solo suggerimento/ottimizzazione best-effort) o si
+notano errori/timeout ricorrenti in produzione, va sostituita con un'istanza OSRM self-hosted (stesso
+discorso già fatto per Nominatim, vedi nominatim.fastsite.it in src/utils/caps.py) e l'URL va reso
+configurabile via env invece che hardcoded.
+
 # COSE VISTE
 
 - Admin ha la possibilità di vedere nella pagina log tutte le richieste effettuate al be
