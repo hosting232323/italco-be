@@ -143,6 +143,9 @@ class DeliveryCoverageEntry(BaseItalcoEntity):
   start_time = Column(Time, nullable=False)
   end_time = Column(Time, nullable=False)
   transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False, index=True)
+  # Modalità alternativa al CAP: zona disegnata sulla mappa, lista di [lat, lon].
+  # Un blocco ha o dei caps o un polygon (validato in end_points/delivery_coverage.py).
+  polygon = Column(JSON, nullable=True)
 
   transport = relationship('Transport')
   caps = relationship('DeliveryCoverageCap', back_populates='entry', cascade='all, delete-orphan')

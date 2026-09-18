@@ -3,11 +3,11 @@ from unittest.mock import patch
 import pytest
 
 from src.utils.caps import (
-    NOMINATIM_REVERSE_URL,
-    get_cap_by_name,
-    get_lat_lon_by_address,
-    get_lat_lon_by_cap,
-    get_province_by_cap,
+  NOMINATIM_REVERSE_URL,
+  get_cap_by_name,
+  get_lat_lon_by_address,
+  get_lat_lon_by_cap,
+  get_province_by_cap,
 )
 
 

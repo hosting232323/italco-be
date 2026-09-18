@@ -10,6 +10,8 @@ from ..database.enum import UserRole
 from . import flask_session_authentication
 from database_api.operations import create, create_bulk, delete, delete_bulk, update, get_by_id
 from ..database.schema import Order, Transport, DeliveryCoverageEntry, DeliveryCoverageCap
+from ..utils.geo import point_in_polygon
+from ..utils.caps import get_lat_lon_by_address
 
 
 delivery_coverage_bp = Blueprint('delivery_coverage_bp', __name__)
@@ -55,6 +57,19 @@ def _clean_caps(raw) -> list[str]:
   return seen
 
 
+def _clean_polygon(raw) -> list | None:
+  # Un blocco disegnato sulla mappa in alternativa al CAP: lista di vertici
+  # [lat, lon]. Sotto i 3 punti non è un poligono, quindi non lo salviamo
+  # (torna None, come se il campo non fosse stato passato).
+  if not raw:
+    return None
+  points = []
+  for point in raw:
+    lat, lon = point
+    points.append([float(lat), float(lon)])
+  return points if len(points) >= 3 else None
+
+
 @delivery_coverage_bp.route('', methods=['GET'])
 @flask_session_authentication(COVERAGE_ROLES)
 def get_delivery_coverage(_):
@@ -81,14 +96,22 @@ def create_delivery_coverage_entry(_):
     return {'status': 'ko', 'message': 'Il veicolo ha già una fascia sovrapposta in quel giorno'}
 
   caps = _clean_caps(request.json.get('caps'))
-  if not caps:
-    return {'status': 'ko', 'message': 'Seleziona almeno un CAP'}
+  polygon = _clean_polygon(request.json.get('polygon'))
+  if not caps and not polygon:
+    return {'status': 'ko', 'message': 'Seleziona almeno un CAP o disegna una zona sulla mappa'}
 
   entry = create(
     DeliveryCoverageEntry,
-    {'day_of_week': day_of_week, 'transport_id': transport.id, 'start_time': start_time, 'end_time': end_time},
+    {
+      'day_of_week': day_of_week,
+      'transport_id': transport.id,
+      'start_time': start_time,
+      'end_time': end_time,
+      'polygon': polygon,
+    },
   )
-  create_bulk(DeliveryCoverageCap, [{'entry_id': entry.id, 'cap': cap} for cap in caps])
+  if caps:
+    create_bulk(DeliveryCoverageCap, [{'entry_id': entry.id, 'cap': cap} for cap in caps])
 
   return {'status': 'ok', 'entry': get_entry_dict(entry.id)}
 
@@ -128,15 +151,29 @@ def update_delivery_coverage_entry(_, id):
   if _has_overlapping_entry(transport_id, day_of_week, start_time, end_time, exclude_id=entry.id):
     return {'status': 'ko', 'message': 'Il veicolo ha già una fascia sovrapposta in quel giorno'}
 
+  # Stato finale (caps ed entry.polygon letti PRIMA di qualunque update sotto,
+  # per validare senza aver già scritto uno stato parziale non valido).
+  polygon_provided = 'polygon' in request.json
+  new_polygon = _clean_polygon(request.json['polygon']) if polygon_provided else None
+  caps_provided = 'caps' in request.json
+  new_caps = _clean_caps(request.json['caps']) if caps_provided else None
+
+  final_polygon = new_polygon if polygon_provided else entry.polygon
+  # entry arriva da get_by_id, scollegato dalla sessione: niente lazy load su
+  # entry.caps (relationship), va riletto esplicitamente con query_caps.
+  final_has_caps = bool(new_caps) if caps_provided else bool(query_caps(entry.id))
+  if not final_has_caps and not final_polygon:
+    return {'status': 'ko', 'message': 'Seleziona almeno un CAP o disegna una zona sulla mappa'}
+
+  if polygon_provided:
+    data['polygon'] = new_polygon
   if data:
     update(entry, data)
 
-  if 'caps' in request.json:
-    caps = _clean_caps(request.json['caps'])
-    if not caps:
-      return {'status': 'ko', 'message': 'Seleziona almeno un CAP'}
+  if caps_provided:
     delete_bulk(query_caps(entry.id))
-    create_bulk(DeliveryCoverageCap, [{'entry_id': entry.id, 'cap': cap} for cap in caps])
+    if new_caps:
+      create_bulk(DeliveryCoverageCap, [{'entry_id': entry.id, 'cap': cap} for cap in new_caps])
 
   return {'status': 'ok', 'entry': get_entry_dict(int(id))}
 
@@ -221,7 +258,7 @@ def available_slots(
   dpc = _as_date(dpc)
   if not cap or not dpc:
     return []
-  entries = [entry for entry in query_entries_for_cap(cap) if entry.day_of_week == dpc.weekday()]
+  entries = [entry for entry in query_entries_for_cap(cap, address=new_address) if entry.day_of_week == dpc.weekday()]
   if not entries:
     return []
 
@@ -264,7 +301,7 @@ def available_slots_by_date(
   # data prevista dal cliente è selezionabile se il suo CAP è coperto da
   # almeno un blocco di copertura corrieri con capienza residua per i servizi
   # dell'ordine in quel giorno della settimana.
-  covered_days = {entry.day_of_week for entry in query_entries_for_cap(cap)}
+  covered_days = {entry.day_of_week for entry in query_entries_for_cap(cap, address=new_address)}
   start = datetime.today().date()
   end = start + relativedelta(months=2)
   result = {}
@@ -343,7 +380,7 @@ def resolve_delivery_slot(
   if dpc is None:
     return None, None
 
-  entries = [entry for entry in query_entries_for_cap(cap) if entry.day_of_week == dpc.weekday()]
+  entries = [entry for entry in query_entries_for_cap(cap, address=address) if entry.day_of_week == dpc.weekday()]
   if not entries:
     return None, None
 
@@ -391,15 +428,44 @@ def resolve_delivery_slot(
   return chosen.start_time, chosen.end_time
 
 
-def query_entries_for_cap(cap: str) -> list[DeliveryCoverageEntry]:
+def query_entries_for_cap(cap: str, address: str = None) -> list[DeliveryCoverageEntry]:
+  """Blocchi che coprono `cap` (match esatto) più, se `address` è geocodificabile,
+
+  i blocchi disegnati sulla mappa (senza CAP) il cui poligono contiene quel punto.
+  """
   with Session() as session:
-    return (
+    by_cap = (
       session.query(DeliveryCoverageEntry)
       .options(joinedload(DeliveryCoverageEntry.caps))
       .join(DeliveryCoverageCap, DeliveryCoverageCap.entry_id == DeliveryCoverageEntry.id)
       .filter(DeliveryCoverageCap.cap == cap)
       .all()
+      if cap
+      else []
     )
+
+  if not address:
+    return by_cap
+
+  lat, lon = get_lat_lon_by_address(address)
+  if lat is None:
+    return by_cap
+
+  seen_ids = {entry.id for entry in by_cap}
+  by_polygon = [entry for entry in query_entries_for_polygon_point(lat, lon) if entry.id not in seen_ids]
+  return by_cap + by_polygon
+
+
+def query_entries_for_polygon_point(lat: float, lon: float) -> list[DeliveryCoverageEntry]:
+  """Blocchi disegnati sulla mappa il cui poligono contiene il punto (lat, lon)."""
+  with Session() as session:
+    entries = (
+      session.query(DeliveryCoverageEntry)
+      .options(joinedload(DeliveryCoverageEntry.caps))
+      .filter(DeliveryCoverageEntry.polygon.isnot(None))
+      .all()
+    )
+  return [entry for entry in entries if point_in_polygon((lat, lon), entry.polygon)]
 
 
 def count_orders_by_slot(cap: str, dpc: date, slots: list[tuple], exclude_order_id: int = None) -> dict:
