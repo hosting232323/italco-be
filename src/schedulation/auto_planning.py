@@ -69,7 +69,28 @@ def find_coverage_entry(order: Order, session: session_type) -> DeliveryCoverage
     )
     .first()
   )
-  return entry
+  if entry or not order.address:
+    return entry
+
+  # Nessun blocco a CAP: l'ordine potrebbe essere coperto da un blocco
+  # disegnato sulla mappa (senza CAP salvati), trovato per posizione.
+  from ..end_points.delivery_coverage import query_entries_for_polygon_point
+  from ..utils.caps import get_lat_lon_by_address
+
+  lat, lon = get_lat_lon_by_address(order.address)
+  if lat is None:
+    return None
+
+  return next(
+    (
+      e
+      for e in query_entries_for_polygon_point(lat, lon)
+      if e.day_of_week == day_of_week
+      and e.start_time == order.delivery_slot_start
+      and e.end_time == order.delivery_slot_end
+    ),
+    None,
+  )
 
 
 # ---------------------------------------------------------------------------

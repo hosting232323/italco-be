@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session as session_type, joinedload
 
 from database_api import Session
 from ...database.schema import Order, Product, ServiceUser, Service, User, DeliveryCoverageEntry
+from ...utils.geo import point_in_polygon
+from ...utils.caps import get_lat_lon_by_address
 
 
 def calculate_order_service_duration(order: Order) -> int:
@@ -95,7 +97,20 @@ def query_slot_orders(
       query = query.filter(Order.cap.in_(caps))
     if exclude_order_id:
       query = query.filter(Order.id != exclude_order_id)
-    return query.all()
+    orders = query.all()
+
+    # Entry disegnato sulla mappa (nessun CAP): senza questo filtro
+    # conterebbe TUTTI gli ordini dello stesso giorno/fascia, anche quelli di
+    # tutt'altra zona/veicolo che capitano ad avere lo stesso orario.
+    if not caps and getattr(entry, 'polygon', None):
+      matched = []
+      for order in orders:
+        lat, lon = get_lat_lon_by_address(order.address)
+        if lat is not None and point_in_polygon((lat, lon), entry.polygon):
+          matched.append(order)
+      orders = matched
+
+    return orders
 
   if session is not None:
     return _query(session)
