@@ -237,6 +237,71 @@ def _as_date(value):
   return value
 
 
+def _adjacent_coverage_entries(entry: DeliveryCoverageEntry, session) -> list[DeliveryCoverageEntry]:
+  """Fasce dello stesso veicolo (stesso transport_id) e giorno della settimana,
+
+  immediatamente prima e/o dopo `entry` in ordine cronologico. Non filtrate per CAP:
+  il veicolo passa comunque di lì subito prima/dopo, indipendentemente dalla zona che
+  quella fascia copre ufficialmente. Un eventuale buco tra le due fasce (es. 11:30-12:00)
+  non esclude l'adiacenza: conta l'ordine cronologico, non la contiguità esatta.
+  """
+  siblings = (
+    session.query(DeliveryCoverageEntry)
+    .filter(
+      DeliveryCoverageEntry.transport_id == entry.transport_id,
+      DeliveryCoverageEntry.day_of_week == entry.day_of_week,
+      DeliveryCoverageEntry.id != entry.id,
+    )
+    .all()
+  )
+  before = [s for s in siblings if s.end_time <= entry.start_time]
+  after = [s for s in siblings if s.start_time >= entry.end_time]
+  adjacent = []
+  if before:
+    adjacent.append(max(before, key=lambda s: s.end_time))
+  if after:
+    adjacent.append(min(after, key=lambda s: s.start_time))
+  return adjacent
+
+
+def _entry_with_residual_capacity(
+  entry: DeliveryCoverageEntry,
+  dpc,
+  required_duration: int,
+  session,
+  exclude_order_id: int = None,
+  new_cap: str = None,
+  new_address: str = None,
+) -> DeliveryCoverageEntry | None:
+  """`entry` se ha capienza residua per `required_duration`, altrimenti la fascia
+
+  adiacente dello stesso veicolo (stesso giorno, vedi _adjacent_coverage_entries) che
+  ce l'ha, altrimenti None se nemmeno quella ha spazio.
+  """
+  from .service.duration import get_entry_capacity_minutes, entry_occupied_duration
+
+  def _has_capacity(candidate: DeliveryCoverageEntry) -> bool:
+    capacity = get_entry_capacity_minutes(candidate)
+    occupied = entry_occupied_duration(
+      candidate,
+      dpc,
+      exclude_order_id=exclude_order_id,
+      session=session,
+      new_cap=new_cap,
+      new_address=new_address,
+    )
+    return capacity == 0 or (occupied + required_duration <= capacity)
+
+  if _has_capacity(entry):
+    return entry
+
+  for neighbor in _adjacent_coverage_entries(entry, session):
+    if _has_capacity(neighbor):
+      return neighbor
+
+  return None
+
+
 def available_slots(
   cap: str,
   dpc,
@@ -254,6 +319,10 @@ def available_slots(
   che coprono la stessa fascia restano entrambi in lista (resolve_delivery_slot sceglie poi
   il veicolo migliore alla creazione dell'ordine), distinti dai CAP che coprono così il
   cliente non si trova davanti due opzioni identiche senza sapere perché sono separate.
+
+  Una fascia satura resta comunque in lista se la fascia adiacente dello stesso veicolo
+  (stesso giorno) ha capienza residua: l'ordine potrà finire lì (vedi _entry_with_residual_capacity
+  e resolve_delivery_slot, che applica la stessa logica alla creazione dell'ordine).
   """
   dpc = _as_date(dpc)
   if not cap or not dpc:
@@ -262,21 +331,19 @@ def available_slots(
   if not entries:
     return []
 
-  from .service.duration import get_entry_capacity_minutes, entry_occupied_duration
-
   available = []
   with Session() as session:
     for entry in entries:
-      capacity = get_entry_capacity_minutes(entry)
-      occupied = entry_occupied_duration(
+      effective = _entry_with_residual_capacity(
         entry,
         dpc,
+        required_duration,
+        session,
         exclude_order_id=exclude_order_id,
-        session=session,
         new_cap=new_cap,
         new_address=new_address,
       )
-      if capacity == 0 or (occupied + required_duration <= capacity):
+      if effective is not None:
         available.append(entry)
 
   available.sort(key=lambda entry: (entry.start_time, entry.end_time, sorted(c.cap for c in entry.caps)))
@@ -397,11 +464,38 @@ def resolve_delivery_slot(
   if requested_start and requested_end:
     start_time = _parse_time(requested_start) if isinstance(requested_start, str) else requested_start
     end_time = _parse_time(requested_end) if isinstance(requested_end, str) else requested_end
-    if any(entry.start_time == start_time and entry.end_time == end_time for entry in entries):
-      return start_time, end_time
+    requested_entry = next(
+      (entry for entry in entries if entry.start_time == start_time and entry.end_time == end_time), None
+    )
+    if requested_entry:
+      with Session() as session:
+        effective = _entry_with_residual_capacity(
+          requested_entry,
+          dpc,
+          required_duration,
+          session,
+          exclude_order_id=exclude_order_id,
+          new_cap=cap,
+          new_address=address,
+        )
+      # Se satura e senza fascia adiacente libera, onora comunque la scelta esplicita del
+      # cliente (comportamento preesistente): meglio confermarla che rifiutare la data.
+      chosen = effective or requested_entry
+      return chosen.start_time, chosen.end_time
 
   if len(entries) == 1:
-    return entries[0].start_time, entries[0].end_time
+    with Session() as session:
+      effective = _entry_with_residual_capacity(
+        entries[0],
+        dpc,
+        required_duration,
+        session,
+        exclude_order_id=exclude_order_id,
+        new_cap=cap,
+        new_address=address,
+      )
+    chosen = effective or entries[0]
+    return chosen.start_time, chosen.end_time
 
   with Session() as session:
     entry_stats = []

@@ -712,3 +712,104 @@ def test_available_slots_without_new_cap_skips_travel_overhead(db):
   create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
 
   assert available_slots('70051', target) == [{'start': '08:00', 'end': '09:00', 'caps': ['70051']}]
+
+
+def test_available_slots_keeps_saturated_entry_when_same_vehicle_adjacent_slot_is_free(db):
+  # 09:00-11:30 satura (stesso veicolo), 12:00-14:30 dello stesso veicolo libera ma per
+  # un CAP diverso: la fascia satura resta comunque disponibile perché il veicolo passa
+  # comunque nella fascia successiva e può assorbire l'ordine lì.
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  customer, service, service_user, _ = customer_with_service(duration=150)
+  morning = _entry(transport, day_of_week=target.weekday(), start='09:00:00', end='11:30:00', caps=('70051',))
+  _entry(transport, day_of_week=target.weekday(), start='12:00:00', end='14:30:00', caps=('70052',))
+
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+  )
+  create_product_row(existing_order, service_user)
+
+  assert available_slots('70051', target, required_duration=30) == [
+    {'start': '09:00', 'end': '11:30', 'caps': ['70051']}
+  ]
+
+
+def test_available_slots_drops_saturated_entry_when_no_adjacent_vehicle_slot_is_free(db):
+  # Come sopra ma la fascia successiva dello stesso veicolo è satura anche lei: nessuno
+  # spillover possibile, la fascia satura sparisce dalla lista.
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  customer, service, service_user, _ = customer_with_service(duration=150)
+  morning = _entry(transport, day_of_week=target.weekday(), start='09:00:00', end='11:30:00', caps=('70051',))
+  afternoon = _entry(transport, day_of_week=target.weekday(), start='12:00:00', end='14:30:00', caps=('70052',))
+
+  existing_morning = create_order(
+    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+  )
+  create_product_row(existing_morning, service_user)
+  existing_afternoon = create_order(
+    cap='70052', dpc=target, delivery_slot_start=afternoon.start_time, delivery_slot_end=afternoon.end_time
+  )
+  create_product_row(existing_afternoon, service_user)
+
+  assert available_slots('70051', target, required_duration=30) == []
+
+
+def test_available_slots_ignores_full_slot_of_a_different_vehicle(db):
+  # La fascia adiacente libera appartiene a un veicolo diverso: non conta come spillover
+  # ("sempre fasce relative allo stesso corriere").
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=150)
+  morning = _entry(create_transport(), day_of_week=target.weekday(), start='09:00:00', end='11:30:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='12:00:00', end='14:30:00', caps=('70051',))
+
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+  )
+  create_product_row(existing_order, service_user)
+
+  # La fascia satura sparisce (nessuno spillover cross-veicolo); resta comunque visibile
+  # la fascia 12:00-14:30 perché copre 70051 per conto proprio, indipendentemente dallo
+  # spillover.
+  assert available_slots('70051', target, required_duration=30) == [
+    {'start': '12:00', 'end': '14:30', 'caps': ['70051']}
+  ]
+
+
+def test_resolve_delivery_slot_spills_over_to_adjacent_slot_of_same_vehicle(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  customer, service, service_user, _ = customer_with_service(duration=150)
+  morning = _entry(transport, day_of_week=target.weekday(), start='09:00:00', end='11:30:00', caps=('70051',))
+  afternoon = _entry(transport, day_of_week=target.weekday(), start='12:00:00', end='14:30:00', caps=('70052',))
+
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+  )
+  create_product_row(existing_order, service_user)
+
+  result = resolve_delivery_slot(
+    '70051', target, requested_start=morning.start_time, requested_end=morning.end_time, required_duration=30
+  )
+
+  assert result == (afternoon.start_time, afternoon.end_time)
+
+
+def test_resolve_delivery_slot_honors_requested_slot_when_no_spillover_available(db):
+  # Fascia satura, nessuna adiacente sullo stesso veicolo libera: comportamento
+  # preesistente, si onora comunque la scelta esplicita del cliente.
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  customer, service, service_user, _ = customer_with_service(duration=150)
+  morning = _entry(transport, day_of_week=target.weekday(), start='09:00:00', end='11:30:00', caps=('70051',))
+
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+  )
+  create_product_row(existing_order, service_user)
+
+  result = resolve_delivery_slot(
+    '70051', target, requested_start=morning.start_time, requested_end=morning.end_time, required_duration=30
+  )
+
+  assert result == (morning.start_time, morning.end_time)
