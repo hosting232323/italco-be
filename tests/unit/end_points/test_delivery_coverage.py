@@ -163,7 +163,7 @@ def test_create_entry_rejects_empty_caps(client):
     headers=auth_header(admin),
   )
 
-  assert response.get_json() == {'status': 'ko', 'message': 'Seleziona almeno un CAP'}
+  assert response.get_json() == {'status': 'ko', 'message': 'Seleziona almeno un CAP o disegna una zona sulla mappa'}
 
 
 def test_get_delivery_coverage_lists_entries_sorted(client):
@@ -383,7 +383,7 @@ def test_update_entry_rejects_empty_caps(client):
     headers=auth_header(admin),
   )
 
-  assert response.get_json() == {'status': 'ko', 'message': 'Seleziona almeno un CAP'}
+  assert response.get_json() == {'status': 'ko', 'message': 'Seleziona almeno un CAP o disegna una zona sulla mappa'}
 
 
 def test_delete_entry_cascades_caps(client):
