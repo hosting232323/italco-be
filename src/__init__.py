@@ -27,6 +27,11 @@ DATABASE_URL = os.environ['DATABASE_URL']
 LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 
+# Istanza OSRM per matrice durate (/table) e ottimizzazione borderò (/trip). Il
+# default e' il demo pubblico, senza SLA ne' rate limit documentati: in produzione
+# va puntata a un'istanza self-hosted. Vuoto (variabile CI non valorizzata) = default.
+OSRM_BASE_URL = (os.environ.get('OSRM_BASE_URL') or 'https://router.project-osrm.org').rstrip('/')
+
 # Leva manuale: nessuna colonna, nessuna migration. Si alza a mano (commit o
 # variabile d'ambiente) solo quando una build vecchia dell'app corrieri va
 # davvero bloccata, non a ogni release - vedi CI_PIPELINE_IID in
