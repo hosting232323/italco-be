@@ -3,6 +3,7 @@ import logging
 import requests
 from geopy.distance import geodesic
 
+from ... import OSRM_BASE_URL
 from ...database.schema import Order
 from ...utils.caps import get_lat_lon_by_address, get_lat_lon_by_cap
 
@@ -14,15 +15,17 @@ _FALLBACK_SPEED_KMH = 30.0
 # Timeout per OSRM (secondi)
 _OSRM_TIMEOUT = 5
 
-# Endpoint OSRM public (table API per matrice durate)
-_OSRM_TABLE_URL = 'http://router.project-osrm.org/table/v1/driving/{coords}?annotations=duration'
+# Table API per matrice durate
+_OSRM_TABLE_URL = OSRM_BASE_URL + '/table/v1/driving/{coords}?annotations=duration'
 
-# Endpoint OSRM public (trip API, risolve il TSP su un percorso aperto: nessun
-# vincolo di partenza/arrivo, OSRM sceglie gli estremi che minimizzano il costo
-# totale). Istanza demo pubblica non pensata per produzione: vedi
-# docs/spunti_e_bug_trovati.md per la nota sul rischio e l'eventuale migrazione
-# a un'istanza self-hosted.
-_OSRM_TRIP_URL = 'http://router.project-osrm.org/trip/v1/driving/{coords}?roundtrip=false&source=any&destination=any'
+# Trip API: risolve il TSP. OSRM non supporta il percorso aperto senza vincoli
+# (roundtrip=false con source=any&destination=any risponde NotImplemented, anche
+# sul demo pubblico), quindi si chiede il giro chiuso e lo si apre in
+# trip_order_osrm togliendo il tratto piu' lungo. Il base URL e' configurabile
+# via OSRM_BASE_URL, vedi src/__init__.py.
+_OSRM_TRIP_URL = (
+  OSRM_BASE_URL + '/trip/v1/driving/{coords}?roundtrip=true&source=any&destination=any&overview=false&steps=false'
+)
 
 
 def travel_time_matrix_osrm(coords: list[tuple[float, float]]) -> list[list[float]] | None:
@@ -52,6 +55,9 @@ def trip_order_osrm(coords: list[tuple[float, float]]) -> list[int] | None:
   coords: lista di (lat, lon). Ritorna gli indici originali di ``coords`` nell'ordine di
   visita ottimale (es. [2, 0, 1] = si visita prima coords[2], poi coords[0], poi coords[1]),
   o None se la chiamata fallisce o OSRM non trova soluzione.
+
+  OSRM restituisce un giro chiuso: lo si apre nel punto in cui il tratto tra due tappe
+  consecutive e' il piu' lungo, cosi' la tappa dopo quel tratto diventa la partenza.
   """
   if len(coords) < 2:
     return None
@@ -65,8 +71,13 @@ def trip_order_osrm(coords: list[tuple[float, float]]) -> list[int] | None:
       if data.get('code') == 'Ok':
         waypoints = data['waypoints']
         # waypoints[i] descrive coords[i] e porta 'waypoint_index' = sua posizione
-        # nel percorso ottimizzato: ordiniamo gli indici originali per quella posizione.
-        return sorted(range(len(waypoints)), key=lambda i: waypoints[i]['waypoint_index'])
+        # nel giro ottimizzato: ordiniamo gli indici originali per quella posizione.
+        cycle = sorted(range(len(waypoints)), key=lambda i: waypoints[i]['waypoint_index'])
+        # legs[k] e' il tratto dalla tappa cycle[k] alla successiva (l'ultimo chiude il giro).
+        legs = data['trips'][0]['legs']
+        longest = max(range(len(legs)), key=lambda k: legs[k]['duration'])
+        start = (longest + 1) % len(cycle)
+        return cycle[start:] + cycle[:start]
   except Exception as e:
     logger.warning('OSRM /trip non disponibile: %s', e)
   return None

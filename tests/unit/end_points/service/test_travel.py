@@ -2,11 +2,13 @@ from unittest.mock import patch
 
 from geopy.distance import geodesic
 
+from src.end_points.service import travel
 from src.end_points.service.travel import (
   _FALLBACK_SPEED_KMH,
   calculate_travel_overhead_minutes,
   sequential_travel_minutes,
   travel_time_matrix_osrm,
+  trip_order_osrm,
 )
 
 from tests.unit.factories import create_order
@@ -21,6 +23,12 @@ def _osrm_response(status_code=200, code='Ok', durations=None):
 
 BARI = (41.1171, 16.8719)
 MOLFETTA = (41.2016, 16.6008)
+
+
+def test_osrm_urls_are_built_on_the_configured_base_url():
+  base = travel.OSRM_BASE_URL
+  assert travel._OSRM_TABLE_URL.startswith(f'{base}/table/v1/driving/')
+  assert travel._OSRM_TRIP_URL.startswith(f'{base}/trip/v1/driving/')
 
 
 def test_travel_time_matrix_osrm_returns_none_with_fewer_than_two_coords():
@@ -129,3 +137,44 @@ def test_calculate_travel_overhead_minutes_never_negative(mock_geocode, mock_geo
   order = create_order(cap='70020')
 
   assert calculate_travel_overhead_minutes([order], '70056') == 0
+
+
+def _trip_response(waypoint_indices, leg_durations, code='Ok'):
+  mock_response = type('MockResponse', (), {})()
+  mock_response.status_code = 200
+  mock_response.json = lambda: {
+    'code': code,
+    'waypoints': [{'waypoint_index': i} for i in waypoint_indices],
+    'trips': [{'legs': [{'duration': d} for d in leg_durations]}],
+  }
+  return mock_response
+
+
+def test_trip_order_osrm_asks_for_a_closed_tour():
+  # roundtrip=false con source=any&destination=any non e' supportato da OSRM
+  assert 'roundtrip=true' in travel._OSRM_TRIP_URL
+
+
+@patch('src.end_points.service.travel.requests.get')
+def test_trip_order_osrm_opens_the_cycle_at_the_longest_leg(mock_get):
+  # giro 1 -> 2 -> 0 (poi torna a 1): il tratto piu' lungo e' il ritorno 0 -> 1,
+  # quindi il percorso aperto parte da 1
+  mock_get.return_value = _trip_response(waypoint_indices=[2, 0, 1], leg_durations=[100, 200, 900])
+  assert trip_order_osrm([BARI, MOLFETTA, BARI]) == [1, 2, 0]
+
+
+@patch('src.end_points.service.travel.requests.get')
+def test_trip_order_osrm_keeps_the_order_when_the_longest_leg_is_the_return(mock_get):
+  mock_get.return_value = _trip_response(waypoint_indices=[0, 1, 2], leg_durations=[100, 200, 900])
+  assert trip_order_osrm([BARI, MOLFETTA, BARI]) == [0, 1, 2]
+
+
+@patch('src.end_points.service.travel.requests.get')
+def test_trip_order_osrm_returns_none_on_non_ok_code(mock_get):
+  mock_get.return_value = _trip_response([0, 1], [1, 1], code='NoTrips')
+  assert trip_order_osrm([BARI, MOLFETTA]) is None
+
+
+@patch('src.end_points.service.travel.requests.get', side_effect=Exception('boom'))
+def test_trip_order_osrm_returns_none_when_osrm_unavailable(mock_get):
+  assert trip_order_osrm([BARI, MOLFETTA]) is None
