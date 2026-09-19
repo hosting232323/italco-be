@@ -14,6 +14,7 @@ from ...database.schema import (
   ServiceUser,
   Service,
   User,
+  CustomerUserInfo,
   CollectionPoint,
   Photo,
   Schedule,
@@ -27,16 +28,17 @@ from ...database.schema import (
 
 def query_orders(
   filters: list, limit: int = None, customer_id: int = None
-) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Transport]]:
+) -> list[tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Transport, CustomerUserInfo]]:
   with Session() as session:
     query = (
-      session.query(Order, Product, ServiceUser, Service, User, CollectionPoint, Transport)
+      session.query(Order, Product, ServiceUser, Service, User, CollectionPoint, Transport, CustomerUserInfo)
       .join(Product, Product.order_id == Order.id)
       .outerjoin(CollectionPoint, Product.collection_point_id == CollectionPoint.id)
       .outerjoin(Transport, Product.transport_id == Transport.id)
       .join(ServiceUser, Product.service_user_id == ServiceUser.id)
       .join(Service, ServiceUser.service_id == Service.id)
       .join(User, ServiceUser.user_id == User.id)
+      .outerjoin(CustomerUserInfo, CustomerUserInfo.user_id == User.id)
     )
 
     if customer_id:
@@ -120,7 +122,7 @@ def query_service_users(
 
 
 def format_query_result(
-  tupla: tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Transport],
+  tupla: tuple[Order, Product, ServiceUser, Service, User, CollectionPoint, Transport, CustomerUserInfo],
   list: list[dict],
 ) -> list[dict]:
   for element in list:
@@ -128,11 +130,15 @@ def format_query_result(
       add_service(element, tupla[3], tupla[1], tupla[5], tupla[6], tupla[2].price)
       return list
 
+  customer_user_info: CustomerUserInfo = tupla[7]
   output = {
     **tupla[0].to_dict(),
     'price': 0,
     'products': {},
-    'user': tupla[4].format_user(),
+    'user': {
+      **tupla[4].format_user(),
+      'company_name': customer_user_info.company_name if customer_user_info else None,
+    },
   }
   add_service(output, tupla[3], tupla[1], tupla[5], tupla[6], tupla[2].price)
   list.append(output)
