@@ -118,6 +118,73 @@ def query_slot_orders(
     return _query(sess)
 
 
+def entry_priority_key(entry: DeliveryCoverageEntry) -> tuple:
+  """Ordine di riempimento tra blocchi che si sovrappongono: si riempie prima la
+  giornata del veicolo con id più basso, poi quella del successivo. Fisso e
+  ripetibile, non dipende dal carico del momento."""
+  return (entry.transport_id, entry.start_time, entry.id)
+
+
+def _entry_fits_order(candidate: DeliveryCoverageEntry, assigned: list[Order], order: Order) -> bool:
+  """Se `order` sta nella capienza di `candidate` oltre agli ordini già attribuiti
+  (servizi + tempo di percorso aggiunto), con la stessa misura di entry_occupied_duration."""
+  capacity = get_entry_capacity_minutes(candidate)
+  if capacity == 0:
+    return True
+  from .travel import calculate_travel_overhead_minutes
+
+  order_duration = calculate_order_service_duration(order)
+  occupied = sum(calculate_order_service_duration(o) for o in assigned)
+  travel_overhead = calculate_travel_overhead_minutes(assigned, order.cap, new_address=order.address)
+  return occupied + travel_overhead + order_duration <= capacity
+
+
+def query_entry_orders(
+  entry: DeliveryCoverageEntry, dpc: date, exclude_order_id: int = None, session: session_type = None
+) -> list[Order]:
+  """Ordini attribuiti a `entry` nella data dpc.
+
+  L'ordine salva solo la fascia oraria, non il veicolo: blocchi di veicoli diversi con
+  la stessa fascia (start/end identici) vedono quindi gli stessi ordini. Li ripartiamo
+  in modo deterministico, dal più vecchio, sul primo blocco (per entry_priority_key) che
+  li copre e ha ancora spazio per il loro tempo di servizio e di percorso, così la
+  giornata del primo veicolo si riempie prima di passare al successivo. Un ordine che
+  non entra in nessuno resta sul primo blocco che lo copre (la scelta del cliente
+  viene comunque onorata).
+  """
+
+  def _query(sess: session_type):
+    siblings = (
+      sess.query(DeliveryCoverageEntry)
+      .options(joinedload(DeliveryCoverageEntry.caps))
+      .filter(
+        DeliveryCoverageEntry.day_of_week == entry.day_of_week,
+        DeliveryCoverageEntry.start_time == entry.start_time,
+        DeliveryCoverageEntry.end_time == entry.end_time,
+      )
+      .all()
+    )
+    if len(siblings) <= 1:
+      return query_slot_orders(entry, dpc, exclude_order_id=exclude_order_id, session=sess)
+
+    siblings.sort(key=entry_priority_key)
+    covering = {}
+    for sibling in siblings:
+      for order in query_slot_orders(sibling, dpc, exclude_order_id=exclude_order_id, session=sess):
+        covering.setdefault(order.id, (order, []))[1].append(sibling)
+
+    assigned = {sibling.id: [] for sibling in siblings}
+    for _, (order, candidates) in sorted(covering.items()):
+      target = next((c for c in candidates if _entry_fits_order(c, assigned[c.id], order)), candidates[0])
+      assigned[target.id].append(order)
+    return assigned[entry.id]
+
+  if session is not None:
+    return _query(session)
+  with Session() as sess:
+    return _query(sess)
+
+
 def entry_occupied_duration(
   entry: DeliveryCoverageEntry,
   dpc: date,
@@ -126,13 +193,13 @@ def entry_occupied_duration(
   new_cap: str = None,
   new_address: str = None,
 ) -> int:
-  """Calcola il totale dei minuti occupati dagli ordini nella fascia/giorno.
+  """Calcola il totale dei minuti occupati dagli ordini attribuiti al blocco nel giorno.
 
   Include la durata dei servizi di ciascun ordine più il tempo di percorso
   aggiuntivo introdotto dal nuovo ordine (new_cap, con new_address per la
   stima più precisa quando disponibile), se fornito.
   """
-  orders = query_slot_orders(entry, dpc, exclude_order_id=exclude_order_id, session=session)
+  orders = query_entry_orders(entry, dpc, exclude_order_id=exclude_order_id, session=session)
   service_minutes = sum(calculate_order_service_duration(order) for order in orders)
 
   if new_cap:
