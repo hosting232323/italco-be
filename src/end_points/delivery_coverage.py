@@ -302,6 +302,32 @@ def _entry_with_residual_capacity(
   return None
 
 
+def _first_with_residual_capacity(
+  entries: list[DeliveryCoverageEntry],
+  dpc,
+  required_duration: int,
+  exclude_order_id: int = None,
+  new_cap: str = None,
+  new_address: str = None,
+) -> DeliveryCoverageEntry | None:
+  """Il primo blocco di `entries` (già in ordine di priorità) che, direttamente o con la
+  fascia adiacente dello stesso veicolo, ha capienza per `required_duration`."""
+  with Session() as session:
+    for entry in entries:
+      effective = _entry_with_residual_capacity(
+        entry,
+        dpc,
+        required_duration,
+        session,
+        exclude_order_id=exclude_order_id,
+        new_cap=new_cap,
+        new_address=new_address,
+      )
+      if effective is not None:
+        return effective
+  return None
+
+
 def available_slots(
   cap: str,
   dpc,
@@ -315,14 +341,15 @@ def available_slots(
   sufficiente per la durata richiesta dei servizi dell'ordine. Include il travel overhead
   (tempo percorso aggiuntivo) nel calcolo dei minuti occupati.
 
-  Una riga per blocco di copertura, non deduplicata per orario: blocchi di veicoli diversi
-  che coprono la stessa fascia restano entrambi in lista (resolve_delivery_slot sceglie poi
-  il veicolo migliore alla creazione dell'ordine), distinti dai CAP che coprono così il
-  cliente non si trova davanti due opzioni identiche senza sapere perché sono separate.
+  Una riga per fascia oraria: blocchi di veicoli diversi con la stessa fascia (start/end
+  identici) compaiono una volta sola, con l'unione dei CAP, e la scelta del veicolo è di
+  resolve_delivery_slot alla creazione dell'ordine (si riempie prima la giornata di un
+  veicolo, poi si passa al successivo).
 
-  Una fascia satura resta comunque in lista se la fascia adiacente dello stesso veicolo
-  (stesso giorno) ha capienza residua: l'ordine potrà finire lì (vedi _entry_with_residual_capacity
-  e resolve_delivery_slot, che applica la stessa logica alla creazione dell'ordine).
+  Una fascia è in lista se almeno uno dei suoi blocchi ha capienza residua o, se satura,
+  se la fascia adiacente dello stesso veicolo (stesso giorno) ne ha: l'ordine potrà finire
+  lì (vedi _entry_with_residual_capacity e resolve_delivery_slot, che applica la stessa
+  logica alla creazione dell'ordine).
   """
   dpc = _as_date(dpc)
   if not cap or not dpc:
@@ -331,7 +358,7 @@ def available_slots(
   if not entries:
     return []
 
-  available = []
+  available = {}
   with Session() as session:
     for entry in entries:
       effective = _entry_with_residual_capacity(
@@ -344,16 +371,15 @@ def available_slots(
         new_address=new_address,
       )
       if effective is not None:
-        available.append(entry)
+        available.setdefault((entry.start_time, entry.end_time), []).append(entry)
 
-  available.sort(key=lambda entry: (entry.start_time, entry.end_time, sorted(c.cap for c in entry.caps)))
   return [
     {
-      'start': entry.start_time.strftime('%H:%M'),
-      'end': entry.end_time.strftime('%H:%M'),
-      'caps': sorted(c.cap for c in entry.caps),
+      'start': start.strftime('%H:%M'),
+      'end': end.strftime('%H:%M'),
+      'caps': sorted({c.cap for entry in group for c in entry.caps}),
     }
-    for entry in available
+    for (start, end), group in sorted(available.items())
   ]
 
 
@@ -451,12 +477,7 @@ def resolve_delivery_slot(
   if not entries:
     return None, None
 
-  from .service.duration import (
-    calculate_order_service_duration,
-    calculate_payload_service_duration,
-    get_entry_capacity_minutes,
-    query_slot_orders,
-  )
+  from .service.duration import calculate_payload_service_duration, entry_priority_key
 
   if required_duration == 0 and products:
     required_duration = calculate_payload_service_duration({'products': products, 'user_id': user_id})
@@ -464,61 +485,28 @@ def resolve_delivery_slot(
   if requested_start and requested_end:
     start_time = _parse_time(requested_start) if isinstance(requested_start, str) else requested_start
     end_time = _parse_time(requested_end) if isinstance(requested_end, str) else requested_end
-    requested_entry = next(
-      (entry for entry in entries if entry.start_time == start_time and entry.end_time == end_time), None
+    requested_entries = sorted(
+      (entry for entry in entries if entry.start_time == start_time and entry.end_time == end_time),
+      key=entry_priority_key,
     )
-    if requested_entry:
-      with Session() as session:
-        effective = _entry_with_residual_capacity(
-          requested_entry,
-          dpc,
-          required_duration,
-          session,
-          exclude_order_id=exclude_order_id,
-          new_cap=cap,
-          new_address=address,
-        )
+    if requested_entries:
+      # Blocchi di veicoli diversi con la stessa fascia: si prova il primo veicolo (e le sue
+      # fasce adiacenti) prima di passare al successivo, così ne riempie tutta la giornata.
+      effective = _first_with_residual_capacity(
+        requested_entries, dpc, required_duration, exclude_order_id=exclude_order_id, new_cap=cap, new_address=address
+      )
       # Se satura e senza fascia adiacente libera, onora comunque la scelta esplicita del
       # cliente (comportamento preesistente): meglio confermarla che rifiutare la data.
-      chosen = effective or requested_entry
+      chosen = effective or requested_entries[0]
       return chosen.start_time, chosen.end_time
 
-  if len(entries) == 1:
-    with Session() as session:
-      effective = _entry_with_residual_capacity(
-        entries[0],
-        dpc,
-        required_duration,
-        session,
-        exclude_order_id=exclude_order_id,
-        new_cap=cap,
-        new_address=address,
-      )
-    chosen = effective or entries[0]
-    return chosen.start_time, chosen.end_time
-
-  with Session() as session:
-    entry_stats = []
-    for entry in entries:
-      cap_minutes = get_entry_capacity_minutes(entry)
-      orders = query_slot_orders(entry, dpc, exclude_order_id=exclude_order_id, session=session)
-      occupied = sum(calculate_order_service_duration(o) for o in orders)
-      # Includi travel overhead nella valutazione della fascia migliore
-      if address and cap:
-        from .service.travel import calculate_travel_overhead_minutes
-
-        travel_overhead = calculate_travel_overhead_minutes(orders, cap, new_address=address)
-      else:
-        travel_overhead = 0
-      total_occupied = occupied + travel_overhead
-      order_count = len(orders)
-      has_capacity = cap_minutes == 0 or (total_occupied + required_duration <= cap_minutes)
-      entry_stats.append((has_capacity, total_occupied, order_count, entry))
-
-  # Priorità ai blocchi con capienza residua, poi minor tempo occupato (incluso travel),
-  # minor numero ordini, poi start_time
-  entry_stats.sort(key=lambda s: (not s[0], s[1], s[2], s[3].start_time, s[3].id))
-  chosen = entry_stats[0][3]
+  # Senza scelta del cliente si riempie per veicolo: prima la sua giornata in ordine
+  # cronologico (comprese le fasce adiacenti), poi il veicolo successivo.
+  entries.sort(key=entry_priority_key)
+  effective = _first_with_residual_capacity(
+    entries, dpc, required_duration, exclude_order_id=exclude_order_id, new_cap=cap, new_address=address
+  )
+  chosen = effective or entries[0]
   return chosen.start_time, chosen.end_time
 
 
