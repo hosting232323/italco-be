@@ -473,28 +473,47 @@ def test_available_slots_lists_distinct_slots_sorted(db):
   ]
 
 
-def test_available_slots_does_not_dedupe_same_slot_from_different_vehicles(db):
-  # Deciso 2026-09-17: niente scelta automatica nascosta lato lista, il FE mostra tutte
-  # le fasce sovrapposte (una per blocco di copertura) così l'operatore/cliente vede che
-  # sono due opzioni distinte, anche quando orario e CAP coincidono.
+def test_available_slots_dedupes_same_slot_from_different_vehicles(db):
+  # Blocchi di veicoli diversi con la stessa fascia compaiono una volta sola: la scelta
+  # del veicolo è di resolve_delivery_slot, non del cliente.
   target = date.today() + timedelta(days=3)
   _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
   _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
 
-  assert available_slots('70051', target) == [
-    {'start': '08:00', 'end': '12:00', 'caps': ['70051']},
-    {'start': '08:00', 'end': '12:00', 'caps': ['70051']},
-  ]
+  assert available_slots('70051', target) == [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]
 
 
-def test_available_slots_distinguishes_overlapping_entries_by_caps(db):
+def test_available_slots_merges_caps_of_overlapping_entries(db):
   target = date.today() + timedelta(days=3)
   _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051', '70056'))
   _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051', '76011'))
 
+  assert available_slots('70051', target) == [{'start': '08:00', 'end': '12:00', 'caps': ['70051', '70056', '76011']}]
+
+
+def test_available_slots_keeps_partially_overlapping_slots_separate(db):
+  # Solo le fasce con start/end identici si fondono: 08-12 e 10-14 restano due opzioni.
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='10:00:00', end='14:00:00', caps=('70051',))
+
   assert available_slots('70051', target) == [
-    {'start': '08:00', 'end': '12:00', 'caps': ['70051', '70056']},
-    {'start': '08:00', 'end': '12:00', 'caps': ['70051', '76011']},
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051']},
+    {'start': '10:00', 'end': '14:00', 'caps': ['70051']},
+  ]
+
+
+def test_available_slots_keeps_slot_while_any_overlapping_vehicle_has_room(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=40)
+  full = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=full.start_time, delivery_slot_end=full.end_time)
+  create_product_row(order, service_user)
+
+  # Il primo veicolo ha già 40 min su 60: una richiesta da 30 min va sul secondo, fascia ancora libera.
+  assert available_slots('70051', target, required_duration=30) == [
+    {'start': '08:00', 'end': '09:00', 'caps': ['70051']}
   ]
 
 
@@ -553,13 +572,64 @@ def test_resolve_delivery_slot_accepts_iso_string_date(db):
   assert resolve_delivery_slot('70051', target.strftime('%Y-%m-%d')) == (entry.start_time, entry.end_time)
 
 
-def test_resolve_delivery_slot_picks_least_loaded_slot(db):
+def test_resolve_delivery_slot_fills_first_vehicle_day_before_next_vehicle(db):
+  # Senza scelta del cliente si riempie prima la giornata del primo veicolo, anche se
+  # ha già ordini e l'altro è vuoto: niente bilanciamento del carico tra i corrieri.
   target = date.today() + timedelta(days=3)
   busy = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
-  quiet = _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='18:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='18:00:00', caps=('70051',))
   create_order(cap='70051', dpc=target, delivery_slot_start=busy.start_time, delivery_slot_end=busy.end_time)
 
-  assert resolve_delivery_slot('70051', target) == (quiet.start_time, quiet.end_time)
+  assert resolve_delivery_slot('70051', target) == (busy.start_time, busy.end_time)
+
+
+def test_resolve_delivery_slot_moves_to_next_vehicle_only_when_first_is_full(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=60)
+  first = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  second = _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='14:00:00', caps=('70051',))
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=first.start_time, delivery_slot_end=first.end_time)
+  create_product_row(order, service_user)
+
+  # Il primo veicolo ha 60 min su 60: una richiesta da 30 min passa al secondo.
+  assert resolve_delivery_slot('70051', target, required_duration=30) == (second.start_time, second.end_time)
+
+
+def test_resolve_delivery_slot_fills_same_vehicle_adjacent_slot_before_other_vehicle_same_slot(db):
+  # Il cliente sceglie 08-09, coperta da due veicoli. Il primo è pieno in quella fascia ma
+  # ha 10-11 libera: si riempie la sua giornata prima di toccare l'8-9 del secondo veicolo.
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=40)
+  first_vehicle = create_transport()
+  first_morning = _entry(first_vehicle, day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  first_later = _entry(first_vehicle, day_of_week=target.weekday(), start='10:00:00', end='11:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=first_morning.start_time, delivery_slot_end=first_morning.end_time
+  )
+  create_product_row(order, service_user)
+
+  result = resolve_delivery_slot('70051', target, requested_start='08:00', requested_end='09:00', required_duration=30)
+
+  assert result == (first_later.start_time, first_later.end_time)
+
+
+def test_resolve_delivery_slot_uses_second_vehicle_when_first_vehicle_day_is_full(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=40)
+  first_vehicle = create_transport()
+  first_morning = _entry(first_vehicle, day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  first_later = _entry(first_vehicle, day_of_week=target.weekday(), start='10:00:00', end='11:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  for slot in (first_morning, first_later):
+    order = create_order(cap='70051', dpc=target, delivery_slot_start=slot.start_time, delivery_slot_end=slot.end_time)
+    create_product_row(order, service_user)
+
+  # Giornata del primo veicolo piena (40 su 60 in entrambe le fasce): la richiesta da 30 min
+  # torna sulla fascia scelta, ora sul secondo veicolo.
+  result = resolve_delivery_slot('70051', target, requested_start='08:00', requested_end='09:00', required_duration=30)
+
+  assert result == (first_morning.start_time, first_morning.end_time)
 
 
 def test_resolve_delivery_slot_uses_requested_slot_when_it_matches_coverage(db):
