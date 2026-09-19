@@ -66,7 +66,7 @@ def test_checks_endpoint_without_swagger_key_is_denied(client, monkeypatch):
 
 
 def test_delivery_app_min_version_reads_configured_threshold(client, monkeypatch):
-  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER', '190')
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_IOS', '190')
 
   response = client.get('/delivery-app/min-version')
 
@@ -74,7 +74,7 @@ def test_delivery_app_min_version_reads_configured_threshold(client, monkeypatch
 
 
 def test_delivery_app_min_version_defaults_to_none_when_unset(client, monkeypatch):
-  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER', None)
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_IOS', None)
 
   response = client.get('/delivery-app/min-version')
 
@@ -84,7 +84,7 @@ def test_delivery_app_min_version_defaults_to_none_when_unset(client, monkeypatc
 def test_delivery_app_min_version_ignores_a_non_numeric_value(client, monkeypatch):
   # Fail open: una svista in configurazione (typo nella variabile d'ambiente)
   # non deve mai tradursi in un'app bloccata per tutti i corrieri.
-  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER', 'non-un-numero')
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_IOS', 'non-un-numero')
 
   response = client.get('/delivery-app/min-version')
 
@@ -95,3 +95,42 @@ def test_delivery_app_min_version_requires_no_authentication(client):
   response = client.get('/delivery-app/min-version')
 
   assert response.status_code == 200
+
+
+def test_delivery_app_min_version_android_ignores_the_ios_threshold(client, monkeypatch):
+  # Android ha una variabile a se': la soglia iOS non lo tocca, e senza la
+  # sua variabile non c'e' nessun blocco (build Play non scadono).
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_IOS', '190')
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_ANDROID', None)
+
+  response = client.get('/delivery-app/min-version', query_string={'platform': 'android'})
+
+  assert response.get_json() == {'status': 'ok', 'min_build_number': None}
+
+
+def test_delivery_app_min_version_android_can_be_forced_for_an_emergency_rollout(client, monkeypatch):
+  # Bug grave: si alza a mano DELIVERY_APP_MIN_BUILD_NUMBER_ANDROID e anche i
+  # corrieri Android sotto quella build vedono la schermata di aggiornamento.
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_ANDROID', '205')
+
+  response = client.get('/delivery-app/min-version', query_string={'platform': 'android'})
+
+  assert response.get_json() == {'status': 'ok', 'min_build_number': 205}
+
+
+def test_delivery_app_min_version_ios_gets_the_configured_threshold(client, monkeypatch):
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_IOS', '190')
+
+  response = client.get('/delivery-app/min-version', query_string={'platform': 'iOS'})
+
+  assert response.get_json() == {'status': 'ok', 'min_build_number': 190}
+
+
+def test_delivery_app_min_version_missing_platform_behaves_like_ios(client, monkeypatch):
+  # Le build gia' distribuite non mandano `platform`: devono continuare a
+  # ricevere la soglia come prima.
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_IOS', '190')
+
+  response = client.get('/delivery-app/min-version')
+
+  assert response.get_json() == {'status': 'ok', 'min_build_number': 190}
