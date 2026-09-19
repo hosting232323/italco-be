@@ -111,7 +111,7 @@ def test_format_user_with_info_treats_super_admin_as_admin(db):
   formatted_customer = format_user_with_info(customer, UserRole.SUPER_ADMIN)
   formatted_delivery = format_user_with_info(delivery, UserRole.SUPER_ADMIN)
 
-  # dict completo (non il ridotto id/nickname/role dei viewer non-admin)
+  # dict completo (non il ridotto id/email/role dei viewer non-admin)
   assert 'company_id' in formatted_customer
   assert 'password' not in formatted_customer
   assert formatted_customer['customer_user_info']['city'] == 'Bari'

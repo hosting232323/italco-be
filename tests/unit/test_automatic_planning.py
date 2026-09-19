@@ -52,7 +52,7 @@ def test_super_admin_creates_a_company_with_automatic_planning_on(db, client):
     '/company',
     json={
       'name': 'Con pianificazione',
-      'admin_nickname': 'admin-planning',
+      'admin_email': 'admin-planning',
       'admin_password': 'pw',
       'automatic_planning': True,
       **LEGAL_PAYLOAD,
@@ -71,7 +71,7 @@ def test_company_created_without_the_flag_has_it_off(db, client):
     '/company',
     json={
       'name': 'Senza pianificazione',
-      'admin_nickname': 'admin-no-planning',
+      'admin_email': 'admin-no-planning',
       'admin_password': 'pw',
       **LEGAL_PAYLOAD,
     },
@@ -141,7 +141,7 @@ def test_admin_cannot_switch_the_flag(db, client):
 
 def test_login_carries_the_flag_to_the_frontend(db, client):
   """È il campo su cui la pagina Ordini decide se mostrare il bottone."""
-  create_user(UserRole.ADMIN, nickname='login-planning', password=hash_password('pw'))
+  create_user(UserRole.ADMIN, email='login-planning', password=hash_password('pw'))
 
   body = client.post('/user/login', json={'email': 'login-planning', 'password': 'pw'}).get_json()
 

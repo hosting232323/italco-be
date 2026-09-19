@@ -35,13 +35,13 @@ def test_format_user_full_dict_for_admin_viewer(db):
 
 def test_format_user_full_dict_for_super_admin_viewer(db):
   # Il super admin che opera in una company vede i dati come un admin.
-  user = create_user(UserRole.CUSTOMER, nickname='cliente-sa', password='segreta')
+  user = create_user(UserRole.CUSTOMER, email='cliente-sa', password='segreta')
 
   formatted = user.format_user(UserRole.SUPER_ADMIN)
 
-  assert formatted['nickname'] == 'cliente-sa'
+  assert formatted['email'] == 'cliente-sa'
   assert 'password' not in formatted
-  # chiavi del dict completo, assenti nel ridotto id/nickname/role
+  # chiavi del dict completo, assenti nel ridotto id/email/role
   assert 'created_at' in formatted
   assert 'company_id' in formatted
 
