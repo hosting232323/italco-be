@@ -147,10 +147,15 @@
        e padding ridotti quel tanto che basta perché 5 righe + intestazione +
        firma stiano su una sola A4 landscape restando leggibili; le note lunghe
        e l'elenco prodotti li accorcia il template. */
+    /* Tabella "Ordini" del borderò. Il corpo non è fisso: lo sceglie l'export,
+       che prova i corpi candidati e tiene il maggiore che non aggiunge pagine
+       (vedi exportation/schedule.py). Il default è il minimo della scala, così
+       chi rende il template senza passare la variabile ottiene comunque una
+       pagina che sta in piedi. */
     .data-table.bordero-orders td,
     .data-table.bordero-orders th {
       padding: 3px 5px 2px;
-      font-size: 10px;
+      font-size: {{ schedule_orders_font_size | default(10) }}px;
       line-height: 1.3;
     }
 

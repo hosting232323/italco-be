@@ -1,0 +1,77 @@
+{# Sezione "Ordini" del borderò: un gruppo di ordini per pagina orizzontale,
+   con carta intestata in cima e firma del trasportatore in coda a ciascuna.
+
+   Sta in un componente perché la stampa anche schedule_orders_probe.html, il
+   render di prova con cui l'export sceglie il corpo del testo (vedi
+   exportation/schedule.py): misura e documento finale devono uscire dallo
+   stesso markup, altrimenti la misura non vale niente. Carta intestata e
+   firma vanno quindi ripetute anche nella prova, perché mangiano altezza e
+   spostano le interruzioni di pagina. #}
+{% from "components/order.html" import service_list %}
+{% from "components/company.html" import company_header %}
+
+{% macro schedule_orders(
+  order_pages,
+  company=None,
+  company_logo=None,
+  powered_tag=None,
+  letterhead_height_portrait=None,
+  letterhead_height_landscape=None,
+  letterhead_margin_bottom_portrait=None,
+  letterhead_margin_bottom_landscape=None
+) %}
+{% for page in order_pages %}
+  <div style="page-break-before: always;{% if loop.first %} -pdf-next-page: landscape;{% endif %}"></div>
+  {{ company_header(company, company_logo, powered_tag, letterhead_height_portrait, letterhead_height_landscape, letterhead_margin_bottom_portrait, letterhead_margin_bottom_landscape, 'landscape') }}
+  <div class="section">
+    <h2 style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;">Ordini</h2>
+    {# Le larghezze reggono su una riga il testo più lungo che ogni colonna
+       può contenere al corpo massimo di .bordero-orders: "Replacement" per
+       Tipo, un id a sei cifre, il nickname di un punto vendita. #}
+    <table class="data-table bordero-orders" repeat="1">
+      <thead>
+        <tr>
+          <th style="width: 7%;">Id</th>
+          <th style="width: 11%;">Tipo</th>
+          <th style="width: 26%;">Destinatario</th>
+          <th style="width: 24%;">Prodotti e Servizi</th>
+          <th style="width: 10%;">P. V.</th>
+          <th style="width: 22%;">Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in page %}
+        <tr>
+          <td>{{ order.id }}</td>
+          <td>{{ order.type }}</td>
+          <td>{{ order.addressee }}<br>{{ order.address }}, {{ order.cap }}<br>{{ order.addressee_contact }}</td>
+          <td>
+            {% for product_name, product in order.products.items() %}
+              <strong>{{ product_name }}</strong>
+              {% if product.get('collection_point') %}[{{ product.collection_point.name }}]{% endif %}<br>
+              {{ service_list(product.services, inline=True) }}
+              {% if not loop.last %}<br>{% endif %}
+            {% endfor %}
+          </td>
+          <td>{{ order.user.nickname }}</td>
+          <td>{{ [order.customer_note, order.operator_note] | select | join(', ') or '/' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {# Il cliente vuole la firma del trasportatore in coda a ogni gruppo di 5. #}
+    <div style="margin-top: 16px">
+      <table class="info-table">
+        <tr>
+          <td style="width: 50%; vertical-align: top; border: none; padding-left: 0;"></td>
+          <td style="width: 50%; vertical-align: top; border: none; padding-left: 0;">
+            <div style="border: 1px solid #999; padding: 6px 10px 22px; font-size: 10px;">
+              <em>Firma trasportatore</em>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+{% endfor %}
+{% endmacro %}

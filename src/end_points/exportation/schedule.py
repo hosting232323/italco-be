@@ -1,4 +1,5 @@
 from io import BytesIO
+from pypdf import PdfReader
 from xhtml2pdf import pisa
 from flask import render_template
 
@@ -16,9 +17,81 @@ from ..schedule.queries import query_schedules, format_query_result as format_sc
 # sulla successiva (ripetendo l'intestazione, vedi repeat="1" nel template).
 ORDERS_PER_TABLE_PAGE = 5
 
+# Corpi candidati per la tabella "Ordini", dal più grande al più piccolo.
+# L'ultimo è il corpo storico: è il minimo sotto cui non si scende, e quello
+# che il CSS usa come default se nessuno passa la variabile.
+ORDERS_FONT_SIZES = (16, 15, 14, 13, 12, 11, 10)
+
+# Pagine orizzontali che si accetta di spendere in più rispetto al minimo pur
+# di stampare più grande. A zero un corpo più grande non costa mai carta, ed è
+# il motivo del default: su un borderò che sta in una pagina sola, concederne
+# anche una soltanto vuol dire raddoppiarlo per guadagnare un corpo.
+ORDERS_EXTRA_PAGES_BUDGET = 0
+
 
 def _paginate(items: list, page_size: int) -> list[list]:
   return [items[index : index + page_size] for index in range(0, len(items), page_size)]
+
+
+def _landscape_pages(pdf: bytes) -> int:
+  """Quante pagine orizzontali ha il PDF, cioè quelle della sezione Ordini."""
+  return sum(1 for page in PdfReader(BytesIO(pdf)).pages if page.mediabox.width > page.mediabox.height)
+
+
+def _render_orders_probe(order_pages: list[list], company: dict, font_size: int) -> bytes:
+  result = BytesIO()
+  pisa.CreatePDF(
+    src=render_template(
+      'schedule_orders_probe.html', order_pages=order_pages, schedule_orders_font_size=font_size, **company
+    ),
+    dest=result,
+  )
+  return result.getvalue()
+
+
+def _fit_orders_font_size(order_pages: list[list], company: dict) -> int:
+  """Il corpo più grande per la tabella "Ordini" che non costa pagine.
+
+  L'altezza di una riga la decide solo l'impaginazione: le celle tengono un
+  numero variabile di prodotti e servizi, e xhtml2pdf manda l'intera riga alla
+  pagina dopo appena non ci sta. Stimarla a mano vorrebbe dire riscrivere il
+  calcolo di reportlab, quindi si stampa davvero la sola sezione Ordini a ogni
+  corpo candidato e si contano le pagine. Il render di prova è leggero perché
+  lascia fuori schede ordine e formulari RAE, ma tiene carta intestata e
+  firma del trasportatore, che sulla pagina orizzontale occupano altezza.
+  """
+  if not order_pages:
+    return ORDERS_FONT_SIZES[0]
+
+  measured = {}
+
+  def pages(index: int) -> int:
+    if index not in measured:
+      measured[index] = _landscape_pages(_render_orders_probe(order_pages, company, ORDERS_FONT_SIZES[index]))
+    return measured[index]
+
+  last = len(ORDERS_FONT_SIZES) - 1
+  # Una pagina orizzontale per gruppo è il minimo possibile: se già il corpo
+  # più grande ci riesce non c'è niente da guadagnare a rimpicciolire.
+  if pages(0) == len(order_pages):
+    return ORDERS_FONT_SIZES[0]
+
+  budget = pages(last) + ORDERS_EXTRA_PAGES_BUDGET
+
+  # Rimpicciolire il testo non può far crescere le pagine, quindi la scala è
+  # monotona e si biseca: si cerca il primo corpo che rientra nel budget, che
+  # essendo la scala ordinata dal più grande è anche il più grande. L'ultimo
+  # ci rientra per costruzione, così la ricerca finisce sempre su un valore
+  # valido e i corpi in mezzo non si stampano nemmeno.
+  low, high = 0, last
+  while low < high:
+    middle = (low + high) // 2
+    if pages(middle) <= budget:
+      high = middle
+    else:
+      low = middle + 1
+
+  return ORDERS_FONT_SIZES[low]
 
 
 def export_schedule(user: User, id):
@@ -55,6 +128,9 @@ def export_schedule(user: User, id):
     order['delivery_signature'] = delivery_signature
     order['anomaly_signature'] = anomaly_signature
 
+  company = company_context()
+  order_pages = _paginate(orders, ORDERS_PER_TABLE_PAGE)
+
   result = BytesIO()
   pisa_status = pisa.CreatePDF(
     src=render_template(
@@ -64,8 +140,9 @@ def export_schedule(user: User, id):
       transport=schedules[0]['transport']['name'],
       users=', '.join([user['nickname'] for user in schedules[0]['users']]),
       orders=orders,
-      order_pages=_paginate(orders, ORDERS_PER_TABLE_PAGE),
-      **company_context(),
+      order_pages=order_pages,
+      schedule_orders_font_size=_fit_orders_font_size(order_pages, company),
+      **company,
     ),
     dest=result,
   )
