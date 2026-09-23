@@ -84,11 +84,11 @@ def test_count_user_dependencies_counts_all_relations(db):
 
 def test_format_user_with_info_adds_delivery_info_for_admin(db):
   delivery = create_user(UserRole.DELIVERY)
-  create_delivery_info(delivery, cap='70020')
+  create_delivery_info(delivery, lat=41.1, lon=16.8)
 
   formatted = format_user_with_info(delivery, UserRole.ADMIN)
 
-  assert formatted['delivery_user_info']['cap'] == '70020'
+  assert formatted['delivery_user_info']['user_id'] == delivery.id
 
 
 def test_format_user_with_info_exposes_assigned_transport(db):
@@ -96,7 +96,7 @@ def test_format_user_with_info_exposes_assigned_transport(db):
 
   delivery = create_user(UserRole.DELIVERY)
   transport = create_transport()
-  create_delivery_info(delivery, cap='70020', transport_id=transport.id)
+  create_delivery_info(delivery, transport_id=transport.id)
 
   formatted = format_user_with_info(delivery, UserRole.ADMIN)
 
@@ -118,7 +118,7 @@ def test_format_user_with_info_treats_super_admin_as_admin(db):
   customer = create_user(UserRole.CUSTOMER)
   create_customer_info(customer, city='Bari', import_code='PV-042')
   delivery = create_user(UserRole.DELIVERY)
-  create_delivery_info(delivery, cap='70020')
+  create_delivery_info(delivery)
 
   formatted_customer = format_user_with_info(customer, UserRole.SUPER_ADMIN)
   formatted_delivery = format_user_with_info(delivery, UserRole.SUPER_ADMIN)
@@ -128,7 +128,7 @@ def test_format_user_with_info_treats_super_admin_as_admin(db):
   assert 'password' not in formatted_customer
   assert formatted_customer['customer_user_info']['city'] == 'Bari'
   assert formatted_customer['customer_user_info']['import_code'] == 'PV-042'
-  assert formatted_delivery['delivery_user_info']['cap'] == '70020'
+  assert formatted_delivery['delivery_user_info']['user_id'] == delivery.id
 
 
 def test_format_user_with_info_empty_dict_when_no_info(db):
@@ -155,11 +155,11 @@ def test_get_user_info_rejects_models_without_user_id(db):
 
 def test_get_user_info_returns_matching_record(db):
   delivery = create_user(UserRole.DELIVERY)
-  create_delivery_info(delivery, cap='70121')
+  create_delivery_info(delivery, lat=41.1, lon=16.8)
 
   info = get_user_info(delivery.id, DeliveryUserInfo)
 
-  assert info.cap == '70121'
+  assert info.user_id == delivery.id
   assert get_user_info(delivery.id, CustomerUserInfo) is None
 
 

@@ -7,7 +7,7 @@ from src.database.enum import OrderStatus, UserRole
 
 from tests.unit.factories import (
   auth_header,
-  create_delivery_group,
+  assign_delivery_user_to_schedule,
   create_order,
   create_product,
   create_rae_disposal_place,
@@ -26,7 +26,7 @@ def test_export_schedule_returns_pdf(client):
   create_product(order, service_user, collection_point_id=collection_point.id)
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
-  create_delivery_group(create_user(UserRole.DELIVERY), schedule)
+  assign_delivery_user_to_schedule(create_user(UserRole.DELIVERY), schedule)
 
   response = client.get(f'/export/schedule/{schedule.id}', headers=auth_header(admin))
 
@@ -42,7 +42,7 @@ def test_export_schedule_without_collection_point_returns_pdf(client):
   create_product(order, service_user)
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
-  create_delivery_group(create_user(UserRole.DELIVERY), schedule)
+  assign_delivery_user_to_schedule(create_user(UserRole.DELIVERY), schedule)
 
   response = client.get(f'/export/schedule/{schedule.id}', headers=auth_header(admin))
 
@@ -64,7 +64,7 @@ def test_export_schedule_prints_the_chosen_rae_disposal_place(client):
   disposal_place = create_rae_disposal_place(rae_grouping_place='Deposito Test')
   schedule = create_schedule(rae_disposal_place_id=disposal_place.id)
   link_order_to_schedule(order, schedule)
-  create_delivery_group(create_user(UserRole.DELIVERY), schedule)
+  assign_delivery_user_to_schedule(create_user(UserRole.DELIVERY), schedule)
 
   response = client.get(f'/export/schedule/{schedule.id}', headers=auth_header(admin))
 

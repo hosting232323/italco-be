@@ -16,7 +16,7 @@ from src.end_points.orders.crud import (
 from src.end_points.orders.services import InvalidOrderProductsError
 
 from tests.unit.factories import (
-  create_delivery_group,
+  assign_delivery_user_to_schedule,
   create_delivery_info,
   create_company,
   create_order,
@@ -124,7 +124,7 @@ def test_get_order_adds_delivery_position_when_booking(db):
   create_delivery_info(delivery, lat=41.1, lon=16.8)
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
   create_schedule_item_user(delivery, schedule)
 
   result = get_order(order.id)
@@ -145,7 +145,7 @@ def test_get_order_ignores_position_when_no_one_holds_it(db):
   create_delivery_info(delivery, lat=41.1, lon=16.8)
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
 
   result = get_order(order.id)
 
@@ -162,7 +162,7 @@ def test_get_order_ignores_position_after_closing(db):
   create_delivery_info(delivery, lat=41.1, lon=16.8)
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
   create_schedule_item_user(delivery, schedule, type=ScheduleItemUserType.OPENING)
   create_schedule_item_user(delivery, schedule, type=ScheduleItemUserType.CLOSING)
 
@@ -279,7 +279,7 @@ def test_update_order_closes_schedule_position_when_bordero_completed(db):
   order = create_order(status=OrderStatus.BOOKING)
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
   create_schedule_item_user(delivery, schedule)
 
   with Session() as session:
