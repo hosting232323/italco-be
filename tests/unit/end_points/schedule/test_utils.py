@@ -60,30 +60,31 @@ def test_format_schedule_data_resolves_orders_and_collection_points(db):
   }
 
   with Session() as session:
-    schedule_items, schedule_data, users, response = format_schedule_data(payload, session=session)
+    schedule_items, schedule_data, response = format_schedule_data(payload, session=session)
 
   assert response is None
-  assert users == [{'id': 5}]
+  # 'users' arriva ancora dai client vecchi ma viene scartato: i corrieri li
+  # porta il veicolo.
   assert schedule_data == {'date': '2026-07-15', 'transport_id': 1}
   assert schedule_items[0]['order'].id == order.id
   assert schedule_items[1]['collection_point'].id == collection_point.id
 
 
 def test_format_schedule_data_fails_without_orders(db):
-  payload = {'date': '2026-07-15', 'users': [{'id': 5}], 'schedule_items': []}
+  payload = {'date': '2026-07-15', 'schedule_items': []}
 
   with Session() as session:
-    schedule_items, schedule_data, users, response = format_schedule_data(payload, session=session)
+    schedule_items, schedule_data, response = format_schedule_data(payload, session=session)
 
   assert response == {'status': 'ko', 'message': 'Errore nella creazione del borderò'}
   assert schedule_items is None
 
 
-def test_format_schedule_data_fails_without_users(db):
+def test_format_schedule_data_accepts_a_payload_without_users(db):
   order = create_order()
   payload = {
     'date': '2026-07-15',
-    'users': [],
+    'transport_id': 1,
     'schedule_items': [
       {
         'index': 0,
@@ -96,9 +97,10 @@ def test_format_schedule_data_fails_without_users(db):
   }
 
   with Session() as session:
-    _, _, _, response = format_schedule_data(payload, session=session)
+    _, schedule_data, response = format_schedule_data(payload, session=session)
 
-  assert response is not None
+  assert response is None
+  assert schedule_data == {'date': '2026-07-15', 'transport_id': 1}
 
 
 def test_handle_schedule_item_order_emits_rae_and_updates_status(db):

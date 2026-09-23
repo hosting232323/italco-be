@@ -55,10 +55,11 @@ def format_schedule_data(schedule_data: dict, session=None):
           item['collection_point'] = collection_point
           break
 
-  users = schedule_data['users']
-  if not orders or not users or len(users) == 0:
-    return None, None, None, {'status': 'ko', 'message': 'Errore nella creazione del borderò'}
+  if not orders:
+    return None, None, {'status': 'ko', 'message': 'Errore nella creazione del borderò'}
 
+  # 'users' non arriva più dal client (gli utenti delivery li porta il veicolo),
+  # ma resta nella lista da scartare finché in giro c'è un client vecchio.
   schedule_fields = {
     key: value for key, value in schedule_data.items() if key not in ('users', 'schedule_items', 'deleted_users')
   }
@@ -68,9 +69,9 @@ def format_schedule_data(schedule_data: dict, session=None):
   has_rae_orders = any(product.rae_product_id for order in orders for product in query_products(order, session=session))
   if has_rae_orders and not schedule_fields.get('rae_disposal_place_id'):
     message = 'Seleziona il luogo di smaltimento: il borderò contiene ordini con prodotti RAE'
-    return None, None, None, {'status': 'ko', 'message': message}
+    return None, None, {'status': 'ko', 'message': message}
 
-  return schedule_items, schedule_fields, users, None
+  return schedule_items, schedule_fields, None
 
 
 def handle_schedule_item(item: dict, schedule: Schedule, session, pending_sms: list):

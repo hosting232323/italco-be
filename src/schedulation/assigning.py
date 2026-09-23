@@ -4,33 +4,31 @@ from scipy.optimize import linear_sum_assignment
 from ..utils.caps import get_lat_lon_by_cap
 
 
-def assign_delivery_users_to_schedule_items(schedule_item_groups, delivery_users):
-  available_delivery_users = [
-    delivery_user
-    for delivery_user in delivery_users
-    if 'delivery_user_info' in delivery_user and 'cap' in delivery_user['delivery_user_info']
-  ]
-  if not available_delivery_users:
-    return [
-      {'schedule_items': schedule_item_group, 'delivery_users': [], 'transports': []}
-      for schedule_item_group in schedule_item_groups
-    ]
+def assign_transports_to_schedule_items(schedule_item_groups, transports):
+  """Accoppia ogni gruppo di tappe al veicolo più vicino.
+
+  L'accoppiamento è sul veicolo, non sul corriere: gli utenti delivery stanno
+  sul veicolo e il borderò li eredita da lì, quindi è la località del veicolo
+  a dire quale gruppo gli costa meno.
+  """
+  available_transports = [transport for transport in transports if transport.get('cap')]
+  if not available_transports:
+    return [{'schedule_items': schedule_item_group, 'transports': []} for schedule_item_group in schedule_item_groups]
 
   cost_matrix = []
-  for user in available_delivery_users:
-    user_costs = []
+  for transport in available_transports:
+    transport_costs = []
     for schedule_items in schedule_item_groups:
-      user_costs.append(calculate_group_cost(user, schedule_items))
-    cost_matrix.append(user_costs)
+      transport_costs.append(calculate_group_cost(transport, schedule_items))
+    cost_matrix.append(transport_costs)
 
-  delivery_user_indices, group_indices = linear_sum_assignment(cost_matrix)
+  transport_indices, group_indices = linear_sum_assignment(cost_matrix)
   return [
     {
-      'transports': [],
       'schedule_items': schedule_item_group,
-      'delivery_users': [
-        available_delivery_users[delivery_user_indices[user_index]]
-        for user_index, group_index in enumerate(group_indices)
+      'transports': [
+        available_transports[transport_indices[transport_index]]
+        for transport_index, group_index in enumerate(group_indices)
         if group_index == index
       ],
     }
@@ -38,10 +36,10 @@ def assign_delivery_users_to_schedule_items(schedule_item_groups, delivery_users
   ]
 
 
-def calculate_group_cost(user, schedule_items):
-  user_coord = get_lat_lon_by_cap(user['delivery_user_info']['cap'])
-  if user_coord[0] is None:
+def calculate_group_cost(transport, schedule_items):
+  transport_coord = get_lat_lon_by_cap(transport['cap'])
+  if transport_coord[0] is None:
     return 0
 
   item_coords = (get_lat_lon_by_cap(item['cap']) for item in schedule_items)
-  return sum(geodesic(coord, user_coord).meters for coord in item_coords if coord[0] is not None)
+  return sum(geodesic(coord, transport_coord).meters for coord in item_coords if coord[0] is not None)

@@ -5,7 +5,7 @@ from database_api.operations import get_by_id
 
 from src.database.enum import OrderStatus, ScheduleType, UserRole
 from src.database.schema import (
-  DeliveryGroup,
+  DeliveryUserInfo,
   Order,
   Schedule,
   ScheduleItem,
@@ -16,8 +16,7 @@ from src.database.schema import (
 
 from tests.unit.factories import (
   auth_header,
-  create_delivery_group,
-  create_delivery_info,
+  assign_delivery_user_to_schedule,
   create_order,
   create_product,
   create_rae_disposal_place,
@@ -31,11 +30,10 @@ from tests.unit.factories import (
 )
 
 
-def _schedule_payload(transport, order, collection_point, users):
+def _schedule_payload(transport, order, collection_point):
   return {
     'date': date.today().strftime('%Y-%m-%d'),
     'transport_id': transport.id,
-    'users': [{'id': user.id} for user in users],
     'schedule_items': [
       {
         'index': 0,
@@ -73,11 +71,10 @@ def test_create_schedule_full_flow(client):
   _, _, service_user, collection_point = customer_with_service()
   order = _booked_order(service_user)
   transport = create_transport()
-  delivery = create_user(UserRole.DELIVERY)
 
   response = client.post(
     '/schedule',
-    json=_schedule_payload(transport, order, collection_point, [delivery]),
+    json=_schedule_payload(transport, order, collection_point),
     headers=auth_header(operator),
   )
 
@@ -87,7 +84,6 @@ def test_create_schedule_full_flow(client):
   with Session() as session:
     items = session.query(ScheduleItem).filter_by(schedule_id=schedule_id).all()
     assert {item.operation_type for item in items} == {ScheduleType.ORDER, ScheduleType.COLLECTIONPOINT}
-    assert session.query(DeliveryGroup).filter_by(schedule_id=schedule_id).count() == 1
     assert session.query(ScheduleItemOrder).count() == 1
     assert session.query(ScheduleItemCollectionPoint).count() == 1
   # Ordine senza transport_id sui prodotti -> Scheduled
@@ -100,11 +96,10 @@ def test_create_schedule_marks_booking_when_products_have_transport(client):
   transport = create_transport()
   order = create_order(status=OrderStatus.BOOKED)
   create_product(order, service_user, transport_id=transport.id)
-  delivery = create_user(UserRole.DELIVERY)
 
   response = client.post(
     '/schedule',
-    json=_schedule_payload(transport, order, collection_point, [delivery]),
+    json=_schedule_payload(transport, order, collection_point),
     headers=auth_header(operator),
   )
 
@@ -117,8 +112,7 @@ def test_create_schedule_requires_disposal_place_for_rae_orders(client):
   customer, _, service_user, collection_point = customer_with_service()
   order = _rae_order(service_user, customer)
   transport = create_transport()
-  delivery = create_user(UserRole.DELIVERY)
-  payload = _schedule_payload(transport, order, collection_point, [delivery])
+  payload = _schedule_payload(transport, order, collection_point)
 
   refused = client.post('/schedule', json=payload, headers=auth_header(operator))
   body = refused.get_json()
@@ -135,36 +129,33 @@ def test_create_schedule_requires_disposal_place_for_rae_orders(client):
   assert get_by_id(Schedule, accepted_body['schedule']['id']).rae_disposal_place_id == place.id
 
 
-def test_create_schedule_rejects_already_assigned_delivery(client):
+def test_create_schedule_rejects_transport_already_assigned(client):
   operator = create_user(UserRole.OPERATOR)
   _, _, service_user, collection_point = customer_with_service()
   order = _booked_order(service_user)
   transport = create_transport()
-  delivery = create_user(UserRole.DELIVERY)
-  create_delivery_group(delivery, create_schedule(schedule_date=date.today()))
+  create_schedule(transport=transport, schedule_date=date.today())
 
   response = client.post(
     '/schedule',
-    json=_schedule_payload(transport, order, collection_point, [delivery]),
+    json=_schedule_payload(transport, order, collection_point),
     headers=auth_header(operator),
   )
 
   body = response.get_json()
   assert body['status'] == 'ko'
-  assert 'già assegnato' in body['message']
+  assert 'borderò in questa data' in body['message']
 
 
 def test_create_schedule_rejects_missing_orders(client):
   operator = create_user(UserRole.OPERATOR)
   transport = create_transport()
-  delivery = create_user(UserRole.DELIVERY)
 
   response = client.post(
     '/schedule',
     json={
       'date': date.today().strftime('%Y-%m-%d'),
       'transport_id': transport.id,
-      'users': [{'id': delivery.id}],
       'schedule_items': [],
     },
     headers=auth_header(operator),
@@ -183,7 +174,7 @@ def test_delete_schedule_restores_orders(client):
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
   delivery = create_user(UserRole.DELIVERY)
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
   create_schedule_item_user(delivery, schedule)
 
   response = client.delete(f'/schedule/{schedule.id}', headers=auth_header(admin))
@@ -193,7 +184,6 @@ def test_delete_schedule_restores_orders(client):
   assert get_by_id(Order, order.id).status == OrderStatus.BOOKED
   with Session() as session:
     assert session.query(ScheduleItem).count() == 0
-    assert session.query(DeliveryGroup).count() == 0
     assert session.query(ScheduleItemUser).count() == 0
 
 
@@ -205,7 +195,7 @@ def test_filter_schedules(client):
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
   delivery = create_user(UserRole.DELIVERY)
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
 
   response = client.post(
     '/schedule/filter',
@@ -231,7 +221,7 @@ def test_filter_schedules_by_order_id_adds_sibling_items(client):
   schedule = create_schedule()
   link_order_to_schedule(first_order, schedule, index=0)
   link_order_to_schedule(second_order, schedule, index=1)
-  create_delivery_group(create_user(UserRole.DELIVERY), schedule)
+  assign_delivery_user_to_schedule(create_user(UserRole.DELIVERY), schedule)
 
   response = client.post(
     '/schedule/filter',
@@ -246,16 +236,15 @@ def test_filter_schedules_by_order_id_adds_sibling_items(client):
   assert item_order_ids == {first_order.id, second_order.id}
 
 
-def test_update_schedule_replaces_users_and_items(client):
+def test_update_schedule_replaces_items_and_keeps_transport_users(client):
   operator = create_user(UserRole.OPERATOR)
   _, _, service_user, collection_point = customer_with_service()
   order = create_order(status=OrderStatus.SCHEDULED)
   create_product(order, service_user)
   schedule = create_schedule()
   existing_item = link_order_to_schedule(order, schedule, index=0)
-  old_delivery = create_user(UserRole.DELIVERY)
-  create_delivery_group(old_delivery, schedule)
-  new_delivery = create_user(UserRole.DELIVERY)
+  delivery = create_user(UserRole.DELIVERY)
+  assign_delivery_user_to_schedule(delivery, schedule)
   new_order = create_order(status=OrderStatus.BOOKED)
   create_product(new_order, service_user)
 
@@ -264,8 +253,6 @@ def test_update_schedule_replaces_users_and_items(client):
     json={
       'date': date.today().strftime('%Y-%m-%d'),
       'transport_id': schedule.transport_id,
-      'deleted_users': [old_delivery.id],
-      'users': [{'id': new_delivery.id}],
       'schedule_items': [
         {
           'id': existing_item.id,
@@ -290,8 +277,9 @@ def test_update_schedule_replaces_users_and_items(client):
   body = response.get_json()
   assert body['status'] == 'ok'
   with Session() as session:
-    delivery_groups = session.query(DeliveryGroup).filter_by(schedule_id=schedule.id).all()
-    assert [group.user_id for group in delivery_groups] == [new_delivery.id]
+    # Gli utenti non si toccano dal borderò: restano quelli del veicolo.
+    assigned = session.query(DeliveryUserInfo).filter_by(transport_id=schedule.transport_id).all()
+    assert [info.user_id for info in assigned] == [delivery.id]
     updated_item = session.get(ScheduleItem, existing_item.id)
     assert updated_item.index == 1
     assert session.query(ScheduleItemOrder).count() == 2
@@ -352,9 +340,7 @@ def test_suggestions_endpoint_returns_groups(client):
   _, _, service_user, collection_point = customer_with_service()
   order = create_order(status=OrderStatus.BOOKED, dpc=date(2026, 7, 15), cap='70121')
   create_product(order, service_user, collection_point_id=collection_point.id)
-  delivery = create_user(UserRole.DELIVERY)
-  create_delivery_info(delivery, cap='70121')
-  transport = create_transport()
+  transport = create_transport(cap='70121')
 
   response = client.get(
     '/schedule/suggestions?work_date=2026-07-15&min_size_group=1&max_size_group=5&max_distance_km=10',
@@ -363,7 +349,22 @@ def test_suggestions_endpoint_returns_groups(client):
 
   body = response.get_json()
   assert body['status'] == 'ok'
-  assert [user['id'] for user in body['delivery_users']] == [delivery.id]
   assert [t['id'] for t in body['transports']] == [transport.id]
   assert len(body['groups']) == 1
-  assert body['groups'][0]['delivery_users'][0]['id'] == delivery.id
+  # La proposta assegna il veicolo: i corrieri li porta lui.
+  assert body['groups'][0]['transports'][0]['id'] == transport.id
+
+
+def test_create_schedule_requires_a_transport(client):
+  """Senza veicolo non c'è nemmeno chi faccia il borderò: si ferma prima."""
+  operator = create_user(UserRole.OPERATOR)
+  _, _, service_user, collection_point = customer_with_service()
+  order = _booked_order(service_user)
+  transport = create_transport()
+  payload = _schedule_payload(transport, order, collection_point)
+  payload.pop('transport_id')
+
+  body = client.post('/schedule', json=payload, headers=auth_header(operator)).get_json()
+
+  assert body['status'] == 'ko'
+  assert body['message'] == 'Seleziona il veicolo del borderò'
