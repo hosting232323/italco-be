@@ -1,0 +1,20 @@
+{# Documento di sola misura: stessa pagina, stesso CSS e stesso markup della
+   sezione Ordini del borderò, ma senza schede ordine né formulari RAE. Serve
+   a exportation/schedule.py per contare quante pagine orizzontali produce un
+   dato corpo del testo, che è l'unico modo affidabile di saperlo: l'altezza
+   delle righe la decide l'impaginazione, non una stima. #}
+{% extends "components/base.html" %}
+{% from "components/schedule_orders.html" import schedule_orders %}
+
+{% block content %}
+{{ schedule_orders(
+  order_pages,
+  company,
+  company_logo,
+  powered_tag,
+  letterhead_height_portrait,
+  letterhead_height_landscape,
+  letterhead_margin_bottom_portrait,
+  letterhead_margin_bottom_landscape
+) }}
+{% endblock %}
