@@ -17,7 +17,7 @@ from src.end_points.orders.queries import (
 )
 
 from tests.unit.factories import (
-  create_delivery_group,
+  assign_delivery_user_to_schedule,
   create_order,
   create_product,
   create_schedule,
@@ -126,7 +126,7 @@ def test_query_orders_delivery_user_filter(db):
   delivery = create_user(UserRole.DELIVERY)
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
 
   results = query_orders([{'model': 'DeliveryUser', 'field': 'id', 'value': delivery.id}])
 

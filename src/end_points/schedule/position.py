@@ -2,11 +2,11 @@ from database_api.operations import create, get_by_id
 
 from ...database.enum import ScheduleItemUserType
 from ...database.schema import Schedule, ScheduleItemUser, User
-from .queries import get_delivery_groups, get_latest_schedule_item_user
+from .queries import get_schedule_delivery_users, get_latest_schedule_item_user
 
 
 def _user_in_schedule(schedule: Schedule, user: User) -> bool:
-  return any(delivery_group.user_id == user.id for delivery_group in get_delivery_groups(schedule))
+  return any(delivery_user.id == user.id for delivery_user in get_schedule_delivery_users(schedule))
 
 
 def _format_holder(schedule_item_user: ScheduleItemUser) -> dict:
