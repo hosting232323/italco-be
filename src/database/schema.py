@@ -77,6 +77,12 @@ class Company(BaseEntity):
   city = Column(String)
   rae_registration = Column(String)
 
+  # Orario di apertura e chiusura dell'attività: la finestra in cui l'attività
+  # lavora, non quella di un singolo veicolo. Nullable come il resto
+  # dell'anagrafica, l'obbligatorietà la impone l'endpoint.
+  activity_start_time = Column(Time)
+  activity_end_time = Column(Time)
+
 
 class User(BaseItalcoEntity):
   __tablename__ = 'user'
@@ -133,7 +139,6 @@ class DeliveryUserInfo(BaseItalcoEntity):
   # l'app mostrerebbe a caso quella vuota (vedi migrazione 059).
   __table_args__ = (UniqueConstraint('user_id', name='uq_delivery_user_info_user_id'),)
 
-  cap = Column(String)
   lat = Column(Numeric(11, 8))
   lon = Column(Numeric(11, 8))
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
@@ -212,6 +217,10 @@ class CustomerGroup(BaseItalcoEntity):
 class Transport(BaseItalcoEntity):
   __tablename__ = 'transport'
 
+  # Indirizzo di partenza del veicolo, scelto con lo stesso autocomplete degli
+  # altri indirizzi: il cap non è più la località scelta a mano da una lista
+  # chiusa, lo ricava l'autocomplete dall'indirizzo.
+  address = Column(String)
   cap = Column(String)
   name = Column(String, nullable=False)
   plate = Column(String, nullable=False)
