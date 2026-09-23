@@ -7,8 +7,8 @@ puntuali, così i test dichiarano esattamente lo scenario che verificano.
 from datetime import date, time
 from uuid import uuid4
 
-from database_api import scope
-from database_api.operations import create
+from database_api import Session, scope
+from database_api.operations import create, update
 
 from src.database.enum import OrderStatus, OrderType, RaeStatus, ScheduleItemUserType, ScheduleType, UserRole
 from src.database.schema import (
@@ -17,7 +17,6 @@ from src.database.schema import (
   CollectionPoint,
   Company,
   CustomerUserInfo,
-  DeliveryGroup,
   DeliveryUserInfo,
   Disposal,
   DtrDocument,
@@ -153,8 +152,21 @@ def link_order_to_schedule(order: Order, schedule: Schedule, **item_extra) -> Sc
   return item
 
 
-def create_delivery_group(delivery_user: User, schedule: Schedule) -> DeliveryGroup:
-  return create(DeliveryGroup, {'user_id': delivery_user.id, 'schedule_id': schedule.id})
+def assign_delivery_user_to_schedule(delivery_user: User, schedule: Schedule) -> None:
+  """Mette il corriere sul veicolo del borderò.
+
+  È l'unico legame rimasto fra i due: il borderò non aggancia più gli utenti,
+  eredita quelli del suo veicolo. La scheda è una sola per utente, quindi chi
+  ne ha già una viene spostato invece di riceverne una seconda.
+  """
+  with Session() as session:
+    info = session.query(DeliveryUserInfo).filter(DeliveryUserInfo.user_id == delivery_user.id).first()
+    if info:
+      update(info, {'transport_id': schedule.transport_id}, session=session)
+      session.commit()
+      return
+
+  create_delivery_info(delivery_user, transport_id=schedule.transport_id)
 
 
 def create_schedule_item_user(

@@ -12,6 +12,7 @@ comportamento del flag.
 
 import os
 import json
+from datetime import time
 from io import BytesIO
 
 from api.storage import get_full_path
@@ -166,3 +167,100 @@ def test_update_company_rejects_clearing_a_required_legal_field(db, client):
 
   assert body['status'] == 'ko'
   assert 'Ragione sociale' in body['message']
+
+
+def test_create_company_persists_activity_hours(db, client):
+  super_admin = create_super_admin()
+
+  body = client.post(
+    '/company',
+    json=_create_payload(activity_start_time='08:00', activity_end_time='18:30'),
+    headers=auth_header(super_admin),
+  ).get_json()
+
+  assert body['status'] == 'ok'
+  company = get_by_id(Company, body['company']['id'])
+  assert company.activity_start_time == time(8, 0)
+  assert company.activity_end_time == time(18, 30)
+
+
+def test_create_company_leaves_activity_hours_empty_when_not_sent(db, client):
+  super_admin = create_super_admin()
+
+  body = client.post('/company', json=_create_payload(), headers=auth_header(super_admin)).get_json()
+
+  assert body['status'] == 'ok'
+  company = get_by_id(Company, body['company']['id'])
+  assert company.activity_start_time is None
+  assert company.activity_end_time is None
+
+
+def test_create_company_rejects_half_an_activity_window(db, client):
+  super_admin = create_super_admin()
+
+  body = client.post(
+    '/company', json=_create_payload(activity_start_time='08:00'), headers=auth_header(super_admin)
+  ).get_json()
+
+  assert body['status'] == 'ko'
+  assert 'inizio' in body['message']
+
+
+def test_create_company_rejects_an_end_before_the_start(db, client):
+  super_admin = create_super_admin()
+
+  body = client.post(
+    '/company',
+    json=_create_payload(activity_start_time='18:00', activity_end_time='08:00'),
+    headers=auth_header(super_admin),
+  ).get_json()
+
+  assert body['status'] == 'ko'
+  assert 'successivo' in body['message']
+
+
+def test_create_company_rejects_a_malformed_activity_hour(db, client):
+  super_admin = create_super_admin()
+
+  body = client.post(
+    '/company',
+    json=_create_payload(activity_start_time='mattina', activity_end_time='18:00'),
+    headers=auth_header(super_admin),
+  ).get_json()
+
+  assert body['status'] == 'ko'
+  assert 'HH:MM' in body['message']
+
+
+def test_update_company_updates_activity_hours(db, client):
+  super_admin = create_super_admin()
+
+  body = client.put(
+    f'/company/{db.id}',
+    json={'name': db.name, 'activity_start_time': '07:30', 'activity_end_time': '17:00'},
+    headers=auth_header(super_admin),
+  ).get_json()
+
+  assert body['status'] == 'ok'
+  refreshed = get_by_id(Company, db.id)
+  assert refreshed.activity_start_time == time(7, 30)
+  assert refreshed.activity_end_time == time(17, 0)
+
+
+def test_update_company_checks_the_hour_it_does_not_receive_against_the_saved_one(db, client):
+  """In modifica si valida solo ciò che arriva: l'altro estremo è quello a DB."""
+  super_admin = create_super_admin()
+  client.put(
+    f'/company/{db.id}',
+    json={'name': db.name, 'activity_start_time': '08:00', 'activity_end_time': '18:00'},
+    headers=auth_header(super_admin),
+  )
+
+  body = client.put(
+    f'/company/{db.id}',
+    json={'name': db.name, 'activity_end_time': '07:00'},
+    headers=auth_header(super_admin),
+  ).get_json()
+
+  assert body['status'] == 'ko'
+  assert 'successivo' in body['message']

@@ -10,7 +10,7 @@ def get_items_for_delivery(delivery_user: User):
   schedules = []
   for tupla in query_schedules(
     [
-      {'model': 'DeliveryGroup', 'field': 'user_id', 'value': delivery_user.id},
+      {'model': 'DeliveryUserInfo', 'field': 'user_id', 'value': delivery_user.id},
       {'model': 'Schedule', 'field': 'date', 'value': [date.today(), date.today()]},
     ],
     get_services=True,
@@ -35,7 +35,7 @@ def get_history_for_delivery(delivery_user: User):
   yesterday = date.today() - timedelta(days=1)
   for tupla in query_schedules(
     [
-      {'model': 'DeliveryGroup', 'field': 'user_id', 'value': delivery_user.id},
+      {'model': 'DeliveryUserInfo', 'field': 'user_id', 'value': delivery_user.id},
       {'model': 'Schedule', 'field': 'date', 'value': [date.min, yesterday]},
     ],
     get_services=True,

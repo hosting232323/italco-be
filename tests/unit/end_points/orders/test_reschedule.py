@@ -9,7 +9,7 @@ from database_api.operations import create
 from src.database.enum import OrderStatus, OrderType, ScheduleType, UserRole
 from src.database.schema import (
   CollectionPoint,
-  DeliveryGroup,
+  DeliveryUserInfo,
   Order,
   Product,
   Schedule,
@@ -28,7 +28,8 @@ def _seed_order_for_delivery(session):
   owner = create(User, {'nickname': 'cust', 'password': 'x', 'role': UserRole.CUSTOMER}, session=session)
   transport = create(Transport, {'name': 'Furgone 1', 'plate': 'AA000AA', 'cap': '70100'}, session=session)
   schedule = create(Schedule, {'date': date.today(), 'transport_id': transport.id}, session=session)
-  create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': user.id}, session=session)
+  # Il corriere sta sul veicolo: è da lì che il borderò sa chi guida.
+  create(DeliveryUserInfo, {'user_id': user.id, 'transport_id': transport.id}, session=session)
   cp = create(
     CollectionPoint,
     {'name': 'PV 20', 'address': 'Via X', 'cap': '70100', 'user_id': owner.id},

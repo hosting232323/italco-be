@@ -27,7 +27,7 @@ from src.database.enum import OrderStatus, ScheduleType
 from src.database.schema import (
   DeliveryCoverageCap,
   DeliveryCoverageEntry,
-  DeliveryGroup,
+  DeliveryUserInfo,
   Order,
   Schedule,
   ScheduleItem,
@@ -177,7 +177,8 @@ def test_find_or_create_schedule_creates_new_schedule(db, entry, delivery_user):
   assert schedule.date == TARGET
 
 
-def test_find_or_create_schedule_assigns_delivery_users(db, entry, delivery_user):
+def test_find_or_create_schedule_inherits_the_transport_delivery_users(db, entry, delivery_user):
+  """Il borderò non assegna nessuno: i corrieri sono quelli del suo veicolo."""
   order = _make_order_with_slot()
   from database_api import Session
 
@@ -185,8 +186,8 @@ def test_find_or_create_schedule_assigns_delivery_users(db, entry, delivery_user
     schedule, _ = find_or_create_schedule(entry, order, session)
     session.commit()
 
-  groups = _find(DeliveryGroup, schedule_id=schedule.id)
-  assert any(g.user_id == delivery_user.id for g in groups)
+  assigned = _find(DeliveryUserInfo, transport_id=schedule.transport_id)
+  assert [info.user_id for info in assigned] == [delivery_user.id]
 
 
 def test_find_or_create_schedule_returns_existing_without_duplicate(db, entry, delivery_user):
@@ -287,9 +288,9 @@ def test_auto_plan_second_order_reuses_existing_schedule(
   items = _find(ScheduleItem, schedule_id=schedules[0].id)
   assert len(items) == 2
 
-  # Un solo DeliveryGroup (utente assegnato una volta sola)
-  groups = _find(DeliveryGroup, schedule_id=schedules[0].id)
-  assert len(groups) == 1
+  # Il corriere resta uno: sta sul veicolo, non sul borderò
+  assigned = _find(DeliveryUserInfo, transport_id=schedules[0].transport_id)
+  assert len(assigned) == 1
 
 
 @patch('src.schedulation.routing.trip_order_osrm')

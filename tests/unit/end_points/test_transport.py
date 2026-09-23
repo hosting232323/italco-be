@@ -37,12 +37,18 @@ def test_create_transport(client):
   admin = create_user(UserRole.ADMIN)
 
   response = client.post(
-    '/transport', json={'name': 'Furgone 1', 'plate': 'AA123BB', 'cap': '70020'}, headers=auth_header(admin)
+    '/transport',
+    json={'name': 'Furgone 1', 'plate': 'AA123BB', 'address': 'Via Deposito 1, Bisceglie, BT', 'cap': '70020'},
+    headers=auth_header(admin),
   )
 
   body = response.get_json()
   assert body['status'] == 'ok'
   assert body['transport']['plate'] == 'AA123BB'
+  # La località del veicolo è un indirizzo vero, con il cap che l'autocomplete
+  # ricava da quello.
+  assert body['transport']['address'] == 'Via Deposito 1, Bisceglie, BT'
+  assert body['transport']['cap'] == '70020'
   assert get_by_id(Transport, body['transport']['id']) is not None
 
 
@@ -122,7 +128,7 @@ def test_create_transport_links_delivery_users(client):
   admin = create_user(UserRole.ADMIN)
   first = create_user(UserRole.DELIVERY)
   second = create_user(UserRole.DELIVERY)
-  create_delivery_info(first, cap='70020')
+  create_delivery_info(first)
 
   response = client.post(
     '/transport',
