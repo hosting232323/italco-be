@@ -26,8 +26,6 @@ from ..database.enum import OrderStatus, ScheduleType
 from ..database.schema import (
   DeliveryCoverageEntry,
   DeliveryCoverageCap,
-  DeliveryGroup,
-  DeliveryUserInfo,
   Order,
   Schedule,
   ScheduleItem,
@@ -101,8 +99,8 @@ def find_coverage_entry(order: Order, session: session_type) -> DeliveryCoverage
 def find_or_create_schedule(entry: DeliveryCoverageEntry, order: Order, session: session_type) -> tuple[Schedule, bool]:
   """Restituisce lo ``Schedule`` per ``(order.dpc, entry.transport_id)``.
 
-  Se non esiste ne crea uno nuovo e assegna i delivery users collegati al
-  veicolo come ``DeliveryGroup``.
+  Se non esiste ne crea uno nuovo: i corrieri non si assegnano più qui, li
+  porta il veicolo (``DeliveryUserInfo.transport_id``).
 
   Returns:
     (schedule, created): created=True se appena creato, False se già esistente.
@@ -123,20 +121,6 @@ def find_or_create_schedule(entry: DeliveryCoverageEntry, order: Order, session:
     {'date': order.dpc, 'transport_id': entry.transport_id},
     session=session,
   )
-
-  # Associa i corrieri del veicolo al borderò
-  delivery_user_ids = [
-    row.user_id
-    for row in session.query(DeliveryUserInfo.user_id)
-    .filter(
-      DeliveryUserInfo.transport_id == entry.transport_id,
-      DeliveryUserInfo.user_id.isnot(None),
-    )
-    .all()
-  ]
-  for uid in delivery_user_ids:
-    create(DeliveryGroup, {'schedule_id': schedule.id, 'user_id': uid}, session=session)
-
   return schedule, True
 
 

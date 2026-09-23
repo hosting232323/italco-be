@@ -105,8 +105,6 @@ def check_schedules(session: session_type):
     missing = []
     if not sched.schedule_item:
       missing.append('ScheduleItem')
-    if not sched.delivery_group:
-      missing.append('DeliveryGroup')
 
     if missing:
       results.append(

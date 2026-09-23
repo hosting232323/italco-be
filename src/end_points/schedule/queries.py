@@ -4,13 +4,13 @@ from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
 from ...utils.date import handle_date
-from ...database.enum import ScheduleType, ScheduleItemUserType, UserRole
+from ...database.enum import ScheduleType, ScheduleItemUserType
 from database_api.operations import create, db_session_decorator
 from ...database.schema import (
   Schedule,
   User,
   Order,
-  DeliveryGroup,
+  DeliveryUserInfo,
   Transport,
   ScheduleItem,
   ScheduleItemCollectionPoint,
@@ -25,8 +25,10 @@ from ...database.schema import (
 
 # Le join che la query degli id sa aggiungere, con la loro clausola ON.
 _ID_QUERY_JOINS = {
-  'delivery_group': (DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id),
-  'user': (User, DeliveryGroup.user_id == User.id),
+  # Gli utenti delivery del borderò sono quelli del suo veicolo: si passa
+  # sempre di lì, non esiste più un aggancio diretto borderò-utente.
+  'delivery_user_info': (DeliveryUserInfo, DeliveryUserInfo.transport_id == Schedule.transport_id),
+  'user': (User, DeliveryUserInfo.user_id == User.id),
   'schedule_item': (ScheduleItem, ScheduleItem.schedule_id == Schedule.id),
   'schedule_item_order': (
     ScheduleItemOrder,
@@ -48,8 +50,8 @@ _ID_QUERY_JOINS = {
 # per arrivarci, in ordine di dipendenza. Le chiavi sono i nomi che il frontend
 # manda dentro filter['model']; chi non compare qui si filtra su schedule.
 _FILTER_MODEL_JOINS = {
-  'DeliveryGroup': ('delivery_group',),
-  'User': ('delivery_group', 'user'),
+  'DeliveryUserInfo': ('delivery_user_info',),
+  'User': ('delivery_user_info', 'user'),
   'ScheduleItem': ('schedule_item',),
   'ScheduleItemOrder': ('schedule_item', 'schedule_item_order'),
   'Order': ('schedule_item', 'schedule_item_order', 'order'),
@@ -85,11 +87,11 @@ def query_schedule_ids(filters: list, limit: int, session: session_type) -> list
   serve a scegliere: transport, che è uno a uno con il borderò e non moltiplica
   niente, e le tabelle nominate dai filtri.
 
-  Le inner join su schedule_item e delivery_group della query di dettaglio
-  scartano i borderò senza item o senza assegnatari: quel taglio va riprodotto,
-  ma come EXISTS, che non moltiplica le righe. Le outer join verso ordini,
-  prodotti e punti di ritiro invece non scartano niente, quindi qui non servono
-  e vengono aggiunte solo se un filtro le nomina.
+  La inner join su schedule_item della query di dettaglio scarta i borderò
+  senza item: quel taglio va riprodotto, ma come EXISTS, che non moltiplica le
+  righe. Le outer join verso utenti delivery, ordini, prodotti e punti di
+  ritiro invece non scartano niente, quindi qui non servono e vengono aggiunte
+  solo se un filtro le nomina.
   """
   query = session.query(Schedule.id).join(Transport, Schedule.transport_id == Transport.id)
 
@@ -103,13 +105,6 @@ def query_schedule_ids(filters: list, limit: int, session: session_type) -> list
 
   if 'schedule_item' not in joined:
     query = query.filter(session.query(ScheduleItem).filter(ScheduleItem.schedule_id == Schedule.id).exists())
-  if 'delivery_group' not in joined:
-    query = query.filter(
-      session.query(DeliveryGroup)
-      .join(User, DeliveryGroup.user_id == User.id)
-      .filter(DeliveryGroup.schedule_id == Schedule.id)
-      .exists()
-    )
 
   query = _apply_filters(query, filters)
   # Il GROUP BY serve solo a deduplicare quello che moltiplicano le join dei
@@ -147,8 +142,10 @@ def query_schedules(
       )
       .outerjoin(Order, ScheduleItemOrder.order_id == Order.id)
       .outerjoin(Product, Order.id == Product.order_id)
-      .join(DeliveryGroup, DeliveryGroup.schedule_id == Schedule.id)
-      .join(User, DeliveryGroup.user_id == User.id)
+      # Outer: un veicolo senza corrieri assegnati non deve far sparire il
+      # borderò dalla lista, semplicemente lo mostra senza utenti.
+      .outerjoin(DeliveryUserInfo, DeliveryUserInfo.transport_id == Schedule.transport_id)
+      .outerjoin(User, DeliveryUserInfo.user_id == User.id)
     )
     if get_services:
       query = query.outerjoin(ServiceUser, Product.service_user_id == ServiceUser.id).outerjoin(
@@ -168,40 +165,37 @@ def query_schedules(
     return query.order_by(desc(Schedule.created_at)).all()
 
 
-@db_session_decorator(commit=False)
-def query_invalid_delivery_user_ids(user_ids: list[int], session: session_type = None) -> list[int]:
-  """Ritorna gli id che non corrispondono a utenti con ruolo DELIVERY."""
-  valid_ids = {row[0] for row in session.query(User.id).filter(User.id.in_(user_ids), User.role == UserRole.DELIVERY)}
-  return sorted(set(user_ids) - valid_ids)
+def transport_assignment_lock_key(transport_id: int, schedule_date) -> str:
+  return f'transport-assignment:{transport_id}:{str(schedule_date)[:10]}'
 
 
-def delivery_assignment_lock_key(user_id: int, schedule_date) -> str:
-  return f'delivery-assignment:{user_id}:{str(schedule_date)[:10]}'
+def lock_transport_assignment(transport_id: int, schedule_date, session: session_type):
+  """Serializza il check-then-create del borderò per (veicolo, data).
 
+  Il controllo è passato dall'utente al veicolo insieme alla relazione: gli
+  utenti delivery li porta il veicolo, quindi due borderò sullo stesso veicolo
+  nello stesso giorno sono la vecchia collisione "utente già assegnato".
 
-def lock_delivery_assignment(user_id: int, schedule_date, session: session_type):
-  """Serializza il check-then-create dei DeliveryGroup per (utente, data).
-
-  Il lock advisory è transazionale: viene rilasciato al commit/rollback
-  della sessione, quindi due richieste concorrenti non possono superare
-  entrambe il controllo query_schedules_count per la stessa coppia.
+  Il lock advisory è transazionale: viene rilasciato al commit/rollback della
+  sessione, quindi due richieste concorrenti non possono superare entrambe il
+  controllo query_schedules_count per la stessa coppia.
   """
   session.execute(
     text('SELECT pg_advisory_xact_lock(hashtext(:key))'),
-    {'key': delivery_assignment_lock_key(user_id, schedule_date)},
+    {'key': transport_assignment_lock_key(transport_id, schedule_date)},
   )
 
 
 @db_session_decorator(commit=False)
 def query_schedules_count(
-  user_id: int,
+  transport_id: int,
   schedule_date: datetime,
   exclude_schedule_id: int = None,
   session: session_type = None,
 ) -> int:
-  query = session.query(DeliveryGroup).join(
-    Schedule,
-    and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == user_id, Schedule.date == schedule_date),
+  query = session.query(Schedule).filter(
+    Schedule.transport_id == transport_id,
+    Schedule.date == schedule_date,
   )
   if exclude_schedule_id is not None:
     query = query.filter(Schedule.id != exclude_schedule_id)
@@ -381,8 +375,14 @@ def get_schedule_items(
 
 
 @db_session_decorator(commit=False)
-def get_delivery_groups(schedule: Schedule, session: session_type = None) -> list[DeliveryGroup]:
-  return session.query(DeliveryGroup).filter(DeliveryGroup.schedule_id == schedule.id).all()
+def get_schedule_delivery_users(schedule: Schedule, session: session_type = None) -> list[User]:
+  """Gli utenti delivery del borderò: quelli assegnati al suo veicolo."""
+  return (
+    session.query(User)
+    .join(DeliveryUserInfo, DeliveryUserInfo.user_id == User.id)
+    .filter(DeliveryUserInfo.transport_id == schedule.transport_id)
+    .all()
+  )
 
 
 @db_session_decorator(commit=False)
@@ -432,41 +432,6 @@ def _close_schedule_position_if_done(schedule_id: int, session: session_type = N
     {'schedule_id': schedule_id, 'user_id': latest.user_id, 'type': ScheduleItemUserType.CLOSING},
     session=session,
   )
-
-
-def get_delivery_groups_by_order_id(order_id: int) -> list[DeliveryGroup]:
-  with Session() as session:
-    return (
-      session.query(DeliveryGroup)
-      .join(
-        Schedule,
-        DeliveryGroup.schedule_id == Schedule.id,
-      )
-      .join(
-        ScheduleItem,
-        ScheduleItem.schedule_id == Schedule.id,
-      )
-      .join(
-        ScheduleItemOrder,
-        and_(
-          ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
-          ScheduleItemOrder.order_id == order_id,
-          ScheduleItem.operation_type == ScheduleType.ORDER,
-        ),
-      )
-      .all()
-    )
-
-
-def get_delivery_users_by_date(date: datetime) -> list[User]:
-  with Session() as session:
-    return (
-      session.query(User)
-      .outerjoin(DeliveryGroup, User.id == DeliveryGroup.user_id)
-      .outerjoin(Schedule, Schedule.id == DeliveryGroup.schedule_id)
-      .filter(or_(Schedule.date != date, Schedule.id.is_(None)), User.role == UserRole.DELIVERY)
-      .all()
-    )
 
 
 def get_transports_by_date(date: datetime) -> list[Transport]:

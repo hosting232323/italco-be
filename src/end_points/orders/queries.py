@@ -17,7 +17,7 @@ from ...database.schema import (
   CollectionPoint,
   Photo,
   Schedule,
-  DeliveryGroup,
+  DeliveryUserInfo,
   CustomerGroup,
   ScheduleItem,
   ScheduleItemOrder,
@@ -63,7 +63,10 @@ def query_orders(
           query.join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
           .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
           .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
-          .join(DeliveryGroup, and_(DeliveryGroup.schedule_id == Schedule.id, DeliveryGroup.user_id == value))
+          .join(
+            DeliveryUserInfo,
+            and_(DeliveryUserInfo.transport_id == Schedule.transport_id, DeliveryUserInfo.user_id == value),
+          )
         )
         continue
 

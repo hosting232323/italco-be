@@ -10,7 +10,7 @@ from src.end_points.schedule.queries import get_latest_schedule_item_user
 from tests.unit.factories import (
   auth_header,
   create_collection_point,
-  create_delivery_group,
+  assign_delivery_user_to_schedule,
   create_order,
   create_product,
   create_schedule,
@@ -25,7 +25,7 @@ from tests.unit.factories import (
 def _delivery_with_schedule(schedule_date=None):
   delivery = create_user(UserRole.DELIVERY)
   schedule = create_schedule(schedule_date=schedule_date or date.today())
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
   return delivery, schedule
 
 

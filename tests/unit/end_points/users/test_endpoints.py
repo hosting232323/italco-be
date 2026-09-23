@@ -522,25 +522,25 @@ def test_save_user_info_delivery_class(client):
 
   response = client.post(
     '/user/info',
-    json={'user_id': delivery.id, 'class': 'Delivery', 'data': {'cap': '70020'}},
+    json={'user_id': delivery.id, 'class': 'Delivery', 'data': {'lat': 41.1, 'lon': 16.8}},
     headers=auth_header(admin),
   )
 
   assert response.get_json()['status'] == 'ok'
   with Session() as session:
-    assert session.query(DeliveryUserInfo).filter_by(user_id=delivery.id).one().cap == '70020'
+    assert session.query(DeliveryUserInfo).filter_by(user_id=delivery.id).one().lat is not None
 
 
 def test_save_user_info_helper_is_idempotent(db):
   delivery = create_user(UserRole.DELIVERY)
 
-  users_endpoints.save_user_info(delivery.id, {'cap': '70020'}, DeliveryUserInfo)
-  users_endpoints.save_user_info(delivery.id, {'cap': '70121'}, DeliveryUserInfo)
+  users_endpoints.save_user_info(delivery.id, {'lat': 41.1, 'lon': 16.8}, DeliveryUserInfo)
+  users_endpoints.save_user_info(delivery.id, {'lat': 41.2, 'lon': 16.9}, DeliveryUserInfo)
 
   with Session() as session:
     infos = session.query(DeliveryUserInfo).filter_by(user_id=delivery.id).all()
     assert len(infos) == 1
-    assert infos[0].cap == '70121'
+    assert float(infos[0].lat) == 41.2
 
 
 def test_save_user_info_keeps_the_other_fields(db):
@@ -593,10 +593,10 @@ def test_user_info_allows_a_single_row_per_user(db):
     create_customer_info(customer, email='doppione@example.com')
 
   delivery = create_user(UserRole.DELIVERY)
-  create_delivery_info(delivery, cap='70020')
+  create_delivery_info(delivery, lat=41.1, lon=16.8)
 
   with pytest.raises(IntegrityError):
-    create_delivery_info(delivery, cap='70121')
+    create_delivery_info(delivery, lat=41.2, lon=16.9)
 
 
 def test_save_user_info_ignores_the_row_identifiers_in_the_payload(client, db):

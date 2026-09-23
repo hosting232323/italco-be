@@ -64,6 +64,12 @@ class Company(BaseEntity):
   city = Column(String)
   rae_registration = Column(String)
 
+  # Orario di apertura e chiusura dell'attività: la finestra in cui l'attività
+  # lavora, non quella di un singolo veicolo. Nullable come il resto
+  # dell'anagrafica, l'obbligatorietà la impone l'endpoint.
+  activity_start_time = Column(Time)
+  activity_end_time = Column(Time)
+
 
 class User(BaseItalcoEntity):
   __tablename__ = 'user'
@@ -78,7 +84,6 @@ class User(BaseItalcoEntity):
 
   rae_product = relationship('RaeProduct', back_populates='user')
   customer_group = relationship('CustomerGroup', back_populates='user')
-  delivery_group = relationship('DeliveryGroup', back_populates='user')
   delivery_user_info = relationship('DeliveryUserInfo', back_populates='user')
   customer_user_info = relationship('CustomerUserInfo', back_populates='user')
   service_user = relationship('ServiceUser', back_populates='user', cascade='all, delete-orphan')
@@ -111,7 +116,6 @@ class DeliveryUserInfo(BaseItalcoEntity):
   # l'app mostrerebbe a caso quella vuota (vedi migrazione 059).
   __table_args__ = (UniqueConstraint('user_id', name='uq_delivery_user_info_user_id'),)
 
-  cap = Column(String)
   lat = Column(Numeric(11, 8))
   lon = Column(Numeric(11, 8))
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
@@ -187,20 +191,13 @@ class CustomerGroup(BaseItalcoEntity):
   user = relationship('User', back_populates='customer_group')
 
 
-class DeliveryGroup(BaseItalcoEntity):
-  __tablename__ = 'delivery_group'
-  __table_args__ = (UniqueConstraint('schedule_id', 'user_id', name='uq_delivery_group_schedule_user'),)
-
-  user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
-  schedule_id = Column(Integer, ForeignKey('schedule.id'), nullable=False)
-
-  user = relationship('User', back_populates='delivery_group')
-  schedule = relationship('Schedule', back_populates='delivery_group')
-
-
 class Transport(BaseItalcoEntity):
   __tablename__ = 'transport'
 
+  # Indirizzo di partenza del veicolo, scelto con lo stesso autocomplete degli
+  # altri indirizzi: il cap non è più la località scelta a mano da una lista
+  # chiusa, lo ricava l'autocomplete dall'indirizzo.
+  address = Column(String)
   cap = Column(String)
   name = Column(String, nullable=False)
   plate = Column(String, nullable=False)
@@ -265,6 +262,13 @@ class History(BaseItalcoEntity):
 
 
 class Schedule(BaseItalcoEntity):
+  """Il borderò di giornata di un veicolo.
+
+  Gli utenti delivery non sono più agganciati qui: stanno sul veicolo
+  (DeliveryUserInfo.transport_id), e il borderò li eredita passando da
+  transport_id. Chi guida quel veicolo quel giorno guida quel borderò.
+  """
+
   __tablename__ = 'schedule'
   # Chiave con cui la pagina dei borderò sceglie gli ultimi N dell'attività:
   # senza questo indice quella scelta scansiona tutto l'archivio (migration 055).
@@ -281,7 +285,6 @@ class Schedule(BaseItalcoEntity):
   transport = relationship('Transport', back_populates='schedule')
   rae_disposal_place = relationship('RaeDisposalPlace')
   schedule_item = relationship('ScheduleItem', back_populates='schedule')
-  delivery_group = relationship('DeliveryGroup', back_populates='schedule')
   schedule_item_user = relationship('ScheduleItemUser', back_populates='schedule')
 
 

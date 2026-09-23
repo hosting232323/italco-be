@@ -3,13 +3,11 @@ from datetime import date, timedelta
 from src.database.enum import OrderStatus, ScheduleItemUserType, ScheduleType, UserRole
 from src.end_points.schedule.queries import (
   close_schedule_position_if_done,
-  get_delivery_groups,
-  get_delivery_groups_by_order_id,
-  get_delivery_users_by_date,
   get_latest_schedule_item_user,
   get_schedule_by_order,
   get_schedule_item_by_order,
   get_schedule_item_users,
+  get_schedule_delivery_users,
   get_schedule_items,
   get_transports_by_date,
   query_schedule_ids,
@@ -23,7 +21,7 @@ from src.database.schema import ScheduleItemCollectionPoint
 
 from tests.unit.factories import (
   create_collection_point,
-  create_delivery_group,
+  assign_delivery_user_to_schedule,
   create_order,
   create_product,
   create_schedule,
@@ -42,7 +40,7 @@ def _full_schedule(service_user, schedule_date=None):
   schedule = create_schedule(schedule_date=schedule_date)
   item = link_order_to_schedule(order, schedule)
   delivery = create_user(UserRole.DELIVERY)
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
   return order, schedule, item, delivery
 
 
@@ -109,14 +107,15 @@ def test_query_schedule_ids_takes_the_most_recent(db):
     assert query_schedule_ids([], 1, session) == [recente.id]
 
 
-def test_query_schedule_ids_skips_schedules_without_items_or_delivery(db):
-  """Le inner join della query di dettaglio scartano questi borderò: la scelta
-  degli id, che quelle join non le fa più, deve scartarli comunque."""
+def test_query_schedule_ids_skips_schedules_without_items(db):
+  """La inner join su schedule_item della query di dettaglio scarta i borderò
+  senza tappe: la scelta degli id, che quella join non la fa più, deve
+  scartarli comunque. Un borderò senza corrieri invece resta: il veicolo
+  potrebbe non averne ancora, e il borderò esiste lo stesso."""
   _, _, service_user, _ = customer_with_service()
   _, completo, _, _ = _full_schedule(service_user)
 
-  senza_item = create_schedule()
-  create_delivery_group(create_user(UserRole.DELIVERY), senza_item)
+  create_schedule()  # nessuna tappa
 
   senza_delivery = create_schedule()
   create_schedule_item(senza_delivery)
@@ -124,7 +123,7 @@ def test_query_schedule_ids_skips_schedules_without_items_or_delivery(db):
   with Session() as session:
     ids = query_schedule_ids([], 10, session)
 
-  assert ids == [completo.id]
+  assert set(ids) == {completo.id, senza_delivery.id}
 
 
 def test_query_schedules_filter_on_joined_model(db):
@@ -140,12 +139,12 @@ def test_query_schedules_filter_on_joined_model(db):
 
 
 def test_query_schedules_count(db):
-  delivery = create_user(UserRole.DELIVERY)
-  schedule = create_schedule(schedule_date=date.today())
-  create_delivery_group(delivery, schedule)
+  transport = create_transport()
+  schedule = create_schedule(transport, schedule_date=date.today())
 
-  assert query_schedules_count(delivery.id, date.today()) == 1
-  assert query_schedules_count(delivery.id, date.today() + timedelta(days=1)) == 0
+  assert query_schedules_count(transport.id, date.today()) == 1
+  assert query_schedules_count(transport.id, date.today() + timedelta(days=1)) == 0
+  assert query_schedules_count(transport.id, date.today(), exclude_schedule_id=schedule.id) == 0
 
 
 def test_get_schedule_item_and_schedule_by_order(db):
@@ -202,39 +201,14 @@ def test_get_schedule_items_returns_tuples_by_type(db):
   assert by_item_id[cp_item.id][2] is None
 
 
-def test_get_delivery_groups_for_schedule(db):
+def test_get_schedule_delivery_users_comes_from_the_transport(db):
   delivery = create_user(UserRole.DELIVERY)
   schedule = create_schedule()
-  group = create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
 
-  results = get_delivery_groups(schedule)
-
-  assert [g.id for g in results] == [group.id]
-
-
-def test_get_delivery_groups_by_order_id(db):
-  order = create_order()
-  schedule = create_schedule()
-  link_order_to_schedule(order, schedule)
-  delivery = create_user(UserRole.DELIVERY)
-  group = create_delivery_group(delivery, schedule)
-
-  results = get_delivery_groups_by_order_id(order.id)
-
-  assert [g.id for g in results] == [group.id]
-  assert get_delivery_groups_by_order_id(create_order().id) == []
-
-
-def test_get_delivery_users_by_date_excludes_busy_drivers(db):
-  busy = create_user(UserRole.DELIVERY)
-  free = create_user(UserRole.DELIVERY)
-  create_user(UserRole.CUSTOMER)
-  schedule = create_schedule(schedule_date=date.today())
-  create_delivery_group(busy, schedule)
-
-  results = get_delivery_users_by_date(date.today())
-
-  assert [user.id for user in results] == [free.id]
+  assert [user.id for user in get_schedule_delivery_users(schedule)] == [delivery.id]
+  # Un borderò su un altro veicolo non eredita niente da questo.
+  assert get_schedule_delivery_users(create_schedule()) == []
 
 
 def test_get_transports_by_date_excludes_used_vehicles(db):
