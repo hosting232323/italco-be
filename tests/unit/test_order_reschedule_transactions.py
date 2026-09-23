@@ -15,7 +15,7 @@ from src.database.schema import (
   Transport,
 )
 from src.database.enum import UserRole
-from src.database.schema import DeliveryGroup
+from src.database.schema import DeliveryUserInfo
 from src.end_points.orders.clone import reschedule_products
 from src.end_points.schedule.queries import get_schedule_item_by_order
 from tests.unit.factories import create_user
@@ -59,14 +59,13 @@ def test_reschedule_to_transport_uses_order_schedule_transport_in_session(seeded
     order = session.query(Order).filter(~Order.schedule_item_order.any()).first()
     service_user_id = session.query(ServiceUser.id).first()[0]
     old_transport = session.query(Transport).first()
-    old_schedule = create(
-      Schedule, {'date': date.today() - timedelta(days=1), 'transport_id': old_transport.id}, session=session
-    )
-    create(DeliveryGroup, {'schedule_id': old_schedule.id, 'user_id': delivery.id}, session=session)
+    create(Schedule, {'date': date.today() - timedelta(days=1), 'transport_id': old_transport.id}, session=session)
 
     current_transport = create(Transport, {'name': 'furgone-attuale', 'plate': 'ZZ999ZZ'}, session=session)
     current_schedule = create(Schedule, {'date': date.today(), 'transport_id': current_transport.id}, session=session)
-    create(DeliveryGroup, {'schedule_id': current_schedule.id, 'user_id': delivery.id}, session=session)
+    # Il corriere sta sul mezzo attuale: quello storico resta solo un borderò
+    # del passato, senza nessuno agganciato.
+    create(DeliveryUserInfo, {'user_id': delivery.id, 'transport_id': current_transport.id}, session=session)
     item = create(
       ScheduleItem,
       {'index': 0, 'operation_type': ScheduleType.ORDER, 'schedule_id': current_schedule.id},
