@@ -4,7 +4,7 @@ import requests
 from geopy.distance import geodesic
 
 from ... import OSRM_BASE_URL
-from ...database.schema import Order
+from ...database.schema import CollectionPoint, Order, Transport
 from ...utils.caps import get_lat_lon_by_address, get_lat_lon_by_cap
 
 logger = logging.getLogger(__name__)
@@ -121,6 +121,81 @@ def get_lat_lon_for_order(order: Order) -> tuple[float, float] | tuple[None, Non
     if lat is not None:
       return lat, lon
   return get_lat_lon_by_cap(getattr(order, 'cap', '') or '')
+
+
+def _address_or_cap_coords(entity) -> tuple[float, float] | tuple[None, None]:
+  """Indirizzo completo se geocodificabile, altrimenti centroide del CAP.
+
+  Stesso criterio di get_lat_lon_for_order. Senza ne' indirizzo ne' CAP non si
+  interroga il geocoder: una ricerca a mani vuote costerebbe comunque una
+  chiamata di rete per dire che non c'e' niente.
+  """
+  if entity is None:
+    return None, None
+  address = getattr(entity, 'address', None)
+  if address:
+    lat, lon = get_lat_lon_by_address(address)
+    if lat is not None:
+      return lat, lon
+  cap = getattr(entity, 'cap', None)
+  if not cap:
+    return None, None
+  return get_lat_lon_by_cap(cap)
+
+
+def get_lat_lon_for_transport(transport: Transport) -> tuple[float, float] | tuple[None, None]:
+  """Punto di partenza del veicolo: il suo indirizzo, o il centroide del CAP se manca.
+
+  Stesso criterio di get_lat_lon_for_order: l'indirizzo e' la posizione vera del
+  deposito, il CAP e' il ripiego per i veicoli che l'indirizzo non ce l'hanno
+  ancora (e' arrivato con la migration 064, prima c'era solo la localita').
+  """
+  return _address_or_cap_coords(transport)
+
+
+def get_lat_lon_for_collection_point(collection_point: CollectionPoint) -> tuple[float, float] | tuple[None, None]:
+  """Coordinate del punto di ritiro, con lo stesso indirizzo-poi-CAP degli ordini."""
+  return _address_or_cap_coords(collection_point)
+
+
+def _nearest(origin: tuple[float, float], candidates: list[tuple[float, float]]) -> tuple[float, float]:
+  """La candidata piu' vicina a ``origin`` in linea d'aria.
+
+  La scelta si fa con geodesic (gratis): misurare con OSRM ogni coppia per
+  decidere l'ordine costerebbe una matrice per ogni valutazione di fascia,
+  dentro un ciclo che gira gia' per ognuna. La durata vera del percorso scelto
+  la misura OSRM una volta sola, in front_route_minutes.
+  """
+  return min(candidates, key=lambda candidate: geodesic(origin, candidate).kilometers)
+
+
+def front_route_minutes(
+  start: tuple[float, float],
+  pickups: list[tuple[float, float]],
+  deliveries: list[tuple[float, float]],
+) -> int:
+  """Minuti del lavoro "in testa" alla giornata: dal veicolo, attraverso i punti
+  di ritiro, fino alla zona della prima consegna.
+
+  Il veicolo parte dal suo deposito, passa dai ritiri (sempre al piu' vicino
+  rimasto, come li mette in fila il borderò: ritiri prima delle consegne, vedi
+  schedulation/routing.py) e poi si sposta verso la consegna piu' vicina
+  all'ultimo ritiro. Senza ritiri va dritto alla prima consegna. Il tratto che
+  serve a *fare* i ritiri non e' qui: sono i minuti di sosta, li conta
+  calculate_orders_pickup_minutes.
+
+  Zero se non c'e' nessuna tappa da raggiungere.
+  """
+  path = [start]
+  current = start
+  remaining = list(pickups)
+  while remaining:
+    current = _nearest(current, remaining)
+    remaining.remove(current)
+    path.append(current)
+  if deliveries:
+    path.append(_nearest(current, list(deliveries)))
+  return sequential_travel_minutes(path)
 
 
 def calculate_travel_overhead_minutes(

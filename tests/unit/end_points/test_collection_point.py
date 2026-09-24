@@ -1,3 +1,6 @@
+from unittest.mock import patch
+
+import requests
 from database_api.operations import get_by_id
 
 from src.database.enum import UserRole
@@ -49,6 +52,59 @@ def test_get_collection_points_admin_sees_all(client):
   response = client.get('/collection-point', headers=auth_header(admin))
 
   assert len(response.get_json()['collection_points']) == 2
+
+
+@patch('src.end_points.collection_point.get_lat_lon_by_address')
+def test_get_collection_points_includes_geocoded_coordinates(mock_geocode, client):
+  mock_geocode.return_value = (41.1, 16.8)
+  customer = create_user(UserRole.CUSTOMER)
+  create_collection_point(customer)
+
+  response = client.get('/collection-point', headers=auth_header(customer))
+
+  point = response.get_json()['collection_points'][0]
+  assert (point['lat'], point['lon']) == (41.1, 16.8)
+
+
+@patch('src.end_points.collection_point.get_lat_lon_by_address')
+def test_get_collection_points_lat_lon_none_when_geocoding_fails(mock_geocode, client):
+  mock_geocode.return_value = (None, None)
+  customer = create_user(UserRole.CUSTOMER)
+  create_collection_point(customer)
+
+  response = client.get('/collection-point', headers=auth_header(customer))
+
+  point = response.get_json()['collection_points'][0]
+  assert (point['lat'], point['lon']) == (None, None)
+
+
+@patch('src.end_points.collection_point.get_lat_lon_by_address', side_effect=requests.ConnectionError('giù'))
+def test_get_collection_points_survives_an_unreachable_geocoder(_geocode, client):
+  """Nominatim giù: la lista dei punti di ritiro si legge lo stesso, solo senza coordinate."""
+  customer = create_user(UserRole.CUSTOMER)
+  create_collection_point(customer)
+
+  response = client.get('/collection-point', headers=auth_header(customer))
+
+  body = response.get_json()
+  assert body['status'] == 'ok'
+  point = body['collection_points'][0]
+  assert (point['lat'], point['lon']) == (None, None)
+  assert point['name']
+
+
+@patch('src.end_points.collection_point.get_lat_lon_by_address')
+def test_get_collection_points_geocodes_each_point_independently(mock_geocode, client):
+  """Un punto non geocodificabile non toglie le coordinate agli altri."""
+  mock_geocode.side_effect = lambda address: (41.1, 16.8) if 'Trovato' in address else (None, None)
+  customer = create_user(UserRole.CUSTOMER)
+  create_collection_point(customer, address='Via Trovato 1, Bari')
+  create_collection_point(customer, address='Via Perduta 1, Bari')
+
+  response = client.get('/collection-point', headers=auth_header(customer))
+
+  by_address = {point['address']: (point['lat'], point['lon']) for point in response.get_json()['collection_points']}
+  assert by_address == {'Via Trovato 1, Bari': (41.1, 16.8), 'Via Perduta 1, Bari': (None, None)}
 
 
 def test_update_collection_point(client):
