@@ -178,3 +178,99 @@ def test_trip_order_osrm_returns_none_on_non_ok_code(mock_get):
 @patch('src.end_points.service.travel.requests.get', side_effect=Exception('boom'))
 def test_trip_order_osrm_returns_none_when_osrm_unavailable(mock_get):
   assert trip_order_osrm([BARI, MOLFETTA]) is None
+
+
+# ---------------------------------------------------------------------------
+# Strada in testa alla giornata: veicolo -> ritiri -> prima consegna
+# ---------------------------------------------------------------------------
+
+BISCEGLIE = (41.2428, 16.5053)
+TRANI = (41.2769, 16.4172)
+BARLETTA = (41.3197, 16.2836)
+FOGGIA = (41.4622, 15.5446)
+
+
+@patch('src.end_points.service.travel.sequential_travel_minutes', return_value=42)
+def test_front_route_visits_pickups_nearest_first_then_the_delivery_closest_to_the_last(mock_sequential):
+  # Il veicolo sta a Bisceglie: dei due ritiri passa prima da Trani (piu' vicino),
+  # poi da Foggia; dopo Foggia va verso la consegna che le e' piu' vicina, Barletta.
+  minutes = travel.front_route_minutes(BISCEGLIE, pickups=[FOGGIA, TRANI], deliveries=[BARI, BARLETTA])
+
+  assert minutes == 42
+  assert mock_sequential.call_args.args[0] == [BISCEGLIE, TRANI, FOGGIA, BARLETTA]
+
+
+@patch('src.end_points.service.travel.sequential_travel_minutes', return_value=10)
+def test_front_route_without_pickups_goes_straight_to_the_nearest_delivery(mock_sequential):
+  travel.front_route_minutes(BISCEGLIE, pickups=[], deliveries=[BARI, TRANI])
+
+  assert mock_sequential.call_args.args[0] == [BISCEGLIE, TRANI]
+
+
+@patch('src.end_points.service.travel.sequential_travel_minutes', return_value=10)
+def test_front_route_without_deliveries_ends_at_the_last_pickup(mock_sequential):
+  travel.front_route_minutes(BISCEGLIE, pickups=[TRANI], deliveries=[])
+
+  assert mock_sequential.call_args.args[0] == [BISCEGLIE, TRANI]
+
+
+def test_front_route_is_zero_when_there_is_nothing_to_reach():
+  # Il solo veicolo non e' un percorso: niente chiamata a OSRM, niente minuti.
+  with patch('src.end_points.service.travel.travel_time_matrix_osrm') as mock_osrm:
+    assert travel.front_route_minutes(BISCEGLIE, pickups=[], deliveries=[]) == 0
+  mock_osrm.assert_not_called()
+
+
+@patch('src.end_points.service.travel.sequential_travel_minutes', return_value=10)
+def test_front_route_keeps_two_pickups_at_the_same_place(mock_sequential):
+  # Due punti di ritiro sullo stesso indirizzo non si perdono per strada.
+  travel.front_route_minutes(BISCEGLIE, pickups=[TRANI, TRANI], deliveries=[])
+
+  assert mock_sequential.call_args.args[0] == [BISCEGLIE, TRANI, TRANI]
+
+
+def test_lat_lon_for_transport_falls_back_to_the_cap_when_the_address_is_not_found():
+  transport = type('T', (), {'address': 'Via Sconosciuta 1', 'cap': '76011'})()
+  with (
+    patch('src.end_points.service.travel.get_lat_lon_by_address', return_value=(None, None)),
+    patch('src.end_points.service.travel.get_lat_lon_by_cap', return_value=BISCEGLIE) as mock_cap,
+  ):
+    assert travel.get_lat_lon_for_transport(transport) == BISCEGLIE
+  mock_cap.assert_called_once_with('76011')
+
+
+def test_lat_lon_for_transport_does_not_call_the_geocoder_without_address_or_cap():
+  transport = type('T', (), {'address': None, 'cap': None})()
+  with (
+    patch('src.end_points.service.travel.get_lat_lon_by_address') as mock_address,
+    patch('src.end_points.service.travel.get_lat_lon_by_cap') as mock_cap,
+  ):
+    assert travel.get_lat_lon_for_transport(transport) == (None, None)
+  mock_address.assert_not_called()
+  mock_cap.assert_not_called()
+
+
+def test_lat_lon_for_order_without_an_address_uses_the_cap():
+  order = type('O', (), {'address': None, 'cap': '70051'})()
+  with (
+    patch('src.end_points.service.travel.get_lat_lon_by_address') as mock_address,
+    patch('src.end_points.service.travel.get_lat_lon_by_cap', return_value=BARI) as mock_cap,
+  ):
+    assert travel.get_lat_lon_for_order(order) == BARI
+  mock_address.assert_not_called()
+  mock_cap.assert_called_once_with('70051')
+
+
+def test_lat_lon_for_a_missing_entity_is_empty():
+  assert travel.get_lat_lon_for_transport(None) == (None, None)
+  assert travel.get_lat_lon_for_collection_point(None) == (None, None)
+
+
+def test_lat_lon_for_collection_point_uses_the_address_first():
+  point = type('P', (), {'address': 'Via Magazzino 1, Molfetta', 'cap': '70056'})()
+  with (
+    patch('src.end_points.service.travel.get_lat_lon_by_address', return_value=MOLFETTA),
+    patch('src.end_points.service.travel.get_lat_lon_by_cap') as mock_cap,
+  ):
+    assert travel.get_lat_lon_for_collection_point(point) == MOLFETTA
+  mock_cap.assert_not_called()

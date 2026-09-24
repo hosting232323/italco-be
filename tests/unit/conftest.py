@@ -1,8 +1,10 @@
 import os
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
+import requests
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
@@ -148,3 +150,58 @@ def app():
 @pytest.fixture
 def client(app, db):
   return app.test_client()
+
+
+class OfflineGeo:
+  """Geocoding e OSRM finti, con i percorsi che il codice ha chiesto.
+
+  I test della capienza delle fasce passano dal geocoder (veicolo, ritiri,
+  ordini) e da OSRM (minuti di strada): senza questa fixture chiamerebbero il
+  vero Nominatim e passerebbero solo con la rete su. Qui i luoghi si dichiarano
+  (``places``: sottostringa dell'indirizzo -> coordinata, ``caps``: CAP ->
+  coordinata), i minuti di ogni percorso li decide il test (``minutes``, un
+  numero o una funzione del percorso) e ``paths`` registra i percorsi chiesti,
+  per verificare l'ordine in cui il veicolo tocca le tappe.
+  """
+
+  def __init__(self):
+    self.places: dict[str, tuple] = {}
+    self.caps: dict[str, tuple] = {}
+    self.minutes = 0
+    self.paths: list[list[tuple]] = []
+    self.unreachable = False
+
+  def by_address(self, address):
+    if self.unreachable:
+      raise requests.ConnectionError('geocoder non raggiungibile')
+    for fragment, coord in self.places.items():
+      if fragment in (address or ''):
+        return coord
+    return None, None
+
+  def by_cap(self, cap):
+    if self.unreachable:
+      raise requests.ConnectionError('geocoder non raggiungibile')
+    return self.caps.get(cap, (None, None))
+
+  def sequential(self, coords):
+    self.paths.append(list(coords))
+    return self.minutes(coords) if callable(self.minutes) else self.minutes
+
+
+@pytest.fixture
+def offline_geo():
+  geo = OfflineGeo()
+  targets = {
+    'src.end_points.service.travel.get_lat_lon_by_address': geo.by_address,
+    'src.end_points.service.travel.get_lat_lon_by_cap': geo.by_cap,
+    'src.end_points.service.duration.get_lat_lon_by_address': geo.by_address,
+    'src.end_points.service.duration.get_lat_lon_by_cap': geo.by_cap,
+    'src.end_points.service.travel.sequential_travel_minutes': geo.sequential,
+  }
+  patches = [patch(target, replacement) for target, replacement in targets.items()]
+  for active in patches:
+    active.start()
+  yield geo
+  for active in patches:
+    active.stop()
