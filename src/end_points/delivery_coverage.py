@@ -272,6 +272,7 @@ def _entry_with_residual_capacity(
   exclude_order_id: int = None,
   new_cap: str = None,
   new_address: str = None,
+  new_products: dict = None,
 ) -> DeliveryCoverageEntry | None:
   """`entry` se ha capienza residua per `required_duration`, altrimenti la fascia
 
@@ -289,6 +290,7 @@ def _entry_with_residual_capacity(
       session=session,
       new_cap=new_cap,
       new_address=new_address,
+      new_products=new_products,
     )
     return capacity == 0 or (occupied + required_duration <= capacity)
 
@@ -309,6 +311,7 @@ def _first_with_residual_capacity(
   exclude_order_id: int = None,
   new_cap: str = None,
   new_address: str = None,
+  new_products: dict = None,
 ) -> DeliveryCoverageEntry | None:
   """Il primo blocco di `entries` (già in ordine di priorità) che, direttamente o con la
   fascia adiacente dello stesso veicolo, ha capienza per `required_duration`."""
@@ -322,6 +325,7 @@ def _first_with_residual_capacity(
         exclude_order_id=exclude_order_id,
         new_cap=new_cap,
         new_address=new_address,
+        new_products=new_products,
       )
       if effective is not None:
         return effective
@@ -335,11 +339,13 @@ def available_slots(
   exclude_order_id: int = None,
   new_cap: str = None,
   new_address: str = None,
+  new_products: dict = None,
 ) -> list[dict]:
   """Fasce orarie coperte dal CAP nel giorno della settimana di dpc con capienza residua
 
   sufficiente per la durata richiesta dei servizi dell'ordine. Include il travel overhead
-  (tempo percorso aggiuntivo) nel calcolo dei minuti occupati.
+  (tempo percorso aggiuntivo) e i minuti dei punti di ritiro (new_products) nel calcolo
+  dei minuti occupati.
 
   Una riga per fascia oraria: blocchi di veicoli diversi con la stessa fascia (start/end
   identici) compaiono una volta sola, con l'unione dei CAP, e la scelta del veicolo è di
@@ -369,6 +375,7 @@ def available_slots(
         exclude_order_id=exclude_order_id,
         new_cap=new_cap,
         new_address=new_address,
+        new_products=new_products,
       )
       if effective is not None:
         available.setdefault((entry.start_time, entry.end_time), []).append(entry)
@@ -389,6 +396,7 @@ def available_slots_by_date(
   exclude_order_id: int = None,
   new_cap: str = None,
   new_address: str = None,
+  new_products: dict = None,
 ) -> dict:
   # Sostituisce il vecchio check_geographic_zone in /check-constraints: la
   # data prevista dal cliente è selezionabile se il suo CAP è coperto da
@@ -407,6 +415,7 @@ def available_slots_by_date(
         exclude_order_id=exclude_order_id,
         new_cap=new_cap,
         new_address=new_address,
+        new_products=new_products,
       )
       if slots:
         result[start.strftime('%Y-%m-%d')] = slots
@@ -429,6 +438,7 @@ def check_delivery_coverage(*args, **kwargs) -> list[str]:
       exclude_order_id=exclude_order_id,
       new_cap=new_cap,
       new_address=payload.get('address'),
+      new_products=payload.get('products'),
     ).keys()
   )
 
@@ -447,6 +457,7 @@ def check_delivery_coverage_slots(*args, **kwargs) -> dict:
     exclude_order_id=exclude_order_id,
     new_cap=new_cap,
     new_address=payload.get('address'),
+    new_products=payload.get('products'),
   )
 
 
@@ -493,7 +504,13 @@ def resolve_delivery_slot(
       # Blocchi di veicoli diversi con la stessa fascia: si prova il primo veicolo (e le sue
       # fasce adiacenti) prima di passare al successivo, così ne riempie tutta la giornata.
       effective = _first_with_residual_capacity(
-        requested_entries, dpc, required_duration, exclude_order_id=exclude_order_id, new_cap=cap, new_address=address
+        requested_entries,
+        dpc,
+        required_duration,
+        exclude_order_id=exclude_order_id,
+        new_cap=cap,
+        new_address=address,
+        new_products=products,
       )
       # Se satura e senza fascia adiacente libera, onora comunque la scelta esplicita del
       # cliente (comportamento preesistente): meglio confermarla che rifiutare la data.
@@ -504,7 +521,13 @@ def resolve_delivery_slot(
   # cronologico (comprese le fasce adiacenti), poi il veicolo successivo.
   entries.sort(key=entry_priority_key)
   effective = _first_with_residual_capacity(
-    entries, dpc, required_duration, exclude_order_id=exclude_order_id, new_cap=cap, new_address=address
+    entries,
+    dpc,
+    required_duration,
+    exclude_order_id=exclude_order_id,
+    new_cap=cap,
+    new_address=address,
+    new_products=products,
   )
   chosen = effective or entries[0]
   return chosen.start_time, chosen.end_time
