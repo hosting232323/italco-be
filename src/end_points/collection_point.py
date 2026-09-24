@@ -1,3 +1,6 @@
+import logging
+
+import requests
 from sqlalchemy import and_, desc
 from flask import Blueprint, request
 
@@ -6,9 +9,27 @@ from ..database.enum import UserRole
 from . import flask_session_authentication
 from database_api.operations import create, delete, get_by_id, update
 from ..database.schema import CollectionPoint, User, ServiceUser, Product
+from ..utils.caps import get_lat_lon_by_address
 
+
+logger = logging.getLogger(__name__)
 
 collection_point_bp = Blueprint('collection_point_bp', __name__)
+
+
+def format_collection_point(collection_point: CollectionPoint) -> dict:
+  # lat/lon non sono colonne salvate: si geocodifica l'indirizzo a ogni lettura, come
+  # per i CAP disegnati sulla mappa in delivery_coverage.py (stessa cache di get_lat_lon_by_address).
+  # None se il geocoding fallisce: il FE lo interpreta come "nessun marker per questo punto".
+  # Vale anche se il geocoder e' giu': le coordinate servono solo alla mappa, e la stessa
+  # lista alimenta la scelta del punto di ritiro nella creazione dell'ordine, che non deve
+  # smettere di funzionare per un marker mancante.
+  try:
+    lat, lon = get_lat_lon_by_address(collection_point.address)
+  except requests.RequestException as error:
+    logger.warning('Geocoding del punto di ritiro %s non riuscito: %s', collection_point.id, error)
+    lat, lon = None, None
+  return {**collection_point.to_dict(), 'lat': lat, 'lon': lon}
 
 
 @collection_point_bp.route('', methods=['POST'])
@@ -30,7 +51,7 @@ def delete_collection_point(_, id):
 def get_collection_points(user: User):
   return {
     'status': 'ok',
-    'collection_points': [collection_point.to_dict() for collection_point in query_collection_points(user)],
+    'collection_points': [format_collection_point(cp) for cp in query_collection_points(user)],
   }
 
 
