@@ -11,6 +11,10 @@ from ...database.schema import (
   DeliveryCoverageEntry,
   Order,
   Product,
+  Schedule,
+  ScheduleItem,
+  ScheduleItemCollectionPoint,
+  ScheduleItemOrder,
   Service,
   ServiceUser,
   Transport,
@@ -203,23 +207,37 @@ def calculate_payload_pickup_minutes(payload_products: dict, exclude_collection_
   return PICKUP_POINT_MINUTES_PER_PRODUCT * count
 
 
-def is_first_entry_of_day(entry: DeliveryCoverageEntry, session: session_type) -> bool:
-  """Se ``entry`` e' la prima fascia della giornata di quel veicolo.
+def previous_entry_of_day(entry: DeliveryCoverageEntry, session: session_type) -> DeliveryCoverageEntry | None:
+  """La fascia dello stesso veicolo (stesso ``transport_id``, stesso giorno della
 
-  Conta solo per lei la tratta di avvicinamento: nelle fasce successive il
-  veicolo e' gia' in giro, arriva dall'ultima tappa della fascia precedente e
-  non riparte dal deposito.
+  settimana) immediatamente precedente a ``entry`` in ordine cronologico, o
+  None se ``entry`` e' la prima della giornata.
+
+  Non richiede contiguita': un buco tra le due fasce (es. 11:30-12:00) non
+  esclude l'adiacenza, conta solo l'ordine cronologico (stesso criterio di
+  ``_adjacent_coverage_entries`` in delivery_coverage.py, duplicato qui invece
+  di importato: quel modulo importa gia' da questo e chiuderebbe un cerchio).
   """
-  earlier = (
-    session.query(DeliveryCoverageEntry.id)
+  return (
+    session.query(DeliveryCoverageEntry)
     .filter(
       DeliveryCoverageEntry.transport_id == entry.transport_id,
       DeliveryCoverageEntry.day_of_week == entry.day_of_week,
       DeliveryCoverageEntry.start_time < entry.start_time,
     )
+    .order_by(DeliveryCoverageEntry.start_time.desc())
     .first()
   )
-  return earlier is None
+
+
+def is_first_entry_of_day(entry: DeliveryCoverageEntry, session: session_type) -> bool:
+  """Se ``entry`` e' la prima fascia della giornata di quel veicolo.
+
+  Conta solo per lei la tratta di avvicinamento dal deposito: nelle fasce
+  successive il veicolo e' gia' in giro, arriva dall'ultima tappa della fascia
+  precedente (vedi entry_transition_minutes) e non riparte dal deposito.
+  """
+  return previous_entry_of_day(entry, session) is None
 
 
 def _minutes(moment: time) -> int:
@@ -311,11 +329,155 @@ def entry_front_route_minutes(
     return 0
 
 
+def _schedule_item_coord(item: ScheduleItem, session: session_type) -> tuple | None:
+  """Coordinata della tappa reale del borderò a cui ``item`` e' agganciato
+
+  (l'ordine o il punto di ritiro), con lo stesso criterio indirizzo-poi-CAP
+  degli altri punti stimati in questo modulo. None se la tappa non risolve a
+  nessuno dei due (dato incoerente) o non e' geocodificabile.
+  """
+  from .travel import get_lat_lon_for_collection_point, get_lat_lon_for_order
+
+  sio = session.query(ScheduleItemOrder).filter(ScheduleItemOrder.schedule_item_id == item.id).first()
+  if sio:
+    order = session.query(Order).filter(Order.id == sio.order_id).first()
+    lat, lon = get_lat_lon_for_order(order) if order else (None, None)
+    return (lat, lon) if lat is not None else None
+
+  scp = (
+    session.query(ScheduleItemCollectionPoint).filter(ScheduleItemCollectionPoint.schedule_item_id == item.id).first()
+  )
+  if scp:
+    point = session.query(CollectionPoint).filter(CollectionPoint.id == scp.collection_point_id).first()
+    lat, lon = get_lat_lon_for_collection_point(point) if point else (None, None)
+    return (lat, lon) if lat is not None else None
+
+  return None
+
+
+def _schedule_stop_coord(entry: DeliveryCoverageEntry, dpc: date, session: session_type, last: bool) -> tuple | None:
+  """Coordinata della prima (``last=False``) o ultima (``last=True``) tappa del
+
+  borderò reale di ``entry`` in ``dpc``: e' il percorso davvero costruito dalla
+  pianificazione automatica e mostrato sulla mappa del borderò (vedi
+  schedulation/routing.py), non una stima come front_route_minutes.
+
+  None se il veicolo non ha ancora un borderò per quel giorno, o la fascia non
+  ha ancora tappe (fascia vuota, o pianificazione automatica non attiva su
+  questa company): e' un dato mancante, non deve bloccare la prenotazione.
+  """
+  schedule = (
+    session.query(Schedule)
+    .filter(Schedule.transport_id == entry.transport_id, Schedule.date == dpc)
+    .first()
+  )
+  if not schedule:
+    return None
+
+  order_by = ScheduleItem.index.desc() if last else ScheduleItem.index.asc()
+  item = (
+    session.query(ScheduleItem)
+    .filter(
+      ScheduleItem.schedule_id == schedule.id,
+      ScheduleItem.start_time_slot == entry.start_time,
+      ScheduleItem.end_time_slot == entry.end_time,
+    )
+    .order_by(order_by)
+    .first()
+  )
+  if not item:
+    return None
+
+  return _schedule_item_coord(item, session)
+
+
+def _entry_leftover_minutes(entry: DeliveryCoverageEntry, dpc: date, session: session_type) -> int:
+  """Minuti liberi rimasti nella capienza nominale di ``entry`` per il giorno ``dpc``.
+
+  Capienza (get_entry_capacity_minutes) meno l'occupato (entry_occupied_duration:
+  servizi, percorso, lavoro/trasferimento in entrata su questa fascia). Non
+  include l'uscita verso la fascia successiva: e' proprio il margine che
+  quella puo' ancora assorbire, prima di sforare sul buco tra le due (vedi
+  entry_transition_minutes).
+
+  Zero se la fascia non ha una capienza nominale (get_entry_capacity_minutes
+  torna 0 quando start/end_time mancano, trattata altrove come "illimitata":
+  qui, senza un vero limite da cui sottrarre l'occupato, si ripiega al valore
+  più conservativo, che scarica di più sulla fascia successiva).
+  """
+  capacity = get_entry_capacity_minutes(entry)
+  if capacity == 0:
+    return 0
+  occupied = entry_occupied_duration(entry, dpc, session=session)
+  return max(0, capacity - occupied)
+
+
+def entry_transition_minutes(
+  entry: DeliveryCoverageEntry,
+  orders: list[Order],
+  dpc: date,
+  session: session_type,
+  new_products: dict = None,
+  new_coord: tuple = None,
+) -> int:
+  """Minuti di spostamento dalla fine della fascia precedente (stesso veicolo,
+
+  stesso giorno) all'inizio di questa, che sforano sia il buco libero tra le
+  due sia il tempo libero rimasto nella capienza nominale della precedente.
+
+  Stessa logica del margine di apertura (vedi entry_lead_minutes/
+  entry_front_slot_minutes), applicata al buco tra due fasce invece che tra
+  apertura e prima fascia, con un margine in più: se il tragitto (dall'ultima
+  tappa reale del borderò della fascia precedente alla prima tappa di questa)
+  sta nel buco libero tra la fine della precedente e l'inizio di questa, e'
+  gratis. Se lo sfora, prima si guarda se la fascia precedente ha ancora
+  capienza libera (_entry_leftover_minutes, ottimizza il tempo: se e' quasi
+  piena e le resta poco margine, il corriere parte prima dentro il suo stesso
+  slot nominale invece di aspettare); solo quello che non sta né nel buco né
+  nel residuo della precedente pesa su questa fascia.
+
+  Zero per la prima fascia della giornata (gestita a parte da
+  entry_front_slot_minutes con il margine di apertura) o se manca uno degli
+  estremi (fascia precedente senza un borderò ancora costruito per quel
+  giorno, o senza tappe, o geocoder/OSRM irraggiungibili): e' una stima, non
+  deve poter bloccare una prenotazione.
+  """
+  previous = previous_entry_of_day(entry, session)
+  if previous is None or previous.end_time is None:
+    return 0
+
+  from_coord = _schedule_stop_coord(previous, dpc, session, last=True)
+  if from_coord is None:
+    return 0
+
+  try:
+    to_coord = _schedule_stop_coord(entry, dpc, session, last=False)
+    if to_coord is not None:
+      from .travel import sequential_travel_minutes
+
+      travel = sequential_travel_minutes([from_coord, to_coord])
+    else:
+      from .travel import front_route_minutes
+
+      pickups, deliveries = _front_route_coords(orders, session, new_products=new_products, new_coord=new_coord)
+      travel = front_route_minutes(from_coord, pickups, deliveries)
+  except requests.RequestException as error:
+    logger.warning('Spostamento tra fasce non calcolabile (geocoder/OSRM non raggiungibile): %s', error)
+    return 0
+
+  gap = max(0, _minutes(entry.start_time) - _minutes(previous.end_time))
+  overflow = max(0, travel - gap)
+  if overflow == 0:
+    return 0
+  return max(0, overflow - _entry_leftover_minutes(previous, dpc, session))
+
+
 def entry_front_slot_minutes(
   entry: DeliveryCoverageEntry,
   orders: list[Order],
   pickup_minutes: int,
   session: session_type,
+  dpc: date = None,
   new_products: dict = None,
   new_coord: tuple = None,
 ) -> int:
@@ -328,11 +490,20 @@ def entry_front_slot_minutes(
   alle 9 e la fascia alle 10, 39 minuti di strada e ritiri costano zero; se ne
   servissero 75, 15 finirebbero sulla fascia.
 
-  Nelle fasce successive il veicolo e' gia' in giro: non c'e' strada in testa
-  e i ritiri, se ci sono, pesano per intero sulla fascia.
+  Nelle fasce successive il veicolo e' gia' in giro: non c'e' margine di
+  apertura, ma vale lo stesso principio sul buco libero tra la fascia
+  precedente e questa (entry_transition_minutes: solo l'eccesso dello
+  spostamento rispetto al buco pesa su questa fascia. Richiede ``dpc``: senza,
+  per compatibilita' con i chiamanti che non lo passano, lo spostamento non
+  viene stimato).
   """
   if not is_first_entry_of_day(entry, session):
-    return pickup_minutes
+    transition = (
+      entry_transition_minutes(entry, orders, dpc, session, new_products=new_products, new_coord=new_coord)
+      if dpc
+      else 0
+    )
+    return pickup_minutes + transition
 
   route = entry_front_route_minutes(entry, orders, session, new_products=new_products, new_coord=new_coord)
   return max(0, route + pickup_minutes - entry_lead_minutes(entry, session))
@@ -346,7 +517,11 @@ def entry_priority_key(entry: DeliveryCoverageEntry) -> tuple:
 
 
 def _entry_fits_order(
-  candidate: DeliveryCoverageEntry, assigned: list[Order], order: Order, session: session_type = None
+  candidate: DeliveryCoverageEntry,
+  assigned: list[Order],
+  order: Order,
+  dpc: date = None,
+  session: session_type = None,
 ) -> bool:
   """Se `order` sta nella capienza di `candidate` oltre agli ordini già attribuiti
   (servizi + tempo di percorso aggiunto + lavoro in testa alla giornata), con la
@@ -366,7 +541,11 @@ def _entry_fits_order(
   travel_overhead = _travel_overhead_minutes(assigned, order.cap, new_address=order.address)
   group = assigned + [order]
   pickup_minutes = calculate_orders_pickup_minutes(group)
-  front = entry_front_slot_minutes(candidate, group, pickup_minutes, session) if session is not None else pickup_minutes
+  front = (
+    entry_front_slot_minutes(candidate, group, pickup_minutes, session, dpc=dpc)
+    if session is not None
+    else pickup_minutes
+  )
   return occupied + travel_overhead + order_duration + front <= capacity
 
 
@@ -406,7 +585,9 @@ def query_entry_orders(
 
     assigned = {sibling.id: [] for sibling in siblings}
     for _, (order, candidates) in sorted(covering.items()):
-      target = next((c for c in candidates if _entry_fits_order(c, assigned[c.id], order, session=sess)), candidates[0])
+      target = next(
+        (c for c in candidates if _entry_fits_order(c, assigned[c.id], order, dpc=dpc, session=sess)), candidates[0]
+      )
       assigned[target.id].append(order)
     return assigned[entry.id]
 
@@ -421,16 +602,19 @@ def _entry_front_slot_for(
   orders: list[Order],
   pickup_minutes: int,
   session: session_type,
+  dpc: date = None,
   new_products: dict = None,
   new_coord: tuple = None,
 ) -> int:
   """entry_front_slot_minutes aprendo una sessione se il chiamante non ne ha una."""
   if session is not None:
     return entry_front_slot_minutes(
-      entry, orders, pickup_minutes, session, new_products=new_products, new_coord=new_coord
+      entry, orders, pickup_minutes, session, dpc=dpc, new_products=new_products, new_coord=new_coord
     )
   with Session() as sess:
-    return entry_front_slot_minutes(entry, orders, pickup_minutes, sess, new_products=new_products, new_coord=new_coord)
+    return entry_front_slot_minutes(
+      entry, orders, pickup_minutes, sess, dpc=dpc, new_products=new_products, new_coord=new_coord
+    )
 
 
 def _travel_overhead_minutes(orders: list[Order], new_cap: str, new_address: str = None) -> int:
@@ -481,10 +665,13 @@ def entry_occupied_duration(
   quando disponibile) e il lavoro in testa alla giornata: i minuti dei punti di
   ritiro richiesti dai prodotti (deduplicati, vedi calculate_orders_pickup_minutes,
   compresi quelli del nuovo ordine in new_products, payload non ancora salvato: un
-  punto già coperto da un ordine esistente nella fascia non viene ricontato) e,
-  nella prima fascia del giorno, la strada dal veicolo ai ritiri e verso la prima
-  consegna. Di quel lavoro in testa conta solo la parte che sfora il margine
-  dell'apertura dell'attività (vedi entry_front_slot_minutes).
+  punto già coperto da un ordine esistente nella fascia non viene ricontato) e
+  il lavoro di trasferimento tra fasce, in entrambi i casi solo per la parte
+  che sfora il margine/buco libero disponibile: nella prima fascia del giorno
+  la strada dal veicolo ai ritiri e verso la prima consegna oltre il margine
+  dell'apertura dell'attività, nelle fasce successive lo spostamento dalla
+  fascia precedente oltre il buco libero tra le due (vedi entry_front_slot_minutes
+  ed entry_transition_minutes).
   """
   orders = query_entry_orders(entry, dpc, exclude_order_id=exclude_order_id, session=session)
   service_minutes = sum(calculate_order_service_duration(order) for order in orders)
@@ -505,7 +692,11 @@ def entry_occupied_duration(
 
   # Il lavoro in testa alla giornata (strada dal veicolo ai ritiri e verso la
   # prima consegna, sosta ai ritiri) pesa sulla fascia solo per la parte che non
-  # sta nel margine tra l'apertura dell'attività e l'inizio della fascia.
-  front = _entry_front_slot_for(entry, orders, pickup_minutes, session, new_products=new_products, new_coord=new_coord)
+  # sta nel margine tra l'apertura dell'attività e l'inizio della fascia; nelle
+  # fasce successive pesa invece lo spostamento dalla fascia precedente, per
+  # intero, se non sta nel buco libero tra le due (entry_transition_minutes).
+  front = _entry_front_slot_for(
+    entry, orders, pickup_minutes, session, dpc=dpc, new_products=new_products, new_coord=new_coord
+  )
 
   return service_minutes + travel_overhead + front
