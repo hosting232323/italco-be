@@ -366,11 +366,7 @@ def _schedule_stop_coord(entry: DeliveryCoverageEntry, dpc: date, session: sessi
   ha ancora tappe (fascia vuota, o pianificazione automatica non attiva su
   questa company): e' un dato mancante, non deve bloccare la prenotazione.
   """
-  schedule = (
-    session.query(Schedule)
-    .filter(Schedule.transport_id == entry.transport_id, Schedule.date == dpc)
-    .first()
-  )
+  schedule = session.query(Schedule).filter(Schedule.transport_id == entry.transport_id, Schedule.date == dpc).first()
   if not schedule:
     return None
 

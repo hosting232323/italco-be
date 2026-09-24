@@ -704,11 +704,17 @@ def test_transition_uses_the_real_last_stop_of_the_previous_slot_and_first_of_th
   schedule = create_schedule(transport, schedule_date=target)
 
   prev_first = create_order(
-    cap='70051', dpc=target, delivery_slot_start=previous.start_time, delivery_slot_end=previous.end_time,
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
     address='Via Magazzino 1, Molfetta',
   )
   prev_last = create_order(
-    cap='70051', dpc=target, delivery_slot_start=previous.start_time, delivery_slot_end=previous.end_time,
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
     address='Via Consegna 1, Bari',
   )
   link_order_to_schedule(
@@ -719,19 +725,21 @@ def test_transition_uses_the_real_last_stop_of_the_previous_slot_and_first_of_th
   )
 
   this_first = create_order(
-    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time,
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
     address='Via Deposito 1, Bisceglie',
   )
   this_last = create_order(
-    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time,
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
     address='Via Magazzino 1, Molfetta',
   )
-  link_order_to_schedule(
-    this_first, schedule, index=2, start_time_slot=entry.start_time, end_time_slot=entry.end_time
-  )
-  link_order_to_schedule(
-    this_last, schedule, index=3, start_time_slot=entry.start_time, end_time_slot=entry.end_time
-  )
+  link_order_to_schedule(this_first, schedule, index=2, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
+  link_order_to_schedule(this_last, schedule, index=3, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
 
   with Session() as session:
     entry_transition_minutes(entry, [], target, session)
@@ -754,7 +762,10 @@ def test_transition_falls_back_to_pickups_and_delivery_without_a_schedule_for_th
   entry = _entry_with_orders(transport, target, start='12:05:00', end='16:00:00')
   schedule = create_schedule(transport, schedule_date=target)
   prev_last = create_order(
-    cap='70051', dpc=target, delivery_slot_start=previous.start_time, delivery_slot_end=previous.end_time,
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
     address='Via Consegna 1, Bari',
   )
   link_order_to_schedule(
@@ -769,9 +780,7 @@ def test_transition_falls_back_to_pickups_and_delivery_without_a_schedule_for_th
   assert [BARI, MOLFETTA, BARI] in offline_geo.paths
 
 
-def test_entry_occupied_duration_charges_the_transition_overflow_when_the_previous_slot_is_full(
-  offline_geo, db
-):
+def test_entry_occupied_duration_charges_the_transition_overflow_when_the_previous_slot_is_full(offline_geo, db):
   """Buco di 5' tra le fasce, tragitto di 25' (fisso da _geo_places), fascia precedente
 
   con capienza (08:00-08:25) pari a quanto già occupa (25' di strada in testa, essendo
@@ -783,7 +792,10 @@ def test_entry_occupied_duration_charges_the_transition_overflow_when_the_previo
   schedule = create_schedule(transport, schedule_date=target)
   previous = _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='08:25:00')
   prev_order = create_order(
-    cap='70051', dpc=target, delivery_slot_start=previous.start_time, delivery_slot_end=previous.end_time,
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
     address='Via Consegna 1, Bari',
   )
   link_order_to_schedule(
@@ -792,7 +804,10 @@ def test_entry_occupied_duration_charges_the_transition_overflow_when_the_previo
 
   entry = _entry(transport, day_of_week=target.weekday(), start='08:30:00', end='12:00:00')  # 5' di buco
   this_order = create_order(
-    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time,
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
     address='Via Deposito 1, Bisceglie',
   )
   link_order_to_schedule(this_order, schedule, index=1, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
@@ -808,7 +823,10 @@ def test_entry_occupied_duration_transition_is_free_when_the_gap_is_enough(offli
   schedule = create_schedule(transport, schedule_date=target)
   previous = _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='08:25:00')
   prev_order = create_order(
-    cap='70051', dpc=target, delivery_slot_start=previous.start_time, delivery_slot_end=previous.end_time,
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
     address='Via Consegna 1, Bari',
   )
   link_order_to_schedule(
@@ -817,7 +835,10 @@ def test_entry_occupied_duration_transition_is_free_when_the_gap_is_enough(offli
 
   entry = _entry(transport, day_of_week=target.weekday(), start='08:55:00', end='12:00:00')  # 30' di buco
   this_order = create_order(
-    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time,
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
     address='Via Deposito 1, Bisceglie',
   )
   link_order_to_schedule(this_order, schedule, index=1, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
@@ -836,7 +857,10 @@ def test_entry_occupied_duration_transition_is_absorbed_by_the_previous_slots_le
   schedule = create_schedule(transport, schedule_date=target)
   previous = _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='12:00:00')
   prev_order = create_order(
-    cap='70051', dpc=target, delivery_slot_start=previous.start_time, delivery_slot_end=previous.end_time,
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
     address='Via Consegna 1, Bari',
   )
   link_order_to_schedule(
@@ -845,7 +869,10 @@ def test_entry_occupied_duration_transition_is_absorbed_by_the_previous_slots_le
 
   entry = _entry(transport, day_of_week=target.weekday(), start='12:05:00', end='16:00:00')  # 5' di buco
   this_order = create_order(
-    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time,
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
     address='Via Deposito 1, Bisceglie',
   )
   link_order_to_schedule(this_order, schedule, index=1, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
