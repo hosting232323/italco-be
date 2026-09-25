@@ -242,9 +242,7 @@ def test_admin_updates_an_existing_customer_automatic_planning(db, client):
   admin = create_user(UserRole.ADMIN)
   customer = create_user(UserRole.CUSTOMER)
 
-  body = client.put(
-    f'/user/{customer.id}', json={'automatic_planning': False}, headers=auth_header(admin)
-  ).get_json()
+  body = client.put(f'/user/{customer.id}', json={'automatic_planning': False}, headers=auth_header(admin)).get_json()
 
   assert body['status'] == 'ok'
   assert body['user']['automatic_planning'] is False
@@ -254,9 +252,7 @@ def test_update_user_rejects_without_company_automatic_planning(planning_off, cl
   admin = create_user(UserRole.ADMIN)
   customer = create_user(UserRole.CUSTOMER)
 
-  body = client.put(
-    f'/user/{customer.id}', json={'automatic_planning': True}, headers=auth_header(admin)
-  ).get_json()
+  body = client.put(f'/user/{customer.id}', json={'automatic_planning': True}, headers=auth_header(admin)).get_json()
 
   assert body['status'] == 'ko'
   assert customer.automatic_planning is True
@@ -266,9 +262,7 @@ def test_update_user_rejects_for_non_customer_roles(db, client):
   admin = create_user(UserRole.ADMIN)
   delivery = create_user(UserRole.DELIVERY)
 
-  body = client.put(
-    f'/user/{delivery.id}', json={'automatic_planning': False}, headers=auth_header(admin)
-  ).get_json()
+  body = client.put(f'/user/{delivery.id}', json={'automatic_planning': False}, headers=auth_header(admin)).get_json()
 
   assert body['status'] == 'ko'
 
@@ -297,7 +291,13 @@ def test_delivery_coverage_endpoints_closed_without_the_flag(planning_off, clien
   get_response = client.get('/delivery-coverage', headers=auth_header(admin)).get_json()
   post_response = client.post(
     '/delivery-coverage',
-    json={'day_of_week': 0, 'transport_id': transport.id, 'start_time': '08:00', 'end_time': '18:00', 'caps': ['70051']},
+    json={
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': '08:00',
+      'end_time': '18:00',
+      'caps': ['70051'],
+    },
     headers=auth_header(admin),
   ).get_json()
 
