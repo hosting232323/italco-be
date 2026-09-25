@@ -8,18 +8,25 @@ schedulazione chiamando l'endpoint a mano.
 import pytest
 from api.users.security import hash_password
 
-from database_api import scope
+from database_api import Session, scope
 from database_api.operations import update
 
 from src.database.enum import UserRole
 from src.database.queries import is_automatic_planning_enabled
+from src.database.schema import User
 
 from tests.unit.factories import (
   auth_header,
   create_company,
   create_super_admin,
+  create_transport,
   create_user,
 )
+
+
+def _user_by_nickname(nickname: str) -> User:
+  with Session() as session:
+    return session.query(User).filter(User.nickname == nickname).one()
 
 
 PLANNING_OFF_MESSAGE = 'Pianificazione automatica non attiva per questa attività'
@@ -180,3 +187,121 @@ def test_is_automatic_planning_enabled_reads_the_active_company(db):
 def test_is_automatic_planning_enabled_without_active_company(db):
   with scope(company_id=None):
     assert is_automatic_planning_enabled() is False
+
+
+# --- Flag per punto vendita (User con role Customer) ---------------------
+# Granularità più fine dello stesso interruttore: un'attività può avere la
+# pianificazione automatica accesa ma un singolo punto vendita spenta.
+
+
+def test_new_customer_starts_with_automatic_planning_on(db):
+  """Nasce true: se l'attività accende il flag, il punto vendita è già pronto."""
+  assert create_user(UserRole.CUSTOMER).automatic_planning is True
+
+
+def test_admin_can_switch_off_a_customer_automatic_planning(db, client):
+  admin = create_user(UserRole.ADMIN)
+
+  body = client.post(
+    '/user',
+    json={'nickname': 'punto-vendita-off', 'password': 'pw', 'role': 'Customer', 'automatic_planning': False},
+    headers=auth_header(admin),
+  ).get_json()
+
+  assert body['status'] == 'ok'
+  assert _user_by_nickname('punto-vendita-off').automatic_planning is False
+
+
+def test_create_user_ignores_the_flag_for_non_customer_roles(db, client):
+  admin = create_user(UserRole.ADMIN)
+
+  body = client.post(
+    '/user',
+    json={'nickname': 'operatore-flag', 'password': 'pw', 'role': 'Operator', 'automatic_planning': False},
+    headers=auth_header(admin),
+  ).get_json()
+
+  assert body['status'] == 'ok'
+  assert _user_by_nickname('operatore-flag').automatic_planning is True
+
+
+def test_create_user_ignores_the_flag_when_company_automatic_planning_is_off(planning_off, client):
+  admin = create_user(UserRole.ADMIN)
+
+  body = client.post(
+    '/user',
+    json={'nickname': 'punto-vendita-no-azienda', 'password': 'pw', 'role': 'Customer', 'automatic_planning': False},
+    headers=auth_header(admin),
+  ).get_json()
+
+  assert body['status'] == 'ok'
+  assert _user_by_nickname('punto-vendita-no-azienda').automatic_planning is True
+
+
+def test_admin_updates_an_existing_customer_automatic_planning(db, client):
+  admin = create_user(UserRole.ADMIN)
+  customer = create_user(UserRole.CUSTOMER)
+
+  body = client.put(
+    f'/user/{customer.id}', json={'automatic_planning': False}, headers=auth_header(admin)
+  ).get_json()
+
+  assert body['status'] == 'ok'
+  assert body['user']['automatic_planning'] is False
+
+
+def test_update_user_rejects_without_company_automatic_planning(planning_off, client):
+  admin = create_user(UserRole.ADMIN)
+  customer = create_user(UserRole.CUSTOMER)
+
+  body = client.put(
+    f'/user/{customer.id}', json={'automatic_planning': True}, headers=auth_header(admin)
+  ).get_json()
+
+  assert body['status'] == 'ko'
+  assert customer.automatic_planning is True
+
+
+def test_update_user_rejects_for_non_customer_roles(db, client):
+  admin = create_user(UserRole.ADMIN)
+  delivery = create_user(UserRole.DELIVERY)
+
+  body = client.put(
+    f'/user/{delivery.id}', json={'automatic_planning': False}, headers=auth_header(admin)
+  ).get_json()
+
+  assert body['status'] == 'ko'
+
+
+def test_update_user_rejects_missing_field(db, client):
+  admin = create_user(UserRole.ADMIN)
+  customer = create_user(UserRole.CUSTOMER)
+
+  body = client.put(f'/user/{customer.id}', json={}, headers=auth_header(admin)).get_json()
+
+  assert body['status'] == 'ko'
+
+
+def test_login_carries_the_customer_flag_to_the_frontend(db, client):
+  create_user(UserRole.CUSTOMER, nickname='login-punto-vendita', password=hash_password('pw'), automatic_planning=False)
+
+  body = client.post('/user/login', json={'email': 'login-punto-vendita', 'password': 'pw'}).get_json()
+
+  assert body['automatic_planning'] is False
+
+
+def test_delivery_coverage_endpoints_closed_without_the_flag(planning_off, client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+
+  get_response = client.get('/delivery-coverage', headers=auth_header(admin)).get_json()
+  post_response = client.post(
+    '/delivery-coverage',
+    json={'day_of_week': 0, 'transport_id': transport.id, 'start_time': '08:00', 'end_time': '18:00', 'caps': ['70051']},
+    headers=auth_header(admin),
+  ).get_json()
+
+  assert get_response['status'] == 'ko'
+  assert get_response['message'] == PLANNING_OFF_MESSAGE
+  assert post_response['status'] == 'ko'
+  assert post_response['message'] == PLANNING_OFF_MESSAGE
