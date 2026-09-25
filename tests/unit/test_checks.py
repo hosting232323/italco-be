@@ -5,7 +5,6 @@ from src.database.enum import OrderStatus, UserRole
 from src.database.schema import DtrDocument, FirFirstDocument, FirFourthDocument
 
 from tests.unit.factories import (
-  create_delivery_group,
   create_order,
   create_product,
   create_schedule,
@@ -116,13 +115,13 @@ def test_check_orders_no_product_finds_empty_orders(db):
 
 def test_check_schedules_flags_missing_relations(db):
   transport = create_transport()
-  create_schedule(transport)  # nessun item, nessun delivery group
+  create_schedule(transport)  # nessun item
 
   with Session() as session:
     results = checks.check_schedules(session)
 
   assert len(results) == 1
-  assert set(results[0]['missing']) == {'ScheduleItem', 'DeliveryGroup'}
+  assert set(results[0]['missing']) == {'ScheduleItem'}
 
 
 def test_check_schedules_ok_when_complete(db):
@@ -131,7 +130,6 @@ def test_check_schedules_ok_when_complete(db):
   create_product(order, service_user)
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
-  create_delivery_group(create_user(UserRole.DELIVERY), schedule)
 
   with Session() as session:
     assert checks.check_schedules(session) == []

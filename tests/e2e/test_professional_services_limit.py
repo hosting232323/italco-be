@@ -61,25 +61,12 @@ def _count_professional_orders(orders: list) -> int:
 
 def test_schedule_proposals_professional_services_limit(pw_page: Page, pw_base_url: str):
   page = pw_page
-  captured_suggestions = []
 
   # Il bottone "Pianificazione Automatica" sta in OrderTable, quindi nella
   # pagina Ordini: dopo il login si atterra sulla dashboard, che non lo ha.
   page.goto(f'{pw_base_url}/orders')
   schedule_button = page.get_by_role('button', name='Pianificazione Automatica')
   expect(schedule_button).to_be_visible(timeout=15_000)
-
-  def _capture_suggestions(response):
-    try:
-      if 'application/json' not in response.headers.get('content-type', '').lower():
-        return
-      suggestions = _extract_suggestions(response.json())
-      if suggestions:
-        captured_suggestions.append(suggestions)
-    except Exception:
-      return
-
-  page.on('response', _capture_suggestions)
 
   schedule_button.click()
   expect(page.locator('.v-dialog')).to_be_visible(timeout=10_000)
@@ -94,20 +81,21 @@ def test_schedule_proposals_professional_services_limit(pw_page: Page, pw_base_u
   min_input.click()
   min_input.fill('1')
 
-  page.locator('.v-dialog').get_by_role('button', name='INVIA').click()
+  with page.expect_response(lambda response: '/schedule/suggestions' in response.url, timeout=30_000) as api_response:
+    page.locator('.v-dialog').get_by_role('button', name='INVIA').click()
 
-  expect(page.get_by_text('Proposta Borderò 1')).to_be_visible(timeout=30_000)
+  response = api_response.value
+  try:
+    payload = response.json()
+  except Exception as exc:
+    pytest.fail(f'La API delle proposte non ha restituito JSON (HTTP {response.status}): {exc}')
 
-  for _ in range(20):
-    if captured_suggestions:
-      break
-    page.wait_for_timeout(500)
+  assert response.ok, f'API pianificazione HTTP {response.status}: {payload}'
+  assert payload.get('status') == 'ok', f'API pianificazione ha risposto con errore: {payload}'
+  suggestions = _extract_suggestions(payload)
+  assert suggestions, f'Nessuna proposta ricevuta dal backend: {payload}'
 
-  page.remove_listener('response', _capture_suggestions)
-
-  suggestions = captured_suggestions[-1] if captured_suggestions else None
-  assert suggestions, 'Impossibile leggere le proposte dalla risposta API'
-  assert len(suggestions) > 0, 'Nessuna proposta ricevuta dal backend'
+  expect(page.get_by_text('Proposta Borderò 1')).to_be_visible(timeout=10_000)
 
   for index, suggestion in enumerate(suggestions):
     orders = suggestion.get('orders') or suggestion.get('schedule_items') or []
