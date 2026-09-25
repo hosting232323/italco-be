@@ -60,7 +60,7 @@ Gli SMS ora partono dopo il commit (niente più invii su transazioni poi annulla
 se Vonage fallisce il client riceve 500 con dati già committati. La soluzione completa è una coda
 outbox processata fuori richiesta.
 
-## SPUNTO BE: OSRM su istanza demo pubblica (URL ora configurabile)
+## SPUNTO BE: OSRM (ora self-hosted su osrm.fastsite.it, URL fisso nel codice)
 
 L'ottimizzazione del percorso del borderò (src/schedulation/auto_planning.py) chiama `/trip` di
 OSRM, e src/end_points/service/travel.py usa `/table` per la matrice durate. Di default entrambi
@@ -68,8 +68,8 @@ puntano al demo pubblico `router.project-osrm.org`, che non è pensato per produ
 rate limit non documentati, dati OSM non aggiornabili a piacere. Decisione del 2026-09-17: usarlo
 comunque per non bloccare la feature su un lavoro di deploy separato.
 
-Fatto: il base URL si sceglie con la variabile `OSRM_BASE_URL` (vuota = demo pubblico), quindi il
-passaggio a un'istanza self-hosted non richiede più modifiche al codice, solo la CI variable.
+Fatto: il base URL è fisso in `src/__init__.py` (`https://osrm.fastsite.it`), la variabile `OSRM_BASE_URL`
+è stata tolta (con il valore senza schema in CI il codice cadeva sempre nel fallback).
 Trovato collaudando l'istanza self-hosted: `/trip` con `roundtrip=false&source=any&destination=any`
 non e' supportato da OSRM (`NotImplemented`, anche sul demo pubblico), quindi `trip_order_osrm`
 falliva sempre e il borderò restava nell'ordine originale senza errori visibili. Ora si chiede il
