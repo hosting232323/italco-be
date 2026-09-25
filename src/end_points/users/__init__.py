@@ -8,7 +8,7 @@ from ...database.enum import UserRole
 from .session import get_token_payload, refresh_access_token_response, replace_access_token
 from .. import auth, flask_session_authentication
 from api.users.security import hash_password, verify_password
-from ...database.queries import get_user_by_nickname
+from ...database.queries import get_user_by_nickname, is_automatic_planning_enabled
 from database_api import Session
 from database_api.operations import delete, get_by_id, create, update
 from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo
@@ -61,15 +61,38 @@ def create_user(_):
     return {'status': 'ko', 'message': 'Nickname già in uso'}
 
   password = request.json['password']
-  create(
-    User,
-    {
-      'role': role,
-      'nickname': request.json['nickname'],
-      'password': hash_password(password),
-    },
-  )
+  user_data = {
+    'role': role,
+    'nickname': request.json['nickname'],
+    'password': hash_password(password),
+  }
+  # Il flag vale solo per i punti vendita e solo se l'attività ha già acceso
+  # la pianificazione automatica: altrimenti l'interruttore non esiste ancora
+  # per nessuno, e il campo va ignorato invece di lasciarlo scegliere al client.
+  if role == UserRole.CUSTOMER and 'automatic_planning' in request.json and is_automatic_planning_enabled():
+    user_data['automatic_planning'] = bool(request.json['automatic_planning'])
+  create(User, user_data)
   return {'status': 'ok', 'message': 'Utente registrato', 'password': password}
+
+
+@user_bp.route('<id>', methods=['PUT'])
+@flask_session_authentication([UserRole.ADMIN])
+def update_user(_, id):
+  user: User = get_by_id(User, int(id))
+  if not user:
+    return {'status': 'ko', 'message': 'Utente non trovato'}
+
+  # Scope minimo: solo il flag di pianificazione automatica, e solo per i
+  # punti vendita di un'attività che ha già acceso il flag gemello su Company
+  # (stessa condizione di create_user, qui riapplicata perché il flag può
+  # essere spento in un secondo momento dopo che il punto vendita esisteva già).
+  if 'automatic_planning' not in request.json:
+    return {'status': 'ko', 'message': 'Nessun campo da aggiornare'}
+  if user.role != UserRole.CUSTOMER or not is_automatic_planning_enabled():
+    return {'status': 'ko', 'message': 'Pianificazione automatica non disponibile per questo utente'}
+
+  user = update(user, {'automatic_planning': bool(request.json['automatic_planning'])})
+  return {'status': 'ok', 'user': user.format_user(UserRole.ADMIN)}
 
 
 @user_bp.route('login', methods=['POST'])
@@ -88,6 +111,7 @@ def login():
     'user_id': user.id,
     'role': user.role.value,
     'company': user.company.to_dict() if user.company else None,
+    'automatic_planning': user.automatic_planning,
   }
   response = auth.login_response(user, extra, verify=verify)
   if response is None:

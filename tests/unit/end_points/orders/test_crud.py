@@ -3,7 +3,7 @@ from datetime import date, time
 import pytest
 
 from database_api import Session, scope
-from database_api.operations import create, get_by_id
+from database_api.operations import create, get_by_id, update
 
 from src.database.enum import OrderStatus, OrderType, ScheduleItemUserType, UserRole
 from src.database.schema import DeliveryCoverageCap, DeliveryCoverageEntry, Order, Product
@@ -19,6 +19,7 @@ from src.end_points.orders.services import InvalidOrderProductsError
 
 from tests.unit.factories import (
   assign_delivery_user_to_schedule,
+  create_collection_point,
   create_delivery_info,
   create_company,
   create_order,
@@ -190,6 +191,66 @@ def test_create_order_ignores_customer_chosen_slot_when_not_covered(db):
 
   order = get_by_id(Order, result['order']['id'])
   assert (order.delivery_slot_start, order.delivery_slot_end) == (time(8, 0), time(12, 0))
+
+
+def test_create_order_leaves_slot_empty_when_customer_automatic_planning_is_off(db):
+  # Punto vendita con pianificazione automatica spenta: la dpc resta manuale
+  # anche se la copertura coprirebbe la data, come su main.
+  customer = create_user(UserRole.CUSTOMER, automatic_planning=False)
+  service = create_service()
+  create_service_user(customer, service)
+  collection_point = create_collection_point(customer, cap='70121')
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70121'})
+
+  result = crud_create_order(customer, _payload(service, collection_point))
+
+  order = get_by_id(Order, result['order']['id'])
+  assert (order.delivery_slot_start, order.delivery_slot_end) == (None, None)
+  assert order.dpc == date(2026, 7, 20)
+
+
+def test_create_order_ignores_client_sent_slot_when_customer_automatic_planning_is_off(db):
+  # Enforcement lato server: anche se il client manda comunque uno slot
+  # (client vecchio o manomesso), il punto vendita disabilitato lo ignora.
+  customer = create_user(UserRole.CUSTOMER, automatic_planning=False)
+  service = create_service()
+  create_service_user(customer, service)
+  collection_point = create_collection_point(customer, cap='70121')
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70121'})
+
+  result = crud_create_order(
+    customer,
+    _payload(service, collection_point, delivery_slot_start='08:00', delivery_slot_end='12:00'),
+  )
+
+  order = get_by_id(Order, result['order']['id'])
+  assert (order.delivery_slot_start, order.delivery_slot_end) == (None, None)
+
+
+def test_create_order_leaves_slot_empty_when_company_automatic_planning_is_off(db):
+  update(db, {'automatic_planning': False})
+  customer, service, service_user, collection_point = customer_with_service()
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70121'})
+
+  result = crud_create_order(customer, _payload(service, collection_point))
+
+  order = get_by_id(Order, result['order']['id'])
+  assert (order.delivery_slot_start, order.delivery_slot_end) == (None, None)
 
 
 def test_filter_orders_formats_results(db):

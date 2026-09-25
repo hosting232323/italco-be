@@ -71,13 +71,13 @@ def _clean_polygon(raw) -> list | None:
 
 
 @delivery_coverage_bp.route('', methods=['GET'])
-@flask_session_authentication(COVERAGE_ROLES)
+@flask_session_authentication(COVERAGE_ROLES, automatic_planning_required=True)
 def get_delivery_coverage(_):
   return {'status': 'ok', 'entries': query_entries()}
 
 
 @delivery_coverage_bp.route('', methods=['POST'])
-@flask_session_authentication(COVERAGE_ROLES)
+@flask_session_authentication(COVERAGE_ROLES, automatic_planning_required=True)
 def create_delivery_coverage_entry(_):
   day_of_week = request.json['day_of_week']
   if day_of_week not in list(range(7)):
@@ -117,7 +117,7 @@ def create_delivery_coverage_entry(_):
 
 
 @delivery_coverage_bp.route('<id>', methods=['PUT'])
-@flask_session_authentication(COVERAGE_ROLES)
+@flask_session_authentication(COVERAGE_ROLES, automatic_planning_required=True)
 def update_delivery_coverage_entry(_, id):
   entry: DeliveryCoverageEntry = get_by_id(DeliveryCoverageEntry, int(id))
   if not entry:
@@ -179,7 +179,7 @@ def update_delivery_coverage_entry(_, id):
 
 
 @delivery_coverage_bp.route('<id>', methods=['DELETE'])
-@flask_session_authentication(COVERAGE_ROLES)
+@flask_session_authentication(COVERAGE_ROLES, automatic_planning_required=True)
 def delete_delivery_coverage_entry(_, id):
   entry: DeliveryCoverageEntry = get_by_id(DeliveryCoverageEntry, int(id))
   if not entry:

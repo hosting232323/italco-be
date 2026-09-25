@@ -83,6 +83,12 @@ class User(BaseItalcoEntity):
   nickname = Column(String, unique=True, nullable=False)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
 
+  # Pianificazione automatica del punto vendita: significativa solo per
+  # role == Customer, impostabile solo se l'attività ha già il flag gemello
+  # su Company acceso. Nasce true, come chiesto: quando un'attività accende
+  # la pianificazione automatica, i suoi punti vendita partono tutti abilitati.
+  automatic_planning = Column(Boolean, nullable=False, default=True, server_default='true')
+
   rae_product = relationship('RaeProduct', back_populates='user')
   customer_group = relationship('CustomerGroup', back_populates='user')
   delivery_user_info = relationship('DeliveryUserInfo', back_populates='user')

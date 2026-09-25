@@ -70,8 +70,12 @@ def create_order(user: User, data: dict):
     # corrieri: operatori/admin non hanno questo automatismo (come oggi non
     # avevano il check-constraints). Se il cliente ha scelto anche la fascia
     # sul calendario, resolve_delivery_slot la valida e la usa al posto del
-    # bilanciamento automatico.
-    if user.role == UserRole.CUSTOMER:
+    # bilanciamento automatico. Vale solo se sia l'attività sia il punto
+    # vendita hanno il flag acceso: altrimenti la dpc resta quella inviata dal
+    # client, senza slot, esattamente come su main prima della copertura
+    # corrieri (enforcement lato server: un client che manda comunque uno
+    # slot viene ignorato, non solo la UI che lo nasconde).
+    if user.role == UserRole.CUSTOMER and is_automatic_planning_enabled() and user.automatic_planning:
       clean_data['delivery_slot_start'], clean_data['delivery_slot_end'] = resolve_delivery_slot(
         clean_data.get('cap'),
         clean_data.get('dpc'),
@@ -81,6 +85,9 @@ def create_order(user: User, data: dict):
         user_id=user.id,
         address=clean_data.get('address'),
       )
+    else:
+      clean_data.pop('delivery_slot_start', None)
+      clean_data.pop('delivery_slot_end', None)
 
     order: Order = create(Order, clean_data, session=session)
     create_products(
@@ -180,8 +187,12 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
   # Il cliente può riaprire il form date su un ordine esistente (il campo non
   # è disabilitato per lui come per l'operatore): se tocca dpc o cap, la
   # fascia va ricalcolata sulla copertura corrieri, escludendo l'ordine
-  # stesso dal conteggio per non farlo competere con sé stesso.
-  if user.role == UserRole.CUSTOMER and ('dpc' in data or 'cap' in data):
+  # stesso dal conteggio per non farlo competere con sé stesso. Stessa
+  # condizione di create_order: senza il flag di attività+punto vendita la
+  # dpc resta manuale, niente slot, anche se il client ne manda uno.
+  if user.role == UserRole.CUSTOMER and is_automatic_planning_enabled() and user.automatic_planning and (
+    'dpc' in data or 'cap' in data
+  ):
     data['delivery_slot_start'], data['delivery_slot_end'] = resolve_delivery_slot(
       data.get('cap', order.cap),
       data.get('dpc', order.dpc),
@@ -192,6 +203,9 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
       user_id=user.id,
       address=data.get('address', order.address),
     )
+  elif user.role == UserRole.CUSTOMER:
+    data.pop('delivery_slot_start', None)
+    data.pop('delivery_slot_end', None)
 
   if 'type' in data:
     data['type'] = OrderType(data['type'])
