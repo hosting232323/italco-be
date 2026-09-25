@@ -61,6 +61,9 @@ def _count_professional_orders(orders: list) -> int:
 
 def test_schedule_proposals_professional_services_limit(pw_page: Page, pw_base_url: str):
   page = pw_page
+  browser_errors = []
+  page.on('pageerror', lambda error: browser_errors.append(str(error)))
+  page.on('console', lambda message: browser_errors.append(message.text) if message.type == 'error' else None)
 
   # Il bottone "Pianificazione Automatica" sta in OrderTable, quindi nella
   # pagina Ordini: dopo il login si atterra sulla dashboard, che non lo ha.
@@ -95,7 +98,20 @@ def test_schedule_proposals_professional_services_limit(pw_page: Page, pw_base_u
   suggestions = _extract_suggestions(payload)
   assert suggestions, f'Nessuna proposta ricevuta dal backend: {payload}'
 
-  expect(page.get_by_text('Proposta Borderò 1')).to_be_visible(timeout=10_000)
+  try:
+    expect(page.get_by_text('Proposta Borderò 1')).to_be_visible(timeout=10_000)
+  except AssertionError as exc:
+    first_group = suggestions[0]
+    group_summary = {
+      'group_keys': list(first_group),
+      'schedule_item_count': len(first_group.get('schedule_items') or []),
+      'operation_types': sorted({item.get('operation_type') for item in first_group.get('schedule_items') or []}),
+      'transport_count': len(first_group.get('transports') or []),
+    }
+    pytest.fail(
+      f'La API ha restituito {len(suggestions)} gruppi ({group_summary}), '
+      f'ma la proposta non è stata renderizzata. Errori browser: {browser_errors}; errore: {exc}'
+    )
 
   for index, suggestion in enumerate(suggestions):
     orders = suggestion.get('orders') or suggestion.get('schedule_items') or []
