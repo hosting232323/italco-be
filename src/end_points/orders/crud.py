@@ -190,8 +190,11 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
   # stesso dal conteggio per non farlo competere con sé stesso. Stessa
   # condizione di create_order: senza il flag di attività+punto vendita la
   # dpc resta manuale, niente slot, anche se il client ne manda uno.
-  if user.role == UserRole.CUSTOMER and is_automatic_planning_enabled() and user.automatic_planning and (
-    'dpc' in data or 'cap' in data
+  if (
+    user.role == UserRole.CUSTOMER
+    and is_automatic_planning_enabled()
+    and user.automatic_planning
+    and ('dpc' in data or 'cap' in data)
   ):
     data['delivery_slot_start'], data['delivery_slot_end'] = resolve_delivery_slot(
       data.get('cap', order.cap),
