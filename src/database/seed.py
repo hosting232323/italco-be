@@ -119,6 +119,10 @@ def seed_company_data():
           'password': _seed_password('1234customer'),
           'role': UserRole.CUSTOMER,
           'customer_group_id': customer_groups[index].id,
+          # customer_1 con pianificazione automatica spenta: comodo per testare
+          # a mano il fallback alla dpc vecchio stile senza toccare il flag
+          # dell'intera attività.
+          'automatic_planning': index != 1,
         },
       )
     )
