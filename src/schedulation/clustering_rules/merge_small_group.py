@@ -1,6 +1,6 @@
 from geopy.distance import geodesic
 
-from ...utils.caps import get_lat_lon_by_cap
+from ...utils.caps import get_lat_lon_by_caps
 from . import ClusteringRule, ScheduleItemGroup, ClusteringContext
 
 
@@ -55,11 +55,8 @@ def merge_small_groups(schedule_item_groups, min_size_group, max_size_group, max
 
 
 def get_group_centroid(schedule_items):
-  coords = []
-  for item in schedule_items:
-    lat, lon = get_lat_lon_by_cap(item['cap'])
-    if lat is not None and lon is not None:
-      coords.append((lat, lon))
+  caps = [item['cap'] for item in schedule_items if item.get('cap')]
+  coords = [(lat, lon) for lat, lon in get_lat_lon_by_caps(caps) if lat is not None and lon is not None]
 
   if not coords:
     return None, None
