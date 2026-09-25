@@ -1,13 +1,10 @@
-"""delivery user info -> transport
+"""Move delivery users onto vehicles and remove direct schedule assignment.
 
 Revision ID: 060
-Revises: 058
-Create Date: 2026-09-10 12:00:00.000000
+Revises: 059
 
-Collega l'utente delivery al suo veicolo. La cardinalita' e' molti-a-uno
-(un utente un solo veicolo, un veicolo molti utenti), quindi basta una FK
-nullable su delivery_user_info: nessun backfill, chi non e' assegnato resta
-NULL.
+Delivery users belong to a vehicle through delivery_user_info.transport_id.
+Schedules inherit their users from that vehicle, so delivery_group is removed.
 """
 
 from typing import Sequence, Union
@@ -27,8 +24,23 @@ def upgrade() -> None:
   op.create_foreign_key(
     'fk_delivery_user_info_transport_id', 'delivery_user_info', 'transport', ['transport_id'], ['id']
   )
+  op.drop_table('delivery_group')
 
 
 def downgrade() -> None:
+  op.create_table(
+    'delivery_group',
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('schedule_id', sa.Integer(), nullable=False),
+    sa.Column('company_id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['user.id']),
+    sa.ForeignKeyConstraint(['schedule_id'], ['schedule.id']),
+    sa.ForeignKeyConstraint(['company_id'], ['company.id']),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('schedule_id', 'user_id', name='uq_delivery_group_schedule_user'),
+  )
   op.drop_constraint('fk_delivery_user_info_transport_id', 'delivery_user_info', type_='foreignkey')
   op.drop_column('delivery_user_info', 'transport_id')
