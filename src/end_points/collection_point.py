@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import logging
 
 import requests
@@ -49,9 +50,17 @@ def delete_collection_point(_, id):
 @collection_point_bp.route('', methods=['GET'])
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY])
 def get_collection_points(user: User):
+  collection_points = query_collection_points(user)
+  if not collection_points:
+    return {'status': 'ok', 'collection_points': []}
+
+  max_workers = min(10, len(collection_points))
+  with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    formatted_points = list(executor.map(format_collection_point, collection_points))
+
   return {
     'status': 'ok',
-    'collection_points': [format_collection_point(cp) for cp in query_collection_points(user)],
+    'collection_points': formatted_points,
   }
 
 

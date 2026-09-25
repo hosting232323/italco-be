@@ -24,6 +24,7 @@ Se OSRM non è raggiungibile o una tappa non è geocodificabile, si degrada
 mantenendo l'ordine relativo originale invece di far fallire la richiesta.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 import logging
 from dataclasses import dataclass
 from collections import defaultdict
@@ -222,10 +223,25 @@ def _build_clusters(
   ]
 
 
+def _resolve_stop_coords(stops: list[tuple[str | None, str | None]], max_workers: int = 10) -> list[Coord | None]:
+  if not stops:
+    return []
+  workers = min(max_workers, len(stops))
+  with ThreadPoolExecutor(max_workers=workers) as executor:
+    return list(executor.map(lambda pair: _coord_for(pair[0], pair[1]), stops))
+
+
 def _order_cluster(cps: list[StopContext], orders: list[StopContext]) -> list[StopContext]:
   """Ordina un cluster: punti di ritiro (ottimizzati tra loro) poi ordini (ottimizzati tra loro)."""
-  cp_order = _osrm_or_original_order(len(cps), [s.coord for s in cps])
-  order_order = _osrm_or_original_order(len(orders), [s.coord for s in orders])
+  if len(cps) > 1 and len(orders) > 1:
+    with ThreadPoolExecutor(max_workers=2) as executor:
+      fut_cp = executor.submit(_osrm_or_original_order, len(cps), [s.coord for s in cps])
+      fut_order = executor.submit(_osrm_or_original_order, len(orders), [s.coord for s in orders])
+      cp_order = fut_cp.result()
+      order_order = fut_order.result()
+  else:
+    cp_order = _osrm_or_original_order(len(cps), [s.coord for s in cps])
+    order_order = _osrm_or_original_order(len(orders), [s.coord for s in orders])
   return [cps[i] for i in cp_order] + [orders[i] for i in order_order]
 
 
@@ -247,28 +263,39 @@ def optimize_schedule_stops(schedule: Schedule, session: session_type) -> None:
   orders_by_id = {o.id: o for o in get_by_ids(Order, order_ids, session=session)} if order_ids else {}
   cps_by_id = {cp.id: cp for cp in get_by_ids(CollectionPoint, cp_ids, session=session)} if cp_ids else {}
 
+  raw_stops = []
+  for item, scp, sio in rows:
+    if sio and sio.order_id in orders_by_id:
+      order = orders_by_id[sio.order_id]
+      raw_stops.append(('order', item, order.address, order.cap, order.id, order))
+    elif scp and scp.collection_point_id in cps_by_id:
+      cp = cps_by_id[scp.collection_point_id]
+      raw_stops.append(('collection_point', item, cp.address, cp.cap, cp.id, None))
+
+  if len(raw_stops) < 2:
+    return
+
+  # Risoluzione concorrente delle coordinate delle tappe
+  coords = _resolve_stop_coords([(s[2], s[3]) for s in raw_stops])
+
   order_stops: list[StopContext] = []
   cp_stops: list[StopContext] = []
   dependencies: dict[int, set[int]] = {}
 
-  for item, scp, sio in rows:
-    if sio and sio.order_id in orders_by_id:
-      order = orders_by_id[sio.order_id]
-      order_stops.append(
-        StopContext(item=item, kind='order', coord=_coord_for(order.address, order.cap), entity_id=order.id)
-      )
+  for (kind, item, _, _, entity_id, order), coord in zip(raw_stops, coords):
+    stop = StopContext(item=item, kind=kind, coord=coord, entity_id=entity_id)
+    if kind == 'order':
+      order_stops.append(stop)
       dependencies[item.id] = required_collection_point_ids_for_order(order, session)
-    elif scp and scp.collection_point_id in cps_by_id:
-      cp = cps_by_id[scp.collection_point_id]
-      cp_stops.append(
-        StopContext(item=item, kind='collection_point', coord=_coord_for(cp.address, cp.cap), entity_id=cp.id)
-      )
-
-  if len(order_stops) + len(cp_stops) < 2:
-    return
+    else:
+      cp_stops.append(stop)
 
   clusters = _build_clusters(order_stops, cp_stops, dependencies)
-  cluster_sequences = [_order_cluster(cps, orders) for cps, orders in clusters]
+  if len(clusters) > 1:
+    with ThreadPoolExecutor(max_workers=min(10, len(clusters))) as executor:
+      cluster_sequences = list(executor.map(lambda c: _order_cluster(c[0], c[1]), clusters))
+  else:
+    cluster_sequences = [_order_cluster(cps, orders) for cps, orders in clusters]
 
   anchors = [_first_coord(sequence) for sequence in cluster_sequences]
   cluster_order = _osrm_or_original_order(len(cluster_sequences), anchors)

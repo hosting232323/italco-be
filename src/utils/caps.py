@@ -1,4 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
+from typing import Iterable
 
 import requests
 
@@ -73,3 +75,25 @@ def get_lat_lon_by_address(address: str) -> tuple[float, float] | tuple[None, No
   if not results:
     return None, None
   return float(results[0]['lat']), float(results[0]['lon'])
+
+
+def get_lat_lon_by_addresses(
+  addresses: Iterable[str], max_workers: int = 10
+) -> list[tuple[float, float] | tuple[None, None]]:
+  """Risolve una lista di indirizzi in parallelo sfruttando la cache e ThreadPoolExecutor."""
+  addr_list = list(addresses)
+  if not addr_list:
+    return []
+  workers = min(max_workers, len(addr_list))
+  with ThreadPoolExecutor(max_workers=workers) as executor:
+    return list(executor.map(get_lat_lon_by_address, addr_list))
+
+
+def get_lat_lon_by_caps(caps: Iterable[str], max_workers: int = 10) -> list[tuple[float, float] | tuple[None, None]]:
+  """Risolve una lista di CAP in parallelo sfruttando la cache e ThreadPoolExecutor."""
+  cap_list = list(caps)
+  if not cap_list:
+    return []
+  workers = min(max_workers, len(cap_list))
+  with ThreadPoolExecutor(max_workers=workers) as executor:
+    return list(executor.map(get_lat_lon_by_cap, cap_list))

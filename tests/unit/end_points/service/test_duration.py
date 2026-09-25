@@ -14,9 +14,11 @@ from src.end_points.service.duration import (
   entry_front_slot_minutes,
   entry_lead_minutes,
   entry_occupied_duration,
+  entry_transition_minutes,
   is_first_entry_of_day,
   order_pickup_collection_point_ids,
   payload_pickup_collection_point_ids,
+  previous_entry_of_day,
   query_entry_orders,
 )
 
@@ -26,8 +28,10 @@ from tests.unit.factories import (
   create_collection_point,
   create_order,
   create_product_row,
+  create_schedule,
   create_transport,
   customer_with_service,
+  link_order_to_schedule,
 )
 
 
@@ -570,3 +574,307 @@ def test_overlapping_slots_count_the_pickups_of_the_orders_already_assigned(offl
 
   assert [o.id for o in query_entry_orders(first, target)] == [order_a.id]
   assert [o.id for o in query_entry_orders(second, target)] == [order_b.id]
+
+
+# ---------------------------------------------------------------------------
+# Spostamento tra fasce (stesso veicolo, stesso giorno): il buco libero tra
+# la fine della fascia precedente e l'inizio di questa
+# ---------------------------------------------------------------------------
+
+
+def test_previous_entry_of_day_is_none_for_the_first_entry(db):
+  transport = create_transport()
+  morning = _entry(transport, day_of_week=1, start='08:00:00', end='12:00:00')
+
+  with Session() as session:
+    assert previous_entry_of_day(morning, session) is None
+
+
+def test_previous_entry_of_day_returns_the_closest_earlier_entry(db):
+  transport = create_transport()
+  morning = _entry(transport, day_of_week=1, start='08:00:00', end='12:00:00')
+  midday = _entry(transport, day_of_week=1, start='12:30:00', end='13:30:00')
+  afternoon = _entry(transport, day_of_week=1, start='14:00:00', end='18:00:00')
+
+  with Session() as session:
+    assert previous_entry_of_day(afternoon, session).id == midday.id
+    assert previous_entry_of_day(midday, session).id == morning.id
+
+
+def _fake_schedule_stop(from_coord, to_coord):
+  def _fn(entry, dpc, session, last):
+    return from_coord if last else to_coord
+
+  return _fn
+
+
+def _transition_minutes(entry, previous, *, travel, leftover=0, to_coord=(1.0, 1.0)):
+  """entry_transition_minutes con tappe, tragitto e residuo della precedente fissati:
+
+  prova solo l'aritmetica buco/residuo-vs-tragitto, non la lettura del borderò
+  (vedi i test con create_schedule per quella) né il calcolo del residuo stesso
+  (vedi i test su _entry_leftover_minutes tramite entry_occupied_duration)."""
+  with (
+    patch(f'{_FRONT}.previous_entry_of_day', return_value=previous),
+    patch(f'{_FRONT}._schedule_stop_coord', side_effect=_fake_schedule_stop((0.0, 0.0), to_coord)),
+    patch(f'{_FRONT}._entry_leftover_minutes', return_value=leftover),
+    patch('src.end_points.service.travel.sequential_travel_minutes', return_value=travel),
+  ):
+    return entry_transition_minutes(entry, [], date.today(), object())
+
+
+def test_transition_is_free_when_the_travel_fits_in_the_gap(db):
+  transport = create_transport()
+  previous = _entry(transport, start='08:00:00', end='12:00:00')
+  entry = _entry(transport, start='12:15:00', end='16:00:00')  # 15' di buco
+
+  assert _transition_minutes(entry, previous, travel=15) == 0
+
+
+def test_transition_charges_only_what_overflows_the_gap(db):
+  """Buco di 15', tragitto di 25', fascia precedente già piena (residuo 0):
+
+  solo i 10' che sforano il buco pesano sulla fascia."""
+  transport = create_transport()
+  previous = _entry(transport, start='08:00:00', end='12:00:00')
+  entry = _entry(transport, start='12:15:00', end='16:00:00')
+
+  assert _transition_minutes(entry, previous, travel=25, leftover=0) == 10
+
+
+def test_transition_is_absorbed_by_the_leftover_of_the_previous_slot(db):
+  """Stesso buco (15') e tragitto (25'), ma la precedente ha ancora 20' liberi nel suo
+
+  orario nominale: bastano a coprire i 10' che sforano il buco, la fascia resta libera."""
+  transport = create_transport()
+  previous = _entry(transport, start='08:00:00', end='12:00:00')
+  entry = _entry(transport, start='12:15:00', end='16:00:00')
+
+  assert _transition_minutes(entry, previous, travel=25, leftover=20) == 0
+
+
+def test_transition_charges_what_the_previous_slots_leftover_does_not_cover(db):
+  """Buco di 15', tragitto di 40' (25' di sforo), la precedente ha solo 10' liberi:
+
+  10' li assorbe lei, i restanti 15' pesano su questa fascia."""
+  transport = create_transport()
+  previous = _entry(transport, start='08:00:00', end='12:00:00')
+  entry = _entry(transport, start='12:15:00', end='16:00:00')
+
+  assert _transition_minutes(entry, previous, travel=40, leftover=10) == 15
+
+
+def test_transition_never_goes_negative(db):
+  transport = create_transport()
+  previous = _entry(transport, start='08:00:00', end='12:00:00')
+  entry = _entry(transport, start='14:00:00', end='16:00:00')  # 2h di buco
+
+  assert _transition_minutes(entry, previous, travel=25) == 0
+
+
+def test_transition_is_zero_for_the_first_entry_of_the_day(db):
+  entry = _entry(create_transport(), start='08:00:00', end='12:00:00')
+
+  with Session() as session:
+    assert entry_transition_minutes(entry, [], date.today(), session) == 0
+
+
+def test_transition_is_zero_without_a_schedule_for_the_previous_slot(db):
+  """Fascia precedente senza borderò ancora costruito: nessuna tappa da cui stimare, zero."""
+  transport = create_transport()
+  target = date.today() + timedelta(days=3)
+  _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='12:00:00')  # senza borderò
+  entry = _entry(transport, day_of_week=target.weekday(), start='12:05:00', end='16:00:00')
+
+  with Session() as session:
+    assert entry_transition_minutes(entry, [], target, session) == 0
+
+
+def test_transition_uses_the_real_last_stop_of_the_previous_slot_and_first_of_this_one(offline_geo, db):
+  """entry_transition_minutes legge il borderò reale: ultima tappa (indice più alto) della
+
+  fascia precedente, prima tappa (indice più basso) di questa. Non un'approssimazione
+  (es. l'ultimo ordine per id, o un ritiro qualsiasi): il percorso che il corriere segue
+  davvero e' quello mostrato sulla mappa del borderò."""
+  _geo_places(offline_geo)
+  target = date.today() + timedelta(days=3)
+  transport = _vehicle()
+  previous = _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='12:00:00')
+  entry = _entry(transport, day_of_week=target.weekday(), start='12:05:00', end='16:00:00')
+  schedule = create_schedule(transport, schedule_date=target)
+
+  prev_first = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
+    address='Via Magazzino 1, Molfetta',
+  )
+  prev_last = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
+    address='Via Consegna 1, Bari',
+  )
+  link_order_to_schedule(
+    prev_first, schedule, index=0, start_time_slot=previous.start_time, end_time_slot=previous.end_time
+  )
+  link_order_to_schedule(
+    prev_last, schedule, index=1, start_time_slot=previous.start_time, end_time_slot=previous.end_time
+  )
+
+  this_first = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+    address='Via Deposito 1, Bisceglie',
+  )
+  this_last = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+    address='Via Magazzino 1, Molfetta',
+  )
+  link_order_to_schedule(this_first, schedule, index=2, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
+  link_order_to_schedule(this_last, schedule, index=3, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
+
+  with Session() as session:
+    entry_transition_minutes(entry, [], target, session)
+
+  # Da Bari (ultima tappa di previous) a Bisceglie (prima tappa di entry), non Molfetta-Molfetta.
+  # (non necessariamente l'ultimo percorso richiesto: calcolare il residuo della
+  # precedente, vedi _entry_leftover_minutes, ne chiede altri dopo questo).
+  assert [BARI, BISCEGLIE] in offline_geo.paths
+
+
+def test_transition_falls_back_to_pickups_and_delivery_without_a_schedule_for_this_slot(offline_geo, db):
+  """La fascia attuale non ha ancora un borderò (nessun ordine ancora pianificato in essa):
+
+  si stima con lo stesso percorso "in testa" di sempre (ritiri poi consegna più vicina),
+  partendo però dall'ultima tappa reale della fascia precedente e non dal deposito."""
+  _geo_places(offline_geo)
+  target = date.today() + timedelta(days=3)
+  transport = _vehicle()
+  previous = _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='12:00:00')
+  entry = _entry_with_orders(transport, target, start='12:05:00', end='16:00:00')
+  schedule = create_schedule(transport, schedule_date=target)
+  prev_last = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
+    address='Via Consegna 1, Bari',
+  )
+  link_order_to_schedule(
+    prev_last, schedule, index=0, start_time_slot=previous.start_time, end_time_slot=previous.end_time
+  )
+
+  orders = query_entry_orders(entry, target)
+  with Session() as session:
+    entry_transition_minutes(entry, orders, target, session)
+
+  # Da Bari (ultima tappa di previous), attraverso il ritiro (Molfetta), verso la consegna (Bari).
+  assert [BARI, MOLFETTA, BARI] in offline_geo.paths
+
+
+def test_entry_occupied_duration_charges_the_transition_overflow_when_the_previous_slot_is_full(offline_geo, db):
+  """Buco di 5' tra le fasce, tragitto di 25' (fisso da _geo_places), fascia precedente
+
+  con capienza (08:00-08:25) pari a quanto già occupa (25' di strada in testa, essendo
+  la prima del giorno): nessun residuo da cui farsi assorbire lo sforo, i 20' che
+  sforano il buco pesano per intero su questa fascia."""
+  _geo_places(offline_geo)
+  target = date.today() + timedelta(days=3)
+  transport = _vehicle()
+  schedule = create_schedule(transport, schedule_date=target)
+  previous = _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='08:25:00')
+  prev_order = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
+    address='Via Consegna 1, Bari',
+  )
+  link_order_to_schedule(
+    prev_order, schedule, index=0, start_time_slot=previous.start_time, end_time_slot=previous.end_time
+  )
+
+  entry = _entry(transport, day_of_week=target.weekday(), start='08:30:00', end='12:00:00')  # 5' di buco
+  this_order = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+    address='Via Deposito 1, Bisceglie',
+  )
+  link_order_to_schedule(this_order, schedule, index=1, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
+
+  assert entry_occupied_duration(entry, target) == 20
+
+
+def test_entry_occupied_duration_transition_is_free_when_the_gap_is_enough(offline_geo, db):
+  """Stesso scenario, ma con 30' di buco: bastano per i 25' di tragitto, la fascia resta libera."""
+  _geo_places(offline_geo)
+  target = date.today() + timedelta(days=3)
+  transport = _vehicle()
+  schedule = create_schedule(transport, schedule_date=target)
+  previous = _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='08:25:00')
+  prev_order = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
+    address='Via Consegna 1, Bari',
+  )
+  link_order_to_schedule(
+    prev_order, schedule, index=0, start_time_slot=previous.start_time, end_time_slot=previous.end_time
+  )
+
+  entry = _entry(transport, day_of_week=target.weekday(), start='08:55:00', end='12:00:00')  # 30' di buco
+  this_order = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+    address='Via Deposito 1, Bisceglie',
+  )
+  link_order_to_schedule(this_order, schedule, index=1, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
+
+  assert entry_occupied_duration(entry, target) == 0
+
+
+def test_entry_occupied_duration_transition_is_absorbed_by_the_previous_slots_leftover(offline_geo, db):
+  """Stesso buco di 5' e tragitto di 25', ma la fascia precedente è ampia (08:00-12:00,
+
+  240' di capienza contro 25' occupati): il residuo assorbe per intero i 20' che
+  sforerebbero il buco, questa fascia resta libera."""
+  _geo_places(offline_geo)
+  target = date.today() + timedelta(days=3)
+  transport = _vehicle()
+  schedule = create_schedule(transport, schedule_date=target)
+  previous = _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='12:00:00')
+  prev_order = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=previous.start_time,
+    delivery_slot_end=previous.end_time,
+    address='Via Consegna 1, Bari',
+  )
+  link_order_to_schedule(
+    prev_order, schedule, index=0, start_time_slot=previous.start_time, end_time_slot=previous.end_time
+  )
+
+  entry = _entry(transport, day_of_week=target.weekday(), start='12:05:00', end='16:00:00')  # 5' di buco
+  this_order = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+    address='Via Deposito 1, Bisceglie',
+  )
+  link_order_to_schedule(this_order, schedule, index=1, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
+
+  assert entry_occupied_duration(entry, target) == 0
