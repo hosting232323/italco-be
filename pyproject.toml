@@ -19,6 +19,8 @@ dependencies = [
   "camelot-py[cv]",
   "xlrd",
   "flask-cors",
+  # 2.1 usa psycopg (v3) per postgresql://, ma il progetto gira su psycopg2.
+  "SQLAlchemy<2.1",
 ]
 
 [project.optional-dependencies]
