@@ -78,7 +78,6 @@ class Company(BaseEntity):
   rae_registration = Column(String)
 
 
-
 class User(BaseItalcoEntity):
   __tablename__ = 'user'
 
