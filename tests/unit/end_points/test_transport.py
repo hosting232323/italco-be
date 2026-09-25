@@ -23,16 +23,14 @@ def test_create_transport(client):
 
   response = client.post(
     '/transport',
-    json={'name': 'Furgone 1', 'plate': 'AA123BB', 'address': 'Via Deposito 1, Bisceglie, BT', 'cap': '70020'},
+    json={'name': 'Furgone 1', 'plate': 'AA123BB', 'cap': '70020'},
     headers=auth_header(admin),
   )
 
   body = response.get_json()
   assert body['status'] == 'ok'
   assert body['transport']['plate'] == 'AA123BB'
-  # La località del veicolo è un indirizzo vero, con il cap che l'autocomplete
-  # ricava da quello.
-  assert body['transport']['address'] == 'Via Deposito 1, Bisceglie, BT'
+  # La località del veicolo è rappresentata dal CAP.
   assert body['transport']['cap'] == '70020'
   assert get_by_id(Transport, body['transport']['id']) is not None
 
