@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 import logging
 
 import requests
@@ -158,6 +159,26 @@ def get_lat_lon_for_collection_point(collection_point: CollectionPoint) -> tuple
   return _address_or_cap_coords(collection_point)
 
 
+def get_lat_lon_for_orders(orders: list[Order], max_workers: int = 10) -> list[tuple[float, float] | tuple[None, None]]:
+  """Risolve in parallelo le coordinate per una lista di ordini."""
+  if not orders:
+    return []
+  workers = min(max_workers, len(orders))
+  with ThreadPoolExecutor(max_workers=workers) as executor:
+    return list(executor.map(get_lat_lon_for_order, orders))
+
+
+def get_lat_lon_for_collection_points(
+  points: list[CollectionPoint], max_workers: int = 10
+) -> list[tuple[float, float] | tuple[None, None]]:
+  """Risolve in parallelo le coordinate per una lista di punti di ritiro."""
+  if not points:
+    return []
+  workers = min(max_workers, len(points))
+  with ThreadPoolExecutor(max_workers=workers) as executor:
+    return list(executor.map(get_lat_lon_for_collection_point, points))
+
+
 def _nearest(origin: tuple[float, float], candidates: list[tuple[float, float]]) -> tuple[float, float]:
   """La candidata piu' vicina a ``origin`` in linea d'aria.
 
@@ -233,16 +254,17 @@ def calculate_travel_overhead_minutes(
     return 0
   new_coord = (new_lat, new_lon)
 
-  existing_coords = []
-  for order in sorted(existing_orders, key=lambda o: o.id):
-    lat, lon = get_lat_lon_for_order(order)
-    if lat is not None:
-      existing_coords.append((lat, lon))
+  sorted_orders = sorted(existing_orders, key=lambda o: o.id)
+  existing_coords = [(lat, lon) for lat, lon in get_lat_lon_for_orders(sorted_orders) if lat is not None]
 
   if not existing_coords:
     # Nessun ordine esistente geocodificabile: overhead = 0 (primo ordine nella fascia)
     return 0
 
-  baseline = sequential_travel_minutes(existing_coords)
-  with_new = sequential_travel_minutes(existing_coords + [new_coord])
+  with ThreadPoolExecutor(max_workers=2) as executor:
+    fut_baseline = executor.submit(sequential_travel_minutes, existing_coords)
+    fut_with_new = executor.submit(sequential_travel_minutes, existing_coords + [new_coord])
+    baseline = fut_baseline.result()
+    with_new = fut_with_new.result()
+
   return max(0, with_new - baseline)
