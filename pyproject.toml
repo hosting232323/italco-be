@@ -12,6 +12,7 @@ dependencies = [
   "openai",
   "python-telegram-bot",
   "gunicorn",
+  "SQLAlchemy<2.1",
   "geopy",
   "scipy",
   "pdfplumber",
