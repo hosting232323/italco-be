@@ -33,13 +33,17 @@ EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 # gitlab/build-android.yml e build-ios.yml del repo delivery-app, che e' lo
 # stesso numero letto da PackageInfo.buildNumber nell'app.
 #
+# Compatibilità della soglia versione delivery app. Le app già distribuite
+# chiamano l'endpoint senza ?platform=: per loro si usa la variabile legacy
+# DELIVERY_APP_MIN_BUILD_NUMBER. Le versioni aggiornate passano la piattaforma
+# e usano le variabili specifiche.
+#
 # Soglia per piattaforma, l'endpoint /delivery-app/min-version la sceglie in
 # base a ?platform=:
 #  - iOS (DELIVERY_APP_MIN_BUILD_NUMBER_IOS): soglia di routine. Le build
 #    TestFlight scadono a 90 giorni e la pipeline schedulata ne carica una
 #    nuova ogni ~60, quindi senza blocco un corriere che non aggiorna resta
-#    senza app. `platform` assente vale iOS, per le build gia' distribuite
-#    che non lo mandano.
+#    senza app.
 #  - Android (DELIVERY_APP_MIN_BUILD_NUMBER_ANDROID): di norma NON impostata.
 #    Le build Play non scadono e Play aggiorna da solo. Si valorizza solo per
 #    forzare un rollout d'emergenza (bug grave) e si rimuove appena Play ha
@@ -47,6 +51,7 @@ EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
 #    alzarla puo' bloccare chi non ha ancora ricevuto la nuova build.
 DELIVERY_APP_MIN_BUILD_NUMBER_IOS = os.environ.get('DELIVERY_APP_MIN_BUILD_NUMBER_IOS', None)
 DELIVERY_APP_MIN_BUILD_NUMBER_ANDROID = os.environ.get('DELIVERY_APP_MIN_BUILD_NUMBER_ANDROID', None)
+DELIVERY_APP_MIN_BUILD_NUMBER = os.environ.get('DELIVERY_APP_MIN_BUILD_NUMBER', None)
 STATIC_FOLDER = os.environ.get(
   'STATIC_FOLDER', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
 )
@@ -101,10 +106,14 @@ def delivery_app_min_version():
   # non impostato o non numerico significa "nessuna soglia", non un errore -
   # l'app dei corrieri non deve mai bloccarsi per una svista di configurazione.
   #
-  # Soglia per piattaforma (vedi la nota sulle due DELIVERY_APP_MIN_BUILD_*):
-  # Android usa la sua variabile, di norma non impostata; tutto il resto -
-  # iOS e `platform` assente - usa quella iOS.
-  if request.args.get('platform', 'ios').lower() == 'android':
+  # I client aggiornati chiedono la soglia della propria piattaforma.
+  # I client gia' distribuiti non mandano platform: manteniamo per loro la
+  # soglia legacy unica, cosi' possono essere aggiornati prima di separare le
+  # configurazioni iOS e Android.
+  platform = request.args.get('platform')
+  if platform is None:
+    raw_min_build_number = DELIVERY_APP_MIN_BUILD_NUMBER
+  elif platform.lower() == 'android':
     raw_min_build_number = DELIVERY_APP_MIN_BUILD_NUMBER_ANDROID
   else:
     raw_min_build_number = DELIVERY_APP_MIN_BUILD_NUMBER_IOS
