@@ -107,11 +107,16 @@ def merge_small_sub_groups(sub_groups, min_size_group, max_size_group):
 
 
 def cluster_orders_by_cap(order_items, collection_point_items, max_size_group, max_distance_km):
-  caps = [item['cap'] for item in order_items if item.get('cap')]
-  coords = get_lat_lon_by_caps(caps)
+  # Le coordinate si risolvono solo per gli ordini con un CAP e si riagganciano
+  # all'ordine che le ha originate: zippare la lista filtrata con quella intera
+  # sposterebbe di una posizione le coordinate di tutti gli ordini dopo il primo
+  # senza CAP.
+  with_cap = [item for item in order_items if item.get('cap')]
+  coords_by_item = dict(zip(map(id, with_cap), get_lat_lon_by_caps([item['cap'] for item in with_cap])))
   valid_orders = []
   invalid_orders = []
-  for item, (lat, lon) in zip(order_items, coords):
+  for item in order_items:
+    lat, lon = coords_by_item.get(id(item), (None, None))
     if lat is not None and lon is not None:
       valid_orders.append((item, (lat, lon)))
     else:

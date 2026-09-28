@@ -78,8 +78,8 @@ def test_get_collection_points_lat_lon_none_when_geocoding_fails(mock_geocode, c
   assert (point['lat'], point['lon']) == (None, None)
 
 
-@patch('src.end_points.collection_point.get_lat_lon_by_address', side_effect=requests.ConnectionError('giù'))
-def test_get_collection_points_survives_an_unreachable_geocoder(_geocode, client):
+@patch('src.utils.caps.requests.get', side_effect=requests.ConnectionError('giù'))
+def test_get_collection_points_survives_an_unreachable_geocoder(_get, client):
   """Nominatim giù: la lista dei punti di ritiro si legge lo stesso, solo senza coordinate."""
   customer = create_user(UserRole.CUSTOMER)
   create_collection_point(customer)
@@ -149,3 +149,29 @@ def test_query_collection_points_respects_role(db):
 
   assert [cp.id for cp in query_collection_points(customer)] == [own.id]
   assert {cp.id for cp in query_collection_points(admin)} == {own.id, other.id}
+
+
+@patch('src.end_points.collection_point.get_lat_lon_by_address', return_value=(41.1, 16.8))
+def test_coordinates_are_saved_on_the_first_read_and_not_geocoded_again(mock_geocode, client):
+  customer = create_user(UserRole.CUSTOMER)
+  create_collection_point(customer)
+
+  first = client.get('/collection-point', headers=auth_header(customer)).get_json()['collection_points'][0]
+  second = client.get('/collection-point', headers=auth_header(customer)).get_json()['collection_points'][0]
+
+  assert (first['lat'], first['lon']) == (second['lat'], second['lon']) == (41.1, 16.8)
+  assert mock_geocode.call_count == 1
+
+
+@patch('src.end_points.collection_point.get_lat_lon_by_address', return_value=(41.1, 16.8))
+def test_creating_a_collection_point_saves_its_coordinates_and_ignores_the_ones_sent(_geocode, client):
+  customer = create_user(UserRole.CUSTOMER)
+
+  response = client.post(
+    '/collection-point',
+    json={'name': 'Magazzino', 'address': 'Via Roma 1, Bari', 'cap': '70121', 'lat': 0.0, 'lon': 0.0},
+    headers=auth_header(customer),
+  )
+
+  point = response.get_json()['collection_point']
+  assert (point['lat'], point['lon']) == (41.1, 16.8)

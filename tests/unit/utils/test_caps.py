@@ -112,3 +112,23 @@ def test_get_lat_lon_by_address_returns_none_when_unresolvable(mock_get):
   mock_get.return_value = _nominatim_response([])
 
   assert get_lat_lon_by_address('Via Inesistente 0, Nessundove') == (None, None)
+
+
+@patch('src.utils.caps.requests.get')
+def test_lat_lon_by_address_degrades_when_the_geocoder_is_down_and_does_not_cache_the_failure(mock_get):
+  import requests
+
+  mock_get.side_effect = requests.ConnectionError('giù')
+  assert get_lat_lon_by_address('Via Roma 1, Bari') == (None, None)
+
+  mock_get.side_effect = None
+  mock_get.return_value = _nominatim_response([_address_result(county='Bari')])
+  assert get_lat_lon_by_address('Via Roma 1, Bari') == (41.1256, 16.8698)
+
+
+@patch('src.utils.caps.requests.get')
+def test_lat_lon_by_cap_degrades_when_the_geocoder_is_down(mock_get):
+  import requests
+
+  mock_get.side_effect = requests.Timeout('lento')
+  assert get_lat_lon_by_cap('70121') == (None, None)

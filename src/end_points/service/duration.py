@@ -2,6 +2,7 @@ import logging
 from datetime import date, time
 
 import requests
+from sqlalchemy import or_
 from sqlalchemy.orm import Session as session_type, joinedload
 
 from database_api import Session
@@ -92,6 +93,23 @@ def calculate_payload_service_duration(payload: dict, user: User = None, session
     return _compute(sess)
 
 
+def order_products_payload(order: Order, session: session_type) -> dict:
+  """I prodotti di un ordine salvato nella forma del payload di create_order.
+
+  Serve a stimare la capienza di un ordine modificato che non rimanda i
+  prodotti: durata dei servizi e ritiri sono quelli che ha gia'.
+  """
+  payload: dict = {}
+  for product in session.query(Product).filter(Product.order_id == order.id).all():
+    service_user = session.get(ServiceUser, product.service_user_id)
+    entry = payload.setdefault(product.name, {'services': []})
+    if service_user:
+      entry['services'].append({'id': service_user.service_id})
+    if product.collection_point_id:
+      entry['collection_point'] = {'id': product.collection_point_id}
+  return payload
+
+
 def get_entry_capacity_minutes(entry: DeliveryCoverageEntry) -> int:
   """Restituisce la capienza naturale in minuti della fascia (end_time - start_time)."""
   if not entry or not entry.start_time or not entry.end_time:
@@ -102,9 +120,17 @@ def get_entry_capacity_minutes(entry: DeliveryCoverageEntry) -> int:
 
 
 def query_slot_orders(
-  entry: DeliveryCoverageEntry, dpc: date, exclude_order_id: int = None, session: session_type = None
+  entry: DeliveryCoverageEntry,
+  dpc: date,
+  exclude_order_id: int = None,
+  session: session_type = None,
+  unassigned_only: bool = False,
 ) -> list[Order]:
-  """Restituisce gli ordini che impegnano la fascia oraria dell'entry nella data dpc."""
+  """Restituisce gli ordini che impegnano la fascia oraria dell'entry nella data dpc.
+
+  Per zona (CAP o poligono), qualunque veicolo li abbia presi; con
+  `unassigned_only` solo quelli senza veicolo.
+  """
 
   def _query(sess: session_type):
     caps = [cap_obj.cap for cap_obj in getattr(entry, 'caps', [])]
@@ -121,6 +147,8 @@ def query_slot_orders(
       query = query.filter(Order.cap.in_(caps))
     if exclude_order_id:
       query = query.filter(Order.id != exclude_order_id)
+    if unassigned_only:
+      query = query.filter(Order.delivery_transport_id.is_(None))
     orders = query.all()
 
     # Entry disegnato sulla mappa (nessun CAP): senza questo filtro
@@ -512,85 +540,75 @@ def entry_priority_key(entry: DeliveryCoverageEntry) -> tuple:
   return (entry.transport_id, entry.start_time, entry.id)
 
 
-def _entry_fits_order(
-  candidate: DeliveryCoverageEntry,
-  assigned: list[Order],
-  order: Order,
-  dpc: date = None,
-  session: session_type = None,
-) -> bool:
-  """Se `order` sta nella capienza di `candidate` oltre agli ordini già attribuiti
-  (servizi + tempo di percorso aggiunto + lavoro in testa alla giornata), con la
-  stessa misura di entry_occupied_duration.
-
-  I minuti di ritiro si contano sul gruppo intero (assegnati + nuovo ordine),
-  deduplicati: se lo stesso punto di ritiro di `order` è già presente tra gli
-  ordini assegnati a `candidate` non lo riconta, e concorre come chiunque altro a
-  riempire prima la giornata più carica (entry_priority_key, invariato). Contarli
-  sul gruppo e non solo sul nuovo ordine serve anche al margine dell'apertura,
-  che si applica al totale del lavoro in testa (vedi entry_front_slot_minutes)."""
-  capacity = get_entry_capacity_minutes(candidate)
-  if capacity == 0:
-    return True
-  order_duration = calculate_order_service_duration(order)
-  occupied = sum(calculate_order_service_duration(o) for o in assigned)
-  travel_overhead = _travel_overhead_minutes(assigned, order.cap, new_address=order.address)
-  group = assigned + [order]
-  pickup_minutes = calculate_orders_pickup_minutes(group)
-  front = (
-    entry_front_slot_minutes(candidate, group, pickup_minutes, session, dpc=dpc)
-    if session is not None
-    else pickup_minutes
-  )
-  return occupied + travel_overhead + order_duration + front <= capacity
-
-
 def query_entry_orders(
   entry: DeliveryCoverageEntry, dpc: date, exclude_order_id: int = None, session: session_type = None
 ) -> list[Order]:
   """Ordini attribuiti a `entry` nella data dpc.
 
-  L'ordine salva solo la fascia oraria, non il veicolo: blocchi di veicoli diversi con
-  la stessa fascia (start/end identici) vedono quindi gli stessi ordini. Li ripartiamo
-  in modo deterministico, dal più vecchio, sul primo blocco (per entry_priority_key) che
-  li copre e ha ancora spazio per il loro tempo di servizio e di percorso, così la
-  giornata del primo veicolo si riempie prima di passare al successivo. Un ordine che
-  non entra in nessuno resta sul primo blocco che lo copre (la scelta del cliente
-  viene comunque onorata).
+  Un ordine porta il veicolo scelto alla creazione (`delivery_transport_id`) e
+  la fascia: appartiene al blocco di quel veicolo con quella fascia, punto. Non
+  serve piu' ripartire virtualmente gli ordini tra blocchi che si sovrappongono,
+  e con la ripartizione e' sparita anche la ricorsione che rifaceva il calcolo
+  della capienza per ogni ordine gia' presente.
+
+  Gli ordini con fascia ma senza veicolo (creati prima che il veicolo fosse
+  salvato) vanno al primo blocco, per entry_priority_key, che li copre.
   """
 
   def _query(sess: session_type):
-    siblings = (
-      sess.query(DeliveryCoverageEntry)
-      .options(joinedload(DeliveryCoverageEntry.caps))
+    query = (
+      sess.query(Order)
+      .options(joinedload(Order.product).joinedload(Product.service_user).joinedload(ServiceUser.service))
       .filter(
-        DeliveryCoverageEntry.day_of_week == entry.day_of_week,
-        DeliveryCoverageEntry.start_time == entry.start_time,
-        DeliveryCoverageEntry.end_time == entry.end_time,
+        Order.dpc == dpc,
+        Order.delivery_slot_start == entry.start_time,
+        Order.delivery_slot_end == entry.end_time,
+        or_(Order.delivery_transport_id == entry.transport_id, Order.delivery_transport_id.is_(None)),
       )
-      .all()
     )
-    if len(siblings) <= 1:
-      return query_slot_orders(entry, dpc, exclude_order_id=exclude_order_id, session=sess)
-
-    siblings.sort(key=entry_priority_key)
-    covering = {}
-    for sibling in siblings:
-      for order in query_slot_orders(sibling, dpc, exclude_order_id=exclude_order_id, session=sess):
-        covering.setdefault(order.id, (order, []))[1].append(sibling)
-
-    assigned = {sibling.id: [] for sibling in siblings}
-    for _, (order, candidates) in sorted(covering.items()):
-      target = next(
-        (c for c in candidates if _entry_fits_order(c, assigned[c.id], order, dpc=dpc, session=sess)), candidates[0]
-      )
-      assigned[target.id].append(order)
-    return assigned[entry.id]
+    if exclude_order_id:
+      query = query.filter(Order.id != exclude_order_id)
+    rows = query.all()
+    orders = [order for order in rows if order.delivery_transport_id is not None]
+    if len(orders) < len(rows):
+      orders += _orders_without_vehicle(entry, dpc, exclude_order_id, sess)
+    return orders
 
   if session is not None:
     return _query(session)
   with Session() as sess:
     return _query(sess)
+
+
+def _orders_without_vehicle(
+  entry: DeliveryCoverageEntry, dpc: date, exclude_order_id: int, session: session_type
+) -> list[Order]:
+  candidates = query_slot_orders(entry, dpc, exclude_order_id=exclude_order_id, session=session, unassigned_only=True)
+  if not candidates:
+    return []
+
+  siblings = sorted(
+    session.query(DeliveryCoverageEntry)
+    .options(joinedload(DeliveryCoverageEntry.caps))
+    .filter(
+      DeliveryCoverageEntry.day_of_week == entry.day_of_week,
+      DeliveryCoverageEntry.start_time == entry.start_time,
+      DeliveryCoverageEntry.end_time == entry.end_time,
+    )
+    .all(),
+    key=entry_priority_key,
+  )
+  taken = set()
+  for sibling in siblings:
+    if sibling.id == entry.id:
+      break
+    taken.update(
+      order.id
+      for order in query_slot_orders(
+        sibling, dpc, exclude_order_id=exclude_order_id, session=session, unassigned_only=True
+      )
+    )
+  return [order for order in candidates if order.id not in taken]
 
 
 def _entry_front_slot_for(

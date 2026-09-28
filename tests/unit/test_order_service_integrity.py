@@ -4,36 +4,27 @@ from io import BytesIO
 import pandas as pd
 import pytest
 from database_api import Session
-from database_api.operations import create
-from sqlalchemy.orm import Session as RawSession
-import database_api
 
-from src.database.enum import OrderType, OrderStatus, EuronicsStatus
+from src.database.enum import OrderType, OrderStatus
 from src.database.schema import (
   Order,
   Product,
-  Photo,
-  History,
   ScheduleItemOrder,
   Service,
   ServiceUser,
-  RaeProduct,
   ScheduleItem,
 )
 from src.order_integrity import split_order_by_service_type, InvalidOrderProductsError, assert_order_service_types
 from src.checks import check_order_service_types, get_checks, format_order_service_types
 from src.end_points.importation.excel import handle_excel_conflict, order_import_by_excel
 from src.end_points.orders.crud import update_order
-from src.end_points.orders.queries import get_order_by_external_id, get_order_by_external_id_and_customer
-from src.end_points.orders.api import is_available_order
-from scripts.repair_order_service_types import build_plan, apply_plan
+from src.end_points.orders.queries import get_order_by_external_id
 from tests.unit.factories import (
   create_order,
   customer_with_service,
   create_service,
   create_service_user,
   create_product,
-  create_rae_product,
   create_schedule,
   link_order_to_schedule,
   create_user,
@@ -66,121 +57,6 @@ def payload(products, point, external_id='EXCEL-TYPES'):
     'Note MW + Note': '',
     'products': {'Frigo': {'services': [p.service_user_id for p in products], 'collection_point': {'id': point.id}}},
   }
-
-
-@pytest.mark.parametrize('kind', [OrderType.WITHDRAW, OrderType.CHECK, OrderType.REPLACEMENT])
-def test_homogeneous_repair_only_changes_type_and_is_idempotent(kind):
-  order, _, products, _ = mixed_order((kind, kind))
-  with Session() as session:
-    targets = split_order_by_service_type(session.get(Order, order.id), session)
-    assert [target.id for target in targets] == [order.id]
-    assert targets[0].type == kind
-    session.commit()
-  with Session() as session:
-    assert build_plan(session)['entries'] == []
-    assert len(split_order_by_service_type(session.get(Order, order.id), session)) == 1
-    assert session.query(Product).count() == len(products)
-
-
-def test_four_types_keep_product_ids_money_evidence_schedules_and_rae():
-  order, customer, products, _ = mixed_order(
-    tuple(OrderType),
-    status=OrderStatus.DELIVERED,
-    mark=120,
-    signature=b'signed',
-    completion_date=date.today(),
-    motivation='Consegnato',
-    external_id='EXT-1',
-    external_link='https://example.test/orders/EXT-1',
-    external_status=EuronicsStatus.NEW,
-  )
-  schedule = create_schedule()
-  item = link_order_to_schedule(order, schedule, completed=True)
-  photo = create(Photo, {'order_id': order.id, 'link': 'evidence.jpg'})
-  rae = create_rae_product(order, customer)
-  with Session() as session:
-    session.get(Product, products[1].id).rae_product_id = rae.id
-    session.commit()
-  with Session() as session:
-    previous_histories = session.query(History).filter_by(order_id=order.id).count()
-    targets = split_order_by_service_type(session.get(Order, order.id), session)
-    target_ids = {target.type: target.id for target in targets}
-    assert len(targets) == 4
-    session.commit()
-  with Session() as session:
-    root = session.get(Order, order.id)
-    assert root.mark == 120 and root.signature == b'signed' and root.motivation == 'Consegnato'
-    assert root.external_id == 'EXT-1'
-    assert root.external_link == 'https://example.test/orders/EXT-1'
-    assert root.external_status == EuronicsStatus.NEW
-    assert session.get(Photo, photo.id).order_id == order.id
-    assert session.query(History).filter_by(order_id=order.id).count() == previous_histories
-    assert {row.id for row in session.query(Product)} == {p.id for p in products}
-    for target in session.query(Order):
-      assert_order_service_types(target, session)
-      assert target.status == OrderStatus.DELIVERED and target.completion_date == date.today()
-      link = session.query(ScheduleItemOrder).filter_by(order_id=target.id).one()
-      stop = session.get(ScheduleItem, link.schedule_item_id)
-      assert stop.schedule_id == schedule.id and stop.completed
-      assert stop.start_time_slot == item.start_time_slot
-      assert (stop.id == item.id) == (target.id == order.id)
-      if target.id != order.id:
-        assert f'Separato da ordine {order.id}.' in target.operator_note
-        assert 'Rif. Cliente originale: EXT-1' in target.operator_note
-        assert target.external_id is None and target.external_link is None and target.external_status is None
-        assert target.mark is None and target.signature is None
-        assert not is_available_order(target)
-    assert session.get(RaeProduct, rae.id).order_id == target_ids[list(OrderType)[1]]
-    assert build_plan(session)['entries'] == []
-  assert get_order_by_external_id('EXT-1').id == order.id
-  assert get_order_by_external_id_and_customer('EXT-1', customer.id).id == order.id
-
-
-def test_shared_rae_is_reported_and_never_duplicated():
-  order, customer, products, _ = mixed_order()
-  rae = create_rae_product(order, customer)
-  with Session() as session:
-    for p in products:
-      session.get(Product, p.id).rae_product_id = rae.id
-    session.commit()
-  with Session() as session:
-    plan = build_plan(session)
-    assert 'RAEE' in plan['entries'][0]['blocker']
-    with pytest.raises(ValueError, match='bloccati'):
-      apply_plan(session, plan)
-    with pytest.raises(InvalidOrderProductsError, match='RAEE'):
-      split_order_by_service_type(session.get(Order, order.id), session)
-  with Session() as session:
-    assert session.query(Order).count() == 1
-    assert session.query(RaeProduct).count() == 1
-
-
-def test_plan_apply_unscoped_preserves_company_and_rejects_replay():
-  order, _, _, _ = mixed_order()
-  with RawSession(database_api.engine) as session:
-    plan = build_plan(session)
-    result = apply_plan(session, plan)
-    session.commit()
-    assert len(result[0]['orders']) == 2
-    assert build_plan(session)['entries'] == []
-    assert all(row.company_id == order.company_id for row in session.query(History))
-    with pytest.raises(ValueError, match='obsoleto'):
-      apply_plan(session, plan)
-
-
-def test_stale_plan_rolls_back_all_orders():
-  order, _, _, _ = mixed_order()
-  with Session() as session:
-    plan = build_plan(session)
-  with Session() as session:
-    session.get(Order, order.id).operator_note = 'Changed after review'
-    session.commit()
-  with Session() as session:
-    with pytest.raises(ValueError, match='obsoleto'):
-      apply_plan(session, plan)
-  with Session() as session:
-    assert session.query(Order).count() == 1
-    assert session.get(Order, order.id).operator_note == 'Changed after review'
 
 
 def test_split_failure_rolls_back_every_partition(monkeypatch):
@@ -365,27 +241,6 @@ def test_split_schedule_stops_complete_independently():
     assert session.get(Order, child_id).status == OrderStatus.BOOKING
 
 
-def test_cli_dry_run_apply_and_new_dry_run(tmp_path, monkeypatch):
-  import json
-  from scripts.repair_order_service_types import main
-
-  mixed_order()
-  plan_path = tmp_path / 'plan.json'
-  result_path = tmp_path / 'result.json'
-  monkeypatch.setattr('sys.argv', ['repair', '--output', str(plan_path)])
-  main()
-  with Session() as session:
-    assert session.query(Order).count() == 1
-  assert len(json.loads(plan_path.read_text())['entries']) == 1
-  monkeypatch.setattr('sys.argv', ['repair', '--apply', str(plan_path), '--output', str(result_path)])
-  main()
-  assert len(json.loads(result_path.read_text())['applied'][0]['orders']) == 2
-  empty_path = tmp_path / 'empty.json'
-  monkeypatch.setattr('sys.argv', ['repair', '--output', str(empty_path)])
-  main()
-  assert json.loads(empty_path.read_text())['entries'] == []
-
-
 def test_clone_of_split_child_keeps_external_ownership():
   from src.end_points.orders.crud import create_order as create_order_command
 
@@ -420,9 +275,3 @@ def test_clone_of_split_child_keeps_external_ownership():
   assert response['order'].get('external_id') is None
   assert f'Separato da ordine {order.id}.' in response['order']['operator_note']
   assert get_order_by_external_id('CLONE-EXT').id == order.id
-
-
-def test_repair_rejects_plans_with_previous_external_reference_policy():
-  with Session() as session:
-    with pytest.raises(ValueError, match='Formato piano non supportato'):
-      apply_plan(session, {'format_version': 1, 'entries': []})

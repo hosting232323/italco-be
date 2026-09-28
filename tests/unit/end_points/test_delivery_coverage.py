@@ -1,3 +1,4 @@
+import pytest
 from datetime import date, time, timedelta
 from unittest.mock import patch
 
@@ -7,6 +8,8 @@ from src.database.enum import UserRole
 from src.database.schema import DeliveryCoverageCap, DeliveryCoverageEntry
 from src.end_points.service.duration import PICKUP_POINT_MINUTES_PER_PRODUCT
 from src.end_points.delivery_coverage import (
+  SlotUnavailableError,
+  resolve_delivery_entry,
   available_slots,
   available_slots_by_date,
   check_delivery_coverage,
@@ -871,24 +874,50 @@ def test_resolve_delivery_slot_spills_over_to_adjacent_slot_of_same_vehicle(db):
   assert result == (afternoon.start_time, afternoon.end_time)
 
 
-def test_resolve_delivery_slot_honors_requested_slot_when_no_spillover_available(db):
-  # Fascia satura, nessuna adiacente sullo stesso veicolo libera: comportamento
-  # preesistente, si onora comunque la scelta esplicita del cliente.
+def test_resolve_delivery_slot_refuses_a_saturated_day_with_no_spillover_available(db):
+  # Fascia satura, nessuna adiacente sullo stesso veicolo libera: l'ordine non si
+  # carica oltre la capienza, il cliente sceglie un altro giorno.
   target = date.today() + timedelta(days=3)
   transport = create_transport()
   customer, service, service_user, _ = customer_with_service(duration=150)
   morning = _entry(transport, day_of_week=target.weekday(), start='09:00:00', end='11:30:00', caps=('70051',))
 
   existing_order = create_order(
-    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=morning.start_time,
+    delivery_slot_end=morning.end_time,
+    delivery_transport_id=transport.id,
   )
   create_product_row(existing_order, service_user)
 
-  result = resolve_delivery_slot(
-    '70051', target, requested_start=morning.start_time, requested_end=morning.end_time, required_duration=30
-  )
+  with pytest.raises(SlotUnavailableError):
+    resolve_delivery_slot(
+      '70051', target, requested_start=morning.start_time, requested_end=morning.end_time, required_duration=30
+    )
 
-  assert result == (morning.start_time, morning.end_time)
+
+def test_resolve_delivery_entry_returns_the_vehicle_that_takes_the_order(db):
+  target = date.today() + timedelta(days=3)
+  first, second = create_transport(), create_transport()
+  entry_first = _entry(first, day_of_week=target.weekday(), start='09:00:00', end='10:00:00', caps=('70051',))
+  entry_second = _entry(second, day_of_week=target.weekday(), start='09:00:00', end='10:00:00', caps=('70051',))
+  _, _, service_user, _ = customer_with_service(duration=50)
+  existing = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry_first.start_time,
+    delivery_slot_end=entry_first.end_time,
+    delivery_transport_id=first.id,
+  )
+  create_product_row(existing, service_user)
+
+  assert resolve_delivery_entry('70051', target, required_duration=5).id == entry_first.id
+  assert resolve_delivery_entry('70051', target, required_duration=30).id == entry_second.id
+
+
+def test_resolve_delivery_entry_without_coverage_returns_none(db):
+  assert resolve_delivery_entry('70051', date.today() + timedelta(days=3)) is None
 
 
 def test_available_slots_filters_saturated_slot_based_on_new_order_pickup_point_time(db):
@@ -1146,3 +1175,20 @@ def test_check_delivery_coverage_slots_carries_the_request_down_to_the_lead_wind
   with app.test_request_context(json=payload):
     with_margin = check_delivery_coverage_slots()
   assert with_margin[key] == [{'start': '10:00', 'end': '11:00', 'caps': ['70051']}]
+
+
+def test_available_slots_by_date_resolves_the_covering_entries_once(db):
+  from unittest.mock import patch
+
+  from src.end_points import delivery_coverage
+  from src.end_points.delivery_coverage import available_slots_by_date
+
+  transport = create_transport()
+  for day in range(7):
+    _entry(transport, day_of_week=day)
+
+  with patch.object(delivery_coverage, 'query_entries_for_cap', wraps=delivery_coverage.query_entries_for_cap) as spy:
+    result = available_slots_by_date('70051')
+
+  assert len(result) > 30
+  assert spy.call_count == 1

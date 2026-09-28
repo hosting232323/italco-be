@@ -19,6 +19,7 @@ from .. import flask_session_authentication
 from api import swagger_decorator
 from ..collection_point import query_collection_points_available
 from .queries import get_order_photos
+from ..delivery_coverage import SlotUnavailableError
 from .crud import create_order, update_order, filter_orders, get_order, delete_order, update_order_customer
 
 
@@ -66,7 +67,11 @@ def update_order_endpoint(user: User, id):
     if data.get('version') is not None and data['version'] != order.version:
       return {'status': 'ko', 'message': "L'ordine è stato modificato nel frattempo. Ricarica la pagina e riprova."}
     pending_sms = []
-    motivation = update_order(user, order, data, session, pending_sms=pending_sms)
+    try:
+      motivation = update_order(user, order, data, session, pending_sms=pending_sms)
+    except SlotUnavailableError as error:
+      session.rollback()
+      return {'status': 'ko', 'message': str(error)}
     session.commit()
 
   save_order_status_to_euronics(order)

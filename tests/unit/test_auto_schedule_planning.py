@@ -394,3 +394,118 @@ def test_auto_plan_skips_when_no_coverage_entry_matches(db, transport, delivery_
     session.commit()
 
   assert pending == []
+
+
+# ---------------------------------------------------------------------------
+# Test: il veicolo scelto alla creazione e' quello che pianifica
+# ---------------------------------------------------------------------------
+
+
+def test_find_coverage_entry_uses_the_vehicle_stored_on_the_order(db):
+  first, second = create_transport(), create_transport()
+  _make_entry(first)
+  second_entry = _make_entry(second)
+  order = create_order(
+    cap='76011',
+    dpc=TARGET,
+    delivery_slot_start=SLOT_START,
+    delivery_slot_end=SLOT_END,
+    delivery_transport_id=second.id,
+  )
+
+  from database_api import Session
+
+  with Session() as session:
+    assert find_coverage_entry(order, session).id == second_entry.id
+
+
+def test_find_coverage_entry_without_vehicle_is_deterministic(db):
+  first, second = create_transport(), create_transport()
+  # Creato prima il blocco del secondo veicolo: l'ordine di inserimento non decide.
+  _make_entry(second)
+  first_entry = _make_entry(first)
+  order = _make_order_with_slot()
+
+  from database_api import Session
+
+  with Session() as session:
+    assert find_coverage_entry(order, session).id == first_entry.id
+
+
+def test_find_coverage_entry_accepts_a_neighbour_slot_covering_other_caps(db, transport):
+  """Fascia adiacente (stesso veicolo) assegnata per traboccamento: copre altri CAP."""
+  _make_entry(transport, cap='76011')
+  neighbour = create(
+    DeliveryCoverageEntry,
+    {
+      'day_of_week': TARGET.weekday(),
+      'start_time': time(18, 0),
+      'end_time': time(20, 0),
+      'transport_id': transport.id,
+    },
+  )
+  create(DeliveryCoverageCap, {'entry_id': neighbour.id, 'cap': '70000'})
+  order = create_order(
+    cap='76011',
+    dpc=TARGET,
+    delivery_slot_start=neighbour.start_time,
+    delivery_slot_end=neighbour.end_time,
+    delivery_transport_id=transport.id,
+  )
+
+  from database_api import Session
+
+  with Session() as session:
+    assert find_coverage_entry(order, session).id == neighbour.id
+
+
+# ---------------------------------------------------------------------------
+# Test: unplan_order
+# ---------------------------------------------------------------------------
+
+
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_unplan_order_removes_the_stop_and_renumbers_the_others(_optimize, db, entry, delivery_user):
+  from database_api import Session
+  from src.schedulation.auto_planning import unplan_order
+
+  first, second = _make_order_with_slot(), _make_order_with_slot()
+  for order in (first, second):
+    create_order_schedule = order
+    with Session() as session:
+      session.flush()
+      auto_plan_order(create_order_schedule, session)
+      session.commit()
+
+  with Session() as session:
+    unplan_order(session.get(Order, first.id), session)
+    session.commit()
+
+  assert _find(ScheduleItemOrder, order_id=first.id) == []
+  remaining = _find(ScheduleItemOrder, order_id=second.id)
+  assert _find(ScheduleItem, id=remaining[0].schedule_item_id)[0].index == 0
+  assert _find(Order, id=first.id)[0].status == OrderStatus.BOOKED
+
+
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_unplan_order_drops_pickups_only_that_order_needed(_optimize, db, entry, delivery_user):
+  from database_api import Session
+  from src.database.schema import ScheduleItemCollectionPoint
+  from src.schedulation.auto_planning import unplan_order
+  from tests.unit.factories import create_product_row, customer_with_service
+
+  _, _, service_user, point = customer_with_service()
+  order = _make_order_with_slot()
+  create_product_row(order, service_user, collection_point_id=point.id)
+  with Session() as session:
+    session.flush()
+    auto_plan_order(order, session)
+    session.commit()
+  assert len(_find(ScheduleItemCollectionPoint, collection_point_id=point.id)) == 1
+
+  with Session() as session:
+    unplan_order(session.get(Order, order.id), session)
+    session.commit()
+
+  assert _find(ScheduleItemCollectionPoint, collection_point_id=point.id) == []
+  assert _find(ScheduleItem, schedule_id=_find(Schedule, date=TARGET)[0].id) == []

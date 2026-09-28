@@ -4,7 +4,7 @@ from sqlalchemy import desc
 from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
-from ..database.schema import Transport, DeliveryCoverageEntry, DeliveryUserInfo, Schedule, User
+from ..database.schema import Transport, DeliveryCoverageEntry, DeliveryUserInfo, Product, Schedule, User
 from database_api.operations import create, delete, get_by_id, get_by_params, update
 
 
@@ -17,6 +17,8 @@ def create_transport(_):
   payload = dict(request.json)
   user_ids = payload.pop('user_ids', None)
   payload.pop('delivery_users', None)
+  if user_ids is not None and query_invalid_delivery_user_ids(user_ids):
+    return {'status': 'ko', 'message': 'Uno o più utenti selezionati non sono utenti delivery validi'}
   transport = create(Transport, payload)
   if user_ids is not None:
     sync_transport_users(transport.id, user_ids)
@@ -45,6 +47,14 @@ def delete_transport(_, id):
       ),
     }
 
+  if get_by_params(Product, [('transport_id', transport_id)]) or get_by_params(
+    Product, [('release_transport_id', transport_id)]
+  ):
+    return {
+      'status': 'ko',
+      'message': "Il veicolo e' ancora associato a dei prodotti: non si puo' eliminare",
+    }
+
   # Gli utenti restano, tornano solo senza veicolo: stacca prima la FK.
   sync_transport_users(transport_id, [])
   delete(get_by_id(Transport, transport_id))
@@ -67,6 +77,8 @@ def update_transport(_, id):
   payload = dict(request.json)
   user_ids = payload.pop('user_ids', None)
   payload.pop('delivery_users', None)
+  if user_ids is not None and query_invalid_delivery_user_ids(user_ids):
+    return {'status': 'ko', 'message': 'Uno o più utenti selezionati non sono utenti delivery validi'}
   transport: Transport = get_by_id(Transport, int(id))
   update(transport, payload)
   if user_ids is not None:
@@ -77,6 +89,16 @@ def update_transport(_, id):
 def query_transports() -> list[Transport]:
   with Session() as session:
     return session.query(Transport).order_by(desc(Transport.created_at)).all()
+
+
+def query_invalid_delivery_user_ids(user_ids: list) -> list[int]:
+  """Gli id che non sono utenti DELIVERY della company attiva (la query e' gia' filtrata per tenant)."""
+  wanted = {int(user_id) for user_id in user_ids or []}
+  if not wanted:
+    return []
+  with Session() as session:
+    valid = {row[0] for row in session.query(User.id).filter(User.id.in_(wanted), User.role == UserRole.DELIVERY)}
+  return sorted(wanted - valid)
 
 
 def delivery_users_by_transport() -> dict[int, list[dict]]:

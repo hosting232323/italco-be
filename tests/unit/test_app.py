@@ -39,7 +39,6 @@ def test_all_blueprints_are_registered(app):
 def test_check_constraints_intersects_rule_sets(client, monkeypatch):
   customer = create_user(UserRole.CUSTOMER)
   monkeypatch.setattr(main_module, 'check_customer_rules', lambda user: ['2026-07-15', '2026-07-16', '2026-07-17'])
-  monkeypatch.setattr(main_module, 'check_delivery_coverage', lambda: ['2026-07-16', '2026-07-17', '2026-07-18'])
   monkeypatch.setattr(main_module, 'check_services_date', lambda: ['2026-07-16', '2026-07-17'])
   monkeypatch.setattr(
     main_module,

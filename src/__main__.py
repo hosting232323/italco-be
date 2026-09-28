@@ -22,7 +22,7 @@ from .end_points.collection_point import collection_point_bp
 from .end_points.service.constraint import check_services_date
 from .end_points.customer_rule import customer_rules_bp, check_customer_rules
 from .end_points.geographic_zone import geographic_zone_bp
-from .end_points.delivery_coverage import delivery_coverage_bp, check_delivery_coverage, check_delivery_coverage_slots
+from .end_points.delivery_coverage import delivery_coverage_bp, check_delivery_coverage_slots
 
 
 @app.route('/check-constraints', methods=['POST'])
@@ -32,10 +32,10 @@ def check_constraints(user: User):
   # copertura corrieri: le date disponibili sono quelle coperte da un blocco
   # per il CAP del cliente con capienza per i servizi, incrociate coi vincoli
   # per cliente e per servizio.
-  dates = sorted(list(set(check_customer_rules(user)) & set(check_delivery_coverage()) & set(check_services_date())))
-  # Le fasce orarie viaggiano solo per le date effettivamente ammesse: il
-  # calendario le mostra per farle scegliere al cliente al posto della dpc.
+  # Le fasce si calcolano una volta sola: le date coperte sono le loro chiavi,
+  # e il calendario le mostra per farle scegliere al cliente al posto della dpc.
   slots = check_delivery_coverage_slots()
+  dates = sorted(set(check_customer_rules(user)) & set(slots) & set(check_services_date()))
   return {
     'status': 'ok',
     'dates': dates,

@@ -231,6 +231,10 @@ class Order(BaseItalcoEntity):
   # il cliente sceglie la dpc: vedi assign_delivery_slot in delivery_coverage.py.
   delivery_slot_start = Column(Time)
   delivery_slot_end = Column(Time)
+  # Il veicolo che ha preso l'ordine: scelto con la fascia (resolve_delivery_entry)
+  # e usato dalla pianificazione, cosi' capienza e borderò parlano dello stesso
+  # veicolo. NULL per gli ordini senza fascia.
+  delivery_transport_id = Column(Integer, ForeignKey('transport.id'), nullable=True, index=True)
   anomaly = Column(Boolean, default=False)
   delay = Column(Boolean, default=False)
   confirmed = Column(Boolean, default=False)
@@ -386,6 +390,11 @@ class CollectionPoint(BaseItalcoEntity):
   cap = Column(String, nullable=False)
   name = Column(String, nullable=False)
   address = Column(String, nullable=False)
+  # Coordinate dell'indirizzo, salvate quando il punto viene creato/modificato
+  # (o alla prima lettura, per i punti che non le hanno): la lista dei punti
+  # non deve geocodificare a ogni richiesta.
+  lat = Column(Float)
+  lon = Column(Float)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='collection_point')
