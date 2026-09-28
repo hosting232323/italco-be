@@ -101,12 +101,14 @@ def _clear_caps_cache():
   che chiama la funzione reale (rete vera o mockata) inquina la cache per
   tutti i test successivi che si aspettano di controllare la chiamata.
   """
+  from src.end_points.service import travel as travel_module
   from src.utils import caps as caps_module
 
   caps_module.get_province_by_cap.cache_clear()
   caps_module.get_cap_by_name.cache_clear()
   caps_module.get_lat_lon_by_cap.cache_clear()
   caps_module.get_lat_lon_by_address.cache_clear()
+  travel_module.travel_time_matrix_osrm.cache_clear()
   yield
 
 

@@ -29,6 +29,14 @@ _OSRM_TRIP_URL = (
 )
 
 
+# Le durate di guida tra due punti non cambiano da una richiesta all'altra:
+# la stessa tratta (deposito -> primo ritiro, ultima tappa -> prima tappa della
+# fascia dopo) viene chiesta per ogni giorno del calendario e per ogni ordine.
+# Si memorizzano solo le risposte riuscite, un guasto non deve restare in cache.
+_MATRIX_CACHE: dict[tuple, list[list[float]]] = {}
+_MATRIX_CACHE_MAX = 4096
+
+
 def travel_time_matrix_osrm(coords: list[tuple[float, float]]) -> list[list[float]] | None:
   """Richiede la matrice di durate di guida (secondi) via OSRM table API.
 
@@ -36,6 +44,10 @@ def travel_time_matrix_osrm(coords: list[tuple[float, float]]) -> list[list[floa
   """
   if len(coords) < 2:
     return None
+  key = tuple(coords)
+  cached = _MATRIX_CACHE.get(key)
+  if cached is not None:
+    return cached
   # OSRM vuole lon,lat (ordine invertito rispetto a geopy)
   coords_str = ';'.join(f'{lon},{lat}' for lat, lon in coords)
   url = _OSRM_TABLE_URL.format(coords=coords_str)
@@ -44,10 +56,16 @@ def travel_time_matrix_osrm(coords: list[tuple[float, float]]) -> list[list[floa
     if resp.status_code == 200:
       data = resp.json()
       if data.get('code') == 'Ok':
+        if len(_MATRIX_CACHE) >= _MATRIX_CACHE_MAX:
+          _MATRIX_CACHE.clear()
+        _MATRIX_CACHE[key] = data['durations']
         return data['durations']
   except Exception as e:
     logger.warning('OSRM non disponibile: %s', e)
   return None
+
+
+travel_time_matrix_osrm.cache_clear = _MATRIX_CACHE.clear
 
 
 def trip_order_osrm(coords: list[tuple[float, float]]) -> list[int] | None:

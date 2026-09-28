@@ -1,8 +1,11 @@
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import Iterable
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 NOMINATIM_SEARCH_URL = 'https://nominatim.fastsite.it/search'
 NOMINATIM_REVERSE_URL = 'https://nominatim.fastsite.it/reverse'
@@ -51,14 +54,36 @@ def get_cap_by_name(city_name: str) -> str:
 
 
 @lru_cache(maxsize=None)
-def get_lat_lon_by_cap(cap: str) -> tuple[float, float] | tuple[None, None]:
+def _lookup_cap(cap: str) -> tuple[float, float] | tuple[None, None]:
   results = _search(postalcode=cap)
   if not results:
     return None, None
   return float(results[0]['lat']), float(results[0]['lon'])
 
 
+def get_lat_lon_by_cap(cap: str) -> tuple[float, float] | tuple[None, None]:
+  """Centroide del CAP, o (None, None) se non si trova o il geocoder non risponde.
+
+  Un guasto di rete non e' un "non trovato": lru_cache non memorizza le
+  eccezioni, quindi il lookup interno lo rilancia senza fissarlo in cache e
+  qui lo si degrada. Chi geocodifica lo fa per stimare (percorso, capienza,
+  ordine di visita): un geocoder giu' non deve far cadere la richiesta.
+  """
+  try:
+    return _lookup_cap(cap)
+  except requests.RequestException as error:
+    logger.warning('Geocoding del CAP %s non riuscito: %s', cap, error)
+    return None, None
+
+
 @lru_cache(maxsize=2048)
+def _lookup_address(address: str) -> tuple[float, float] | tuple[None, None]:
+  results = _search(q=address)
+  if not results:
+    return None, None
+  return float(results[0]['lat']), float(results[0]['lon'])
+
+
 def get_lat_lon_by_address(address: str) -> tuple[float, float] | tuple[None, None]:
   """Geocodifica un indirizzo completo (via, civico, città), non il solo CAP.
 
@@ -67,14 +92,20 @@ def get_lat_lon_by_address(address: str) -> tuple[float, float] | tuple[None, No
   che coprono zone rurali o più comuni. Qui il risultato riflette la
   posizione reale della via.
 
-  Cache limitata (a differenza delle funzioni sopra, che non lo sono): gli
-  indirizzi hanno una cardinalità molto più alta dei CAP, una cache senza
-  limite crescerebbe senza controllo su un processo long-running.
+  Cache limitata (a differenza dei CAP, che sono pochi): gli indirizzi hanno
+  una cardinalità molto più alta, una cache senza limite crescerebbe senza
+  controllo su un processo long-running. Come per il CAP, se il geocoder non
+  risponde torna (None, None) e il guasto non entra in cache.
   """
-  results = _search(q=address)
-  if not results:
+  try:
+    return _lookup_address(address)
+  except requests.RequestException as error:
+    logger.warning("Geocoding dell'indirizzo non riuscito: %s", error)
     return None, None
-  return float(results[0]['lat']), float(results[0]['lon'])
+
+
+get_lat_lon_by_cap.cache_clear = _lookup_cap.cache_clear
+get_lat_lon_by_address.cache_clear = _lookup_address.cache_clear
 
 
 def get_lat_lon_by_addresses(

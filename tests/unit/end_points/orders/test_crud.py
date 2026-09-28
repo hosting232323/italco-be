@@ -6,7 +6,15 @@ from database_api import Session, scope
 from database_api.operations import create, get_by_id, update
 
 from src.database.enum import OrderStatus, OrderType, ScheduleItemUserType, UserRole
-from src.database.schema import DeliveryCoverageCap, DeliveryCoverageEntry, Order, Product
+from src.database.schema import (
+  DeliveryCoverageCap,
+  DeliveryCoverageEntry,
+  Order,
+  Product,
+  Schedule,
+  ScheduleItem,
+  ScheduleItemOrder,
+)
 from src.end_points.orders.crud import (
   create_order as crud_create_order,
   delete_order,
@@ -627,3 +635,120 @@ def test_update_order_customer_requires_same_services(db):
   result = update_order_customer(admin, new_customer.id, order.id)
 
   assert result['status'] == 'ko'
+
+
+def _monday_entries(transport, cap='70121'):
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': cap})
+  return entry
+
+
+def test_create_order_stores_the_vehicle_that_takes_it(db):
+  customer, service, service_user, collection_point = customer_with_service()
+  transport = create_transport()
+  _monday_entries(transport)
+
+  result = crud_create_order(customer, _payload(service, collection_point))
+
+  assert get_by_id(Order, result['order']['id']).delivery_transport_id == transport.id
+
+
+def test_create_order_ignores_a_vehicle_sent_by_the_client(db):
+  admin = create_user(UserRole.ADMIN)
+  customer, service, service_user, collection_point = customer_with_service()
+  transport = create_transport()
+
+  result = crud_create_order(
+    admin, _payload(service, collection_point, user_id=customer.id, delivery_transport_id=transport.id)
+  )
+
+  assert get_by_id(Order, result['order']['id']).delivery_transport_id is None
+
+
+def test_create_order_refuses_a_day_with_no_capacity_left(db):
+  customer, service, service_user, collection_point = customer_with_service(duration=240)
+  transport = create_transport()
+  entry = _monday_entries(transport)
+  full = create_order(
+    cap='70121',
+    dpc=date(2026, 7, 20),
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+    delivery_transport_id=transport.id,
+  )
+  create_product(full, service_user)
+
+  result = crud_create_order(customer, _payload(service, collection_point))
+
+  assert result['status'] == 'ko'
+  with Session() as session:
+    assert session.query(Order).count() == 1
+
+
+def test_update_order_moves_the_stop_to_the_schedule_of_the_new_date(db):
+  customer = create_user(UserRole.CUSTOMER)
+  transport = create_transport()
+  entry = _monday_entries(transport)
+  order = create_order(
+    cap='70121',
+    dpc=date(2026, 7, 20),
+    status=OrderStatus.SCHEDULED,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+    delivery_transport_id=transport.id,
+  )
+  old_schedule = create_schedule(transport, date(2026, 7, 20))
+  link_order_to_schedule(order, old_schedule, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
+
+  with Session() as session:
+    pending = []
+    update_order(
+      customer, session.get(Order, order.id), {'id': order.id, 'dpc': '2026-07-27'}, session, pending_sms=pending
+    )
+    session.commit()
+
+  with Session() as session:
+    dates = [
+      row.date
+      for row in session.query(Schedule)
+      .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
+      .join(ScheduleItemOrder, ScheduleItemOrder.schedule_item_id == ScheduleItem.id)
+      .filter(ScheduleItemOrder.order_id == order.id)
+    ]
+  assert dates == [date(2026, 7, 27)]
+  assert len(pending) == 1
+  refreshed = get_by_id(Order, order.id)
+  assert refreshed.status in (OrderStatus.SCHEDULED, OrderStatus.BOOKING)
+  assert refreshed.delivery_transport_id == transport.id
+
+
+def test_update_order_leaves_the_stop_alone_when_nothing_moves(db):
+  customer = create_user(UserRole.CUSTOMER)
+  transport = create_transport()
+  entry = _monday_entries(transport)
+  order = create_order(
+    cap='70121',
+    dpc=date(2026, 7, 20),
+    status=OrderStatus.SCHEDULED,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+    delivery_transport_id=transport.id,
+  )
+  schedule = create_schedule(transport, date(2026, 7, 20))
+  link_order_to_schedule(order, schedule, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
+
+  with Session() as session:
+    update_order(
+      customer,
+      session.get(Order, order.id),
+      {'id': order.id, 'dpc': '2026-07-20', 'cap': '70121', 'addressee': 'Nuovo Nome'},
+      session,
+    )
+    session.commit()
+
+  with Session() as session:
+    assert session.query(ScheduleItemOrder).filter(ScheduleItemOrder.order_id == order.id).count() == 1
+  assert get_by_id(Order, order.id).status == OrderStatus.SCHEDULED

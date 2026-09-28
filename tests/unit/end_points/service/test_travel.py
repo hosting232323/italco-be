@@ -274,3 +274,22 @@ def test_lat_lon_for_collection_point_uses_the_address_first():
   ):
     assert travel.get_lat_lon_for_collection_point(point) == MOLFETTA
   mock_cap.assert_not_called()
+
+
+@patch('src.end_points.service.travel.requests.get')
+def test_travel_time_matrix_osrm_asks_once_for_the_same_route(mock_get):
+  mock_get.return_value = _osrm_response(durations=[[0, 600], [600, 0]])
+
+  assert travel_time_matrix_osrm([BARI, MOLFETTA]) == [[0, 600], [600, 0]]
+  assert travel_time_matrix_osrm([BARI, MOLFETTA]) == [[0, 600], [600, 0]]
+
+  assert mock_get.call_count == 1
+
+
+@patch('src.end_points.service.travel.requests.get')
+def test_travel_time_matrix_osrm_does_not_cache_a_failure(mock_get):
+  mock_get.return_value = _osrm_response(status_code=500)
+  assert travel_time_matrix_osrm([BARI, MOLFETTA]) is None
+
+  mock_get.return_value = _osrm_response(durations=[[0, 600], [600, 0]])
+  assert travel_time_matrix_osrm([BARI, MOLFETTA]) == [[0, 600], [600, 0]]
