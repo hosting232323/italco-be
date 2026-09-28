@@ -6,6 +6,7 @@ from sqlalchemy.orm import joinedload
 
 from database_api import Session
 from src.database.schema import DeliveryCoverageCap, DeliveryCoverageEntry, Order
+from src.end_points.delivery_coverage import resolve_delivery_entry
 from src.end_points.service.duration import (
   PICKUP_POINT_MINUTES_PER_PRODUCT,
   calculate_order_pickup_minutes,
@@ -163,12 +164,10 @@ def test_calculate_payload_pickup_minutes_excludes_already_seen_collection_point
   assert calculate_payload_pickup_minutes(products, exclude_collection_point_ids={1}) == 0
 
 
-def test_query_entry_orders_reuses_vehicle_already_covering_the_same_pickup_point(db):
-  """Fasce sovrapposte (stesso giorno/orario, veicoli diversi): un ordine con un punto
+def test_query_entry_orders_attributes_orders_to_the_vehicle_stored_on_them(db):
+  """Fasce sovrapposte (stesso giorno/orario, veicoli diversi): ogni ordine sta sul
 
-  di ritiro già presente sul veicolo a cui è stato assegnato un altro ordine resta lì
-  a costo marginale zero, invece di far scattare il passaggio al veicolo successivo
-  (criterio di base della gestione delle fasce sovrapposte)."""
+  veicolo salvato sull'ordine, e i ritiri sullo stesso punto si contano una volta sola."""
   target = date.today() + timedelta(days=3)
   _, _, service_user_full, _ = customer_with_service(duration=60)
   _, _, service_user_zero, point_a = customer_with_service()
@@ -180,20 +179,31 @@ def test_query_entry_orders_reuses_vehicle_already_covering_the_same_pickup_poin
 
   # Riempie il primo veicolo con un ordine puramente di servizio (60/60 min, nessun ritiro).
   order_fill = create_order(
-    cap='70051', dpc=target, delivery_slot_start=first_entry.start_time, delivery_slot_end=first_entry.end_time
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=first_entry.start_time,
+    delivery_slot_end=first_entry.end_time,
+    delivery_transport_id=first_vehicle.id,
   )
   create_product_row(order_fill, service_user_full, name='Servizio pieno')
 
-  # Primo ordine sul punto A: il primo veicolo è pieno, va sul secondo.
+  # Primo ordine sul punto A, sul secondo veicolo.
   order_point_a_1 = create_order(
-    cap='70051', dpc=target, delivery_slot_start=first_entry.start_time, delivery_slot_end=first_entry.end_time
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=first_entry.start_time,
+    delivery_slot_end=first_entry.end_time,
+    delivery_transport_id=second_vehicle.id,
   )
   create_product_row(order_point_a_1, service_user_zero, name='Ritiro A (1)', collection_point_id=point_a.id)
 
-  # Secondo ordine sullo STESSO punto A: il primo veicolo resta pieno, ma il punto A è
-  # già presente sul secondo veicolo (per via di order_point_a_1): ci resta a costo zero.
+  # Secondo ordine sullo STESSO punto A, sullo stesso veicolo: il ritiro non si riconta.
   order_point_a_2 = create_order(
-    cap='70051', dpc=target, delivery_slot_start=first_entry.start_time, delivery_slot_end=first_entry.end_time
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=first_entry.start_time,
+    delivery_slot_end=first_entry.end_time,
+    delivery_transport_id=second_vehicle.id,
   )
   create_product_row(order_point_a_2, service_user_zero, name='Ritiro A (2)', collection_point_id=point_a.id)
 
@@ -507,32 +517,37 @@ def test_lead_minutes_of_an_entry_without_start_time_is_zero(db):
     assert entry_lead_minutes(SimpleNamespace(start_time=None, company_id=db.id), session) == 0
 
 
-def _two_vehicles_two_orders(target):
-  """Due veicoli sulla stessa fascia 10-11 e due ordini con un ritiro ciascuno.
+def _first_vehicle_taken_and_a_new_order(target):
+  """Due veicoli sulla stessa fascia 10-11, un ordine gia' sul primo e un nuovo ordine.
 
-  A: 30 min di servizio; B: 20 min. La fascia ne contiene 60.
+  L'ordine gia' presente (A): 30 min di servizio e un ritiro. Quello nuovo (B):
+  20 min e un ritiro suo. La fascia ne contiene 60.
   """
-  first = _entry(_vehicle(), day_of_week=target.weekday(), start='10:00:00', end='11:00:00')
-  second = _entry(_vehicle(), day_of_week=target.weekday(), start='10:00:00', end='11:00:00')
-  orders = []
-  for duration in (30, 20):
-    _, _, service_user, collection_point = customer_with_service(duration=duration)
-    order = create_order(
-      cap='70051', dpc=target, delivery_slot_start=first.start_time, delivery_slot_end=first.end_time
-    )
-    create_product_row(order, service_user, collection_point_id=collection_point.id)
-    orders.append(order)
-  return first, second, orders
+  first_vehicle, second_vehicle = _vehicle(), _vehicle()
+  first = _entry(first_vehicle, day_of_week=target.weekday(), start='10:00:00', end='11:00:00')
+  second = _entry(second_vehicle, day_of_week=target.weekday(), start='10:00:00', end='11:00:00')
+  _, _, service_user_a, point_a = customer_with_service(duration=30)
+  order_a = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=first.start_time,
+    delivery_slot_end=first.end_time,
+    delivery_transport_id=first_vehicle.id,
+  )
+  create_product_row(order_a, service_user_a, collection_point_id=point_a.id)
+
+  _, service_b, _, point_b = customer_with_service(duration=20)
+  payload_b = {'B': {'services': [{'id': service_b.id}], 'collection_point': {'id': point_b.id}}}
+  return first, second, payload_b
 
 
 def test_without_a_lead_window_the_second_order_overflows_to_the_next_vehicle(offline_geo, db):
   _geo_places(offline_geo, minutes=20)
   target = date.today() + timedelta(days=3)
-  first, second, (order_a, order_b) = _two_vehicles_two_orders(target)
+  first, second, payload_b = _first_vehicle_taken_and_a_new_order(target)
 
   # Da solo A ci sta (30 + 20 di strada + ritiro), con B no: 50 di servizio + strada e due ritiri.
-  assert [o.id for o in query_entry_orders(first, target)] == [order_a.id]
-  assert [o.id for o in query_entry_orders(second, target)] == [order_b.id]
+  assert resolve_delivery_entry('70051', target, products=payload_b).id == second.id
 
 
 def test_with_a_lead_window_both_orders_stay_on_the_first_vehicle(offline_geo, db):
@@ -542,38 +557,49 @@ def test_with_a_lead_window_both_orders_stay_on_the_first_vehicle(offline_geo, d
   _geo_places(offline_geo, minutes=20)
   update(db, {'activity_start_time': time(9, 0)})
   target = date.today() + timedelta(days=3)
-  first, second, (order_a, order_b) = _two_vehicles_two_orders(target)
+  first, second, payload_b = _first_vehicle_taken_and_a_new_order(target)
 
-  assert [o.id for o in query_entry_orders(first, target)] == [order_a.id, order_b.id]
-  assert query_entry_orders(second, target) == []
+  assert resolve_delivery_entry('70051', target, products=payload_b).id == first.id
 
 
 def test_overlapping_slots_count_the_pickups_of_the_orders_already_assigned(offline_geo, db):
-  """La ripartizione somma i ritiri dell'intero gruppo, non solo quelli del nuovo ordine."""
+  """La capienza somma i ritiri dell'intero gruppo, non solo quelli del nuovo ordine."""
   _geo_places(offline_geo)
   target = date.today() + timedelta(days=3)
   n = PICKUP_POINT_MINUTES_PER_PRODUCT
-  first = _entry(_vehicle(with_address=False), day_of_week=target.weekday(), start='08:00:00', end='09:00:00')
+  first_vehicle = _vehicle(with_address=False)
+  first = _entry(first_vehicle, day_of_week=target.weekday(), start='08:00:00', end='09:00:00')
   second = _entry(_vehicle(with_address=False), day_of_week=target.weekday(), start='08:00:00', end='09:00:00')
 
   customer, _, service_user_a, point_1 = customer_with_service(duration=30)
   _, _, service_user_zero, _ = customer_with_service()
   point_2 = create_collection_point(customer)
   order_a = create_order(
-    cap='70051', dpc=target, delivery_slot_start=first.start_time, delivery_slot_end=first.end_time
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=first.start_time,
+    delivery_slot_end=first.end_time,
+    delivery_transport_id=first_vehicle.id,
   )
   create_product_row(order_a, service_user_a, name='A1', collection_point_id=point_1.id)
   create_product_row(order_a, service_user_zero, name='A2', collection_point_id=point_2.id)
 
   # B pesa quanto basta perché 30 + B + 3 ritiri sfori i 60, ma 30 + B + 1 ritiro no.
-  _, _, service_user_b, point_3 = customer_with_service(duration=31 - 3 * n)
-  order_b = create_order(
-    cap='70051', dpc=target, delivery_slot_start=first.start_time, delivery_slot_end=first.end_time
-  )
-  create_product_row(order_b, service_user_b, name='B1', collection_point_id=point_3.id)
+  _, service_b, _, point_3 = customer_with_service(duration=31 - 3 * n)
+  payload_b = {'B1': {'services': [{'id': service_b.id}], 'collection_point': {'id': point_3.id}}}
 
-  assert [o.id for o in query_entry_orders(first, target)] == [order_a.id]
-  assert [o.id for o in query_entry_orders(second, target)] == [order_b.id]
+  assert resolve_delivery_entry('70051', target, products=payload_b).id == second.id
+
+
+def test_orders_without_a_vehicle_go_to_the_first_entry_that_covers_them(db):
+  """Ordini con fascia ma senza veicolo (precedenti al salvataggio del veicolo)."""
+  target = date.today() + timedelta(days=3)
+  first = _entry(create_transport(), day_of_week=target.weekday(), start='10:00:00', end='11:00:00')
+  second = _entry(create_transport(), day_of_week=target.weekday(), start='10:00:00', end='11:00:00')
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=first.start_time, delivery_slot_end=first.end_time)
+
+  assert [o.id for o in query_entry_orders(first, target)] == [order.id]
+  assert query_entry_orders(second, target) == []
 
 
 # ---------------------------------------------------------------------------

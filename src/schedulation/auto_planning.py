@@ -21,7 +21,7 @@ import logging
 
 from sqlalchemy.orm import Session as session_type
 
-from database_api.operations import create, update
+from database_api.operations import create, delete, update
 from ..database.enum import OrderStatus, ScheduleType
 from ..database.schema import (
   DeliveryCoverageEntry,
@@ -33,7 +33,8 @@ from ..database.schema import (
 )
 from ..end_points.rae.product import emit_rae_products
 from ..end_points.orders.queries import query_products
-from .routing import link_missing_collection_points, optimize_schedule_stops
+from ..end_points.schedule.queries import get_schedule_items
+from .routing import link_missing_collection_points, optimize_schedule_stops, required_collection_point_ids_for_order
 
 logger = logging.getLogger(__name__)
 
@@ -46,25 +47,39 @@ logger = logging.getLogger(__name__)
 def find_coverage_entry(order: Order, session: session_type) -> DeliveryCoverageEntry | None:
   """Restituisce il ``DeliveryCoverageEntry`` corrispondente alla fascia dell'ordine.
 
-  Criteri:
-  - stesso giorno della settimana della ``dpc``
-  - stesso ``start_time`` e ``end_time`` della fascia assegnata all'ordine
-  - copre il ``cap`` dell'ordine
+  L'ordine porta il veicolo scelto alla creazione (``delivery_transport_id``):
+  il blocco e' quello di quel veicolo, stesso giorno della settimana della
+  ``dpc`` e stessa fascia. Senza veicolo (ordini creati prima che si
+  salvasse) si ricade sui blocchi che coprono il ``cap``, nell'ordine di
+  priorita' del riempimento e non nell'ordine che capita al database.
   """
-  if not order.dpc or not order.delivery_slot_start or not order.delivery_slot_end or not order.cap:
+  if not order.dpc or not order.delivery_slot_start or not order.delivery_slot_end:
     return None
 
   day_of_week = order.dpc.weekday()
+  slot = (
+    DeliveryCoverageEntry.day_of_week == day_of_week,
+    DeliveryCoverageEntry.start_time == order.delivery_slot_start,
+    DeliveryCoverageEntry.end_time == order.delivery_slot_end,
+  )
+  by_priority = (DeliveryCoverageEntry.transport_id, DeliveryCoverageEntry.id)
+
+  if order.delivery_transport_id:
+    return (
+      session.query(DeliveryCoverageEntry)
+      .filter(*slot, DeliveryCoverageEntry.transport_id == order.delivery_transport_id)
+      .order_by(*by_priority)
+      .first()
+    )
+
+  if not order.cap:
+    return None
 
   entry = (
     session.query(DeliveryCoverageEntry)
     .join(DeliveryCoverageCap, DeliveryCoverageCap.entry_id == DeliveryCoverageEntry.id)
-    .filter(
-      DeliveryCoverageEntry.day_of_week == day_of_week,
-      DeliveryCoverageEntry.start_time == order.delivery_slot_start,
-      DeliveryCoverageEntry.end_time == order.delivery_slot_end,
-      DeliveryCoverageCap.cap == order.cap,
-    )
+    .filter(*slot, DeliveryCoverageCap.cap == order.cap)
+    .order_by(*by_priority)
     .first()
   )
   if entry or not order.address:
@@ -82,7 +97,7 @@ def find_coverage_entry(order: Order, session: session_type) -> DeliveryCoverage
   return next(
     (
       e
-      for e in query_entries_for_polygon_point(lat, lon)
+      for e in sorted(query_entries_for_polygon_point(lat, lon), key=lambda e: (e.transport_id, e.id))
       if e.day_of_week == day_of_week
       and e.start_time == order.delivery_slot_start
       and e.end_time == order.delivery_slot_end
@@ -179,6 +194,66 @@ def insert_order_into_schedule(
   emit_rae_products(order, schedule, session=session)
 
   return new_item, [(order, new_item)]
+
+
+# ---------------------------------------------------------------------------
+# Rimozione dal borderò (cambio di data/zona)
+# ---------------------------------------------------------------------------
+
+
+def unplan_order(order: Order, session: session_type) -> None:
+  """Toglie l'ordine dai borderò in cui e' una tappa, lasciandoli coerenti.
+
+  Serve quando il cliente cambia data o zona di un ordine gia' pianificato: la
+  tappa vecchia non deve restare nel borderò della data di prima. L'ordine
+  torna in attesa (stesso effetto della rimozione manuale dal borderò), i
+  punti di ritiro che servivano solo a lui escono con lui e le tappe rimaste
+  vengono rinumerate e riordinate.
+  """
+  from ..end_points.schedule.utils import delete_schedule_items
+
+  rows = (
+    session.query(ScheduleItem, ScheduleItemOrder)
+    .join(ScheduleItemOrder, ScheduleItemOrder.schedule_item_id == ScheduleItem.id)
+    .filter(ScheduleItemOrder.order_id == order.id, ScheduleItem.operation_type == ScheduleType.ORDER)
+    .all()
+  )
+  if not rows:
+    return
+
+  schedule_ids = {item.schedule_id for item, _ in rows}
+  pickup_ids = required_collection_point_ids_for_order(order, session)
+  delete_schedule_items([(item, None, sio) for item, sio in rows], session=session)
+  session.flush()
+
+  for schedule_id in schedule_ids:
+    schedule = session.get(Schedule, schedule_id)
+    _drop_orphan_pickups(schedule, pickup_ids, session)
+    _renumber_stops(schedule, session)
+    optimize_schedule_stops(schedule, session=session)
+
+
+def _drop_orphan_pickups(schedule: Schedule, pickup_ids: set[int], session: session_type) -> None:
+  if not pickup_ids:
+    return
+  rows = get_schedule_items(schedule, session=session)
+  still_needed: set[int] = set()
+  for _item, _scp, sio in rows:
+    if sio:
+      remaining = session.get(Order, sio.order_id)
+      still_needed |= required_collection_point_ids_for_order(remaining, session)
+  for item, scp, _sio in rows:
+    if scp and scp.collection_point_id in pickup_ids and scp.collection_point_id not in still_needed:
+      delete(scp, session=session)
+      delete(item, session=session)
+  session.flush()
+
+
+def _renumber_stops(schedule: Schedule, session: session_type) -> None:
+  items = session.query(ScheduleItem).filter(ScheduleItem.schedule_id == schedule.id).order_by(ScheduleItem.index).all()
+  for new_index, item in enumerate(items):
+    if item.index != new_index:
+      update(item, {'index': new_index}, session=session)
 
 
 # ---------------------------------------------------------------------------

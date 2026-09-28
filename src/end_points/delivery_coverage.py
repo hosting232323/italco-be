@@ -340,6 +340,7 @@ def available_slots(
   new_cap: str = None,
   new_address: str = None,
   new_products: dict = None,
+  entries: list[DeliveryCoverageEntry] = None,
 ) -> list[dict]:
   """Fasce orarie coperte dal CAP nel giorno della settimana di dpc con capienza residua
 
@@ -356,11 +357,17 @@ def available_slots(
   se la fascia adiacente dello stesso veicolo (stesso giorno) ne ha: l'ordine potrà finire
   lì (vedi _entry_with_residual_capacity e resolve_delivery_slot, che applica la stessa
   logica alla creazione dell'ordine).
+
+  `entries` sono i blocchi che coprono il CAP (query_entries_for_cap): chi chiama
+  per molti giorni di fila li risolve una volta sola invece di ripetere, a ogni
+  giorno, query e geocoding dell'indirizzo.
   """
   dpc = _as_date(dpc)
   if not cap or not dpc:
     return []
-  entries = [entry for entry in query_entries_for_cap(cap, address=new_address) if entry.day_of_week == dpc.weekday()]
+  if entries is None:
+    entries = query_entries_for_cap(cap, address=new_address)
+  entries = [entry for entry in entries if entry.day_of_week == dpc.weekday()]
   if not entries:
     return []
 
@@ -402,7 +409,8 @@ def available_slots_by_date(
   # data prevista dal cliente è selezionabile se il suo CAP è coperto da
   # almeno un blocco di copertura corrieri con capienza residua per i servizi
   # dell'ordine in quel giorno della settimana.
-  covered_days = {entry.day_of_week for entry in query_entries_for_cap(cap, address=new_address)}
+  entries = query_entries_for_cap(cap, address=new_address)
+  covered_days = {entry.day_of_week for entry in entries}
   start = datetime.today().date()
   end = start + relativedelta(months=2)
   result = {}
@@ -416,6 +424,7 @@ def available_slots_by_date(
         new_cap=new_cap,
         new_address=new_address,
         new_products=new_products,
+        entries=entries,
       )
       if slots:
         result[start.strftime('%Y-%m-%d')] = slots
@@ -424,23 +433,8 @@ def available_slots_by_date(
 
 
 def check_delivery_coverage(*args, **kwargs) -> list[str]:
-  payload = request.json or {}
-  from .service.duration import calculate_payload_service_duration
-
-  user = kwargs.get('user') or (args[0] if args else None)
-  required_duration = calculate_payload_service_duration(payload, user=user)
-  exclude_order_id = payload.get('order_id')
-  new_cap = payload.get('cap')
-  return list(
-    available_slots_by_date(
-      new_cap,
-      required_duration=required_duration,
-      exclude_order_id=exclude_order_id,
-      new_cap=new_cap,
-      new_address=payload.get('address'),
-      new_products=payload.get('products'),
-    ).keys()
-  )
+  # Le date sono le chiavi delle fasce: un calcolo solo, non due.
+  return list(check_delivery_coverage_slots(*args, **kwargs).keys())
 
 
 def check_delivery_coverage_slots(*args, **kwargs) -> dict:
@@ -461,7 +455,11 @@ def check_delivery_coverage_slots(*args, **kwargs) -> dict:
   )
 
 
-def resolve_delivery_slot(
+class SlotUnavailableError(Exception):
+  """Il giorno e' coperto ma nessuna fascia ha piu' capienza per l'ordine."""
+
+
+def resolve_delivery_entry(
   cap: str,
   dpc,
   requested_start=None,
@@ -471,57 +469,48 @@ def resolve_delivery_slot(
   products: dict = None,
   user_id: int = None,
   address: str = None,
-) -> tuple:
-  """CAP + data prevista dal cliente -> fascia oraria (start_time, end_time)
+) -> DeliveryCoverageEntry | None:
+  """CAP + data prevista dal cliente -> blocco di copertura (veicolo + fascia)
 
-  da assegnare all'ordine, in base alla copertura corrieri e al tempo dei servizi
+  che prende l'ordine, in base alla copertura corrieri e al tempo dei servizi
   più il tempo di percorso aggiuntivo introdotto dall'ordine.
+
+  None se la data non e' coperta da nessun blocco: l'ordine resta senza fascia e
+  la dpc quella scelta a mano. Se e' coperta ma nessun blocco ha capienza
+  solleva SlotUnavailableError: il cliente sceglie dalla lista delle
+  disponibilita', se nel frattempo si e' riempita va rifiutato l'ordine, non
+  caricato oltre la capienza. Il chiamante tiene il lock degli ordini, quindi
+  tra questa scelta e la creazione dell'ordine nessun altro puo' inserirsi.
   """
   if not cap or not dpc:
-    return None, None
+    return None
 
   dpc = _as_date(dpc)
   if dpc is None:
-    return None, None
+    return None
 
   entries = [entry for entry in query_entries_for_cap(cap, address=address) if entry.day_of_week == dpc.weekday()]
   if not entries:
-    return None, None
+    return None
 
   from .service.duration import calculate_payload_service_duration, entry_priority_key
 
   if required_duration == 0 and products:
     required_duration = calculate_payload_service_duration({'products': products, 'user_id': user_id})
 
+  candidates = entries
   if requested_start and requested_end:
     start_time = _parse_time(requested_start) if isinstance(requested_start, str) else requested_start
     end_time = _parse_time(requested_end) if isinstance(requested_end, str) else requested_end
-    requested_entries = sorted(
-      (entry for entry in entries if entry.start_time == start_time and entry.end_time == end_time),
-      key=entry_priority_key,
-    )
-    if requested_entries:
-      # Blocchi di veicoli diversi con la stessa fascia: si prova il primo veicolo (e le sue
-      # fasce adiacenti) prima di passare al successivo, così ne riempie tutta la giornata.
-      effective = _first_with_residual_capacity(
-        requested_entries,
-        dpc,
-        required_duration,
-        exclude_order_id=exclude_order_id,
-        new_cap=cap,
-        new_address=address,
-        new_products=products,
-      )
-      # Se satura e senza fascia adiacente libera, onora comunque la scelta esplicita del
-      # cliente (comportamento preesistente): meglio confermarla che rifiutare la data.
-      chosen = effective or requested_entries[0]
-      return chosen.start_time, chosen.end_time
+    requested_entries = [entry for entry in entries if entry.start_time == start_time and entry.end_time == end_time]
+    # Una fascia che il CAP non offre non e' una scelta valida: si ricade sul
+    # bilanciamento automatico invece di rifiutare.
+    candidates = requested_entries or entries
 
-  # Senza scelta del cliente si riempie per veicolo: prima la sua giornata in ordine
-  # cronologico (comprese le fasce adiacenti), poi il veicolo successivo.
-  entries.sort(key=entry_priority_key)
+  # Si riempie per veicolo: prima la sua giornata in ordine cronologico
+  # (comprese le fasce adiacenti), poi il veicolo successivo.
   effective = _first_with_residual_capacity(
-    entries,
+    sorted(candidates, key=entry_priority_key),
     dpc,
     required_duration,
     exclude_order_id=exclude_order_id,
@@ -529,8 +518,15 @@ def resolve_delivery_slot(
     new_address=address,
     new_products=products,
   )
-  chosen = effective or entries[0]
-  return chosen.start_time, chosen.end_time
+  if effective is None:
+    raise SlotUnavailableError('Non ci sono più fasce disponibili per questa data: scegli un altro giorno')
+  return effective
+
+
+def resolve_delivery_slot(*args, **kwargs) -> tuple:
+  """Come resolve_delivery_entry ma solo la fascia (start_time, end_time)."""
+  entry = resolve_delivery_entry(*args, **kwargs)
+  return (entry.start_time, entry.end_time) if entry else (None, None)
 
 
 def query_entries_for_cap(cap: str, address: str = None) -> list[DeliveryCoverageEntry]:
