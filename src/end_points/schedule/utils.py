@@ -65,7 +65,7 @@ def format_schedule_data(schedule_data: dict, session=None):
     elif item['operation_type'] == 'Activity':
       activity, message = parse_activity(item)
       if message:
-        return None, None, None, {'status': 'ko', 'message': message}
+        return None, None, {'status': 'ko', 'message': message}
       schedule_item['activity'] = activity
     schedule_items.append(schedule_item)
 
