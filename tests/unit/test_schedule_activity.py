@@ -129,8 +129,6 @@ def test_activity_is_returned_when_filtering_by_order_id(schedule_client):  # no
     ({'duration_minutes': -5}, 'durata'),
     ({'duration_minutes': 721}, 'durata'),
     ({'duration_minutes': '20'}, 'durata'),
-    ({'address': 'Via Roma 1'}, 'insieme'),
-    ({'cap': '70052'}, 'insieme'),
   ],
 )
 def test_invalid_activity_is_rejected(schedule_client, overrides, message):  # noqa: F811
@@ -142,6 +140,16 @@ def test_invalid_activity_is_rejected(schedule_client, overrides, message):  # n
   assert body['status'] == 'ko'
   assert message in body['message']
   assert _activities(schedule_id) == []
+
+
+def test_activity_address_without_cap_is_accepted(schedule_client):  # noqa: F811
+  _, schedule_id, payload = _setup()
+  payload['schedule_items'].append(_activity(address='Via Roma 1, Bisceglie'))
+
+  assert _put(schedule_client, schedule_id, payload)['status'] == 'ok'
+
+  activity = _activities(schedule_id)[0]
+  assert (activity.address, activity.cap) == ('Via Roma 1, Bisceglie', None)
 
 
 def test_update_edits_and_removes_activity(schedule_client):  # noqa: F811

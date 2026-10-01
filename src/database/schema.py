@@ -278,8 +278,8 @@ class ScheduleItemActivity(BaseItalcoEntity):
   """Attività libera o contrattempo inserita nel borderò (pausa, rifornimento, guasto...).
 
   Non è legata a un ordine né a un punto di ritiro: i dati stanno qui. La durata
-  è in minuti e vale 0 quando l'operatore non la imposta; indirizzo e CAP sono
-  opzionali e vanno insieme, perché la mappa geocodifica da entrambi.
+  è in minuti e vale 0 quando l'operatore non la imposta; l'indirizzo è opzionale
+  e il CAP, se l'autocomplete lo ricava, serve alla mappa come ripiego.
   """
 
   __tablename__ = 'schedule_item_activity'

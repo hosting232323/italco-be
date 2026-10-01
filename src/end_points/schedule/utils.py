@@ -27,7 +27,8 @@ def parse_activity(item: dict) -> tuple[dict | None, str | None]:
   """Estrae e valida i campi di un'attività del borderò.
 
   Ritorna (campi, None) oppure (None, messaggio d'errore). La durata è in
-  minuti e, se manca, vale 0; indirizzo e CAP vanno insieme o non vanno.
+  minuti e, se manca, vale 0. L'indirizzo è opzionale; il CAP è un di più che
+  l'autocomplete ricava dall'indirizzo scelto, non un campo da compilare.
   """
   title = (item.get('title') or '').strip()
   if not title:
@@ -40,8 +41,6 @@ def parse_activity(item: dict) -> tuple[dict | None, str | None]:
 
   address = (item.get('address') or '').strip() or None
   cap = (item.get('cap') or '').strip() or None
-  if bool(address) != bool(cap):
-    return None, "Indirizzo e CAP dell'attività vanno inseriti insieme"
 
   note = (item.get('note') or '').strip() or None
   return {'title': title, 'note': note, 'address': address, 'cap': cap, 'duration_minutes': duration}, None
