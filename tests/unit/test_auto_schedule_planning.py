@@ -31,6 +31,7 @@ from src.database.schema import (
   Order,
   Schedule,
   ScheduleItem,
+  ScheduleItemActivity,
   ScheduleItemOrder,
 )
 from src.schedulation.auto_planning import (
@@ -509,3 +510,63 @@ def test_unplan_order_drops_pickups_only_that_order_needed(_optimize, db, entry,
 
   assert _find(ScheduleItemCollectionPoint, collection_point_id=point.id) == []
   assert _find(ScheduleItem, schedule_id=_find(Schedule, date=TARGET)[0].id) == []
+
+
+@patch('src.schedulation.routing.trip_order_osrm')
+@patch('src.schedulation.routing.get_lat_lon_by_address')
+@patch('src.schedulation.routing.get_lat_lon_by_cap')
+def test_optimize_keeps_activities_in_their_position(mock_geocode, mock_geocode_address, mock_trip, db, entry):
+  """Le attività non si spostano: gli ordini si scambiano i posti rimasti."""
+  from database_api import Session
+
+  from src.schedulation.routing import optimize_schedule_stops
+
+  mock_geocode_address.return_value = (None, None)
+  mock_geocode.side_effect = lambda cap: (41.238, 16.500) if cap == '76011' else (41.201, 16.583)
+  mock_trip.side_effect = lambda coords: list(reversed(range(len(coords))))
+
+  order_a = _make_order_with_slot(cap='76011')
+  order_b = _make_order_with_slot(cap='70056')
+  schedule = create(Schedule, {'date': TARGET, 'transport_id': entry.transport_id})
+  item_a = create(
+    ScheduleItem,
+    {
+      'index': 0,
+      'schedule_id': schedule.id,
+      'operation_type': ScheduleType.ORDER,
+      'start_time_slot': SLOT_START,
+      'end_time_slot': SLOT_END,
+    },
+  )
+  activity_item = create(
+    ScheduleItem,
+    {
+      'index': 1,
+      'schedule_id': schedule.id,
+      'operation_type': ScheduleType.ACTIVITY,
+      'start_time_slot': SLOT_START,
+      'end_time_slot': SLOT_END,
+    },
+  )
+  item_b = create(
+    ScheduleItem,
+    {
+      'index': 2,
+      'schedule_id': schedule.id,
+      'operation_type': ScheduleType.ORDER,
+      'start_time_slot': SLOT_START,
+      'end_time_slot': SLOT_END,
+    },
+  )
+  create(ScheduleItemOrder, {'order_id': order_a.id, 'schedule_item_id': item_a.id})
+  create(ScheduleItemOrder, {'order_id': order_b.id, 'schedule_item_id': item_b.id})
+  create(ScheduleItemActivity, {'title': 'Pausa', 'duration_minutes': 30, 'schedule_item_id': activity_item.id})
+
+  with Session() as session:
+    optimize_schedule_stops(session.get(Schedule, schedule.id), session)
+    session.commit()
+
+  indexes = {item.id: item.index for item in _find(ScheduleItem, schedule_id=schedule.id)}
+  assert indexes[activity_item.id] == 1
+  assert indexes[item_a.id] == 2
+  assert indexes[item_b.id] == 0
