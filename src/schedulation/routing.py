@@ -255,6 +255,10 @@ def optimize_schedule_stops(schedule: Schedule, session: session_type) -> None:
   Include sia le tappe ``ORDER`` che ``CollectionPoint``, rispettando la
   precedenza "ritiro prima delle consegne che ne dipendono" (vedi docstring
   del modulo per l'algoritmo trip-per-cluster-e-merge).
+
+  Le attività libere (``ACTIVITY``) non partecipano al riordino: restano nella
+  posizione scelta dall'operatore e le tappe ottimizzate si distribuiscono
+  nei posti rimasti.
   """
   rows = get_schedule_items(schedule, session=session)
 
@@ -301,6 +305,12 @@ def optimize_schedule_stops(schedule: Schedule, session: session_type) -> None:
   cluster_order = _osrm_or_original_order(len(cluster_sequences), anchors)
   final_sequence = [stop for ci in cluster_order for stop in cluster_sequences[ci]]
 
-  for new_index, stop in enumerate(final_sequence):
+  stop_item_ids = {stop.item.id for stop in final_sequence}
+  positions = [
+    position
+    for position, item in enumerate(sorted((item for item, _scp, _sio in rows), key=lambda item: item.index))
+    if item.id in stop_item_ids
+  ]
+  for new_index, stop in zip(positions, final_sequence):
     if stop.item.index != new_index:
       update(stop.item, {'index': new_index}, session=session)
