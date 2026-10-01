@@ -13,9 +13,6 @@ from ...database.schema import (
   ScheduleItemOrder,
 )
 
-# Tetto della durata di un'attività: oltre 12 ore è quasi di certo un refuso.
-ACTIVITY_MAX_DURATION_MINUTES = 720
-
 
 def save_info_to_euronics(schedule_items: list[dict]):
   for item in schedule_items:
@@ -36,8 +33,8 @@ def parse_activity(item: dict) -> tuple[dict | None, str | None]:
 
   duration = item.get('duration_minutes')
   duration = 0 if duration in (None, '') else duration
-  if isinstance(duration, bool) or not isinstance(duration, int) or not 0 <= duration <= ACTIVITY_MAX_DURATION_MINUTES:
-    return None, f"La durata dell'attività deve essere tra 0 e {ACTIVITY_MAX_DURATION_MINUTES} minuti"
+  if isinstance(duration, bool) or not isinstance(duration, int) or duration < 0:
+    return None, "La durata dell'attività deve essere un numero intero di minuti, 0 o più"
 
   address = (item.get('address') or '').strip() or None
   cap = (item.get('cap') or '').strip() or None

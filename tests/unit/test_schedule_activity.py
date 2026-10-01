@@ -127,7 +127,6 @@ def test_activity_is_returned_when_filtering_by_order_id(schedule_client):  # no
   [
     ({'title': '   '}, 'titolo'),
     ({'duration_minutes': -5}, 'durata'),
-    ({'duration_minutes': 721}, 'durata'),
     ({'duration_minutes': '20'}, 'durata'),
   ],
 )
