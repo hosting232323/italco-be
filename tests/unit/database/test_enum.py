@@ -32,7 +32,7 @@ def test_order_types():
 
 
 def test_schedule_types():
-  assert {schedule_type.value for schedule_type in ScheduleType} == {'Order', 'CollectionPoint'}
+  assert {schedule_type.value for schedule_type in ScheduleType} == {'Order', 'CollectionPoint', 'Activity'}
 
 
 def test_enum_lookup_by_value_raises_for_unknown():

@@ -13,6 +13,7 @@ from ...database.schema import (
   DeliveryGroup,
   Transport,
   ScheduleItem,
+  ScheduleItemActivity,
   ScheduleItemCollectionPoint,
   ScheduleItemOrder,
   ScheduleItemUser,
@@ -122,7 +123,7 @@ def query_schedule_ids(filters: list, limit: int, session: session_type) -> list
 
 
 def query_schedules(
-  filters: list, limit: int = None, get_services: bool = False
+  filters: list, limit: int = None, get_services: bool = False, exclude_activities: bool = False
 ) -> list[tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User, Service]]:
   with Session() as session:
     entities = [Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User]
@@ -156,6 +157,10 @@ def query_schedules(
       )
 
     query = _apply_filters(query, filters)
+    # Le attività sono una nota dell'operatore sul borderò, non una tappa che
+    # il corriere esegue: l'app delivery non le riceve.
+    if exclude_activities:
+      query = query.filter(ScheduleItem.operation_type != ScheduleType.ACTIVITY)
 
     # Senza limite non c'è niente da scegliere: i filtri sulla query di dettaglio
     # bastano già, e il giro sugli id sarebbe solo una query in più.
@@ -341,6 +346,13 @@ def format_schedule_item(
   ):
     item = collection_point.to_dict()
     item['collection_point_id'] = collection_point.id
+  elif schedule_item.operation_type == ScheduleType.ACTIVITY and schedule_item.id not in [
+    item['id'] for item in schedule_items
+  ]:
+    activity = get_schedule_item_activity(schedule_item.id)
+    if not activity:
+      return
+    item = {key: getattr(activity, key) for key in ('title', 'note', 'address', 'cap', 'duration_minutes')}
   else:
     return
 
@@ -351,6 +363,11 @@ def format_schedule_item(
   item['end_time_slot'] = schedule_item.end_time_slot.strftime('%H:%M:%S')
   item['start_time_slot'] = schedule_item.start_time_slot.strftime('%H:%M:%S')
   schedule_items.append(item)
+
+
+def get_schedule_item_activity(schedule_item_id: int) -> ScheduleItemActivity | None:
+  with Session() as session:
+    return session.query(ScheduleItemActivity).filter(ScheduleItemActivity.schedule_item_id == schedule_item_id).first()
 
 
 @db_session_decorator(commit=False)
@@ -417,7 +434,12 @@ def close_schedule_position_if_done(schedule_item: ScheduleItem, session: sessio
 def _close_schedule_position_if_done(schedule_id: int, session: session_type = None):
   remaining = (
     session.query(ScheduleItem)
-    .filter(ScheduleItem.schedule_id == schedule_id, ScheduleItem.completed.is_(False))
+    .filter(
+      ScheduleItem.schedule_id == schedule_id,
+      ScheduleItem.completed.is_(False),
+      # Le attività non le completa nessuno: non devono tenere aperta la posizione.
+      ScheduleItem.operation_type != ScheduleType.ACTIVITY,
+    )
     .count()
   )
   if remaining > 0:

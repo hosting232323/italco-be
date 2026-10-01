@@ -8,15 +8,43 @@ from ...database.schema import (
   Order,
   Schedule,
   ScheduleItem,
+  ScheduleItemActivity,
   ScheduleItemCollectionPoint,
   ScheduleItemOrder,
 )
+
+# Tetto della durata di un'attività: oltre 12 ore è quasi di certo un refuso.
+ACTIVITY_MAX_DURATION_MINUTES = 720
 
 
 def save_info_to_euronics(schedule_items: list[dict]):
   for item in schedule_items:
     if item['operation_type'] == 'Order':
       save_order_status_to_euronics(item['order'])
+
+
+def parse_activity(item: dict) -> tuple[dict | None, str | None]:
+  """Estrae e valida i campi di un'attività del borderò.
+
+  Ritorna (campi, None) oppure (None, messaggio d'errore). La durata è in
+  minuti e, se manca, vale 0; indirizzo e CAP vanno insieme o non vanno.
+  """
+  title = (item.get('title') or '').strip()
+  if not title:
+    return None, "Inserisci un titolo per l'attività"
+
+  duration = item.get('duration_minutes')
+  duration = 0 if duration in (None, '') else duration
+  if isinstance(duration, bool) or not isinstance(duration, int) or not 0 <= duration <= ACTIVITY_MAX_DURATION_MINUTES:
+    return None, f"La durata dell'attività deve essere tra 0 e {ACTIVITY_MAX_DURATION_MINUTES} minuti"
+
+  address = (item.get('address') or '').strip() or None
+  cap = (item.get('cap') or '').strip() or None
+  if bool(address) != bool(cap):
+    return None, "Indirizzo e CAP dell'attività vanno inseriti insieme"
+
+  note = (item.get('note') or '').strip() or None
+  return {'title': title, 'note': note, 'address': address, 'cap': cap, 'duration_minutes': duration}, None
 
 
 def format_schedule_data(schedule_data: dict, session=None):
@@ -38,6 +66,11 @@ def format_schedule_data(schedule_data: dict, session=None):
     elif item['operation_type'] == 'CollectionPoint':
       collection_point_ids.append(item['collection_point_id'])
       schedule_item['collection_point_id'] = item['collection_point_id']
+    elif item['operation_type'] == 'Activity':
+      activity, message = parse_activity(item)
+      if message:
+        return None, None, None, {'status': 'ko', 'message': message}
+      schedule_item['activity'] = activity
     schedule_items.append(schedule_item)
 
   orders: list[Order] = get_by_ids(Order, order_ids, session=session)
@@ -121,6 +154,9 @@ def handle_schedule_item(item: dict, schedule: Schedule, session, pending_sms: l
       session=session,
     )
 
+  elif operation_type == ScheduleType.ACTIVITY:
+    create(ScheduleItemActivity, {**item['activity'], 'schedule_item_id': new_item.id}, session=session)
+
 
 def delete_schedule_items(
   schedule_items: list[tuple[ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder]], session=None
@@ -133,6 +169,10 @@ def delete_schedule_items(
       recreate_rae_products(order, session=session)
     if schedule_item[1]:
       delete(schedule_item[1], session=session)
+    for activity in session.query(ScheduleItemActivity).filter(
+      ScheduleItemActivity.schedule_item_id == schedule_item[0].id
+    ):
+      delete(activity, session=session)
     delete(schedule_item[0], session=session)
 
 
@@ -154,6 +194,14 @@ def schedule_items_updating(
         },
         session=session,
       )
+      if 'activity' in schedule_item:
+        activity = (
+          session.query(ScheduleItemActivity)
+          .filter(ScheduleItemActivity.schedule_item_id == schedule_item['id'])
+          .first()
+        )
+        if activity:
+          update(activity, schedule_item['activity'], session=session)
     else:
       handle_schedule_item(schedule_item, schedule, session=session, pending_sms=pending_sms)
 
