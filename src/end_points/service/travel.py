@@ -167,7 +167,7 @@ def get_lat_lon_for_transport(transport: Transport) -> tuple[float, float] | tup
 
   Stesso criterio di get_lat_lon_for_order: l'indirizzo e' la posizione vera del
   deposito, il CAP e' il ripiego per i veicoli che l'indirizzo non ce l'hanno
-  ancora (e' arrivato con la migration 064, prima c'era solo la localita').
+  ancora (e' arrivato con la migration 065, prima c'era solo la localita').
   """
   return _address_or_cap_coords(transport)
 
