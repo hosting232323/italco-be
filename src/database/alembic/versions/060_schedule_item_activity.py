@@ -1,11 +1,8 @@
 """schedule item activity
 
-Revision ID: 067
-Revises: 066
+Revision ID: 060
+Revises: 059
 Create Date: 2026-10-01 12:00:00.000000
-
-Su questo branch (demo) la migration è la 067, non la 060 che ha su main: le
-revisioni 060-066 sono già della demo e il database demo le ha applicate.
 
 Nuovo tipo di tappa del borderò: l'attività libera (pausa, rifornimento,
 contrattempo). Non punta a un ordine né a un punto di ritiro, quindi i suoi
@@ -24,8 +21,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '067'
-down_revision: Union[str, None] = '066'
+revision: str = '060'
+down_revision: Union[str, None] = '059'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

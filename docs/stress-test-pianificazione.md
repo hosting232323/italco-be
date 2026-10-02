@@ -110,7 +110,7 @@ Stessi scenari, stessa copia del dump, migrazione 066 applicata.
 
 Cosa e' cambiato:
 
-1. **Veicolo salvato sull'ordine** (`order.delivery_transport_id`, migration 066). La capienza legge gli
+1. **Veicolo salvato sull'ordine** (`order.delivery_transport_id`, migration 067). La capienza legge gli
    ordini del veicolo e della fascia: la ripartizione virtuale tra blocchi sovrapposti, e con lei la
    ricorsione, non esistono piu'. `find_coverage_entry` usa quel veicolo (non piu' `.first()`) e non
    richiede piu' che la fascia copra il CAP, quindi anche lo spillover sulla fascia adiacente viene
