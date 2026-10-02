@@ -30,8 +30,8 @@ def _activity(**overrides):
   }
 
 
-def _setup():
-  schedule_id, item_id, order_id, transport_id = _create_schedule_with_order()
+def _setup(transport_id: int = None):
+  schedule_id, item_id, order_id, transport_id = _create_schedule_with_order(transport_id)
   with Session() as session:
     delivery = session.query(User).filter_by(nickname='delivery_1').one()
     schedule = session.get(Schedule, schedule_id)
@@ -181,7 +181,10 @@ def test_delete_schedule_removes_activity(schedule_client):  # noqa: F811
 
 
 def test_delivery_receives_activities(schedule_client):  # noqa: F811
-  delivery, schedule_id, payload = _setup()
+  # Il seed ha già un borderò oggi sul primo veicolo: ne serve uno libero, perché il corriere ne veda uno solo.
+  with Session() as session:
+    free_transport_id = session.query(Transport).order_by(Transport.id.desc()).first().id
+  delivery, schedule_id, payload = _setup(free_transport_id)
   payload['schedule_items'].append(_activity())
   assert _put(schedule_client, schedule_id, payload)['status'] == 'ok'
   with Session() as session:
