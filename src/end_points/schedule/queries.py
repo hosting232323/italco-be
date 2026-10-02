@@ -118,7 +118,7 @@ def query_schedule_ids(filters: list, limit: int, session: session_type) -> list
 
 
 def query_schedules(
-  filters: list, limit: int = None, get_services: bool = False, exclude_activities: bool = False
+  filters: list, limit: int = None, get_services: bool = False
 ) -> list[tuple[Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User, Service]]:
   with Session() as session:
     entities = [Schedule, Transport, ScheduleItem, CollectionPoint, Order, Product, User]
@@ -154,10 +154,6 @@ def query_schedules(
       )
 
     query = _apply_filters(query, filters)
-    # Le attività sono una nota dell'operatore sul borderò, non una tappa che
-    # il corriere esegue: l'app delivery non le riceve.
-    if exclude_activities:
-      query = query.filter(ScheduleItem.operation_type != ScheduleType.ACTIVITY)
 
     # Senza limite non c'è niente da scegliere: i filtri sulla query di dettaglio
     # bastano già, e il giro sugli id sarebbe solo una query in più.
@@ -437,8 +433,6 @@ def _close_schedule_position_if_done(schedule_id: int, session: session_type = N
     .filter(
       ScheduleItem.schedule_id == schedule_id,
       ScheduleItem.completed.is_(False),
-      # Le attività non le completa nessuno: non devono tenere aperta la posizione.
-      ScheduleItem.operation_type != ScheduleType.ACTIVITY,
     )
     .count()
   )

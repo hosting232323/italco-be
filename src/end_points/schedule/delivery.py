@@ -14,7 +14,6 @@ def get_items_for_delivery(delivery_user: User):
       {'model': 'Schedule', 'field': 'date', 'value': [date.today(), date.today()]},
     ],
     get_services=True,
-    exclude_activities=True,
   ):
     schedules = format_query_result(tupla, schedules)
   if len(schedules) == 0:
@@ -39,7 +38,6 @@ def get_history_for_delivery(delivery_user: User):
       {'model': 'Schedule', 'field': 'date', 'value': [date.min, yesterday]},
     ],
     get_services=True,
-    exclude_activities=True,
   ):
     schedules = format_query_result(tupla, schedules)
 
@@ -62,7 +60,7 @@ def update_schedule_item(delivery_user: User, schedule_item_id: int, completed: 
 
   schedule_items = items_response['schedule_items']
   for item in schedule_items:
-    if item['operation_type'] == 'CollectionPoint':
+    if item['operation_type'] in ('CollectionPoint', 'Activity'):
       continue
 
     required_cp_ids = [
