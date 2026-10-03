@@ -148,7 +148,7 @@ def add_service(
   price: float,
 ) -> dict:
   if product.name not in object['products'].keys():
-    object['products'][product.name] = {'services': []}
+    object['products'][product.name] = {'services': [], 'collected': product.collected}
     if product.release_transport_id:
       object['products'][product.name]['release_transport_id'] = product.release_transport_id
     if product.release_collection_point_id:

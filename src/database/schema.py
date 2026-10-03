@@ -369,6 +369,7 @@ class Product(BaseItalcoEntity):
   __tablename__ = 'product'
 
   name = Column(String, nullable=False)
+  collected = Column(Boolean, nullable=False, default=False, server_default='false')
   order_id = Column(Integer, ForeignKey('order.id'), nullable=False, index=True)
   transport_id = Column(Integer, ForeignKey('transport.id'), nullable=True)
   rae_product_id = Column(Integer, ForeignKey('rae_product.id'), nullable=True)

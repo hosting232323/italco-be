@@ -2,6 +2,7 @@ from datetime import date, timedelta
 
 from src.database.enum import OrderStatus, ScheduleItemUserType, ScheduleType, UserRole
 from src.end_points.schedule.queries import (
+  format_schedule_item,
   close_schedule_position_if_done,
   get_delivery_groups,
   get_delivery_groups_by_order_id,
@@ -87,6 +88,22 @@ def test_query_schedules_with_services(db):
 
   assert len(results[0]) == 8
   assert results[0][7].id == service.id
+
+
+def test_format_schedule_item_exposes_product_collected(db):
+  _, _, service_user, _ = customer_with_service()
+  order = create_order(status=OrderStatus.SCHEDULED)
+  collected = create_product(order, service_user, name='Frigo', collected=True)
+  pending = create_product(order, service_user, name='TV')
+  schedule = create_schedule()
+  item = link_order_to_schedule(order, schedule)
+  schedule_items = []
+
+  format_schedule_item(schedule_items, item, None, order, collected, None)
+  format_schedule_item(schedule_items, item, None, order, pending, None)
+
+  assert schedule_items[0]['products']['Frigo']['collected'] is True
+  assert schedule_items[0]['products']['TV']['collected'] is False
 
 
 def test_query_schedules_limit_counts_schedules_not_rows(db):
