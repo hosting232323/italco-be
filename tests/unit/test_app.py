@@ -66,7 +66,8 @@ def test_checks_endpoint_without_swagger_key_is_denied(client, monkeypatch):
 
 
 def test_delivery_app_min_version_reads_configured_threshold(client, monkeypatch):
-  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_IOS', '190')
+  # Senza `platform` vale la soglia legacy unica.
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER', '190')
 
   response = client.get('/delivery-app/min-version')
 
@@ -74,7 +75,7 @@ def test_delivery_app_min_version_reads_configured_threshold(client, monkeypatch
 
 
 def test_delivery_app_min_version_defaults_to_none_when_unset(client, monkeypatch):
-  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_IOS', None)
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER', None)
 
   response = client.get('/delivery-app/min-version')
 
@@ -84,7 +85,7 @@ def test_delivery_app_min_version_defaults_to_none_when_unset(client, monkeypatc
 def test_delivery_app_min_version_ignores_a_non_numeric_value(client, monkeypatch):
   # Fail open: una svista in configurazione (typo nella variabile d'ambiente)
   # non deve mai tradursi in un'app bloccata per tutti i corrieri.
-  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_IOS', 'non-un-numero')
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER', 'non-un-numero')
 
   response = client.get('/delivery-app/min-version')
 
@@ -126,11 +127,14 @@ def test_delivery_app_min_version_ios_gets_the_configured_threshold(client, monk
   assert response.get_json() == {'status': 'ok', 'min_build_number': 190}
 
 
-def test_delivery_app_min_version_missing_platform_behaves_like_ios(client, monkeypatch):
-  # Le build gia' distribuite non mandano `platform`: devono continuare a
-  # ricevere la soglia come prima.
+def test_delivery_app_min_version_missing_platform_uses_the_legacy_threshold(client, monkeypatch):
+  # Le build gia' distribuite non mandano `platform`: continuano a ricevere la
+  # soglia legacy unica, non quella di una piattaforma, cosi' si possono
+  # aggiornare prima di separare le configurazioni iOS e Android.
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER', '205')
   monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_IOS', '190')
+  monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER_ANDROID', '180')
 
   response = client.get('/delivery-app/min-version')
 
-  assert response.get_json() == {'status': 'ok', 'min_build_number': 190}
+  assert response.get_json() == {'status': 'ok', 'min_build_number': 205}
