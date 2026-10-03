@@ -81,13 +81,19 @@ def delete_schedule(_, id):
 
 
 @schedule_bp.route('filter', methods=['POST'])
-@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY])
+@flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def get_schedules(_):
+  filters = request.json.get('filters') if isinstance(request.json, dict) else None
+  if not isinstance(filters, list):
+    return {'status': 'ko', 'message': 'Filtro non valido'}, 400
   schedules = []
-  for tupla in query_schedules(request.json['filters'], 100):
-    schedules = format_query_result(tupla, schedules)
+  try:
+    for tupla in query_schedules(filters, 100):
+      schedules = format_query_result(tupla, schedules)
+  except (ValueError, KeyError, TypeError):
+    return {'status': 'ko', 'message': 'Filtro non valido'}, 400
 
-  if any(filter['model'] == 'Order' and filter['field'] == 'id' for filter in request.json['filters']):
+  if any(filter.get('model') == 'Order' and filter.get('field') == 'id' for filter in filters):
     for schedule in schedules:
       for tupla in get_schedule_item_for_order_id_filter(schedule['id']):
         format_schedule_item(schedule['schedule_items'], tupla[1], tupla[2], tupla[3], tupla[4], None)

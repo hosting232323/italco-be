@@ -6,9 +6,9 @@ from sqlalchemy.dialects.postgresql import insert
 
 from ...database.enum import UserRole
 from .session import get_token_payload, refresh_access_token_response, replace_access_token
-from .. import auth, flask_session_authentication
+from .. import auth, delivery_build_block_response, flask_session_authentication
 from api.users.security import hash_password, verify_password
-from ...database.queries import get_user_by_nickname
+from ...database.queries import get_user_by_nickname, get_user_by_id_unscoped
 from database_api import Session
 from database_api.operations import delete, get_by_id, create, update
 from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo
@@ -35,7 +35,11 @@ def cancell_user(user: User, id):
     return {'status': 'ko', 'message': 'Utente non trovato'}
 
   if request.args.get('force'):
-    delete(user)
+    with auth.user_session_lock(user.id) as session:
+      fresh = session.query(User).filter(User.id == user.id).one()
+      auth.revoke_user_sessions(user.id, db=session)
+      delete(fresh, session=session)
+      session.commit()
     return {'status': 'ok', 'message': 'Utente eliminato'}
   else:
     return {'status': 'ko', 'dependencies': count_user_dependencies(int(id))}
@@ -78,6 +82,9 @@ def login():
   user: User = get_user_by_nickname(request.json['email'])
   if not user or user.nickname != request.json['email']:
     return {'status': 'ko', 'message': 'Credenziali errate'}
+  build_block = delivery_build_block_response(user)
+  if build_block:
+    return build_block
 
   def verify(fresh: User, session) -> bool:
     # Verifica sotto lo stesso lock che crea la sessione, così un reset
@@ -119,6 +126,13 @@ def reset_password(_, id):
 @user_bp.route('refresh', methods=['POST'])
 def refresh():
   previous_payload = get_token_payload()
+  user_id = previous_payload.get('sub')
+  if user_id is not None:
+    user = get_user_by_id_unscoped(int(user_id))
+    if user:
+      build_block = delivery_build_block_response(user)
+      if build_block:
+        return build_block
   return refresh_access_token_response(auth.refresh(), previous_payload)
 
 

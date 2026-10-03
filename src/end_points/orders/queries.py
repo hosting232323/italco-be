@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from sqlalchemy import and_, desc, or_, cast, Date
 from sqlalchemy.orm import Session as session_type
 
@@ -5,7 +6,7 @@ from database_api import Session
 from database_api.operations import db_session_decorator
 from ...utils.date import handle_date
 from ...utils.query import limit_per_entity
-from ...database.enum import OrderType
+from ...database.enum import OrderType, UserRole, ScheduleType
 from ..rae.queries import get_product_and_group
 from ...database.schema import (
   Order,
@@ -22,6 +23,7 @@ from ...database.schema import (
   ScheduleItem,
   ScheduleItemOrder,
   Transport,
+  OrderTrackingToken,
 )
 
 
@@ -202,6 +204,57 @@ def get_order_by_external_id_and_customer(external_id: str, customer_id: str) ->
 def get_order_by_external_id(external_id: str) -> Order:
   with Session() as session:
     return session.query(Order).filter(Order.external_id == external_id).first()
+
+
+def user_can_access_order(user: User, order_id: int, session) -> bool:
+  """Role-specific ownership check; the request's company scope stays active."""
+  if user.role in (UserRole.ADMIN, UserRole.OPERATOR, UserRole.SUPER_ADMIN):
+    return True
+
+  if user.role == UserRole.CUSTOMER:
+    owned_count = (
+      session.query(Product.id)
+      .join(ServiceUser, ServiceUser.id == Product.service_user_id)
+      .filter(Product.order_id == order_id, ServiceUser.user_id == user.id)
+      .count()
+    )
+    total_count = session.query(Product.id).filter(Product.order_id == order_id).count()
+    return total_count > 0 and owned_count == total_count
+
+  if user.role == UserRole.DELIVERY:
+    return (
+      session.query(DeliveryUserInfo.id)
+      .join(Schedule, Schedule.transport_id == DeliveryUserInfo.transport_id)
+      .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
+      .join(
+        ScheduleItemOrder,
+        and_(
+          ScheduleItemOrder.schedule_item_id == ScheduleItem.id,
+          ScheduleItemOrder.order_id == order_id,
+        ),
+      )
+      .filter(
+        DeliveryUserInfo.user_id == user.id,
+        ScheduleItem.operation_type == ScheduleType.ORDER,
+      )
+      .first()
+      is not None
+    )
+
+  return False
+
+
+def get_order_by_tracking_token(token_hash: str) -> Order | None:
+  with Session() as session:
+    tracking = (
+      session.query(OrderTrackingToken)
+      .filter(
+        OrderTrackingToken.token_hash == token_hash,
+        OrderTrackingToken.expires_at > datetime.now(timezone.utc),
+      )
+      .first()
+    )
+    return session.query(Order).filter(Order.id == tracking.order_id).first() if tracking else None
 
 
 def get_all_histories_by_order_id(order_id: int) -> list[History]:

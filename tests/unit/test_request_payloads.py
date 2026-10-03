@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from flask import Flask, request
 
-from src.database.enum import OrderType
+from src.database.enum import OrderType, UserRole
 from src.end_points import collection_point as collection_point_module
 from src.end_points import orders as orders_module
 from src.end_points import service as service_module
@@ -58,7 +58,7 @@ def test_order_update_keeps_request_payload_unchanged(monkeypatch):
     'products': {'tv': {'services': [{'id': 1}]}},
   }
   with app.test_request_context('/order/1', method='PUT', json=payload):
-    update_order_endpoint.__wrapped__(SimpleNamespace(), 1)
+    update_order_endpoint.__wrapped__(SimpleNamespace(role=UserRole.ADMIN), 1)
     assert request.get_json() == {
       'version': 1,
       'status': 'Booked',

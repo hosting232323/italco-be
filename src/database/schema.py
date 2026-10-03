@@ -201,6 +201,15 @@ class Order(BaseItalcoEntity):
   histories = relationship('History', back_populates='order', cascade='all, delete-orphan')
 
 
+class OrderTrackingToken(BaseItalcoEntity):
+  __tablename__ = 'order_tracking_token'
+  __table_args__ = (UniqueConstraint('token_hash', name='uq_order_tracking_token_token_hash'),)
+
+  order_id = Column(Integer, ForeignKey('order.id', ondelete='CASCADE'), nullable=False)
+  token_hash = Column(String, nullable=False)
+  expires_at = Column(DateTime(timezone=True), nullable=False)
+
+
 class History(BaseItalcoEntity):
   __tablename__ = 'history'
 

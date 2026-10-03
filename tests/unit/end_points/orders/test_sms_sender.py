@@ -1,7 +1,12 @@
 from datetime import date, time
+import hashlib
+from urllib.parse import urlsplit
 
 import src.end_points.orders.sms_sender as sms_sender
-from src.end_points.orders.sms_sender import delay_sms_check, get_order_link, hashids
+from database_api import Session
+from src import allowed_origins
+from src.database.schema import OrderTrackingToken
+from src.end_points.orders.sms_sender import delay_sms_check, get_order_link
 
 from tests.unit.factories import (
   create_order,
@@ -12,14 +17,32 @@ from tests.unit.factories import (
 )
 
 
-def test_get_order_link_uses_origin_and_hashid(app, db):
+def test_get_order_link_uses_secure_token_and_allowlisted_origin(app, db):
   order = create_order()
 
-  with app.test_request_context(headers={'Origin': 'https://fe.example.com'}):
+  with app.test_request_context(headers={'Origin': allowed_origins[0]}):
     link = get_order_link(order)
 
-  assert link == f'https://fe.example.com/order/{hashids.encode(order.id)}'
-  assert hashids.decode(link.rsplit('/', 1)[-1]) == (order.id,)
+  parsed_link = urlsplit(link)
+  token = parsed_link.fragment
+  assert f'{parsed_link.scheme}://{parsed_link.netloc}' == allowed_origins[0]
+  assert parsed_link.path == '/order/track'
+  assert len(token) >= 40
+
+  with Session() as session:
+    tracking_token = session.query(OrderTrackingToken).filter_by(order_id=order.id).one()
+
+  assert tracking_token.token_hash == hashlib.sha256(token.encode('utf-8')).hexdigest()
+  assert tracking_token.token_hash != token
+
+
+def test_get_order_link_ignores_untrusted_origin(app, db):
+  order = create_order()
+
+  with app.test_request_context(headers={'Origin': 'https://attacker.example'}):
+    link = get_order_link(order)
+
+  assert urlsplit(link).scheme + '://' + urlsplit(link).netloc == allowed_origins[0]
 
 
 def test_delay_sms_check_disabled_in_dev(db, monkeypatch):

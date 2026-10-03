@@ -1,6 +1,6 @@
 import os
-import sys
 import tempfile
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -24,3 +24,10 @@ load_dotenv(TEST_ENV_FILE, override=True)
 # STATIC_FOLDER resta quello reale del progetto: i test che si aspettano una
 # cartella vuota trovano invece file veri lasciati da run precedenti.
 os.environ.setdefault('STATIC_FOLDER', tempfile.mkdtemp(prefix='italco-test-static-'))
+
+# Le soglie configurate per l'ambiente non devono bloccare le richieste dei
+# test API. I test specifici delle soglie modificano direttamente i valori
+# dell'app con monkeypatch.
+os.environ['DELIVERY_APP_MIN_BUILD_NUMBER_IOS'] = ''
+os.environ['DELIVERY_APP_MIN_BUILD_NUMBER_ANDROID'] = ''
+os.environ['DELIVERY_APP_MIN_BUILD_NUMBER'] = ''

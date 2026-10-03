@@ -1,4 +1,5 @@
 from functools import wraps
+from flask import request
 
 from api.users.auth import build_auth
 from database_api import scope
@@ -9,6 +10,41 @@ from ..database.schema import User, UserSession
 
 
 auth = build_auth(UserSession, get_user_by_id_unscoped, user_model=User)
+
+
+def delivery_build_block_response(user: User):
+  """Enforce configured platform-specific minimums on authenticated app calls."""
+  if user.role != UserRole.DELIVERY:
+    return None
+
+  import src as app_module
+
+  thresholds = {
+    'ios': app_module.DELIVERY_APP_MIN_BUILD_NUMBER_IOS,
+    'android': app_module.DELIVERY_APP_MIN_BUILD_NUMBER_ANDROID,
+  }
+  configured = {}
+  for platform, raw in thresholds.items():
+    try:
+      configured[platform] = int(raw)
+    except (TypeError, ValueError):
+      continue
+  if not configured:
+    return None
+
+  platform = request.headers.get('X-Delivery-Platform')
+  raw_build = request.headers.get('X-Delivery-Build')
+  if platform not in {'ios', 'android'} or not raw_build or not raw_build.isdigit():
+    return {'status': 'update_required', 'message': 'Aggiorna l’app Delivery per continuare.'}, 426
+
+  minimum = configured.get(platform)
+  if minimum is not None and int(raw_build) < minimum:
+    return {
+      'status': 'update_required',
+      'message': 'Aggiorna l’app Delivery per continuare.',
+      'min_build_number': minimum,
+    }, 426
+  return None
 
 
 def flask_session_authentication(
@@ -43,6 +79,10 @@ def flask_session_authentication(
 
       if roles and user.role != UserRole.SUPER_ADMIN and user.role not in roles:
         return {'status': 'forbidden', 'message': 'Ruolo non autorizzato'}, 403
+
+      build_block = delivery_build_block_response(user)
+      if build_block:
+        return build_block
 
       company_id = get_token_company_id(allow_query_token) if user.role == UserRole.SUPER_ADMIN else user.company_id
       if tenant_required and not company_id:
