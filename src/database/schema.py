@@ -16,6 +16,7 @@ from sqlalchemy import (
   JSON,
   DateTime,
   UniqueConstraint,
+  CheckConstraint,
 )
 
 from database_api import BaseEntity
@@ -250,6 +251,7 @@ class ScheduleItem(BaseItalcoEntity):
   schedule = relationship('Schedule', back_populates='schedule_item')
   schedule_item_order = relationship('ScheduleItemOrder', back_populates='schedule_item')
   schedule_item_collection_point = relationship('ScheduleItemCollectionPoint', back_populates='schedule_item')
+  schedule_item_activity = relationship('ScheduleItemActivity', back_populates='schedule_item')
 
 
 class ScheduleItemOrder(BaseItalcoEntity):
@@ -270,6 +272,27 @@ class ScheduleItemCollectionPoint(BaseItalcoEntity):
 
   schedule_item = relationship('ScheduleItem', back_populates='schedule_item_collection_point')
   collection_point = relationship('CollectionPoint', back_populates='schedule_item_collection_point')
+
+
+class ScheduleItemActivity(BaseItalcoEntity):
+  """Attività libera o contrattempo inserita nel borderò (pausa, rifornimento, guasto...).
+
+  Non è legata a un ordine né a un punto di ritiro: i dati stanno qui. La durata
+  è in minuti e vale 0 quando l'operatore non la imposta; l'indirizzo è opzionale
+  e il CAP, se l'autocomplete lo ricava, serve alla mappa come ripiego.
+  """
+
+  __tablename__ = 'schedule_item_activity'
+  __table_args__ = (CheckConstraint('duration_minutes >= 0', name='ck_schedule_item_activity_duration'),)
+
+  title = Column(String, nullable=False)
+  note = Column(String)
+  address = Column(String)
+  cap = Column(String)
+  duration_minutes = Column(Integer, nullable=False, default=0, server_default='0')
+  schedule_item_id = Column(ForeignKey('schedule_item.id'), nullable=False, index=True)
+
+  schedule_item = relationship('ScheduleItem', back_populates='schedule_item_activity')
 
 
 class ScheduleItemUser(BaseItalcoEntity):
