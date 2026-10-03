@@ -7,6 +7,7 @@ from src.database.schema import Order, Photo, Product
 
 from tests.unit.factories import (
   auth_header,
+  create_company,
   create_order,
   create_product,
   create_service,
@@ -143,11 +144,12 @@ def test_filter_orders_by_addressee(client):
 
 
 def test_get_order_endpoint_returns_single_order(client):
+  admin = create_user(UserRole.ADMIN)
   _, _, service_user, _ = customer_with_service()
   order = create_order()
   create_product(order, service_user)
 
-  response = client.get(f'/order/{order.id}')
+  response = client.get(f'/order/{order.id}', headers=auth_header(admin))
 
   body = response.get_json()
   assert body['status'] == 'ok'
@@ -156,10 +158,9 @@ def test_get_order_endpoint_returns_single_order(client):
 
 
 def test_get_order_endpoint_unknown_id_returns_generic_error(client):
-  response = client.get('/order/999999')
+  response = client.get('/order/999999', headers=auth_header(create_user(UserRole.ADMIN)))
 
-  # L'handler globale trasforma l'eccezione in errore generico
-  assert response.get_json() == {'status': 'ko', 'message': 'Errore generico'}
+  assert response.status_code == 404
 
 
 def test_update_order_endpoint_rejects_version_conflict(client):
@@ -193,6 +194,26 @@ def test_update_order_endpoint_updates_fields(client):
 
   assert response.get_json()['status'] == 'ok'
   assert get_by_id(Order, order.id).operator_note == 'aggiornata'
+
+
+def test_update_order_endpoint_ignores_company_id(client):
+  admin = create_user(UserRole.ADMIN)
+  _, _, service_user, _ = customer_with_service()
+  order = create_order()
+  create_product(order, service_user)
+  company_id = order.company_id
+  other_company = create_company()
+
+  response = client.put(
+    f'/order/{order.id}',
+    json={'version': 0, 'operator_note': 'aggiornata', 'company_id': other_company.id},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+  updated = get_by_id(Order, order.id)
+  assert updated.operator_note == 'aggiornata'
+  assert updated.company_id == company_id
 
 
 def test_update_order_endpoint_with_motivation_and_status(client):

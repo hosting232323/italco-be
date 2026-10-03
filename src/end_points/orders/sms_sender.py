@@ -1,14 +1,15 @@
 import os
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
 from flask import request
-from hashids import Hashids
 from api.sms import send_sms
+from database_api import Session
 
 from api.settings import IS_DEV
+from ... import allowed_origins
 from .queries import get_selling_point
-from ...database.schema import Order, ScheduleItem
-
-
-hashids = Hashids(salt='mia-chiave-segreta-super-segreta', min_length=8)
+from ...database.schema import Order, OrderTrackingToken, ScheduleItem
 
 
 def format_time_slot(value) -> str:
@@ -32,5 +33,25 @@ def delay_sms_check(order: Order, schedule_item: ScheduleItem):
     )
 
 
+def create_order_tracking_token(order: Order) -> str:
+  token = secrets.token_urlsafe(32)
+  token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+  with Session() as session:
+    session.add(
+      OrderTrackingToken(
+        company_id=order.company_id,
+        order_id=order.id,
+        token_hash=token_hash,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=90),
+      )
+    )
+    session.commit()
+
+  return token
+
+
 def get_order_link(order: Order) -> str:
-  return f'{request.headers.get("Origin")}/order/{hashids.encode(order.id)}'
+  token = create_order_tracking_token(order)
+  request_origin = request.headers.get('Origin')
+  base_url = request_origin if request_origin in allowed_origins else allowed_origins[0]
+  return f'{base_url}/order/track#{token}'

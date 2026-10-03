@@ -1,4 +1,5 @@
 from datetime import datetime
+import hashlib
 
 from ...order_integrity import assert_order_service_types, lock_order_service_integrity
 
@@ -11,9 +12,9 @@ from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_products, update_products
 from database_api.operations import create, update, get_by_id, delete
-from .queries import query_orders, format_query_result
+from .queries import query_orders, format_query_result, get_order_by_tracking_token
 from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus, ScheduleItemUserType
-from ...database.schema import User, Order, DeliveryUserInfo, ServiceUser
+from ...database.schema import User, Order, DeliveryUserInfo, ServiceUser, CollectionPoint
 from .clone import format_data_cloning_order, update_cloned_order, query_products, reschedule_products
 from ..schedule.queries import (
   get_schedule_item_by_order,
@@ -27,6 +28,7 @@ NON_UPDATABLE_ORDER_FIELDS = frozenset(
   {
     'products',
     'user_id',
+    'company_id',
     'start_time_slot',
     'end_time_slot',
     'version',
@@ -35,6 +37,61 @@ NON_UPDATABLE_ORDER_FIELDS = frozenset(
     'updated_at',
   }
 )
+
+ROLE_UPDATABLE_ORDER_FIELDS = {
+  UserRole.CUSTOMER: frozenset(
+    {
+      'addressee',
+      'address',
+      'cap',
+      'floor',
+      'elevator',
+      'addressee_contact',
+      'customer_note',
+      'drc',
+      'products',
+      'version',
+    }
+  ),
+  UserRole.DELIVERY: frozenset(
+    {
+      'status',
+      'anomaly',
+      'delay',
+      'motivation',
+      'start_time_slot',
+      'end_time_slot',
+      'photos',
+      'signature',
+      'mark',
+      'products',
+      'version',
+    }
+  ),
+}
+
+
+def restrict_order_update(user: User, data: dict, session) -> dict:
+  allowed = ROLE_UPDATABLE_ORDER_FIELDS.get(user.role)
+  if allowed is None:
+    return data
+
+  restricted = {key: value for key, value in data.items() if key in allowed}
+  if user.role == UserRole.DELIVERY and isinstance(restricted.get('products'), dict):
+    safe_products = {}
+    for name, details in restricted['products'].items():
+      if not isinstance(details, dict) or 'release_collection_point_id' not in details:
+        continue
+      collection_point_id = details['release_collection_point_id']
+      if collection_point_id == 0:
+        safe_products[name] = {'release_collection_point_id': 0}
+      elif (
+        isinstance(collection_point_id, int)
+        and session.query(CollectionPoint.id).filter(CollectionPoint.id == collection_point_id).first()
+      ):
+        safe_products[name] = {'release_collection_point_id': collection_point_id}
+    restricted['products'] = safe_products
+  return restricted
 
 
 def create_order(user: User, data: dict):
@@ -88,9 +145,9 @@ def filter_orders(filters: dict, customer_id: int = None):
   return {'status': 'ok', 'orders': orders}
 
 
-def get_order(order_id: int):
+def get_order(order_id: int, customer_id: int = None):
   orders = []
-  for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': order_id}]):
+  for tupla in query_orders([{'model': 'Order', 'field': 'id', 'value': order_id}], customer_id=customer_id):
     orders = format_query_result(tupla, orders)
   if len(orders) != 1:
     raise Exception('Numero di ordini trovati non valido')
@@ -105,6 +162,43 @@ def get_order(order_id: int):
         orders[0]['lon'] = delivery_user_info.lon
 
   return {'status': 'ok', 'order': orders[0]}
+
+
+def get_public_order(token: str):
+  token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+  order = get_order_by_tracking_token(token_hash)
+  if not order:
+    return None
+
+  full_order = get_order(order.id)['order']
+  public_order = {
+    key: full_order[key]
+    for key in (
+      'id',
+      'status',
+      'addressee',
+      'address',
+      'addressee_contact',
+      'dpc',
+      'drc',
+      'booking_date',
+      'delivery_slot_start',
+      'delivery_slot_end',
+      'lat',
+      'lon',
+    )
+    if key in full_order
+  }
+  public_order['user'] = {'nickname': full_order.get('user', {}).get('nickname')}
+  public_order['products'] = {
+    name: {
+      'services': [
+        {'name': service.get('name'), 'type': service.get('type')} for service in details.get('services', [])
+      ]
+    }
+    for name, details in full_order.get('products', {}).items()
+  }
+  return {'status': 'ok', 'order': public_order}
 
 
 def delete_order(user: User, order_id: int):
