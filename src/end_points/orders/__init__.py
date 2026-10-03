@@ -19,6 +19,7 @@ from .. import flask_session_authentication
 from api import swagger_decorator
 from ..collection_point import query_collection_points_available
 from .queries import get_order_photos
+from .move_company import list_move_targets, move_order, preview_order_move
 from .crud import create_order, update_order, filter_orders, get_order, delete_order, update_order_customer
 
 
@@ -118,3 +119,25 @@ def get_collection_points_available(_, id):
       collection_point.to_dict() for collection_point in query_collection_points_available(int(id))
     ],
   }
+
+
+# Admin e super admin. Si opera nella company dell'ordine (quella dell'admin o
+# quella selezionata dal super admin) e si sceglie la destinazione.
+@order_bp.route('company-targets', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN])
+def company_targets_endpoint(user: User):
+  return list_move_targets()
+
+
+@order_bp.route('<id>/company/preview', methods=['POST'])
+@flask_session_authentication([UserRole.ADMIN])
+def preview_order_company_endpoint(user: User, id):
+  data = request.json or {}
+  return preview_order_move(int(id), data.get('company_id'), data.get('user_id'))
+
+
+@order_bp.route('<id>/company', methods=['POST'])
+@flask_session_authentication([UserRole.ADMIN])
+def move_order_company_endpoint(user: User, id):
+  data = request.json or {}
+  return move_order(int(id), data.get('company_id'), data.get('user_id'))
