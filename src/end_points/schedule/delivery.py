@@ -14,6 +14,7 @@ def get_items_for_delivery(delivery_user: User):
       {'model': 'Schedule', 'field': 'date', 'value': [date.today(), date.today()]},
     ],
     get_services=True,
+    exclude_activities=True,
   ):
     schedules = format_query_result(tupla, schedules)
   if len(schedules) == 0:
@@ -38,6 +39,7 @@ def get_history_for_delivery(delivery_user: User):
       {'model': 'Schedule', 'field': 'date', 'value': [date.min, yesterday]},
     ],
     get_services=True,
+    exclude_activities=True,
   ):
     schedules = format_query_result(tupla, schedules)
 
