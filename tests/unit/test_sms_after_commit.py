@@ -156,9 +156,9 @@ def _run_order_update_endpoint(monkeypatch, fail_commit):
   with app.test_request_context('/order/1', method='PUT', json={'version': 1}):
     if fail_commit:
       with pytest.raises(RuntimeError, match='commit failed'):
-        update_order_endpoint.__wrapped__(SimpleNamespace(), 1)
+        update_order_endpoint.__wrapped__(SimpleNamespace(role=UserRole.ADMIN), 1)
     else:
-      update_order_endpoint.__wrapped__(SimpleNamespace(), 1)
+      update_order_endpoint.__wrapped__(SimpleNamespace(role=UserRole.ADMIN), 1)
   return sent
 
 

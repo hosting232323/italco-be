@@ -13,16 +13,6 @@ allowed_origins = [
   'https://ares-logistics.it',
   'https://www.ares-logistics.it',
 ]
-
-# Origin aggiuntive per gli ambienti che non stanno sul dominio di produzione
-# (tipicamente il frontend di test). Vanno elencate esplicitamente: con
-# supports_credentials=True una CORS che riflette qualunque origin lascia che un
-# sito qualsiasi guidi l'API con la sessione di chi lo visita.
-EXTRA_ALLOWED_ORIGINS = [
-  origin.strip() for origin in os.environ.get('EXTRA_ALLOWED_ORIGINS', '').split(',') if origin.strip()
-]
-
-
 DATABASE_URL = os.environ['DATABASE_URL']
 LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
@@ -63,13 +53,11 @@ if API_PREFIX:
   app.wsgi_app = PrefixMiddleware(app.wsgi_app, prefix=f'/{API_PREFIX}')
 
 
-if IS_DEV and not EXTRA_ALLOWED_ORIGINS:
-  # Solo sviluppo locale, dove l'origin del frontend non e' prevedibile.
-  # Negli ambienti deployati con IS_DEV=1 (il test) va valorizzata
-  # EXTRA_ALLOWED_ORIGINS, cosi' anche li' la lista diventa esplicita.
+if IS_DEV:
+  # Sviluppo e ambiente di test: il frontend puo' girare su host diversi.
   CORS(app, supports_credentials=True)
 else:
-  CORS(app, origins=allowed_origins + EXTRA_ALLOWED_ORIGINS, supports_credentials=True)
+  CORS(app, origins=allowed_origins, supports_credentials=True)
 
 
 register_flask_hooks(app, STATIC_FOLDER, user_log_field='nickname')
@@ -121,4 +109,12 @@ def delivery_app_min_version():
     min_build_number = int(raw_min_build_number)
   except (TypeError, ValueError):
     min_build_number = None
+  build_number = request.args.get('build_number')
+  if platform in {'android', 'ios'} and build_number and build_number.isdigit():
+    app.logger.info(
+      'delivery-app version check platform=%s build=%s minimum=%s',
+      platform,
+      build_number,
+      min_build_number,
+    )
   return {'status': 'ok', 'min_build_number': min_build_number}

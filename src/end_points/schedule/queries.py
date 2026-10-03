@@ -59,16 +59,86 @@ _FILTER_MODEL_JOINS = {
   'CollectionPoint': ('schedule_item', 'schedule_item_collection_point', 'collection_point'),
 }
 
+_FILTER_MODELS = {
+  'Schedule': Schedule,
+  'User': User,
+  'Order': Order,
+  'DeliveryGroup': DeliveryGroup,
+  'Transport': Transport,
+  'ScheduleItem': ScheduleItem,
+  'ScheduleItemCollectionPoint': ScheduleItemCollectionPoint,
+  'ScheduleItemOrder': ScheduleItemOrder,
+  'ScheduleItemUser': ScheduleItemUser,
+  'CollectionPoint': CollectionPoint,
+  'Product': Product,
+  'ServiceUser': ServiceUser,
+  'Service': Service,
+}
+_FILTERABLE_FIELDS = {
+  'Schedule': {'id', 'date', 'transport_id', 'rae_disposal_place_id', 'created_at', 'updated_at'},
+  'User': {'id', 'nickname', 'role', 'company_id', 'customer_group_id'},
+  'Order': {
+    'id',
+    'status',
+    'type',
+    'addressee',
+    'address',
+    'cap',
+    'dpc',
+    'drc',
+    'anomaly',
+    'delay',
+    'confirmed',
+    'booking_date',
+    'confirmation_date',
+    'completion_date',
+    'customer_note',
+    'operator_note',
+    'external_id',
+  },
+  'DeliveryGroup': {'id', 'user_id', 'schedule_id'},
+  'Transport': {'id', 'cap', 'name', 'plate'},
+  'ScheduleItem': {'id', 'index', 'completed', 'end_time_slot', 'start_time_slot', 'operation_type', 'schedule_id'},
+  'ScheduleItemCollectionPoint': {'id', 'schedule_item_id', 'collection_point_id'},
+  'ScheduleItemOrder': {'id', 'order_id', 'schedule_item_id'},
+  'ScheduleItemUser': {'id', 'type', 'schedule_id', 'user_id'},
+  'CollectionPoint': {'id', 'opening_time', 'closing_time', 'cap', 'name', 'address', 'user_id'},
+  'Product': {
+    'id',
+    'name',
+    'order_id',
+    'transport_id',
+    'release_transport_id',
+    'collection_point_id',
+    'release_collection_point_id',
+    'service_user_id',
+  },
+  'ServiceUser': {'id', 'user_id', 'service_id', 'code'},
+  'Service': {'id', 'duration', 'description', 'max_services', 'name', 'type', 'professional'},
+}
+
 
 def _apply_filters(query, filters: list):
   for filter in filters:
-    model = globals()[filter['model']]
-    field = getattr(model, filter['field'])
+    if not isinstance(filter, dict) or not {'model', 'field', 'value'} <= filter.keys():
+      raise ValueError('Filtro schedule non valido')
+    model_name = filter['model']
+    field_name = filter['field']
+    model = _FILTER_MODELS.get(model_name) if isinstance(model_name, str) else None
+    if (
+      model is None
+      or not isinstance(field_name, str)
+      or field_name not in _FILTERABLE_FIELDS[model_name]
+      or field_name not in model.__table__.columns
+    ):
+      raise ValueError('Modello o campo non filtrabile')
+    field = model.__table__.columns[field_name]
     value = filter['value']
 
-    if field in [Schedule.created_at, Schedule.date, Schedule.updated_at] and type(value) is list:
+    is_schedule_date = model is Schedule and field_name in {'created_at', 'date', 'updated_at'}
+    if is_schedule_date and type(value) is list:
       query = query.filter(field >= handle_date(value[0]), field <= handle_date(value[1]))
-    elif field in [Schedule.created_at, Schedule.updated_at]:
+    elif model is Schedule and field_name in {'created_at', 'updated_at'}:
       query = query.filter(cast(field, Date) == value)
     else:
       query = query.filter(field == value)

@@ -221,6 +221,20 @@ def test_filter_schedules(client):
   assert len(body['schedules'][0]['schedule_items']) == 1
 
 
+def test_filter_schedules_is_forbidden_to_delivery(client):
+  delivery = create_user(UserRole.DELIVERY)
+  schedule = create_schedule()
+  create_delivery_group(delivery, schedule)
+
+  response = client.post(
+    '/schedule/filter',
+    json={'filters': [{'model': 'Schedule', 'field': 'id', 'value': schedule.id}]},
+    headers=auth_header(delivery),
+  )
+
+  assert response.status_code == 403
+
+
 def test_filter_schedules_by_order_id_adds_sibling_items(client):
   operator = create_user(UserRole.OPERATOR)
   _, _, service_user, _ = customer_with_service()
