@@ -51,6 +51,43 @@ def test_get_collection_points_admin_sees_all(client):
   assert len(response.get_json()['collection_points']) == 2
 
 
+def test_get_collection_points_admin_filters_by_customer(client):
+  admin = create_user(UserRole.ADMIN)
+  customer = create_user(UserRole.CUSTOMER)
+  own = create_collection_point(customer)
+  create_collection_point(create_user(UserRole.CUSTOMER))
+
+  response = client.get(f'/collection-point?user_id={customer.id}', headers=auth_header(admin))
+
+  assert [cp['id'] for cp in response.get_json()['collection_points']] == [own.id]
+
+
+def test_create_collection_point_admin_for_customer(client):
+  admin = create_user(UserRole.ADMIN)
+  customer = create_user(UserRole.CUSTOMER)
+
+  response = client.post(
+    '/collection-point',
+    json={'name': 'Magazzino', 'address': 'Via X 1', 'cap': '70020', 'user_id': customer.id},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['collection_point']['user_id'] == customer.id
+
+
+def test_create_collection_point_customer_cannot_choose_owner(client):
+  customer = create_user(UserRole.CUSTOMER)
+  other = create_user(UserRole.CUSTOMER)
+
+  response = client.post(
+    '/collection-point',
+    json={'name': 'Magazzino', 'address': 'Via X 1', 'cap': '70020', 'user_id': other.id},
+    headers=auth_header(customer),
+  )
+
+  assert response.get_json()['collection_point']['user_id'] == customer.id
+
+
 def test_update_collection_point(client):
   customer = create_user(UserRole.CUSTOMER)
   collection_point = create_collection_point(customer)
