@@ -7,7 +7,7 @@ from database_api.operations import create
 import src.end_points.schedule as schedule_endpoints
 from src.database.enum import ScheduleItemUserType
 from src.database.schema import Order, Schedule, ScheduleItem, ScheduleItemActivity, ScheduleItemUser, Transport, User
-from src.end_points.schedule.delivery import get_items_for_delivery, update_schedule_item
+from src.end_points.schedule.delivery import get_history_for_delivery, get_items_for_delivery, update_schedule_item
 from src.end_points.schedule.queries import get_latest_schedule_item_user
 from tests.unit.factories import admin_header, assign_delivery_user_to_schedule
 from tests.unit.test_schedule_update_transactions import _create_schedule_with_order, _payload, schedule_client  # noqa: F401
@@ -180,7 +180,7 @@ def test_delete_schedule_removes_activity(schedule_client):  # noqa: F811
   assert _activities(schedule_id) == []
 
 
-def test_delivery_receives_activities(schedule_client):  # noqa: F811
+def test_delivery_does_not_receive_activities(schedule_client):  # noqa: F811
   # Il seed ha già un borderò oggi sul primo veicolo: ne serve uno libero, perché il corriere ne veda uno solo.
   with Session() as session:
     free_transport_id = session.query(Transport).order_by(Transport.id.desc()).first().id
@@ -192,34 +192,21 @@ def test_delivery_receives_activities(schedule_client):  # noqa: F811
     session.commit()
 
   today = get_items_for_delivery(delivery)
+  history = get_history_for_delivery(delivery)
 
-  assert sorted(item['operation_type'] for item in today['schedule_items']) == ['Activity', 'Order']
-  activity = next(item for item in today['schedule_items'] if item['operation_type'] == 'Activity')
-  assert (activity['title'], activity['completed']) == ('Pausa pranzo', False)
+  assert [item['operation_type'] for item in today['schedule_items']] == ['Order']
+  assert all(
+    item['operation_type'] != 'Activity' for schedule in history['schedules'] for item in schedule['schedule_items']
+  )
 
 
-def test_delivery_completes_activity(schedule_client):  # noqa: F811
+def test_activity_does_not_keep_shared_position_open(schedule_client):  # noqa: F811
   delivery, schedule_id, payload = _setup()
   payload['schedule_items'].append(_activity())
   assert _put(schedule_client, schedule_id, payload)['status'] == 'ok'
-  activity_item_id = _activities(schedule_id)[0].schedule_item_id
-
-  assert update_schedule_item(delivery, activity_item_id, True)['status'] == 'ok'
-
-  with Session() as session:
-    assert session.get(ScheduleItem, activity_item_id).completed is True
-
-
-def test_activity_keeps_shared_position_open_until_completed(schedule_client):  # noqa: F811
-  delivery, schedule_id, payload = _setup()
-  payload['schedule_items'].append(_activity())
-  assert _put(schedule_client, schedule_id, payload)['status'] == 'ok'
-  activity_item_id = _activities(schedule_id)[0].schedule_item_id
   create(ScheduleItemUser, {'schedule_id': schedule_id, 'user_id': delivery.id, 'type': ScheduleItemUserType.OPENING})
 
   order_item_id = payload['schedule_items'][0]['id']
   assert update_schedule_item(delivery, order_item_id, True)['status'] == 'ok'
-  assert get_latest_schedule_item_user(schedule_id).type == ScheduleItemUserType.OPENING
 
-  assert update_schedule_item(delivery, activity_item_id, True)['status'] == 'ok'
   assert get_latest_schedule_item_user(schedule_id).type == ScheduleItemUserType.CLOSING
