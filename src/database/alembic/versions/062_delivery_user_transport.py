@@ -1,7 +1,7 @@
 """Move delivery users onto vehicles and remove direct schedule assignment.
 
-Revision ID: 061
-Revises: 060
+Revision ID: 062
+Revises: 061
 
 Delivery users belong to a vehicle through delivery_user_info.transport_id.
 Schedules inherit their users from that vehicle, so delivery_group is removed.
@@ -13,8 +13,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '061'
-down_revision: Union[str, None] = '060'
+revision: str = '062'
+down_revision: Union[str, None] = '061'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
