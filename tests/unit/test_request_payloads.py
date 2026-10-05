@@ -100,7 +100,7 @@ def test_collection_point_create_keeps_request_payload_unchanged(monkeypatch):
   monkeypatch.setattr(collection_point_module, 'create', create)
   payload = {'name': 'Depot'}
   with app.test_request_context('/collection-point', method='POST', json=payload):
-    collection_point_module.create_collection_point.__wrapped__(SimpleNamespace(id=7))
+    collection_point_module.create_collection_point.__wrapped__(SimpleNamespace(id=7, role=UserRole.CUSTOMER))
     assert request.get_json() == payload
   assert captured == {'name': 'Depot', 'user_id': 7}
 
