@@ -229,8 +229,9 @@ def user_can_access_order(user: User, order_id: int, session) -> bool:
 
   if user.role == UserRole.DELIVERY:
     return (
-      session.query(DeliveryGroup.id)
-      .join(ScheduleItem, ScheduleItem.schedule_id == DeliveryGroup.schedule_id)
+      session.query(Schedule.id)
+      .join(DeliveryUserInfo, DeliveryUserInfo.transport_id == Schedule.transport_id)
+      .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
       .join(
         ScheduleItemOrder,
         and_(
@@ -239,7 +240,7 @@ def user_can_access_order(user: User, order_id: int, session) -> bool:
         ),
       )
       .filter(
-        DeliveryGroup.user_id == user.id,
+        DeliveryUserInfo.user_id == user.id,
         ScheduleItem.operation_type == ScheduleType.ORDER,
       )
       .first()
