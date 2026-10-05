@@ -214,7 +214,7 @@ def test_filter_schedules(client):
 def test_filter_schedules_is_forbidden_to_delivery(client):
   delivery = create_user(UserRole.DELIVERY)
   schedule = create_schedule()
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
 
   response = client.post(
     '/schedule/filter',
