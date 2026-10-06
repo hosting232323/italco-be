@@ -388,6 +388,10 @@ def format_schedule_item(
     elif product.transport_id:
       product_dict = {'transport': {'id': product.transport_id}}
 
+    # `collected`: il prodotto è già stato ritirato al punto di ritiro, quindi non
+    # c'è più niente da passare a prendere per lui.
+    product_dict['collected'] = product.collected
+
     # Marca i prodotti RAE così la modifica del borderò sa se mostrare il
     # selettore del luogo di smaltimento, come già fa la lista ordini.
     if product.rae_product_id:
