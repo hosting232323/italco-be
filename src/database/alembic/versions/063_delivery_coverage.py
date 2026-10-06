@@ -1,7 +1,7 @@
 """delivery coverage calendar
 
-Revision ID: 062
-Revises: 061
+Revision ID: 063
+Revises: 062
 Create Date: 2026-09-10 12:00:00.000000
 
 Due tabelle nuove per la pagina a calendario della copertura dei corrieri:
@@ -18,8 +18,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '062'
-down_revision: Union[str, None] = '061'
+revision: str = '063'
+down_revision: Union[str, None] = '062'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
