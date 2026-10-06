@@ -64,6 +64,7 @@ _FILTER_MODEL_JOINS = {
 _FILTER_MODELS = {
   'Schedule': Schedule,
   'User': User,
+  'DeliveryUserInfo': DeliveryUserInfo,
   'Order': Order,
   'Transport': Transport,
   'ScheduleItem': ScheduleItem,
@@ -97,6 +98,7 @@ _FILTERABLE_FIELDS = {
     'operator_note',
     'external_id',
   },
+  'DeliveryUserInfo': {'id', 'user_id', 'transport_id'},
   'Transport': {'id', 'cap', 'name', 'plate'},
   'ScheduleItem': {'id', 'index', 'completed', 'end_time_slot', 'start_time_slot', 'operation_type', 'schedule_id'},
   'ScheduleItemCollectionPoint': {'id', 'schedule_item_id', 'collection_point_id'},
