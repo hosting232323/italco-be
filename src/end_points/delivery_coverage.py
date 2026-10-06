@@ -10,8 +10,8 @@ from ..database.enum import UserRole
 from . import flask_session_authentication
 from database_api.operations import create, create_bulk, delete, delete_bulk, update, get_by_id
 from ..database.schema import Order, Transport, DeliveryCoverageEntry, DeliveryCoverageCap
-from ..utils.geo import point_in_polygon
-from ..utils.caps import get_lat_lon_by_address
+from ..utils.geo import parse_coordinates, point_in_polygon
+from ..utils.caps import get_lat_lon_by_address, get_lat_lon_by_cap, remember_address_coordinates
 
 
 delivery_coverage_bp = Blueprint('delivery_coverage_bp', __name__)
@@ -445,6 +445,11 @@ def check_delivery_coverage_slots(*args, **kwargs) -> dict:
   required_duration = calculate_payload_service_duration(payload, user=user)
   exclude_order_id = payload.get('order_id')
   new_cap = payload.get('cap')
+  # Indirizzo scelto dal menu Google: zone, capienza e strada usano la sua
+  # posizione esatta invece di geocodificarlo con Nominatim.
+  remember_address_coordinates(
+    payload.get('address'), *parse_coordinates(payload.get('address_lat'), payload.get('address_lon'))
+  )
   return available_slots_by_date(
     new_cap,
     required_duration=required_duration,
@@ -530,9 +535,12 @@ def resolve_delivery_slot(*args, **kwargs) -> tuple:
 
 
 def query_entries_for_cap(cap: str, address: str = None) -> list[DeliveryCoverageEntry]:
-  """Blocchi che coprono `cap` (match esatto) più, se `address` è geocodificabile,
+  """Blocchi che coprono `cap` (match esatto) più i blocchi disegnati sulla mappa
 
-  i blocchi disegnati sulla mappa (senza CAP) il cui poligono contiene quel punto.
+  (senza CAP) il cui poligono contiene la posizione di `address`. Se l'indirizzo
+  non si geocodifica nemmeno in modo approssimato si usa il centroide del CAP:
+  senza una posizione una copertura fatta solo di zone su mappa lo darebbe
+  sempre fuori zona.
   """
   with Session() as session:
     by_cap = (
@@ -549,6 +557,8 @@ def query_entries_for_cap(cap: str, address: str = None) -> list[DeliveryCoverag
     return by_cap
 
   lat, lon = get_lat_lon_by_address(address)
+  if lat is None and cap:
+    lat, lon = get_lat_lon_by_cap(cap)
   if lat is None:
     return by_cap
 

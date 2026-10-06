@@ -897,7 +897,7 @@ def test_resolve_delivery_slot_refuses_a_saturated_day_with_no_spillover_availab
     )
 
 
-def test_resolve_delivery_entry_returns_the_vehicle_that_takes_the_order(db):
+def test_resolve_delivery_entry_returns_the_vehicle_that_takes_the_order(db, offline_geo):
   target = date.today() + timedelta(days=3)
   first, second = create_transport(), create_transport()
   entry_first = _entry(first, day_of_week=target.weekday(), start='09:00:00', end='10:00:00', caps=('70051',))
@@ -989,7 +989,7 @@ def test_resolve_delivery_slot_moves_to_next_vehicle_when_new_pickup_point_satur
   assert result == (second.start_time, second.end_time)
 
 
-def test_resolve_delivery_slot_stays_on_busy_vehicle_when_pickup_point_already_present(db):
+def test_resolve_delivery_slot_stays_on_busy_vehicle_when_pickup_point_already_present(db, offline_geo):
   target = date.today() + timedelta(days=3)
   customer, service, service_user, collection_point = customer_with_service(duration=35)
   first = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
@@ -1192,3 +1192,57 @@ def test_available_slots_by_date_resolves_the_covering_entries_once(db):
 
   assert len(result) > 30
   assert spy.call_count == 1
+
+
+# Zona disegnata attorno a Mesagne, senza CAP: come la configura il cliente in demo.
+MESAGNE_POLYGON = [[40.50, 17.75], [40.62, 17.75], [40.62, 17.87], [40.50, 17.87]]
+
+
+def _polygon_entry(transport, polygon=MESAGNE_POLYGON):
+  return create(
+    DeliveryCoverageEntry,
+    {
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': time(12, 30),
+      'end_time': time(13, 40),
+      'polygon': polygon,
+    },
+  )
+
+
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_cap')
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_address')
+def test_query_entries_for_cap_finds_the_polygon_containing_the_address(mock_address, mock_cap):
+  from src.end_points.delivery_coverage import query_entries_for_cap
+
+  entry = _polygon_entry(create_transport())
+  mock_address.return_value = (40.556, 17.803)
+
+  assert [e.id for e in query_entries_for_cap('72023', address='Via Ariosto, 14, Mesagne, BR')] == [entry.id]
+  mock_cap.assert_not_called()
+
+
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_cap')
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_address')
+def test_query_entries_for_cap_falls_back_to_the_cap_when_the_address_is_unknown(mock_address, mock_cap):
+  # Senza posizione una copertura fatta solo di zone su mappa darebbe l'ordine
+  # sempre fuori zona: si ripiega sul centroide del CAP.
+  from src.end_points.delivery_coverage import query_entries_for_cap
+
+  entry = _polygon_entry(create_transport())
+  mock_address.return_value = (None, None)
+  mock_cap.return_value = (40.553, 17.839)
+
+  assert [e.id for e in query_entries_for_cap('72023', address='Indirizzo sconosciuto')] == [entry.id]
+
+
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_cap')
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_address')
+def test_query_entries_for_cap_outside_every_polygon(mock_address, mock_cap):
+  from src.end_points.delivery_coverage import query_entries_for_cap
+
+  _polygon_entry(create_transport())
+  mock_address.return_value = (41.117, 16.871)  # Bari
+
+  assert query_entries_for_cap('70121', address='Via Sparano, 10, Bari, BA') == []

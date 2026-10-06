@@ -13,7 +13,8 @@ from ..service.queries import get_service_users
 from .services import create_products, update_products
 from ..delivery_coverage import SlotUnavailableError, resolve_delivery_entry
 from ..service.duration import order_products_payload
-from ...utils.caps import get_lat_lon_by_address
+from ...utils.geo import parse_coordinates
+from ...utils.caps import get_lat_lon_by_address, remember_address_coordinates
 from database_api.operations import create, update, get_by_id, delete
 from .queries import query_orders, format_query_result, get_order_by_tracking_token
 from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus, ScheduleItemUserType
@@ -99,11 +100,35 @@ def restrict_order_update(user: User, data: dict, session) -> dict:
   return restricted
 
 
+def address_coordinates(data: dict, order: Order = None) -> dict:
+  """Le coordinate dell'indirizzo da salvare sull'ordine, prese dal payload.
+
+  Arrivano dal form quando l'indirizzo e' scelto dal menu Google (o indicato
+  sulla mappa) e valgono solo se plausibili. In modifica il form rimanda
+  l'ordine intero: se l'indirizzo non cambia e non arriva una posizione nuova
+  resta quella salvata; se cambia ma le coordinate sono ancora quelle salvate,
+  sono del vecchio indirizzo e si azzerano (torna il geocoding).
+  """
+  lat, lon = parse_coordinates(data.get('address_lat'), data.get('address_lon'))
+  if order is None:
+    return {'address_lat': lat, 'address_lon': lon}
+
+  moved = data.get('address', order.address) != order.address
+  if not moved and lat is None:
+    return {}
+  if moved and (lat, lon) == (order.address_lat, order.address_lon):
+    lat, lon = None, None
+  return {'address_lat': lat, 'address_lon': lon}
+
+
 def create_order(user: User, data: dict):
   clean_data = {key: value for key, value in data.items() if key not in ['products', 'user_id', 'cloned_order_id']}
   if not clean_data.get('address'):
     return {'status': 'ko', 'message': "L'indirizzo è obbligatorio"}
-  if user.role == UserRole.CUSTOMER and user.automatic_planning:
+  clean_data.update(address_coordinates(clean_data))
+  if clean_data['address_lat'] is not None:
+    remember_address_coordinates(clean_data['address'], clean_data['address_lat'], clean_data['address_lon'])
+  elif user.role == UserRole.CUSTOMER and user.automatic_planning:
     # Il geocoding dell'indirizzo puo' costare secondi: lo si fa prima di
     # prendere il lock degli ordini, cosi' la cache e' calda quando la scelta
     # della fascia (dentro il lock) ne ha bisogno e non tiene fermi gli altri.
@@ -282,6 +307,10 @@ def delete_order(user: User, order_id: int):
 def update_order(user: User, order: Order, data: dict, session, pending_sms: list = None):
   lock_order_service_integrity(session)
   motivation = data.get('motivation')
+  if any(key in data for key in ('address', 'address_lat', 'address_lon')):
+    data.update(address_coordinates(data, order))
+    # La fascia (sotto) va ricalcolata sulla posizione nuova, non su una stima.
+    remember_address_coordinates(data.get('address', order.address), data.get('address_lat'), data.get('address_lon'))
   schedule_item = get_schedule_item_by_order(order, session=session)
 
   if 'status' in data:

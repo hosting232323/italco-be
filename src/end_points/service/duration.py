@@ -22,7 +22,7 @@ from ...database.schema import (
   User,
 )
 from ...utils.geo import point_in_polygon
-from ...utils.caps import get_lat_lon_by_address, get_lat_lon_by_addresses, get_lat_lon_by_cap
+from ...utils.caps import get_lat_lon_by_address, get_lat_lon_by_cap
 
 logger = logging.getLogger(__name__)
 
@@ -154,8 +154,12 @@ def query_slot_orders(
     # Entry disegnato sulla mappa (nessun CAP): senza questo filtro
     # conterebbe TUTTI gli ordini dello stesso giorno/fascia, anche quelli di
     # tutt'altra zona/veicolo che capitano ad avere lo stesso orario.
+    # La posizione salvata sull'ordine se c'e', altrimenti indirizzo e poi CAP:
+    # lo stesso criterio con cui la copertura ha deciso che l'ordine e' li'.
     if not caps and getattr(entry, 'polygon', None):
-      coords = get_lat_lon_by_addresses([order.address for order in orders])
+      from .travel import get_lat_lon_for_orders
+
+      coords = get_lat_lon_for_orders(orders)
       orders = [
         order
         for order, (lat, lon) in zip(orders, coords)

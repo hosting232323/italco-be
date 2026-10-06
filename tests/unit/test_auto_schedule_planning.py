@@ -570,3 +570,99 @@ def test_optimize_keeps_activities_in_their_position(mock_geocode, mock_geocode_
   assert indexes[activity_item.id] == 1
   assert indexes[item_a.id] == 2
   assert indexes[item_b.id] == 0
+
+
+@patch('src.schedulation.routing.trip_order_osrm')
+@patch('src.schedulation.routing.get_lat_lon_by_address')
+@patch('src.schedulation.routing.get_lat_lon_by_cap')
+def test_optimize_never_visits_an_earlier_slot_after_a_later_one(
+  mock_geocode, mock_geocode_address, mock_trip, db, entry
+):
+  """Il percorso più corto passerebbe prima da Molfetta (fascia 11:30) e poi da
+  Bisceglie (9:40): le fasce restano in ordine cronologico, OSRM ottimizza solo
+  dentro ciascuna."""
+  from database_api import Session
+
+  from src.schedulation.routing import optimize_schedule_stops
+
+  mock_geocode_address.return_value = (None, None)
+  mock_geocode.side_effect = lambda cap: (41.238, 16.500) if cap == '76011' else (41.201, 16.583)
+  mock_trip.side_effect = lambda coords: list(reversed(range(len(coords))))
+
+  morning, noon = (time(9, 40), time(11, 30)), (time(11, 30), time(12, 30))
+  schedule = create(Schedule, {'date': TARGET, 'transport_id': entry.transport_id})
+  items = {}
+  for index, (cap, slot) in enumerate([('70056', noon), ('76011', morning), ('76011', morning)]):
+    order = create_order(cap=cap, dpc=TARGET, drc=TARGET, delivery_slot_start=slot[0], delivery_slot_end=slot[1])
+    item = create(
+      ScheduleItem,
+      {
+        'index': index,
+        'schedule_id': schedule.id,
+        'operation_type': ScheduleType.ORDER,
+        'start_time_slot': slot[0],
+        'end_time_slot': slot[1],
+      },
+    )
+    create(ScheduleItemOrder, {'order_id': order.id, 'schedule_item_id': item.id})
+    items[index] = item
+
+  with Session() as session:
+    optimize_schedule_stops(session.get(Schedule, schedule.id), session)
+    session.commit()
+
+  indexes = {item.id: item.index for item in _find(ScheduleItem, schedule_id=schedule.id)}
+  assert indexes[items[0].id] == 2
+  assert {indexes[items[1].id], indexes[items[2].id]} == {0, 1}
+
+
+@patch('src.schedulation.routing.trip_order_osrm')
+@patch('src.schedulation.routing.get_lat_lon_by_address')
+@patch('src.schedulation.routing.get_lat_lon_by_cap')
+def test_optimize_moves_a_shared_pickup_to_the_earliest_slot_that_needs_it(
+  mock_geocode, mock_geocode_address, mock_trip, db, entry
+):
+  """Il ritiro è nato con l'ordine delle 11:30, poi lo chiede anche uno delle
+  9:40: va fatto per primo e ne prende l'orario."""
+  from database_api import Session
+
+  from src.database.schema import ScheduleItemCollectionPoint
+  from src.schedulation.routing import optimize_schedule_stops
+  from tests.unit.factories import create_product_row, customer_with_service
+
+  mock_geocode_address.return_value = (None, None)
+  mock_geocode.return_value = (41.238, 16.500)
+  mock_trip.side_effect = lambda coords: list(range(len(coords)))
+
+  _, _, service_user, point = customer_with_service()
+  morning, noon = (time(9, 40), time(11, 30)), (time(11, 30), time(12, 30))
+  schedule = create(Schedule, {'date': TARGET, 'transport_id': entry.transport_id})
+
+  def stop(index, slot, operation_type=ScheduleType.ORDER):
+    return create(
+      ScheduleItem,
+      {
+        'index': index,
+        'schedule_id': schedule.id,
+        'operation_type': operation_type,
+        'start_time_slot': slot[0],
+        'end_time_slot': slot[1],
+      },
+    )
+
+  pickup = stop(0, noon, ScheduleType.COLLECTIONPOINT)
+  create(ScheduleItemCollectionPoint, {'schedule_item_id': pickup.id, 'collection_point_id': point.id})
+  order_items = {}
+  for index, slot in [(1, noon), (2, morning)]:
+    order = create_order(dpc=TARGET, drc=TARGET, delivery_slot_start=slot[0], delivery_slot_end=slot[1])
+    create_product_row(order, service_user, collection_point_id=point.id)
+    order_items[slot] = stop(index, slot)
+    create(ScheduleItemOrder, {'order_id': order.id, 'schedule_item_id': order_items[slot].id})
+
+  with Session() as session:
+    optimize_schedule_stops(session.get(Schedule, schedule.id), session)
+    session.commit()
+
+  items = {item.id: item for item in _find(ScheduleItem, schedule_id=schedule.id)}
+  assert [items[i].index for i in (pickup.id, order_items[morning].id, order_items[noon].id)] == [0, 1, 2]
+  assert (items[pickup.id].start_time_slot, items[pickup.id].end_time_slot) == morning

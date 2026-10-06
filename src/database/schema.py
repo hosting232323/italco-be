@@ -257,6 +257,11 @@ class Order(BaseItalcoEntity):
   # e usato dalla pianificazione, cosi' capienza e borderò parlano dello stesso
   # veicolo. NULL per gli ordini senza fascia.
   delivery_transport_id = Column(Integer, ForeignKey('transport.id'), nullable=True, index=True)
+  # Posizione esatta dell'indirizzo scelto dal menu Google (o indicata sulla
+  # mappa): chi ce l'ha non passa dal geocoding. NULL per import e indirizzi
+  # scritti a mano. Non lat/lon: in GET /order/<id> sono la posizione del corriere.
+  address_lat = Column(Float)
+  address_lon = Column(Float)
   anomaly = Column(Boolean, default=False)
   delay = Column(Boolean, default=False)
   confirmed = Column(Boolean, default=False)
