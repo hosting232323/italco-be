@@ -1,7 +1,7 @@
 """order delivery slot
 
-Revision ID: 063
-Revises: 062
+Revision ID: 064
+Revises: 063
 Create Date: 2026-09-11 12:00:00.000000
 
 Fascia oraria assegnata automaticamente all'ordine in base alla copertura
@@ -16,8 +16,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '063'
-down_revision: Union[str, None] = '062'
+revision: str = '064'
+down_revision: Union[str, None] = '063'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
