@@ -8,6 +8,7 @@ from ..database.enum import UserRole
 from . import flask_session_authentication
 from database_api.operations import create, delete, get_by_id, update
 from ..database.schema import CollectionPoint, User, ServiceUser, Product
+from ..utils.geo import parse_coordinates
 from ..utils.caps import get_lat_lon_by_address
 
 
@@ -26,8 +27,26 @@ def _coordinates(address: str) -> dict:
 
 
 def _client_fields(payload: dict) -> dict:
-  # Le coordinate le decide il geocoder, non il client.
+  # Le coordinate passano da _client_coordinates, mai così come arrivano.
   return {key: value for key, value in payload.items() if key not in ('lat', 'lon')}
+
+
+def _client_coordinates(payload: dict, collection_point: CollectionPoint = None) -> dict:
+  """Le coordinate mandate dal client, se sono una posizione nuova e plausibile.
+
+  Arrivano dal menu Google o dalla mappa della correzione indirizzo. Il form
+  però rimanda il punto intero, coordinate salvate comprese: se l'indirizzo
+  cambia e le coordinate sono ancora quelle salvate, sono del vecchio indirizzo
+  e decide il geocoder. Vuoto se non c'è niente da prendere dal client.
+  """
+  lat, lon = parse_coordinates(payload.get('lat'), payload.get('lon'))
+  if lat is None:
+    return {}
+  if collection_point is not None:
+    moved = payload.get('address', collection_point.address) != collection_point.address
+    if moved and (lat, lon) == (collection_point.lat, collection_point.lon):
+      return {}
+  return {'lat': lat, 'lon': lon}
 
 
 def backfill_coordinates(collection_points: list[CollectionPoint]) -> None:
@@ -60,7 +79,10 @@ def create_collection_point(user: User):
   # Il cliente crea solo per sé; operatore/admin lo creano per il cliente indicato.
   if user.role == UserRole.CUSTOMER or not data.get('user_id'):
     data['user_id'] = user.id
-  if data.get('address'):
+  coordinates = _client_coordinates(request.json)
+  if coordinates:
+    data.update(coordinates)
+  elif data.get('address'):
     data.update(_coordinates(data['address']))
   return {'status': 'ok', 'collection_point': create(CollectionPoint, data).to_dict()}
 
@@ -91,7 +113,10 @@ def get_collection_points(user: User):
 def update_collection_point(_, id):
   collection_point: CollectionPoint = get_by_id(CollectionPoint, int(id))
   data = _client_fields(request.json)
-  if 'address' in data and data['address'] != collection_point.address:
+  coordinates = _client_coordinates(request.json, collection_point)
+  if coordinates:
+    data.update(coordinates)
+  elif 'address' in data and data['address'] != collection_point.address:
     data.update(_coordinates(data['address']))
   return {'status': 'ok', 'order': update(collection_point, data).to_dict()}
 

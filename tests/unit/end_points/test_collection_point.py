@@ -201,7 +201,7 @@ def test_coordinates_are_saved_on_the_first_read_and_not_geocoded_again(mock_geo
 
 
 @patch('src.end_points.collection_point.get_lat_lon_by_address', return_value=(41.1, 16.8))
-def test_creating_a_collection_point_saves_its_coordinates_and_ignores_the_ones_sent(_geocode, client):
+def test_creating_a_collection_point_ignores_implausible_coordinates_sent(_geocode, client):
   customer = create_user(UserRole.CUSTOMER)
 
   response = client.post(
@@ -212,3 +212,50 @@ def test_creating_a_collection_point_saves_its_coordinates_and_ignores_the_ones_
 
   point = response.get_json()['collection_point']
   assert (point['lat'], point['lon']) == (41.1, 16.8)
+
+
+@patch('src.end_points.collection_point.get_lat_lon_by_address')
+def test_creating_a_collection_point_keeps_the_position_chosen_on_google(mock_geocode, client):
+  customer = create_user(UserRole.CUSTOMER)
+
+  response = client.post(
+    '/collection-point',
+    json={'name': 'Magazzino', 'address': 'Via Roma 1, Bari', 'cap': '70121', 'lat': 41.12, 'lon': 16.87},
+    headers=auth_header(customer),
+  )
+
+  point = response.get_json()['collection_point']
+  assert (point['lat'], point['lon']) == (41.12, 16.87)
+  mock_geocode.assert_not_called()
+
+
+@patch('src.end_points.collection_point.get_lat_lon_by_address', return_value=(41.1, 16.8))
+def test_moving_a_collection_point_with_its_old_coordinates_geocodes_the_new_address(_geocode, client):
+  # Il form rimanda il punto intero: le coordinate sono ancora quelle del vecchio indirizzo.
+  customer = create_user(UserRole.CUSTOMER)
+  point = create_collection_point(customer, lat=40.5, lon=17.8)
+
+  client.put(
+    f'/collection-point/{point.id}',
+    json={'address': 'Via Nuova 2, Bari', 'lat': 40.5, 'lon': 17.8},
+    headers=auth_header(customer),
+  )
+
+  point = get_by_id(CollectionPoint, point.id)
+  assert (point.lat, point.lon) == (41.1, 16.8)
+
+
+@patch('src.end_points.collection_point.get_lat_lon_by_address')
+def test_correcting_a_collection_point_on_the_map_saves_the_new_position(mock_geocode, client):
+  customer = create_user(UserRole.CUSTOMER)
+  point = create_collection_point(customer, lat=40.5, lon=17.8)
+
+  client.put(
+    f'/collection-point/{point.id}',
+    json={'address': point.address, 'lat': 40.56, 'lon': 17.81},
+    headers=auth_header(customer),
+  )
+
+  point = get_by_id(CollectionPoint, point.id)
+  assert (point.lat, point.lon) == (40.56, 17.81)
+  mock_geocode.assert_not_called()

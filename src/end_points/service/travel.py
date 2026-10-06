@@ -133,7 +133,13 @@ def get_lat_lon_for_order(order: Order) -> tuple[float, float] | tuple[None, Non
   normalizzata, indirizzo incompleto, Nominatim senza risultati), non
   un'alternativa equivalente: usarlo come prima scelta reintrodurrebbe
   l'errore di trattare come "vicini" indirizzi lontani nello stesso CAP.
+
+  Prima di tutto la posizione salvata sull'ordine (scelta dal menu Google o
+  indicata sulla mappa): e' quella vera, il geocoding resta per gli altri.
   """
+  lat, lon = getattr(order, 'address_lat', None), getattr(order, 'address_lon', None)
+  if lat is not None and lon is not None:
+    return lat, lon
   address = getattr(order, 'address', None)
   if address:
     lat, lon = get_lat_lon_by_address(address)
@@ -173,7 +179,10 @@ def get_lat_lon_for_transport(transport: Transport) -> tuple[float, float] | tup
 
 
 def get_lat_lon_for_collection_point(collection_point: CollectionPoint) -> tuple[float, float] | tuple[None, None]:
-  """Coordinate del punto di ritiro, con lo stesso indirizzo-poi-CAP degli ordini."""
+  """Coordinate salvate sul punto di ritiro, altrimenti indirizzo-poi-CAP come per gli ordini."""
+  lat, lon = getattr(collection_point, 'lat', None), getattr(collection_point, 'lon', None)
+  if lat is not None and lon is not None:
+    return lat, lon
   return _address_or_cap_coords(collection_point)
 
 

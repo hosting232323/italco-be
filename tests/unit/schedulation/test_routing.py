@@ -1,3 +1,4 @@
+from datetime import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -5,21 +6,25 @@ from src.schedulation.routing import (
   StopContext,
   _build_clusters,
   _first_coord,
+  _group_by_slot,
   _order_cluster,
   _osrm_or_original_order,
 )
 
-
-def _item(id):
-  return SimpleNamespace(id=id, index=0)
-
-
-def _order_stop(id, coord=(41.0, 16.0)):
-  return StopContext(item=_item(id), kind='order', coord=coord, entity_id=id)
+MORNING = (time(9, 40), time(11, 30))
+NOON = (time(11, 30), time(12, 30))
 
 
-def _cp_stop(id, coord=(41.0, 16.0)):
-  return StopContext(item=_item(id), kind='collection_point', coord=coord, entity_id=id)
+def _item(id, slot=MORNING):
+  return SimpleNamespace(id=id, index=0, start_time_slot=slot[0], end_time_slot=slot[1])
+
+
+def _order_stop(id, coord=(41.0, 16.0), slot=MORNING):
+  return StopContext(item=_item(id, slot), kind='order', coord=coord, entity_id=id)
+
+
+def _cp_stop(id, coord=(41.0, 16.0), slot=MORNING):
+  return StopContext(item=_item(id, slot), kind='collection_point', coord=coord, entity_id=id)
 
 
 # ---------------------------------------------------------------------------
@@ -140,3 +145,36 @@ def test_first_coord_returns_none_when_all_unresolvable():
   stops = [_order_stop(1, coord=None), _order_stop(2, coord=None)]
 
   assert _first_coord(stops) is None
+
+
+# ---------------------------------------------------------------------------
+# _group_by_slot
+# ---------------------------------------------------------------------------
+
+
+def test_group_by_slot_orders_slots_chronologically():
+  noon, morning = _order_stop(1, slot=NOON), _order_stop(2, slot=MORNING)
+
+  groups = _group_by_slot([noon, morning], [], dependencies={})
+
+  assert groups == [([morning], []), ([noon], [])]
+
+
+def test_group_by_slot_moves_a_shared_pickup_to_the_earliest_slot_needing_it():
+  # Il ritiro nasce nella fascia del primo ordine pianificato (mezzogiorno) ma
+  # serve anche un ordine del mattino: va fatto prima di quello.
+  noon, morning = _order_stop(1, slot=NOON), _order_stop(2, slot=MORNING)
+  cp = _cp_stop(10, slot=NOON)
+
+  groups = _group_by_slot([noon, morning], [cp], {noon.item.id: {10}, morning.item.id: {10}})
+
+  assert groups == [([morning], [cp]), ([noon], [])]
+
+
+def test_group_by_slot_keeps_a_pickup_without_dependent_orders_in_its_slot():
+  order = _order_stop(1, slot=MORNING)
+  cp = _cp_stop(10, slot=NOON)
+
+  groups = _group_by_slot([order], [cp], dependencies={})
+
+  assert groups == [([order], []), ([], [cp])]

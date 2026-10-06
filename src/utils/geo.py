@@ -20,3 +20,20 @@ def point_in_polygon(point: tuple[float, float], polygon: list) -> bool:
       inside = not inside
     j = i
   return inside
+
+
+# Le consegne sono tutte in Italia: una coordinata fuori da qui (o 0,0 di un
+# client che manda campi vuoti) non è una posizione, è un dato sporco.
+ITALY_BOUNDS = ((35.0, 48.0), (6.0, 19.0))
+
+
+def parse_coordinates(lat, lon) -> tuple[float, float] | tuple[None, None]:
+  """Coordinate inviate dal client, o (None, None) se mancano o non sono plausibili."""
+  try:
+    lat, lon = float(lat), float(lon)
+  except (TypeError, ValueError):
+    return None, None
+  (min_lat, max_lat), (min_lon, max_lon) = ITALY_BOUNDS
+  if not (min_lat <= lat <= max_lat and min_lon <= lon <= max_lon):
+    return None, None
+  return lat, lon

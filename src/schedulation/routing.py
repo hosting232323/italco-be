@@ -20,12 +20,17 @@ un ordine potrebbe uscire prima del punto di ritiro da cui dipende. La soluzione
 3. I cluster vengono a loro volta ordinati tra loro via OSRM (usando come ancora
    la prima tappa geocodificabile di ciascuno) e concatenati.
 
+Tutto questo avviene fascia oraria per fascia oraria, in ordine cronologico: le
+consegne sono promesse al cliente in una fascia e OSRM non conosce gli orari,
+quindi il percorso si ottimizza dentro ogni fascia e le fasce si concatenano.
+
 Se OSRM non è raggiungibile o una tappa non è geocodificabile, si degrada
 mantenendo l'ordine relativo originale invece di far fallire la richiesta.
 """
 
 from concurrent.futures import ThreadPoolExecutor
 import logging
+from datetime import time
 from dataclasses import dataclass
 from collections import defaultdict
 
@@ -143,13 +148,16 @@ def link_missing_collection_points(
 # ---------------------------------------------------------------------------
 
 
-def _coord_for(address: str | None, cap: str | None) -> Coord | None:
-  """Coordinata di una tappa: indirizzo completo se geocodificabile, altrimenti centroide del CAP.
+def _coord_for(address: str | None, cap: str | None, stored: tuple = (None, None)) -> Coord | None:
+  """Coordinata di una tappa: quella salvata se c'e', poi l'indirizzo completo se
+  geocodificabile, altrimenti il centroide del CAP.
 
   Il CAP da solo tratterebbe come "vicini" ordini/punti di ritiro distanti
   chilometri ma nello stesso CAP (frequente nei CAP che coprono più comuni o
   zone rurali), falsando l'ordine di visita calcolato da OSRM.
   """
+  if stored[0] is not None and stored[1] is not None:
+    return stored
   if address:
     lat, lon = get_lat_lon_by_address(address)
     if lat is not None:
@@ -223,12 +231,14 @@ def _build_clusters(
   ]
 
 
-def _resolve_stop_coords(stops: list[tuple[str | None, str | None]], max_workers: int = 10) -> list[Coord | None]:
+def _resolve_stop_coords(
+  stops: list[tuple[str | None, str | None, tuple]], max_workers: int = 10
+) -> list[Coord | None]:
   if not stops:
     return []
   workers = min(max_workers, len(stops))
   with ThreadPoolExecutor(max_workers=workers) as executor:
-    return list(executor.map(lambda pair: _coord_for(pair[0], pair[1]), stops))
+    return list(executor.map(lambda stop: _coord_for(*stop), stops))
 
 
 def _order_cluster(cps: list[StopContext], orders: list[StopContext]) -> list[StopContext]:
@@ -247,6 +257,55 @@ def _order_cluster(cps: list[StopContext], orders: list[StopContext]) -> list[St
 
 def _first_coord(stops: list[StopContext]) -> Coord | None:
   return next((s.coord for s in stops if s.coord is not None), None)
+
+
+def _sequence_stops(
+  order_stops: list[StopContext],
+  cp_stops: list[StopContext],
+  dependencies: dict[int, set[int]],
+) -> list[StopContext]:
+  """Ordine di visita di un gruppo di tappe: trip per cluster + merge (vedi docstring del modulo)."""
+  clusters = _build_clusters(order_stops, cp_stops, dependencies)
+  if len(clusters) > 1:
+    with ThreadPoolExecutor(max_workers=min(10, len(clusters))) as executor:
+      cluster_sequences = list(executor.map(lambda c: _order_cluster(c[0], c[1]), clusters))
+  else:
+    cluster_sequences = [_order_cluster(cps, orders) for cps, orders in clusters]
+
+  anchors = [_first_coord(sequence) for sequence in cluster_sequences]
+  cluster_order = _osrm_or_original_order(len(cluster_sequences), anchors)
+  return [stop for ci in cluster_order for stop in cluster_sequences[ci]]
+
+
+def _slot_key(item: ScheduleItem) -> tuple:
+  return (item.start_time_slot or time.min, item.end_time_slot or time.min)
+
+
+def _group_by_slot(
+  order_stops: list[StopContext],
+  cp_stops: list[StopContext],
+  dependencies: dict[int, set[int]],
+) -> list[tuple[list[StopContext], list[StopContext]]]:
+  """Tappe divise per fascia oraria, dalla prima all'ultima della giornata.
+
+  Le consegne stanno nella fascia promessa al cliente. Un punto di ritiro va
+  nella fascia più presto tra quelle degli ordini che ne dipendono, così la
+  precedenza ritiro-prima-della-consegna resta vera anche quando lo stesso
+  ritiro serve ordini di fasce diverse; senza ordini che ne dipendono resta
+  nella sua.
+  """
+  cp_slot = {stop.entity_id: _slot_key(stop.item) for stop in cp_stops}
+  for stop in order_stops:
+    for cp_id in dependencies.get(stop.item.id, set()):
+      if cp_id in cp_slot:
+        cp_slot[cp_id] = min(cp_slot[cp_id], _slot_key(stop.item))
+
+  groups: dict[tuple, tuple[list[StopContext], list[StopContext]]] = defaultdict(lambda: ([], []))
+  for stop in order_stops:
+    groups[_slot_key(stop.item)][0].append(stop)
+  for stop in cp_stops:
+    groups[cp_slot[stop.entity_id]][1].append(stop)
+  return [groups[key] for key in sorted(groups)]
 
 
 def optimize_schedule_stops(schedule: Schedule, session: session_type) -> None:
@@ -271,22 +330,23 @@ def optimize_schedule_stops(schedule: Schedule, session: session_type) -> None:
   for item, scp, sio in rows:
     if sio and sio.order_id in orders_by_id:
       order = orders_by_id[sio.order_id]
-      raw_stops.append(('order', item, order.address, order.cap, order.id, order))
+      stored = (order.address_lat, order.address_lon)
+      raw_stops.append(('order', item, order.address, order.cap, stored, order.id, order))
     elif scp and scp.collection_point_id in cps_by_id:
       cp = cps_by_id[scp.collection_point_id]
-      raw_stops.append(('collection_point', item, cp.address, cp.cap, cp.id, None))
+      raw_stops.append(('collection_point', item, cp.address, cp.cap, (cp.lat, cp.lon), cp.id, None))
 
   if len(raw_stops) < 2:
     return
 
   # Risoluzione concorrente delle coordinate delle tappe
-  coords = _resolve_stop_coords([(s[2], s[3]) for s in raw_stops])
+  coords = _resolve_stop_coords([(s[2], s[3], s[4]) for s in raw_stops])
 
   order_stops: list[StopContext] = []
   cp_stops: list[StopContext] = []
   dependencies: dict[int, set[int]] = {}
 
-  for (kind, item, _, _, entity_id, order), coord in zip(raw_stops, coords):
+  for (kind, item, _, _, _, entity_id, order), coord in zip(raw_stops, coords):
     stop = StopContext(item=item, kind=kind, coord=coord, entity_id=entity_id)
     if kind == 'order':
       order_stops.append(stop)
@@ -294,16 +354,22 @@ def optimize_schedule_stops(schedule: Schedule, session: session_type) -> None:
     else:
       cp_stops.append(stop)
 
-  clusters = _build_clusters(order_stops, cp_stops, dependencies)
-  if len(clusters) > 1:
-    with ThreadPoolExecutor(max_workers=min(10, len(clusters))) as executor:
-      cluster_sequences = list(executor.map(lambda c: _order_cluster(c[0], c[1]), clusters))
-  else:
-    cluster_sequences = [_order_cluster(cps, orders) for cps, orders in clusters]
-
-  anchors = [_first_coord(sequence) for sequence in cluster_sequences]
-  cluster_order = _osrm_or_original_order(len(cluster_sequences), anchors)
-  final_sequence = [stop for ci in cluster_order for stop in cluster_sequences[ci]]
+  # Le fasce si visitano in ordine cronologico: OSRM ottimizza il percorso
+  # dentro ciascuna, mai a cavallo tra due (un ordine delle 9:40 non può
+  # finire dopo uno delle 11:30 solo perché è più comodo come strada).
+  # Un ritiro anticipato alla fascia di un ordine più presto ne prende anche
+  # l'orario, così il borderò non mostra in testa un ritiro "11:30-12:30".
+  final_sequence = []
+  for slot_orders, slot_cps in _group_by_slot(order_stops, cp_stops, dependencies):
+    for stop in slot_cps:
+      if slot_orders and _slot_key(stop.item) != _slot_key(slot_orders[0].item):
+        slot_item = slot_orders[0].item
+        update(
+          stop.item,
+          {'start_time_slot': slot_item.start_time_slot, 'end_time_slot': slot_item.end_time_slot},
+          session=session,
+        )
+    final_sequence += _sequence_stops(slot_orders, slot_cps, dependencies)
 
   stop_item_ids = {stop.item.id for stop in final_sequence}
   positions = [
