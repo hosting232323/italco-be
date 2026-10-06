@@ -1,7 +1,7 @@
 """veicolo assegnato all'ordine, coordinate del punto di ritiro
 
-Revision ID: 068
-Revises: 067
+Revision ID: 069
+Revises: 068
 Create Date: 2026-09-25 12:00:00.000000
 
 L'ordine ricordava solo la fascia oraria: quale veicolo l'aveva preso lo si
@@ -20,8 +20,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '068'
-down_revision: Union[str, None] = '067'
+revision: str = '069'
+down_revision: Union[str, None] = '068'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
