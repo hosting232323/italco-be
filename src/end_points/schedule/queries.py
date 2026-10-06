@@ -64,6 +64,7 @@ _FILTER_MODEL_JOINS = {
 _FILTER_MODELS = {
   'Schedule': Schedule,
   'User': User,
+  'DeliveryUserInfo': DeliveryUserInfo,
   'Order': Order,
   'DeliveryUserInfo': DeliveryUserInfo,
   'Transport': Transport,
