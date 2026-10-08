@@ -6,6 +6,7 @@ from sqlalchemy import (
   Enum,
   Date,
   String,
+  Text,
   Float,
   Integer,
   LargeBinary,
@@ -21,6 +22,16 @@ from sqlalchemy import (
 
 from database_api import BaseEntity
 from .enum import UserRole, OrderStatus, OrderType, ScheduleType, ScheduleItemUserType, EuronicsStatus, RaeStatus
+
+
+class Mail(BaseEntity):
+  # Email nate da richieste pubbliche, fuori dal perimetro delle company.
+  __tablename__ = 'mail'
+
+  origin = Column(String)
+  recipient = Column(String, nullable=False)
+  subject = Column(String, nullable=False)
+  content = Column(Text, nullable=False)
 
 
 class BaseItalcoEntity(BaseEntity):
