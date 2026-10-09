@@ -1367,3 +1367,8 @@ def test_check_constraints_slots_use_preloaded_flag(app, db):
     assert check_delivery_coverage_slots() == {}
   with app.test_request_context(json={**payload, 'preloaded': True}):
     assert target.strftime('%Y-%m-%d') in check_delivery_coverage_slots()
+
+
+def test_check_delivery_coverage_slots_accepts_a_numeric_cap(app, db):
+  with app.test_request_context(json={'cap': 70051, 'products': {}}):
+    assert check_delivery_coverage_slots() == {}

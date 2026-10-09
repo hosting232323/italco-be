@@ -1,4 +1,3 @@
-import pytest
 from database_api.operations import get_by_id
 
 from src.database.enum import OrderType, UserRole
@@ -148,14 +147,6 @@ def test_set_all_users_associates_customers_without_the_service(client):
   assert body['service_users'][0]['price'] == 20.0
 
 
-@pytest.mark.xfail(
-  strict=True,
-  reason=(
-    'Bug sorgente: set_all_users confronta User.id con la lista degli ID di ServiceUser '
-    '(query_service_user restituisce ServiceUser, non user_id), quindi i clienti già '
-    'associati al servizio non vengono esclusi e ricevono un ServiceUser duplicato.'
-  ),
-)
 def test_set_all_users_should_skip_already_associated_customers(client):
   admin = create_user(UserRole.ADMIN)
   service = create_service()

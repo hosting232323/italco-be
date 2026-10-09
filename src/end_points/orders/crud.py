@@ -78,12 +78,48 @@ ROLE_UPDATABLE_ORDER_FIELDS = {
 }
 
 
+# Campi di data e fascia che il cliente puo' cambiare solo con la pianificazione automatica attiva.
+CUSTOMER_PLANNING_FIELDS = ('dpc', 'delivery_slot_start', 'delivery_slot_end')
+
+# Campi che un cliente non deve poter impostare creando un ordine: li governano operatori, corrieri e
+# integrazioni (conferma, esito della consegna, note interne, ordini esterni, veicolo assegnato).
+CUSTOMER_FORBIDDEN_CREATE_FIELDS = frozenset(
+  {
+    'id',
+    'company_id',
+    'created_at',
+    'updated_at',
+    'status',
+    'confirmed',
+    'confirmation_date',
+    'completion_date',
+    'booking_date',
+    'mark',
+    'signature',
+    'operator_note',
+    'motivation',
+    'anomaly',
+    'delay',
+    'version',
+    'external_id',
+    'external_link',
+    'external_status',
+    'delivery_transport_id',
+  }
+)
+
+
 def restrict_order_update(user: User, data: dict, session) -> dict:
   allowed = ROLE_UPDATABLE_ORDER_FIELDS.get(user.role)
   if allowed is None:
     return data
 
   restricted = {key: value for key, value in data.items() if key in allowed}
+  # Data e fascia le sceglie il cliente dal calendario vincolato alla copertura, quindi solo se
+  # attivita' e punto vendita hanno la pianificazione automatica: update_order le ricalcola e
+  # le valida. Senza, la dpc resta quella di quando e' stato creato l'ordine.
+  if user.role == UserRole.CUSTOMER and is_automatic_planning_enabled() and user.automatic_planning:
+    restricted.update({key: data[key] for key in CUSTOMER_PLANNING_FIELDS if key in data})
   if user.role == UserRole.DELIVERY and isinstance(restricted.get('products'), dict):
     safe_products = {}
     for name, details in restricted['products'].items():
@@ -124,6 +160,8 @@ def address_coordinates(data: dict, order: Order = None) -> dict:
 
 def create_order(user: User, data: dict):
   clean_data = {key: value for key, value in data.items() if key not in ['products', 'user_id', 'cloned_order_id']}
+  if user.role == UserRole.CUSTOMER:
+    clean_data = {key: value for key, value in clean_data.items() if key not in CUSTOMER_FORBIDDEN_CREATE_FIELDS}
   if not clean_data.get('address'):
     return {'status': 'ko', 'message': "L'indirizzo è obbligatorio"}
   clean_data.update(address_coordinates(clean_data))

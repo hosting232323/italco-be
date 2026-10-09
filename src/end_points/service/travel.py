@@ -1,5 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import logging
+import threading
+import time
 
 import requests
 from geopy.distance import geodesic
@@ -13,8 +15,49 @@ logger = logging.getLogger(__name__)
 # Velocità media urbana per fallback Haversine (km/h)
 _FALLBACK_SPEED_KMH = 30.0
 
-# Timeout per OSRM (secondi)
-_OSRM_TIMEOUT = 5
+# Timeout per OSRM (secondi): breve, perche' una richiesta ne fa decine e con OSRM fermo ognuna
+# aspetterebbe tutto il timeout (il worker gunicorn muore a 30 s).
+_OSRM_TIMEOUT = 2
+
+# Circuit breaker: dopo _BREAKER_FAILURES guasti di fila (timeout, connessione, 5xx) OSRM si considera
+# fermo per _BREAKER_PAUSE secondi e le richieste vanno subito al ripiego (Haversine / ordine originale)
+# invece di aspettare ciascuna il timeout. Un 200 con code diverso da Ok (nessun percorso) non e' un guasto.
+_BREAKER_FAILURES = 3
+_BREAKER_PAUSE = 60
+_BREAKER = {'failures': 0, 'open_until': 0.0}
+_BREAKER_LOCK = threading.Lock()
+
+
+def _osrm_available() -> bool:
+  with _BREAKER_LOCK:
+    return time.monotonic() >= _BREAKER['open_until']
+
+
+def _osrm_record(success: bool) -> None:
+  with _BREAKER_LOCK:
+    if success:
+      _BREAKER['failures'] = 0
+      return
+    _BREAKER['failures'] += 1
+    if _BREAKER['failures'] >= _BREAKER_FAILURES:
+      _BREAKER['open_until'] = time.monotonic() + _BREAKER_PAUSE
+      _BREAKER['failures'] = 0
+      logger.warning('OSRM non risponde: ripiego senza OSRM per %s secondi', _BREAKER_PAUSE)
+
+
+def _osrm_get(url: str):
+  """GET verso OSRM con il circuit breaker. None se OSRM e' in pausa o non risponde."""
+  if not _osrm_available():
+    return None
+  try:
+    response = requests.get(url, timeout=_OSRM_TIMEOUT)
+  except Exception as error:
+    _osrm_record(False)
+    logger.warning('OSRM non disponibile: %s', error)
+    return None
+  _osrm_record(response.status_code < 500)
+  return response
+
 
 # Table API per matrice durate
 _OSRM_TABLE_URL = OSRM_BASE_URL + '/table/v1/driving/{coords}?annotations=duration'
@@ -51,21 +94,28 @@ def travel_time_matrix_osrm(coords: list[tuple[float, float]]) -> list[list[floa
   # OSRM vuole lon,lat (ordine invertito rispetto a geopy)
   coords_str = ';'.join(f'{lon},{lat}' for lat, lon in coords)
   url = _OSRM_TABLE_URL.format(coords=coords_str)
-  try:
-    resp = requests.get(url, timeout=_OSRM_TIMEOUT)
-    if resp.status_code == 200:
+  resp = _osrm_get(url)
+  if resp is not None and resp.status_code == 200:
+    try:
       data = resp.json()
-      if data.get('code') == 'Ok':
-        if len(_MATRIX_CACHE) >= _MATRIX_CACHE_MAX:
-          _MATRIX_CACHE.clear()
-        _MATRIX_CACHE[key] = data['durations']
-        return data['durations']
-  except Exception as e:
-    logger.warning('OSRM non disponibile: %s', e)
+    except ValueError:
+      return None
+    if data.get('code') == 'Ok':
+      if len(_MATRIX_CACHE) >= _MATRIX_CACHE_MAX:
+        _MATRIX_CACHE.clear()
+      _MATRIX_CACHE[key] = data['durations']
+      return data['durations']
   return None
 
 
-travel_time_matrix_osrm.cache_clear = _MATRIX_CACHE.clear
+def _reset_osrm_state() -> None:
+  _MATRIX_CACHE.clear()
+  with _BREAKER_LOCK:
+    _BREAKER.update(failures=0, open_until=0.0)
+
+
+# Svuota cache e circuit breaker: serve ai test, che non devono ereditare lo stato del test prima.
+travel_time_matrix_osrm.cache_clear = _reset_osrm_state
 
 
 def trip_order_osrm(coords: list[tuple[float, float]]) -> list[int] | None:
@@ -83,22 +133,23 @@ def trip_order_osrm(coords: list[tuple[float, float]]) -> list[int] | None:
   # OSRM vuole lon,lat (ordine invertito rispetto a geopy)
   coords_str = ';'.join(f'{lon},{lat}' for lat, lon in coords)
   url = _OSRM_TRIP_URL.format(coords=coords_str)
+  resp = _osrm_get(url)
+  if resp is None or resp.status_code != 200:
+    return None
   try:
-    resp = requests.get(url, timeout=_OSRM_TIMEOUT)
-    if resp.status_code == 200:
-      data = resp.json()
-      if data.get('code') == 'Ok':
-        waypoints = data['waypoints']
-        # waypoints[i] descrive coords[i] e porta 'waypoint_index' = sua posizione
-        # nel giro ottimizzato: ordiniamo gli indici originali per quella posizione.
-        cycle = sorted(range(len(waypoints)), key=lambda i: waypoints[i]['waypoint_index'])
-        # legs[k] e' il tratto dalla tappa cycle[k] alla successiva (l'ultimo chiude il giro).
-        legs = data['trips'][0]['legs']
-        longest = max(range(len(legs)), key=lambda k: legs[k]['duration'])
-        start = (longest + 1) % len(cycle)
-        return cycle[start:] + cycle[:start]
-  except Exception as e:
-    logger.warning('OSRM /trip non disponibile: %s', e)
+    data = resp.json()
+    if data.get('code') == 'Ok':
+      waypoints = data['waypoints']
+      # waypoints[i] descrive coords[i] e porta 'waypoint_index' = sua posizione
+      # nel giro ottimizzato: ordiniamo gli indici originali per quella posizione.
+      cycle = sorted(range(len(waypoints)), key=lambda i: waypoints[i]['waypoint_index'])
+      # legs[k] e' il tratto dalla tappa cycle[k] alla successiva (l'ultimo chiude il giro).
+      legs = data['trips'][0]['legs']
+      longest = max(range(len(legs)), key=lambda k: legs[k]['duration'])
+      start = (longest + 1) % len(cycle)
+      return cycle[start:] + cycle[:start]
+  except (ValueError, KeyError, IndexError) as error:
+    logger.warning('OSRM /trip: risposta non utilizzabile: %s', error)
   return None
 
 

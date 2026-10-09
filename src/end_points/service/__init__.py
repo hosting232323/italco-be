@@ -107,7 +107,7 @@ def delete_service_user(_, id):
 def set_all_users(user: User):
   service: Service = get_by_id(Service, int(request.args['service_id']))
   users = query_users(user, UserRole.CUSTOMER)
-  before_service_users_ids = [user.id for user in query_service_user(service.id)]
+  before_service_users_ids = {service_user.user_id for service_user in query_service_user(service.id)}
   service_users = []
   for user in users:
     if user.id not in before_service_users_ids:

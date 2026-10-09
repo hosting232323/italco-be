@@ -293,3 +293,72 @@ def test_travel_time_matrix_osrm_does_not_cache_a_failure(mock_get):
 
   mock_get.return_value = _osrm_response(durations=[[0, 600], [600, 0]])
   assert travel_time_matrix_osrm([BARI, MOLFETTA]) == [[0, 600], [600, 0]]
+
+
+@patch('src.end_points.service.travel.requests.get')
+def test_osrm_breaker_opens_after_repeated_failures_and_skips_the_network(mock_get):
+  mock_get.side_effect = Exception('timeout')
+  coords = [[BARI, MOLFETTA], [BARI, (41.2, 16.6)], [BARI, (41.3, 16.7)]]
+  for pair in coords:
+    assert travel_time_matrix_osrm(pair) is None
+  assert mock_get.call_count == travel._BREAKER_FAILURES
+
+  # ora OSRM e' in pausa: nessuna chiamata di rete, ripiego immediato
+  assert travel_time_matrix_osrm([BARI, (41.4, 16.8)]) is None
+  assert trip_order_osrm([BARI, MOLFETTA, (41.4, 16.8)]) is None
+  assert mock_get.call_count == travel._BREAKER_FAILURES
+
+
+@patch('src.end_points.service.travel.time.monotonic')
+@patch('src.end_points.service.travel.requests.get')
+def test_osrm_breaker_closes_after_the_pause(mock_get, mock_monotonic):
+  mock_monotonic.return_value = 1000.0
+  mock_get.side_effect = Exception('timeout')
+  for index in range(travel._BREAKER_FAILURES):
+    travel_time_matrix_osrm([BARI, (41.0 + index / 10, 16.5)])
+  assert travel._osrm_available() is False
+
+  mock_monotonic.return_value = 1000.0 + travel._BREAKER_PAUSE + 1
+  mock_get.side_effect = None
+  mock_get.return_value = _osrm_response(durations=[[0, 600], [600, 0]])
+  assert travel._osrm_available() is True
+  assert travel_time_matrix_osrm([BARI, MOLFETTA]) == [[0, 600], [600, 0]]
+
+
+@patch('src.end_points.service.travel.requests.get')
+def test_osrm_breaker_counts_5xx_but_not_missing_routes(mock_get):
+  no_route = _osrm_response(code='NoRoute', durations=None)
+  mock_get.return_value = no_route
+  for index in range(travel._BREAKER_FAILURES + 2):
+    assert travel_time_matrix_osrm([BARI, (41.0 + index / 10, 16.5)]) is None
+  assert travel._osrm_available() is True
+
+  broken = _osrm_response(durations=None)
+  broken.status_code = 503
+  mock_get.return_value = broken
+  for index in range(travel._BREAKER_FAILURES):
+    travel_time_matrix_osrm([BARI, (42.0 + index / 10, 16.5)])
+  assert travel._osrm_available() is False
+
+
+@patch('src.end_points.service.travel.requests.get')
+def test_osrm_success_resets_the_failure_count(mock_get):
+  mock_get.side_effect = Exception('timeout')
+  for index in range(travel._BREAKER_FAILURES - 1):
+    travel_time_matrix_osrm([BARI, (41.0 + index / 10, 16.5)])
+
+  mock_get.side_effect = None
+  mock_get.return_value = _osrm_response(durations=[[0, 600], [600, 0]])
+  travel_time_matrix_osrm([BARI, MOLFETTA])
+
+  mock_get.side_effect = Exception('timeout')
+  travel_time_matrix_osrm([BARI, (43.0, 16.5)])
+  assert travel._osrm_available() is True
+
+
+@patch('src.end_points.service.travel.requests.get')
+def test_trip_order_osrm_returns_none_on_unparsable_body(mock_get):
+  response = _osrm_response()
+  response.json = lambda: {'code': 'Ok'}
+  mock_get.return_value = response
+  assert trip_order_osrm([BARI, MOLFETTA]) is None

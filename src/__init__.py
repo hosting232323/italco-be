@@ -7,6 +7,7 @@ from flask_cors import CORS
 from api.settings import IS_DEV, TELEGRAM_TOKEN
 from api.telegram import send_telegram_message
 from .checks import trigger_checks
+from .error_handling import register_client_error_handlers
 from api.storage import folder_backup
 from database_api.backup import db_backup
 from api import swagger_decorator, register_flask_hooks, PrefixMiddleware
@@ -68,6 +69,7 @@ else:
 
 
 register_flask_hooks(app, STATIC_FOLDER, user_log_field='nickname')
+register_client_error_handlers(app)
 
 
 @app.route('/', methods=['GET'])
