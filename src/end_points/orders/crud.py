@@ -55,6 +55,7 @@ ROLE_UPDATABLE_ORDER_FIELDS = {
       'addressee_contact',
       'customer_note',
       'drc',
+      'preloaded',
       'products',
       'version',
     }
@@ -175,6 +176,7 @@ def create_order(user: User, data: dict):
           products=data.get('products'),
           user_id=user.id,
           address=clean_data.get('address'),
+          preloaded=bool(clean_data.get('preloaded')),
         )
       except SlotUnavailableError as error:
         return {'status': 'ko', 'message': str(error)}
@@ -341,6 +343,7 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
         products=data.get('products') or order_products_payload(order, session),
         user_id=user.id,
         address=data.get('address', order.address),
+        preloaded=bool(data.get('preloaded', order.preloaded)),
       )
       planning_fields = {
         'delivery_slot_start': entry.start_time if entry else None,

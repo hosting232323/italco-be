@@ -2,7 +2,7 @@ import pytest
 from datetime import date, time, timedelta
 from unittest.mock import patch
 
-from database_api.operations import create, get_by_id, get_by_params
+from database_api.operations import create, get_by_id, get_by_params, update
 
 from src.database.enum import UserRole
 from src.database.schema import DeliveryCoverageCap, DeliveryCoverageEntry
@@ -1246,3 +1246,124 @@ def test_query_entries_for_cap_outside_every_polygon(mock_address, mock_cap):
   mock_address.return_value = (41.117, 16.871)  # Bari
 
   assert query_entries_for_cap('70121', address='Via Sparano, 10, Bari, BA') == []
+
+
+def _preload_entry(transport, day_of_week, accepts_preloads=True):
+  entry = _entry(transport, day_of_week=day_of_week, start='08:00:00', end='12:00:00', caps=('70051',))
+  return update(entry, {'accepts_preloads': accepts_preloads})
+
+
+def _pickup_order(transport, dpc, collection_point, service_user):
+  order = create_order(cap='70051', dpc=dpc, delivery_transport_id=transport.id)
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+  return order
+
+
+def _products(collection_point):
+  return {'frigo': {'collection_point': {'id': collection_point.id}}}
+
+
+def test_create_and_update_entry_accepts_preloads(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  body = {'day_of_week': 0, 'transport_id': transport.id, 'start_time': '08:00', 'end_time': '12:00', 'caps': ['70051']}
+
+  created = client.post(
+    '/delivery-coverage', json={**body, 'accepts_preloads': True}, headers=auth_header(admin)
+  ).get_json()
+  assert created['entry']['accepts_preloads'] is True
+
+  updated = client.put(
+    f'/delivery-coverage/{created["entry"]["id"]}', json={'accepts_preloads': False}, headers=auth_header(admin)
+  ).get_json()
+  assert updated['entry']['accepts_preloads'] is False
+
+
+def test_preload_area_offers_only_days_with_same_pickup_point(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+  _pickup_order(transport, target, collection_point, service_user)
+  assert available_slots('70051', target, new_products=_products(collection_point)) == [
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051']}
+  ]
+
+
+def test_preload_area_ignores_other_pickup_points_and_other_vehicles(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  _, _, other_service_user, other_point = customer_with_service()
+
+  _pickup_order(transport, target, other_point, other_service_user)
+  _pickup_order(create_transport(), target, collection_point, service_user)
+
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+
+def test_preload_area_counts_previous_day_only_for_preloaded_orders(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  _pickup_order(transport, target - timedelta(days=1), collection_point, service_user)
+
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+  assert available_slots('70051', target, new_products=_products(collection_point), preloaded=True) == [
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051']}
+  ]
+
+
+def test_preload_area_excludes_the_order_being_edited(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  order = _pickup_order(transport, target, collection_point, service_user)
+
+  assert available_slots('70051', target, new_products=_products(collection_point), exclude_order_id=order.id) == []
+
+
+def test_preload_flag_off_or_no_pickup_points_keeps_all_slots(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday(), accepts_preloads=False)
+  _, _, _, collection_point = customer_with_service()
+
+  assert len(available_slots('70051', target, new_products=_products(collection_point))) == 1
+
+  other_day = target + timedelta(days=1)
+  _preload_entry(create_transport(), other_day.weekday())
+  assert len(available_slots('70051', other_day)) == 1
+
+
+def test_resolve_delivery_entry_rejects_day_without_same_pickup_point(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  entry = _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+
+  with pytest.raises(SlotUnavailableError):
+    resolve_delivery_entry('70051', target, products=_products(collection_point))
+
+  _pickup_order(transport, target, collection_point, service_user)
+  assert resolve_delivery_entry('70051', target, products=_products(collection_point)).id == entry.id
+
+
+def test_check_constraints_slots_use_preloaded_flag(app, db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  _pickup_order(transport, target - timedelta(days=1), collection_point, service_user)
+  payload = {'cap': '70051', 'products': _products(collection_point)}
+
+  with app.test_request_context(json=payload):
+    assert check_delivery_coverage_slots() == {}
+  with app.test_request_context(json={**payload, 'preloaded': True}):
+    assert target.strftime('%Y-%m-%d') in check_delivery_coverage_slots()
