@@ -9,6 +9,7 @@ from api.settings import IS_DEV, TELEGRAM_TOKEN
 from api.telegram import send_telegram_message
 from .checks import trigger_checks
 from .rate_limit import client_ip, rate_limited
+from .error_handling import register_client_error_handlers
 from api.storage import folder_backup
 from database_api.backup import db_backup
 from api import swagger_decorator, register_flask_hooks, PrefixMiddleware
@@ -94,6 +95,7 @@ def _register_log_hooks(flask_app):
 
 
 _register_log_hooks(app)
+register_client_error_handlers(app)
 
 
 @app.route('/', methods=['GET'])

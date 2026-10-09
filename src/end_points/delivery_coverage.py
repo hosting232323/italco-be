@@ -492,7 +492,8 @@ def check_delivery_coverage_slots(*args, **kwargs) -> dict:
   user = kwargs.get('user') or (args[0] if args else None)
   required_duration = calculate_payload_service_duration(payload, user=user)
   exclude_order_id = payload.get('order_id')
-  new_cap = payload.get('cap')
+  # Il CAP e' una stringa a DB: un numero nel JSON darebbe un errore di tipo nella query.
+  new_cap = str(payload['cap']) if payload.get('cap') is not None else None
   # Indirizzo scelto dal menu Google: zone, capienza e strada usano la sua
   # posizione esatta invece di geocodificarlo con Nominatim.
   remember_address_coordinates(

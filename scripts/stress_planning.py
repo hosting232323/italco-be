@@ -463,6 +463,164 @@ def scenario_concurrent(args):
   check_invariants(created)
 
 
+def _flag_entries(value):
+  with database_api.engine.begin() as connection:
+    connection.execute(text('update delivery_coverage_entry set accepts_preloads = :v'), {'v': value})
+
+
+def _entries_for_cap(cap, day):
+  with database_api.engine.connect() as connection:
+    return connection.execute(
+      text(
+        """
+        select e.id, e.transport_id, e.start_time, e.end_time from delivery_coverage_entry e
+        join delivery_coverage_cap c on c.entry_id = e.id
+        where c.cap = :cap and e.day_of_week = :dow order by e.transport_id, e.start_time
+        """
+      ),
+      {'cap': cap, 'dow': day.weekday()},
+    ).fetchall()
+
+
+def _seed_order(template, day, entry):
+  """Un ordine gia' pianificato sul veicolo, con i punti di ritiro del template (scritto a mano sul DB)."""
+  from src.database.enum import OrderStatus
+  from src.database.schema import Order, Product
+
+  with scope(company_id=COMPANY_ID):
+    order = create(
+      Order,
+      {
+        'status': OrderStatus.SCHEDULED,
+        'type': OrderType.DELIVERY,
+        'addressee': 'Seed Stress',
+        'address': template.address,
+        'cap': template.cap,
+        'dpc': day,
+        'drc': day,
+        'delivery_slot_start': entry.start_time,
+        'delivery_slot_end': entry.end_time,
+        'delivery_transport_id': entry.transport_id,
+      },
+    )
+    with database_api.engine.connect() as connection:
+      for name, data in template.products.items():
+        for service in data['services']:
+          su = connection.execute(
+            text('select id from service_user where user_id = :u and service_id = :s limit 1'),
+            {'u': template.user_id, 's': service['id']},
+          ).scalar()
+          if su:
+            create(
+              Product,
+              {
+                'name': name,
+                'order_id': order.id,
+                'service_user_id': su,
+                'collection_point_id': (data.get('collection_point') or {}).get('id'),
+              },
+            )
+  return order.id
+
+
+def _slots_for(client, report, template, preloaded=False):
+  payload = {**check_payload(template), 'preloaded': preloaded}
+  status, body = call(
+    client, report, 'check-constraints', 'post', '/check-constraints', token_for(template.user_id), payload
+  )
+  return body.get('slots') or {} if status == 200 else None
+
+
+def scenario_preload(args):
+  """Aree che accettano precarichi: le fasce escono solo nei giorni in cui il veicolo passa gia' dai punti di ritiro."""
+  templates = [t for t in load_templates() if any('collection_point' in p for p in t.products.values())]
+  if not templates:
+    sys.exit('nessun template con punto di ritiro')
+  report = Report()
+  client = app.test_client()
+  checks = Counter()
+
+  def verdict(label, ok):
+    checks[ok] += 1
+    print(f'{"OK " if ok else "KO "} {label}')
+
+  # 1) costo di /check-constraints con e senza flag, sugli stessi clienti
+  sample = random.sample(templates, min(args.samples, len(templates)))
+  for flag in (False, True):
+    _flag_entries(flag)
+    queries, started = QUERIES.count, time.perf_counter()
+    for template in sample:
+      _slots_for(client, report, template)
+    print(
+      f'flag={flag}: {len(sample)} check, {(time.perf_counter() - started) / len(sample):.2f}s/check, '
+      f'{(QUERIES.count - queries) / len(sample):.0f} query/check'
+    )
+
+  # 2) correttezza della regola su casi costruiti
+  _flag_entries(True)
+  scenarios = 0
+  for template in random.sample(templates, min(len(templates), args.orders)):
+    day = pick_date(14 + scenarios)
+    entries = _entries_for_cap(template.cap, day)
+    if not entries:
+      continue
+    scenarios += 1
+    # Senza flag il giorno deve esistere gia': se lo scartano regole cliente o capienza non e' colpa del filtro.
+    _flag_entries(False)
+    baseline = _slots_for(client, report, template, preloaded=True) or {}
+    _flag_entries(True)
+    seeded = _seed_order(template, day, entries[0])
+    slots = _slots_for(client, report, template)
+    if day.isoformat() not in baseline:
+      print(f'--  cap {template.cap} {day}: giorno non offerto nemmeno senza flag (regole cliente/capienza), scartato')
+      scenarios -= 1
+      continue
+    verdict(
+      f'cap {template.cap} {day}: con un ordine sullo stesso ritiro il giorno è offerto',
+      day.isoformat() in (slots or {}),
+    )
+    other = (slots or {}).get(day.isoformat(), [])
+    verdict(
+      f'cap {template.cap} {day}: solo fasce del veicolo che passa dal ritiro',
+      {(s['start'], s['end']) for s in other}
+      <= {(e.start_time.strftime('%H:%M'), e.end_time.strftime('%H:%M')) for e in entries},
+    )
+    next_day = day + timedelta(days=1)
+    if _entries_for_cap(template.cap, next_day):
+      plain = _slots_for(client, report, template, preloaded=False)
+      pre = _slots_for(client, report, template, preloaded=True)
+      verdict(
+        f'cap {template.cap}: {next_day} senza ordini il giorno stesso non è offerto',
+        next_day.isoformat() not in (plain or {}),
+      )
+      verdict(
+        f'cap {template.cap}: {next_day} precaricato eredita il passaggio del giorno prima',
+        next_day.isoformat() in (pre or {}),
+      )
+    del seeded
+  print(f'\n{scenarios} scenari: {checks[True]} OK, {checks[False]} KO')
+
+  # 3) creazione ordine: stesso filtro lato server
+  _flag_entries(True)
+  rejected = created = 0
+  for template in random.sample(templates, min(len(templates), 30)):
+    day = pick_date(40)
+    entries = _entries_for_cap(template.cap, day)
+    if not entries:
+      continue
+    status, body = call(
+      client, report, 'create-order', 'post', '/order', token_for(template.user_id), order_payload(template, day)
+    )
+    if status == 200 and body.get('status') == 'ok':
+      created += 1
+    else:
+      rejected += 1
+  print(
+    f'creazione senza passaggio: {created} creati, {rejected} rifiutati (attesi tutti rifiutati: nessun ordine sul veicolo in quei giorni)'
+  )
+  report.print()
+
+
 def scenario_fill(args):
   """Riempie una sola fascia servita da due veicoli e mostra dove finisce ogni ordine.
 
@@ -583,9 +741,12 @@ def scenario_lifecycle(args):
       token_for(template.user_id),
       {'dpc': new_day.isoformat()},
     )
-    moved += status == 200
+    # L'app risponde 200 anche agli errori: la data si verifica sul database, non dal codice HTTP.
+    with database_api.engine.connect() as connection:
+      saved = connection.execute(text('select dpc from "order" where id = :o'), {'o': order['id']}).scalar()
+    moved += status == 200 and saved == new_day
   report.print()
-  print(f'ordini spostati di data dal cliente: {moved}')
+  print(f'ordini spostati di data dal cliente (verificati sul DB): {moved}')
   check_invariants([o['id'] for _, o in created], check_dates=True)
 
 
@@ -671,7 +832,7 @@ def check_invariants(order_ids, check_dates=False):
 def main():
   parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument(
-    'scenario', choices=['setup', 'constraints', 'create', 'concurrent', 'lifecycle', 'fill', 'spill']
+    'scenario', choices=['setup', 'constraints', 'create', 'concurrent', 'lifecycle', 'fill', 'spill', 'preload']
   )
   parser.add_argument('--orders', type=int, default=200)
   parser.add_argument('--customers', type=int, default=None)

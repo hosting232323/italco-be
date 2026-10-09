@@ -2,6 +2,7 @@ import logging
 from datetime import date, time
 
 import requests
+from flask import g, has_request_context
 from sqlalchemy import or_
 from sqlalchemy.orm import Session as session_type, joinedload
 
@@ -25,6 +26,27 @@ from ...utils.geo import point_in_polygon
 from ...utils.caps import get_lat_lon_by_address, get_lat_lon_by_cap
 
 logger = logging.getLogger(__name__)
+
+_MISSING = object()
+
+
+def request_memo(namespace: str, key, compute):
+  """Calcola `compute()` una volta sola per richiesta HTTP, per (namespace, key).
+
+  Serve per i dati che non cambiano mentre si valutano decine di giorni e fasce (blocchi
+  precedenti, orario dell'azienda, coordinate di veicoli e punti di ritiro): /check-constraints li
+  rileggeva a ogni giorno. Fuori da una richiesta (script, test) non memorizza niente. Mai da usare
+  per dati che la stessa richiesta puo' modificare (ordini, borderò).
+  """
+  if not has_request_context():
+    return compute()
+  memo = g.setdefault('_coverage_memo', {})
+  slot = (namespace, key)
+  value = memo.get(slot, _MISSING)
+  if value is _MISSING:
+    value = memo[slot] = compute()
+  return value
+
 
 # Costante temporanea (N): minuti stimati per prodotto con punto di ritiro, in attesa
 # di un calcolo reale basato sul percorso verso il punto di ritiro (vedi
@@ -60,32 +82,33 @@ def calculate_payload_service_duration(payload: dict, user: User = None, session
   products = payload.get('products')
   services_id = payload.get('services_id')
 
-  def _compute(sess: session_type) -> int:
-    total = 0
+  def _service_ids() -> list[int]:
+    ids = []
     if isinstance(products, dict) and products:
-      for _, product_data in products.items():
+      for product_data in products.values():
         services = product_data.get('services') if isinstance(product_data, dict) else None
         if not isinstance(services, list):
           continue
-        for s in services:
-          s_id = s.get('id') if isinstance(s, dict) else s
-          if not isinstance(s_id, int):
-            continue
-          service = sess.query(Service).filter(Service.id == s_id).first()
-          if service and service.duration is not None:
-            total += service.duration
-      return total
+        for service in services:
+          service_id = service.get('id') if isinstance(service, dict) else service
+          if isinstance(service_id, int):
+            ids.append(service_id)
+      return ids
+    if isinstance(services_id, list):
+      return [service_id for service_id in services_id if isinstance(service_id, int)]
+    return ids
 
-    if isinstance(services_id, list) and services_id:
-      for s_id in services_id:
-        if not isinstance(s_id, int):
-          continue
-        service = sess.query(Service).filter(Service.id == s_id).first()
-        if service and service.duration is not None:
-          total += service.duration
-      return total
-
-    return 0
+  def _compute(sess: session_type) -> int:
+    ids = _service_ids()
+    if not ids:
+      return 0
+    # Una query sola; un servizio ripetuto in piu' prodotti si somma ogni volta.
+    durations = {
+      service_id: duration
+      for service_id, duration in sess.query(Service.id, Service.duration).filter(Service.id.in_(set(ids)))
+      if duration is not None
+    }
+    return sum(durations.get(service_id, 0) for service_id in ids)
 
   if session is not None:
     return _compute(session)
@@ -250,15 +273,19 @@ def previous_entry_of_day(entry: DeliveryCoverageEntry, session: session_type) -
   ``_adjacent_coverage_entries`` in delivery_coverage.py, duplicato qui invece
   di importato: quel modulo importa gia' da questo e chiuderebbe un cerchio).
   """
-  return (
-    session.query(DeliveryCoverageEntry)
-    .filter(
-      DeliveryCoverageEntry.transport_id == entry.transport_id,
-      DeliveryCoverageEntry.day_of_week == entry.day_of_week,
-      DeliveryCoverageEntry.start_time < entry.start_time,
-    )
-    .order_by(DeliveryCoverageEntry.start_time.desc())
-    .first()
+  return request_memo(
+    'previous_entry',
+    (entry.transport_id, entry.day_of_week, entry.start_time),
+    lambda: (
+      session.query(DeliveryCoverageEntry)
+      .filter(
+        DeliveryCoverageEntry.transport_id == entry.transport_id,
+        DeliveryCoverageEntry.day_of_week == entry.day_of_week,
+        DeliveryCoverageEntry.start_time < entry.start_time,
+      )
+      .order_by(DeliveryCoverageEntry.start_time.desc())
+      .first()
+    ),
   )
 
 
@@ -289,8 +316,11 @@ def entry_lead_minutes(entry: DeliveryCoverageEntry, session: session_type) -> i
   """
   if entry.start_time is None:
     return 0
-  company = session.query(Company).filter(Company.id == entry.company_id).first()
-  opening = getattr(company, 'activity_start_time', None)
+  opening = request_memo(
+    'activity_start',
+    entry.company_id,
+    lambda: getattr(session.query(Company).filter(Company.id == entry.company_id).first(), 'activity_start_time', None),
+  )
   if opening is None:
     return 0
   return max(0, _minutes(entry.start_time) - _minutes(opening))
@@ -315,8 +345,13 @@ def _front_route_coords(
 
   pickups = []
   if cp_ids:
-    points = session.query(CollectionPoint).filter(CollectionPoint.id.in_(sorted(cp_ids))).all()
-    pickups = get_lat_lon_for_collection_points(points)
+    pickups = request_memo(
+      'pickup_coords',
+      tuple(sorted(cp_ids)),
+      lambda: get_lat_lon_for_collection_points(
+        session.query(CollectionPoint).filter(CollectionPoint.id.in_(sorted(cp_ids))).all()
+      ),
+    )
 
   deliveries = get_lat_lon_for_orders(orders)
   if new_coord:
@@ -349,8 +384,11 @@ def entry_front_route_minutes(
     # Il veicolo si rilegge per id, non da entry.transport: l'entry arriva spesso
     # scollegato dalla sessione (come per entry.caps, vedi query_slot_orders) e la
     # relazione lazy esploderebbe con DetachedInstanceError.
-    transport = session.query(Transport).filter(Transport.id == entry.transport_id).first()
-    lat, lon = get_lat_lon_for_transport(transport)
+    lat, lon = request_memo(
+      'transport_coord',
+      entry.transport_id,
+      lambda: get_lat_lon_for_transport(session.query(Transport).filter(Transport.id == entry.transport_id).first()),
+    )
     if lat is None:
       return 0
 
@@ -398,15 +436,22 @@ def _schedule_stop_coord(entry: DeliveryCoverageEntry, dpc: date, session: sessi
   ha ancora tappe (fascia vuota, o pianificazione automatica non attiva su
   questa company): e' un dato mancante, non deve bloccare la prenotazione.
   """
-  schedule = session.query(Schedule).filter(Schedule.transport_id == entry.transport_id, Schedule.date == dpc).first()
-  if not schedule:
+  # Solo l'id del borderò si memorizza per richiesta: dentro il calcolo della capienza si legge e basta.
+  schedule_id = request_memo(
+    'schedule_id',
+    (entry.transport_id, dpc),
+    lambda: (
+      session.query(Schedule.id).filter(Schedule.transport_id == entry.transport_id, Schedule.date == dpc).scalar()
+    ),
+  )
+  if not schedule_id:
     return None
 
   order_by = ScheduleItem.index.desc() if last else ScheduleItem.index.asc()
   item = (
     session.query(ScheduleItem)
     .filter(
-      ScheduleItem.schedule_id == schedule.id,
+      ScheduleItem.schedule_id == schedule_id,
       ScheduleItem.start_time_slot == entry.start_time,
       ScheduleItem.end_time_slot == entry.end_time,
     )

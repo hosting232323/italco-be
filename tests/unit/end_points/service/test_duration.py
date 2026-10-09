@@ -12,6 +12,7 @@ from src.end_points.service.duration import (
   calculate_order_pickup_minutes,
   calculate_orders_pickup_minutes,
   calculate_payload_pickup_minutes,
+  calculate_payload_service_duration,
   entry_front_slot_minutes,
   entry_lead_minutes,
   entry_occupied_duration,
@@ -21,6 +22,7 @@ from src.end_points.service.duration import (
   payload_pickup_collection_point_ids,
   previous_entry_of_day,
   query_entry_orders,
+  request_memo,
 )
 
 from database_api.operations import create
@@ -30,6 +32,7 @@ from tests.unit.factories import (
   create_order,
   create_product_row,
   create_schedule,
+  create_service,
   create_transport,
   customer_with_service,
   link_order_to_schedule,
@@ -904,3 +907,47 @@ def test_entry_occupied_duration_transition_is_absorbed_by_the_previous_slots_le
   link_order_to_schedule(this_order, schedule, index=1, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
 
   assert entry_occupied_duration(entry, target) == 0
+
+
+def test_request_memo_computes_once_per_request_and_never_outside_one(app):
+  calls = []
+
+  def compute():
+    calls.append(1)
+    return len(calls)
+
+  assert [request_memo('ns', 'key', compute) for _ in range(3)] == [1, 2, 3]
+
+  calls.clear()
+  with app.test_request_context('/'):
+    assert [request_memo('ns', 'key', compute) for _ in range(3)] == [1, 1, 1]
+    assert request_memo('ns', 'other', compute) == 2
+    assert request_memo('other-ns', 'key', compute) == 3
+  with app.test_request_context('/'):
+    assert request_memo('ns', 'key', compute) == 4
+
+
+def test_request_memo_keeps_none_results(app):
+  calls = []
+  with app.test_request_context('/'):
+    for _ in range(3):
+      request_memo('ns', 'none', lambda: calls.append(1))
+  assert len(calls) == 1
+
+
+def test_payload_service_duration_sums_repeated_services_with_a_single_query(db):
+  long_service = create_service(duration=30)
+  short_service = create_service(duration=15)
+  no_duration = create_service()
+  payload = {
+    'products': {
+      'a': {'services': [{'id': long_service.id}, {'id': short_service.id}]},
+      'b': {'services': [{'id': long_service.id}, no_duration.id, 'x', {'id': 999999}]},
+      'c': 'non un prodotto',
+    }
+  }
+
+  assert calculate_payload_service_duration(payload) == 30 + 15 + 30
+  assert calculate_payload_service_duration({'services_id': [short_service.id, short_service.id, 'x']}) == 30
+  assert calculate_payload_service_duration({'services_id': []}) == 0
+  assert calculate_payload_service_duration({}) == 0
