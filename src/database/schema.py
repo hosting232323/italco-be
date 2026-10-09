@@ -178,6 +178,10 @@ class DeliveryCoverageEntry(BaseItalcoEntity):
   # Modalità alternativa al CAP: zona disegnata sulla mappa, lista di [lat, lon].
   # Un blocco ha o dei caps o un polygon (validato in end_points/delivery_coverage.py).
   polygon = Column(JSON, nullable=True)
+  # Area che accetta precarichi: un ordine di quest'area ha come fasce solo
+  # quelle dei giorni in cui il veicolo passa già dagli stessi punti di ritiro
+  # (vedi _passes_same_pickup_points in end_points/delivery_coverage.py).
+  accepts_preloads = Column(Boolean, nullable=False, default=False, server_default='false')
 
   transport = relationship('Transport')
   caps = relationship('DeliveryCoverageCap', back_populates='entry', cascade='all, delete-orphan')
@@ -257,6 +261,10 @@ class Order(BaseItalcoEntity):
   # e usato dalla pianificazione, cosi' capienza e borderò parlano dello stesso
   # veicolo. NULL per gli ordini senza fascia.
   delivery_transport_id = Column(Integer, ForeignKey('transport.id'), nullable=True, index=True)
+  # Ordine precaricato: i prodotti si ritirano il giorno prima della consegna,
+  # quindi nelle aree che accettano precarichi conta anche il passaggio dai
+  # punti di ritiro del giorno precedente.
+  preloaded = Column(Boolean, nullable=False, default=False, server_default='false')
   # Posizione esatta dell'indirizzo scelto dal menu Google (o indicata sulla
   # mappa): chi ce l'ha non passa dal geocoding. NULL per import e indirizzi
   # scritti a mano. Non lat/lon: in GET /order/<id> sono la posizione del corriere.
