@@ -1,7 +1,7 @@
 """via la relazione utenti delivery - borderò, orario di attività company, indirizzo sul veicolo
 
-Revision ID: 067
-Revises: 066
+Revision ID: 068
+Revises: 067
 Create Date: 2026-09-23 12:00:00.000000
 
 - Il borderò eredita i corrieri dal veicolo (delivery_user_info.transport_id):
@@ -16,8 +16,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '067'
-down_revision: Union[str, None] = '066'
+revision: str = '068'
+down_revision: Union[str, None] = '067'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

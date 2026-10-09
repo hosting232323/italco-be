@@ -1,7 +1,7 @@
 """aree che accettano precarichi
 
-Revision ID: 071
-Revises: 070
+Revision ID: 072
+Revises: 071
 Create Date: 2026-10-09 12:00:00.000000
 
 delivery_coverage_entry.accepts_preloads: l'area accetta precarichi, e per i suoi
@@ -16,8 +16,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '071'
-down_revision: Union[str, None] = '070'
+revision: str = '072'
+down_revision: Union[str, None] = '071'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
