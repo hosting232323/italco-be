@@ -1,8 +1,11 @@
+import logging
 import os
+import time
 from flask import Flask, request
 from flask_cors import CORS
 
-from api.settings import IS_DEV
+from api.settings import IS_DEV, TELEGRAM_TOKEN
+from api.telegram import send_telegram_message
 from .checks import trigger_checks
 from api.storage import folder_backup
 from database_api.backup import db_backup
@@ -46,6 +49,7 @@ STATIC_FOLDER = os.environ.get(
   'STATIC_FOLDER', os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'static')
 )
 app = Flask(__name__, template_folder='../templates')
+logger = logging.getLogger(__name__)
 
 
 API_PREFIX = os.environ.get('API_PREFIX', None)
@@ -118,3 +122,68 @@ def delivery_app_min_version():
       min_build_number,
     )
   return {'status': 'ok', 'min_build_number': min_build_number}
+
+
+# Tetti sui campi del rapporto: l'endpoint e' aperto (un errore puo' capitare
+# prima del login) quindi niente che arrivi da fuori finisce nel log senza limite.
+DELIVERY_APP_ERROR_REPORT_FIELDS = {
+  'message': 1000,
+  'stack': 6000,
+  'source': 100,
+  'occurred_at': 40,
+  'app_version': 40,
+  'commit': 64,
+  'build_number': 20,
+  'platform': 20,
+}
+
+
+# Anti-spam della notifica Telegram: l'endpoint e' aperto, quindi lo stesso
+# errore avvisa una volta sola per finestra e in totale ci sono al massimo
+# DELIVERY_APP_ERROR_ALERTS_PER_HOUR avvisi all'ora. Il log li ha comunque tutti.
+DELIVERY_APP_ERROR_ALERT_WINDOW_SECONDS = 3600
+DELIVERY_APP_ERROR_ALERTS_PER_HOUR = 10
+_delivery_app_error_alerts = {}
+
+
+def _notify_delivery_app_error(report):
+  if IS_DEV or not TELEGRAM_TOKEN:
+    return
+
+  now = time.monotonic()
+  for key, sent_at in list(_delivery_app_error_alerts.items()):
+    if now - sent_at > DELIVERY_APP_ERROR_ALERT_WINDOW_SECONDS:
+      del _delivery_app_error_alerts[key]
+  key = (report['app_version'], report['build_number'], report['message'], report['stack'].split(' | ')[0])
+  if key in _delivery_app_error_alerts or len(_delivery_app_error_alerts) >= DELIVERY_APP_ERROR_ALERTS_PER_HOUR:
+    return
+  _delivery_app_error_alerts[key] = now
+
+  detail = (report['message'] + chr(10) + report['stack'].replace(' | ', chr(10))).replace('```', "'''")
+  send_telegram_message(
+    '*📱 Errore app corrieri*\n'
+    f'{report["platform"]} · v{report["app_version"]} · build {report["build_number"]} · {report["commit"][:8]}\n'
+    f'```\n{detail}\n```'
+  )
+
+
+@app.route('/delivery-app/error-report', methods=['POST'])
+def delivery_app_error_report():
+  # Rapporto di un errore non gestito dell'app corrieri (ErrorReporter in
+  # delivery-app). Nessuna autenticazione, come /delivery-app/min-version, e
+  # nessuna tabella: finisce nel log del servizio, una riga per rapporto.
+  body = request.get_json(silent=True)
+  if not isinstance(body, dict):
+    return {'status': 'ko', 'message': 'Rapporto non valido'}, 400
+
+  report = {
+    field: str(body.get(field, ''))[:limit].replace(chr(10), ' | ')
+    for field, limit in DELIVERY_APP_ERROR_REPORT_FIELDS.items()
+  }
+  _notify_delivery_app_error(report)
+  logger.error(
+    'delivery-app error report: platform=%(platform)s version=%(app_version)s build=%(build_number)s '
+    'commit=%(commit)s source=%(source)s at=%(occurred_at)s message=%(message)s stack=%(stack)s',
+    report,
+  )
+  return {'status': 'ok'}
