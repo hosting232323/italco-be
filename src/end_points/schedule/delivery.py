@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from ...database.enum import OrderStatus
 from database_api.operations import get_by_id, update
 from ...database.schema import User, ScheduleItem, Order
+from .preload import annotate_preloads
 from .queries import query_schedules, format_query_result, close_schedule_position_if_done
 
 
@@ -19,6 +20,7 @@ def get_items_for_delivery(delivery_user: User):
     schedules = format_query_result(tupla, schedules)
   if len(schedules) == 0:
     return {'status': 'ok', 'schedule_id': None, 'schedule_items': []}
+  annotate_preloads(schedules)
 
   if len(schedules) > 1:
     return {'status': 'ko', 'message': 'Numero di bordero trovati non valido'}
@@ -43,6 +45,7 @@ def get_history_for_delivery(delivery_user: User):
   ):
     schedules = format_query_result(tupla, schedules)
 
+  annotate_preloads(schedules)
   for schedule in schedules:
     schedule['schedule_items'] = sorted(schedule['schedule_items'], key=lambda schedule_item: schedule_item['index'])
   schedules.sort(key=lambda schedule: schedule['date'], reverse=True)
@@ -65,8 +68,12 @@ def update_schedule_item(delivery_user: User, schedule_item_id: int, completed: 
     if item['operation_type'] == 'CollectionPoint':
       continue
 
+    # I prodotti precaricati si ritirano il giorno prima: qui non c'e' una
+    # tappa di ritiro da aspettare.
     required_cp_ids = [
-      product['collection_point']['id'] for product in item['products'].values() if 'collection_point' in product
+      product['collection_point']['id']
+      for product in item['products'].values()
+      if 'collection_point' in product and not product.get('preloaded')
     ]
     if all(
       collection_point['completed']

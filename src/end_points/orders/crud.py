@@ -12,6 +12,8 @@ from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_products, update_products
 from ..delivery_coverage import SlotUnavailableError, resolve_delivery_entry
+from ..schedule.preload import order_is_preloaded
+from ..service.duration import payload_pickup_collection_point_ids
 from ..service.duration import order_products_payload
 from ...utils.geo import parse_coordinates
 from ...utils.caps import get_lat_lon_by_address, remember_address_coordinates
@@ -33,6 +35,7 @@ NON_UPDATABLE_ORDER_FIELDS = frozenset(
   {
     'products',
     'delivery_transport_id',
+    'preloaded',
     'user_id',
     'company_id',
     'start_time_slot',
@@ -55,7 +58,6 @@ ROLE_UPDATABLE_ORDER_FIELDS = {
       'addressee_contact',
       'customer_note',
       'drc',
-      'preloaded',
       'products',
       'version',
     }
@@ -214,10 +216,12 @@ def create_order(user: User, data: dict):
           products=data.get('products'),
           user_id=user.id,
           address=clean_data.get('address'),
-          preloaded=bool(clean_data.get('preloaded')),
         )
       except SlotUnavailableError as error:
         return {'status': 'ko', 'message': str(error)}
+      clean_data['preloaded'] = order_is_preloaded(
+        entry, payload_pickup_collection_point_ids(data.get('products')), session
+      )
       clean_data['delivery_slot_start'] = entry.start_time if entry else None
       clean_data['delivery_slot_end'] = entry.end_time if entry else None
       clean_data['delivery_transport_id'] = entry.transport_id if entry else None
@@ -225,6 +229,8 @@ def create_order(user: User, data: dict):
       clean_data.pop('delivery_slot_start', None)
       clean_data.pop('delivery_slot_end', None)
       clean_data.pop('delivery_transport_id', None)
+      # Il precarico lo decide il server (area + punti di ritiro), mai il client.
+      clean_data.pop('preloaded', None)
 
     order: Order = create(Order, clean_data, session=session)
     create_products(
@@ -381,12 +387,13 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
         products=data.get('products') or order_products_payload(order, session),
         user_id=user.id,
         address=data.get('address', order.address),
-        preloaded=bool(data.get('preloaded', order.preloaded)),
       )
+      products_payload = data.get('products') or order_products_payload(order, session)
       planning_fields = {
         'delivery_slot_start': entry.start_time if entry else None,
         'delivery_slot_end': entry.end_time if entry else None,
         'delivery_transport_id': entry.transport_id if entry else None,
+        'preloaded': order_is_preloaded(entry, payload_pickup_collection_point_ids(products_payload), session),
       }
       replan = True
       if order.status in (OrderStatus.SCHEDULED, OrderStatus.BOOKING):

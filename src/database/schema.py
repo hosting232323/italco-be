@@ -428,6 +428,11 @@ class CollectionPoint(BaseItalcoEntity):
   # non deve geocodificare a ogni richiesta.
   lat = Column(Float)
   lon = Column(Float)
+  # Punto che ammette il precarico: nelle aree che accettano precarichi i suoi
+  # prodotti si ritirano il giorno prima della consegna (vedi
+  # end_points/schedule/preload.py). Un prodotto con un altro punto di ritiro
+  # non precaricato si ritira normalmente.
+  preloaded = Column(Boolean, nullable=False, default=False, server_default='false')
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='collection_point')

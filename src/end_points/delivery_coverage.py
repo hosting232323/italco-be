@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import asc
+from sqlalchemy import and_, asc, or_
 from sqlalchemy.orm import joinedload
 from flask import Blueprint, request
 
@@ -271,7 +271,6 @@ def _passes_same_pickup_points(
   entry: DeliveryCoverageEntry,
   dpc,
   new_products: dict,
-  preloaded: bool,
   session,
   exclude_order_id: int = None,
 ) -> bool:
@@ -279,26 +278,31 @@ def _passes_same_pickup_points(
 
   Vale solo per le aree che accettano precarichi (accepts_preloads); le altre non
   hanno questo vincolo. Un punto di ritiro è già visitato se un altro ordine dello
-  stesso veicolo, nella giornata (o in quella prima, per un ordine precaricato), ha
-  un prodotto da ritirare lì. Un ordine senza punti di ritiro non ha nulla da
-  incrociare: nessun vincolo.
+  stesso veicolo, nella giornata (o in quella prima, se il punto ammette il
+  precarico), ha un prodotto da ritirare lì. Un ordine senza punti di ritiro non ha
+  nulla da incrociare: nessun vincolo.
   """
   if not entry.accepts_preloads:
     return True
+  from .schedule.preload import preloaded_collection_point_ids
   from .service.duration import payload_pickup_collection_point_ids
 
   collection_point_ids = set(payload_pickup_collection_point_ids(new_products or {}))
   if not collection_point_ids:
     return True
-  days = [dpc, dpc - timedelta(days=1)] if preloaded else [dpc]
+  preloaded_ids = preloaded_collection_point_ids(collection_point_ids, session)
+  normal_ids = collection_point_ids - preloaded_ids
+  conditions = []
+  if normal_ids:
+    conditions.append(and_(Order.dpc == dpc, Product.collection_point_id.in_(normal_ids)))
+  if preloaded_ids:
+    conditions.append(
+      and_(Order.dpc.in_([dpc, dpc - timedelta(days=1)]), Product.collection_point_id.in_(preloaded_ids))
+    )
   query = (
     session.query(Product.id)
     .join(Order, Product.order_id == Order.id)
-    .filter(
-      Order.delivery_transport_id == entry.transport_id,
-      Order.dpc.in_(days),
-      Product.collection_point_id.in_(collection_point_ids),
-    )
+    .filter(Order.delivery_transport_id == entry.transport_id, or_(*conditions))
   )
   if exclude_order_id:
     query = query.filter(Order.id != exclude_order_id)
@@ -382,7 +386,6 @@ def available_slots(
   new_address: str = None,
   new_products: dict = None,
   entries: list[DeliveryCoverageEntry] = None,
-  preloaded: bool = False,
 ) -> list[dict]:
   """Fasce orarie coperte dal CAP nel giorno della settimana di dpc con capienza residua
 
@@ -416,9 +419,7 @@ def available_slots(
   available = {}
   with Session() as session:
     for entry in entries:
-      if not _passes_same_pickup_points(
-        entry, dpc, new_products, preloaded, session, exclude_order_id=exclude_order_id
-      ):
+      if not _passes_same_pickup_points(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
         continue
       effective = _entry_with_residual_capacity(
         entry,
@@ -450,7 +451,6 @@ def available_slots_by_date(
   new_cap: str = None,
   new_address: str = None,
   new_products: dict = None,
-  preloaded: bool = False,
 ) -> dict:
   # Sostituisce il vecchio check_geographic_zone in /check-constraints: la
   # data prevista dal cliente è selezionabile se il suo CAP è coperto da
@@ -472,7 +472,6 @@ def available_slots_by_date(
         new_address=new_address,
         new_products=new_products,
         entries=entries,
-        preloaded=preloaded,
       )
       if slots:
         result[start.strftime('%Y-%m-%d')] = slots
@@ -506,7 +505,6 @@ def check_delivery_coverage_slots(*args, **kwargs) -> dict:
     new_cap=new_cap,
     new_address=payload.get('address'),
     new_products=payload.get('products'),
-    preloaded=bool(payload.get('preloaded')),
   )
 
 
@@ -524,7 +522,6 @@ def resolve_delivery_entry(
   products: dict = None,
   user_id: int = None,
   address: str = None,
-  preloaded: bool = False,
 ) -> DeliveryCoverageEntry | None:
   """CAP + data prevista dal cliente -> blocco di copertura (veicolo + fascia)
 
@@ -558,7 +555,7 @@ def resolve_delivery_entry(
     entries = [
       entry
       for entry in entries
-      if _passes_same_pickup_points(entry, dpc, products, preloaded, session, exclude_order_id=exclude_order_id)
+      if _passes_same_pickup_points(entry, dpc, products, session, exclude_order_id=exclude_order_id)
     ]
   if not entries:
     raise SlotUnavailableError('Non ci sono più fasce disponibili per questa data: scegli un altro giorno')
