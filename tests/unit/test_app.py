@@ -138,3 +138,105 @@ def test_delivery_app_min_version_missing_platform_uses_the_legacy_threshold(cli
   response = client.get('/delivery-app/min-version')
 
   assert response.get_json() == {'status': 'ok', 'min_build_number': 205}
+
+
+def capture_error_log(monkeypatch):
+  # Il logger dell'app lo configura la lib condivisa: lo si intercetta
+  # direttamente invece di dipendere dalla sua propagazione a caplog.
+  lines = []
+  monkeypatch.setattr(app_module.logger, 'error', lambda fmt, args: lines.append(fmt % args))
+  return lines
+
+
+def test_delivery_app_error_report_logs_the_report_without_authentication(client, monkeypatch):
+  lines = capture_error_log(monkeypatch)
+  response = client.post(
+    '/delivery-app/error-report',
+    json={
+      'message': 'Bad state: boom',
+      'stack': '#0 main' + chr(10) + '#1 run',
+      'source': 'async',
+      'occurred_at': '2026-10-05T12:00:00.000Z',
+      'app_version': '1.0.0',
+      'commit': 'abc123',
+      'build_number': 42,
+      'platform': 'android',
+    },
+  )
+
+  assert response.get_json() == {'status': 'ok'}
+  line = lines[-1]
+  assert 'platform=android' in line
+  assert 'build=42' in line
+  assert 'commit=abc123' in line
+  assert 'message=Bad state: boom' in line
+  assert 'stack=#0 main | #1 run' in line
+
+
+def test_delivery_app_error_report_truncates_oversized_fields(client, monkeypatch):
+  lines = capture_error_log(monkeypatch)
+  client.post('/delivery-app/error-report', json={'message': 'x' * 5000})
+
+  assert 'x' * 1001 not in lines[-1]
+
+
+def test_delivery_app_error_report_rejects_a_body_that_is_not_an_object(client):
+  response = client.post('/delivery-app/error-report', json=['non', 'un', 'oggetto'])
+
+  assert response.status_code == 400
+  assert response.get_json()['status'] == 'ko'
+
+
+def enable_telegram(monkeypatch):
+  sent = []
+  monkeypatch.setattr(app_module, 'IS_DEV', False)
+  monkeypatch.setattr(app_module, 'TELEGRAM_TOKEN', 'token')
+  monkeypatch.setattr(app_module, 'send_telegram_message', sent.append)
+  monkeypatch.setattr(app_module, '_delivery_app_error_alerts', {})
+  return sent
+
+
+def test_delivery_app_error_report_alerts_telegram_once_per_error(client, monkeypatch):
+  sent = enable_telegram(monkeypatch)
+  report = {
+    'message': 'Bad state: boom',
+    'stack': '#0 main',
+    'app_version': '1.0.0',
+    'build_number': 42,
+    'commit': 'abcdef123456',
+  }
+
+  client.post('/delivery-app/error-report', json=report)
+  client.post('/delivery-app/error-report', json=report)
+  client.post('/delivery-app/error-report', json={**report, 'message': 'altro errore'})
+
+  assert len(sent) == 2
+  assert 'build 42' in sent[0]
+  assert 'abcdef12' in sent[0]
+  assert 'Bad state: boom' in sent[0]
+
+
+def test_delivery_app_error_report_caps_telegram_alerts_per_hour(client, monkeypatch):
+  sent = enable_telegram(monkeypatch)
+
+  for index in range(app_module.DELIVERY_APP_ERROR_ALERTS_PER_HOUR + 5):
+    client.post('/delivery-app/error-report', json={'message': f'errore {index}'})
+
+  assert len(sent) == app_module.DELIVERY_APP_ERROR_ALERTS_PER_HOUR
+
+
+def test_delivery_app_error_report_does_not_alert_in_dev_or_without_token(client, monkeypatch):
+  sent = enable_telegram(monkeypatch)
+  monkeypatch.setattr(app_module, 'TELEGRAM_TOKEN', None)
+
+  client.post('/delivery-app/error-report', json={'message': 'boom'})
+
+  assert sent == []
+
+
+def test_delivery_app_error_report_alert_cannot_break_out_of_the_code_block(client, monkeypatch):
+  sent = enable_telegram(monkeypatch)
+
+  client.post('/delivery-app/error-report', json={'message': 'a ``` b'})
+
+  assert sent[0].count('```') == 2
