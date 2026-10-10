@@ -34,7 +34,7 @@ def post(client, payload, **kwargs):
 
 def test_sends_to_configured_recipients_and_stores_mails(client, mailer):
   response = post(
-    client, {**VALID, 'citta': 'Bari', 'messaggio': 'Vorrei una demo'}, headers={'Origin': 'https://ares-logistics.it'}
+    client, {**VALID, 'citta': 'Bari', 'messaggio': 'Vorrei una demo'}, headers={'Origin': 'https://hubstra.it'}
   )
 
   assert response.status_code == 200
@@ -51,7 +51,7 @@ def test_sends_to_configured_recipients_and_stores_mails(client, mailer):
   with Session() as session:
     saved = session.query(Mail).order_by(Mail.id).all()
   assert [m.recipient for m in saved] == ['uno@ares.it', 'due@ares.it']
-  assert saved[0].origin == 'https://ares-logistics.it'
+  assert saved[0].origin == 'https://hubstra.it'
   assert saved[0].content == body
 
 
