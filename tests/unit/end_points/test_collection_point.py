@@ -156,6 +156,22 @@ def test_update_collection_point(client):
   assert get_by_id(CollectionPoint, collection_point.id).name == 'Nuovo nome'
 
 
+def test_collection_point_preloaded_flag_defaults_off_and_is_editable(client):
+  customer = create_user(UserRole.CUSTOMER)
+
+  created = client.post(
+    '/collection-point',
+    json={'name': 'Magazzino', 'address': 'Via X 1', 'cap': '70020', 'preloaded': True},
+    headers=auth_header(customer),
+  ).get_json()['collection_point']
+  assert created['preloaded'] is True
+
+  collection_point = create_collection_point(customer)
+  assert collection_point.preloaded is False
+  client.put(f'/collection-point/{collection_point.id}', json={'preloaded': True}, headers=auth_header(customer))
+  assert get_by_id(CollectionPoint, collection_point.id).preloaded is True
+
+
 def test_delete_collection_point(client):
   customer = create_user(UserRole.CUSTOMER)
   collection_point = create_collection_point(customer)

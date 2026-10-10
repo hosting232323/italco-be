@@ -11,6 +11,7 @@ from ...database.schema import Schedule, User, Order, ScheduleItem, ScheduleItem
 from .delivery import get_items_for_delivery, get_history_for_delivery, update_schedule_item
 from .position import get_schedule_position, claim_schedule_position
 from .sms_sender import schedule_sms_check
+from .preload import annotate_preloads
 from database_api.operations import create, delete, get_by_id, update
 from ..orders.queries import query_orders, format_query_result as format_query_orders_result
 from .utils import (
@@ -128,6 +129,7 @@ def get_schedules(_):
       for tupla in get_schedule_item_for_order_id_filter(schedule['id']):
         format_schedule_item(schedule['schedule_items'], tupla[1], tupla[2], tupla[3], tupla[4], None)
 
+  annotate_preloads(schedules)
   return {'status': 'ok', 'schedules': schedules}
 
 

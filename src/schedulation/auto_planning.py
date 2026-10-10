@@ -18,6 +18,7 @@ di ``create_order`` dopo il commit iniziale dell'ordine.
 """
 
 import logging
+from datetime import timedelta
 
 from sqlalchemy.orm import Session as session_type
 
@@ -33,8 +34,15 @@ from ..database.schema import (
 )
 from ..end_points.rae.product import emit_rae_products
 from ..end_points.orders.queries import query_products
+from ..end_points.schedule.preload import preloaded_pickup_ids_for_order
 from ..end_points.schedule.queries import get_schedule_items
-from .routing import link_missing_collection_points, optimize_schedule_stops, required_collection_point_ids_for_order
+from .routing import (
+  link_missing_collection_points,
+  link_preloaded_collection_points,
+  next_day_preloaded_ids,
+  optimize_schedule_stops,
+  required_collection_point_ids_for_order,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +192,8 @@ def insert_order_into_schedule(
 
   link_missing_collection_points(order, schedule, entry.start_time, entry.end_time, session=session)
   optimize_schedule_stops(schedule, session=session)
+  # I ritiri precaricati stanno nel borderò della vigilia, non in questo.
+  link_preloaded_collection_points(order, entry.transport_id, entry.start_time, entry.end_time, session=session)
 
   # Stato ordine: BOOKING se tutti i prodotti hanno veicolo, altrimenti SCHEDULED
   products = query_products(order, session=session)
@@ -223,6 +233,7 @@ def unplan_order(order: Order, session: session_type) -> None:
 
   schedule_ids = {item.schedule_id for item, _ in rows}
   pickup_ids = required_collection_point_ids_for_order(order, session)
+  preloaded_ids = preloaded_pickup_ids_for_order(order, session)
   delete_schedule_items([(item, None, sio) for item, sio in rows], session=session)
   session.flush()
 
@@ -232,12 +243,31 @@ def unplan_order(order: Order, session: session_type) -> None:
     _renumber_stops(schedule, session)
     optimize_schedule_stops(schedule, session=session)
 
+  # I ritiri precaricati erano nel borderò della vigilia: escono con l'ordine
+  # se nessun altro li richiede.
+  if preloaded_ids and order.delivery_transport_id and order.dpc:
+    eve = (
+      session.query(Schedule)
+      .filter(
+        Schedule.date == order.dpc - timedelta(days=1),
+        Schedule.transport_id == order.delivery_transport_id,
+      )
+      .first()
+    )
+    if eve:
+      _drop_orphan_pickups(eve, preloaded_ids, session, exclude_order_id=order.id)
+      _renumber_stops(eve, session)
+      optimize_schedule_stops(eve, session=session)
 
-def _drop_orphan_pickups(schedule: Schedule, pickup_ids: set[int], session: session_type) -> None:
+
+def _drop_orphan_pickups(
+  schedule: Schedule, pickup_ids: set[int], session: session_type, exclude_order_id: int = None
+) -> None:
   if not pickup_ids:
     return
   rows = get_schedule_items(schedule, session=session)
-  still_needed: set[int] = set()
+  # Una tappa serve anche ai precarichi del giorno dopo, non solo agli ordini del borderò.
+  still_needed: set[int] = next_day_preloaded_ids(schedule, session, exclude_order_id=exclude_order_id)
   for _item, _scp, sio in rows:
     if sio:
       remaining = session.get(Order, sio.order_id)

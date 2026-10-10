@@ -30,7 +30,7 @@ mantenendo l'ordine relativo originale invece di far fallire la richiesta.
 
 from concurrent.futures import ThreadPoolExecutor
 import logging
-from datetime import time
+from datetime import time, timedelta
 from dataclasses import dataclass
 from collections import defaultdict
 
@@ -44,8 +44,10 @@ from ..database.schema import (
   Schedule,
   ScheduleItem,
   ScheduleItemCollectionPoint,
+  ScheduleItemOrder,
 )
 from ..end_points.orders.queries import query_products
+from ..end_points.schedule.preload import preloaded_pickup_ids_for_order
 from ..end_points.schedule.queries import get_schedule_items
 from ..end_points.service.travel import get_lat_lon_by_cap, trip_order_osrm
 from ..utils.caps import get_lat_lon_by_address
@@ -69,8 +71,62 @@ class StopContext:
 
 
 def required_collection_point_ids_for_order(order: Order, session: session_type) -> set[int]:
-  """Punti di ritiro richiesti da ``order``, dedotti dai suoi prodotti."""
-  return {p.collection_point_id for p in query_products(order, session=session) if p.collection_point_id}
+  """Punti di ritiro da visitare nel borderò di ``order``, dedotti dai suoi prodotti.
+
+  Quelli precaricati non ci sono: si ritirano il giorno prima, nella tappa del
+  borderò della vigilia (vedi ``link_preloaded_collection_points``).
+  """
+  ids = {p.collection_point_id for p in query_products(order, session=session) if p.collection_point_id}
+  return ids - preloaded_pickup_ids_for_order(order, session)
+
+
+def next_day_preloaded_ids(schedule: Schedule, session: session_type, exclude_order_id: int = None) -> set[int]:
+  """Punti di ritiro che il borderò ``schedule`` visita per i precarichi del giorno dopo."""
+  # Solo gli ordini pianificati: uno tolto dal borderò non ha piu' bisogno della tappa.
+  planned_order_ids = session.query(ScheduleItemOrder.order_id)
+  orders = (
+    session.query(Order)
+    .filter(
+      Order.delivery_transport_id == schedule.transport_id,
+      Order.dpc == schedule.date + timedelta(days=1),
+      Order.preloaded.is_(True),
+      Order.id.in_(planned_order_ids),
+    )
+    .all()
+  )
+  ids: set[int] = set()
+  for order in orders:
+    if order.id != exclude_order_id:
+      ids |= preloaded_pickup_ids_for_order(order, session)
+  return ids
+
+
+def link_preloaded_collection_points(order: Order, transport_id: int, start_time_slot, end_time_slot, session):
+  """Porta nel borderò della vigilia i ritiri precaricati di ``order``.
+
+  Stesso veicolo, giorno prima della consegna. Se il borderò della vigilia non
+  esiste lo crea (con le sole tappe di ritiro); le tappe già presenti si
+  riusano, come per i ritiri normali.
+  """
+  preloaded_ids = preloaded_pickup_ids_for_order(order, session)
+  if not preloaded_ids or not order.dpc:
+    return []
+
+  eve = order.dpc - timedelta(days=1)
+  schedule = (
+    session.query(Schedule).filter(Schedule.date == eve, Schedule.transport_id == transport_id).first()
+  ) or create(Schedule, {'date': eve, 'transport_id': transport_id}, session=session)
+  first_item = (
+    session.query(ScheduleItem).filter(ScheduleItem.schedule_id == schedule.id).order_by(ScheduleItem.index).first()
+  )
+  if first_item:
+    start_time_slot, end_time_slot = first_item.start_time_slot, first_item.end_time_slot
+  created = link_missing_collection_points(
+    order, schedule, start_time_slot, end_time_slot, session=session, collection_point_ids=preloaded_ids
+  )
+  if created:
+    optimize_schedule_stops(schedule, session=session)
+  return created
 
 
 def link_missing_collection_points(
@@ -79,6 +135,7 @@ def link_missing_collection_points(
   start_time_slot,
   end_time_slot,
   session: session_type,
+  collection_point_ids: set[int] = None,
 ) -> list[ScheduleItem]:
   """Crea nel borderò le tappe ``CollectionPoint`` richieste da ``order`` che non ci sono già.
 
@@ -93,10 +150,17 @@ def link_missing_collection_points(
   del borderò va in errore (``format_schedule_item`` ci chiama ``.strftime()``
   senza controllo, come fanno tutte le tappe create dal flusso manuale).
 
+  ``collection_point_ids`` restringe i punti da collegare (i ritiri precaricati
+  vanno nel borderò della vigilia); senza, sono quelli del borderò di consegna.
+
   Returns:
     Le nuove ``ScheduleItem`` create (lista vuota se non serviva nulla).
   """
-  required_ids = required_collection_point_ids_for_order(order, session)
+  required_ids = (
+    collection_point_ids
+    if collection_point_ids is not None
+    else required_collection_point_ids_for_order(order, session)
+  )
   if not required_ids:
     return []
 

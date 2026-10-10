@@ -666,3 +666,78 @@ def test_optimize_moves_a_shared_pickup_to_the_earliest_slot_that_needs_it(
   items = {item.id: item for item in _find(ScheduleItem, schedule_id=schedule.id)}
   assert [items[i].index for i in (pickup.id, order_items[morning].id, order_items[noon].id)] == [0, 1, 2]
   assert (items[pickup.id].start_time_slot, items[pickup.id].end_time_slot) == morning
+
+
+# ---------------------------------------------------------------------------
+# Test: precarico (ritiro nel borderò della vigilia)
+# ---------------------------------------------------------------------------
+
+
+def _plan(order):
+  from database_api import Session
+
+  with Session() as session:
+    session.flush()
+    auto_plan_order(order, session)
+    session.commit()
+
+
+def _preloaded_order(entry, *points):
+  """Ordine precaricato con un prodotto per ognuno dei punti di ritiro."""
+  from database_api.operations import update
+  from tests.unit.factories import create_product_row, customer_with_service
+
+  _, _, service_user, _ = customer_with_service()
+  order = update(_make_order_with_slot(), {'preloaded': True, 'delivery_transport_id': entry.transport_id})
+  for index, point in enumerate(points):
+    create_product_row(order, service_user, name=f'prodotto {index}', collection_point_id=point.id)
+  return order
+
+
+@patch('src.schedulation.routing.optimize_schedule_stops')
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_preloaded_pickup_goes_to_the_eve_schedule(_optimize, _optimize_eve, db, entry, delivery_user):
+  from database_api.operations import update
+  from src.database.schema import ScheduleItemCollectionPoint
+  from tests.unit.factories import create_collection_point
+
+  point = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  normal_point = create_collection_point(create_user(UserRole.CUSTOMER))
+  order = _preloaded_order(entry, point, normal_point)
+
+  _plan(order)
+
+  eve = _find(Schedule, date=TARGET - timedelta(days=1))[0]
+  assert eve.transport_id == entry.transport_id
+  preloaded_stop = _find(ScheduleItemCollectionPoint, collection_point_id=point.id)[0]
+  assert _find(ScheduleItem, id=preloaded_stop.schedule_item_id)[0].schedule_id == eve.id
+  # Il punto non precaricato dello stesso ordine resta nel borderò della consegna.
+  normal_stop = _find(ScheduleItemCollectionPoint, collection_point_id=normal_point.id)[0]
+  day = _find(Schedule, date=TARGET)[0]
+  assert _find(ScheduleItem, id=normal_stop.schedule_item_id)[0].schedule_id == day.id
+
+
+@patch('src.schedulation.routing.optimize_schedule_stops')
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_preloaded_pickup_reuses_the_eve_stop_and_follows_the_last_order_out(_optimize, _optimize_eve, db, entry):
+  from database_api import Session
+  from database_api.operations import update
+  from src.database.schema import ScheduleItemCollectionPoint
+  from src.schedulation.auto_planning import unplan_order
+  from tests.unit.factories import create_collection_point
+
+  point = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  first, second = _preloaded_order(entry, point), _preloaded_order(entry, point)
+  _plan(first)
+  _plan(second)
+  assert len(_find(ScheduleItemCollectionPoint, collection_point_id=point.id)) == 1
+
+  with Session() as session:
+    unplan_order(session.get(Order, first.id), session)
+    session.commit()
+  assert len(_find(ScheduleItemCollectionPoint, collection_point_id=point.id)) == 1
+
+  with Session() as session:
+    unplan_order(session.get(Order, second.id), session)
+    session.commit()
+  assert _find(ScheduleItemCollectionPoint, collection_point_id=point.id) == []
