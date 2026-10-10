@@ -77,7 +77,7 @@ def mailer_check(order: Order, data: dict, motivation: str | None):
             'Sede legale: Via Emanuele Filiberto Duca 24/A, 72023 Mesagne (BR)\n'
             'P. IVA IT02735550747\n'
             'PEC: italco.misrls@pec.it\n'
-            'www.ares-logistics.it'
+            'www.hubstra.it'
           ),
           'html': (
             '<hr style="border:none;border-top:1px solid #ddd;margin:12px 0">'
@@ -86,7 +86,7 @@ def mailer_check(order: Order, data: dict, motivation: str | None):
             'Sede legale: Via Emanuele Filiberto Duca 24/A, 72023 Mesagne (BR)<br>'
             'P. IVA IT02735550747<br>'
             'PEC: <a href="mailto:italco.misrls@pec.it">italco.misrls@pec.it</a><br>'
-            '<a href="https://www.ares-logistics.it">www.ares-logistics.it</a>'
+            '<a href="https://www.hubstra.it">www.hubstra.it</a>'
             '</div>'
           ),
         },

@@ -13,8 +13,8 @@ from api import swagger_decorator, register_flask_hooks, PrefixMiddleware
 
 
 allowed_origins = [
-  'https://ares-logistics.it',
-  'https://www.ares-logistics.it',
+  'https://hubstra.it',
+  'https://www.hubstra.it',
 ]
 DATABASE_URL = os.environ['DATABASE_URL']
 LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
