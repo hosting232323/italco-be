@@ -79,6 +79,14 @@
 
       docker rm -f "${SERVICE}-${NEXT}" 2>/dev/null || true
 
+      # Host legacy opzionale (variabile CI LEGACY_PUBLIC_HOST): durante un cambio
+      # di dominio il router risponde sia al nuovo host sia al vecchio, perche' le
+      # app gia' installate hanno il vecchio dominio compilato dentro.
+      HOST_RULE="Host(\`${PUBLIC_HOST_PIPELINE}\`)"
+      if [ -n "${LEGACY_PUBLIC_HOST}" ]; then
+        HOST_RULE="${HOST_RULE} || Host(\`${HOST_PREFIX}${LEGACY_PUBLIC_HOST}\`)"
+      fi
+
       # "web" e' la rete condivisa creata da generic-deploy, ed e' anche il nome
       # dell'unico entrypoint di Traefik (--entrypoints.web.address=:8080): sono
       # due cose distinte che per caso si chiamano uguale. Non serve la label
@@ -94,7 +102,7 @@
         -v /opt/db-backup-fallback:/opt/db-backup-fallback \
         -v /opt/docker-ssh:/root/.ssh:ro \
         --label "traefik.enable=true" \
-        --label "traefik.http.routers.${SERVICE}-${NEXT}.rule=Host(\`${PUBLIC_HOST_PIPELINE}\`) && PathPrefix(\`/${API_PREFIX}\`)" \
+        --label "traefik.http.routers.${SERVICE}-${NEXT}.rule=(${HOST_RULE}) && PathPrefix(\`/${API_PREFIX}\`)" \
         --label "traefik.http.routers.${SERVICE}-${NEXT}.entrypoints=web" \
         --label "traefik.http.routers.${SERVICE}-${NEXT}.service=${SERVICE}" \
         --label "traefik.http.services.${SERVICE}.loadbalancer.server.port=8080" \
@@ -140,6 +148,7 @@ deploy_test:
   variables:
     SERVICE: "${PROJECT_NAME}-test"
     PUBLIC_HOST_PIPELINE: "test.${PUBLIC_HOST}"
+    HOST_PREFIX: "test."
     DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
     EURONICS_API_PASSWORD_PIPELINE: 0
     IS_DEV: 1
@@ -152,6 +161,7 @@ deploy_prod:
   variables:
     SERVICE: "$PROJECT_NAME"
     PUBLIC_HOST_PIPELINE: "$PUBLIC_HOST"
+    HOST_PREFIX: ""
     DATABASE_URL_PIPELINE: "$DATABASE_URL"
     EURONICS_API_PASSWORD_PIPELINE: "$EURONICS_API_PASSWORD"
     IS_DEV: 0
