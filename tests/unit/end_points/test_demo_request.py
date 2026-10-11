@@ -17,7 +17,7 @@ VALID = {
 @pytest.fixture(autouse=True)
 def mailer(monkeypatch):
   demo_request._attempts.clear()
-  monkeypatch.setattr(demo_request, 'DEMO_REQUEST_EMAILS', ['uno@ares.it', 'due@ares.it'])
+  monkeypatch.setattr(demo_request, 'DEMO_REQUEST_EMAILS', ['uno@hubstra.it', 'due@hubstra.it'])
   sent = []
 
   def fake_send(email, body, subject, **kwargs):
@@ -39,7 +39,7 @@ def test_sends_to_configured_recipients_and_stores_mails(client, mailer):
 
   assert response.status_code == 200
   assert response.get_json()['status'] == 'ok'
-  assert [m[0] for m in mailer] == ['uno@ares.it', 'due@ares.it']
+  assert [m[0] for m in mailer] == ['uno@hubstra.it', 'due@hubstra.it']
   _, body, subject = mailer[0]
   assert subject == 'Richiesta demo HUBSTRA — Rossi Logistica SRL'
   assert 'Nome: Mario Rossi' in body
@@ -50,7 +50,7 @@ def test_sends_to_configured_recipients_and_stores_mails(client, mailer):
 
   with Session() as session:
     saved = session.query(Mail).order_by(Mail.id).all()
-  assert [m.recipient for m in saved] == ['uno@ares.it', 'due@ares.it']
+  assert [m.recipient for m in saved] == ['uno@hubstra.it', 'due@hubstra.it']
   assert saved[0].origin == 'https://hubstra.it'
   assert saved[0].content == body
 
@@ -131,6 +131,6 @@ def test_reports_failure_when_no_email_is_delivered(client, monkeypatch):
 
 
 def test_ok_when_at_least_one_recipient_is_reached(client, monkeypatch):
-  monkeypatch.setattr(demo_request, 'send_email', lambda email, *args, **kwargs: email == 'due@ares.it')
+  monkeypatch.setattr(demo_request, 'send_email', lambda email, *args, **kwargs: email == 'due@hubstra.it')
 
   assert post(client, VALID).get_json()['status'] == 'ok'

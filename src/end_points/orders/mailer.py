@@ -73,7 +73,7 @@ def mailer_check(order: Order, data: dict, motivation: str | None):
         signature={
           'text': (
             '--\n'
-            'Ares Logistics - Italco.mi Logistribuzioni srls\n'
+            'Hubstra - Italco.mi Logistribuzioni srls\n'
             'Sede legale: Via Emanuele Filiberto Duca 24/A, 72023 Mesagne (BR)\n'
             'P. IVA IT02735550747\n'
             'PEC: italco.misrls@pec.it\n'
@@ -82,7 +82,7 @@ def mailer_check(order: Order, data: dict, motivation: str | None):
           'html': (
             '<hr style="border:none;border-top:1px solid #ddd;margin:12px 0">'
             '<div style="font-size:12px;color:#666;line-height:1.5">'
-            '<strong>Ares Logistics</strong> - Italco.mi Logistribuzioni srls<br>'
+            '<strong>Hubstra</strong> - Italco.mi Logistribuzioni srls<br>'
             'Sede legale: Via Emanuele Filiberto Duca 24/A, 72023 Mesagne (BR)<br>'
             'P. IVA IT02735550747<br>'
             'PEC: <a href="mailto:italco.misrls@pec.it">italco.misrls@pec.it</a><br>'

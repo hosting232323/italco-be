@@ -234,7 +234,7 @@ def warm_frontend(browser, pw_base_url: str, backend_server: str):
   context = browser.new_context()
   page = context.new_page()
   try:
-    for route in ('/', '/dashboard', '/orders'):
+    for route in ('/login', '/dashboard', '/orders'):
       page.goto(f'{pw_base_url}{route}')
       page.wait_for_load_state('networkidle')
   finally:
@@ -244,7 +244,7 @@ def warm_frontend(browser, pw_base_url: str, backend_server: str):
 @pytest.fixture
 def pw_page(page: Page, pw_base_url: str, e2e_user: dict, backend_server: str, warm_frontend) -> Page:
   """Page Playwright già autenticata come admin sulla dashboard."""
-  page.goto(f'{pw_base_url}/')
+  page.goto(f'{pw_base_url}/login')
   page.wait_for_load_state('networkidle')
 
   # I locator si risolvono dopo l'attesa: se Vite ha ricaricato durante il

@@ -188,7 +188,7 @@ def _ares_logo() -> str:
 
 @lru_cache(maxsize=1)
 def get_powered_tag() -> str:
-  """Targhetta "Powered by Ares Logistics" come data URI.
+  """Targhetta "Powered by Hubstra" come data URI.
 
   È un SVG e non testo HTML perché xhtml2pdf non supporta border-radius:
   gli angoli arrotondati si possono disegnare solo dentro l'immagine.
