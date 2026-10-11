@@ -1,7 +1,7 @@
 """Carta intestata dei PDF (templates/components/company.html).
 
 Il macro company_header stampa in cima a ogni documento un rettangolo con
-logo, dati legali dell'attività e la targhetta "Powered by Ares Logistics",
+logo, dati legali dell'attività e la targhetta "Powered by Hubstra",
 che è un SVG perché xhtml2pdf non sa arrotondare gli angoli in CSS.
 È tutto guardato: senza company non stampa nulla; senza logo dell'attività
 ripiega su quello di Ares.
@@ -77,4 +77,4 @@ def test_powered_tag_is_an_svg_with_the_ares_wording():
 
   assert data_uri.startswith('data:image/svg+xml;base64,')
   svg = base64.b64decode(data_uri.split('base64,')[1]).decode('utf-8')
-  assert 'Powered by' in svg and 'Ares Logistics' in svg
+  assert 'Powered by' in svg and 'Hubstra' in svg

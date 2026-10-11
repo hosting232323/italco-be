@@ -30,7 +30,7 @@ from .schema import (
   User,
 )
 
-SEED_COMPANY_NAME = 'Ares Logistics'
+SEED_COMPANY_NAME = 'Hubstra'
 
 
 def _seed_password(password: str) -> str:

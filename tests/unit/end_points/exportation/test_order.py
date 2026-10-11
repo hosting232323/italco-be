@@ -45,7 +45,7 @@ def test_export_order_pdf_carries_the_company_letterhead(client):
   assert 'Test Company SRL' in text
   assert 'P. IVA 09876543210' in text
   assert 'C.F. 01234567890' in text
-  assert 'Ares Logistics' in text
+  assert 'Hubstra' in text
 
 
 def test_export_order_not_found(client):
