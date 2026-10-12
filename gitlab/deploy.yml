@@ -191,6 +191,7 @@ deploy_demo:
   variables:
     SERVICE: "${PROJECT_NAME}-demo"
     PUBLIC_HOST_PIPELINE: "demo.${PUBLIC_HOST}"
+    HOST_PREFIX: "demo."
     DATABASE_URL_PIPELINE: "${DATABASE_URL}_demo"
     EURONICS_API_PASSWORD_PIPELINE: 0
     IS_DEV: 1
