@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 
 from sqlalchemy import and_, desc
 from flask import Blueprint, request
@@ -7,7 +8,7 @@ from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
 from database_api.operations import create, delete, get_by_id, update
-from ..database.schema import CollectionPoint, User, ServiceUser, Product
+from ..database.schema import CollectionPoint, Order, User, ServiceUser, Product
 from ..utils.geo import parse_coordinates
 from ..utils.caps import get_lat_lon_by_address
 
@@ -24,6 +25,26 @@ def format_collection_point(collection_point: CollectionPoint) -> dict:
 def _coordinates(address: str) -> dict:
   lat, lon = get_lat_lon_by_address(address) if address else (None, None)
   return {'lat': lat, 'lon': lon}
+
+
+def _preloaded_orders_count(collection_point_id: int) -> int:
+  """Ordini precaricati con consegna da oggi con prodotti ritirati da questo punto.
+
+  Spegnere il flag con ordini cosi' farebbe tornare normali, senza spostare le tappe
+  gia' pianificate, ritiri che sono nel borderò della vigilia.
+  """
+  with Session() as session:
+    return (
+      session.query(Order.id)
+      .join(Product, Product.order_id == Order.id)
+      .filter(
+        Product.collection_point_id == collection_point_id,
+        Order.preloaded.is_(True),
+        Order.dpc >= date.today(),
+      )
+      .distinct()
+      .count()
+    )
 
 
 def _client_fields(payload: dict) -> dict:
@@ -113,6 +134,16 @@ def get_collection_points(user: User):
 def update_collection_point(_, id):
   collection_point: CollectionPoint = get_by_id(CollectionPoint, int(id))
   data = _client_fields(request.json)
+  if collection_point.preloaded and 'preloaded' in data and not data['preloaded']:
+    pending = _preloaded_orders_count(collection_point.id)
+    if pending:
+      return {
+        'status': 'ko',
+        'message': (
+          f'Impossibile disattivare il precarico: {pending} ordini precaricati da oggi in poi ritirano '
+          'prodotti da questo punto. Sposta o ripianifica quegli ordini prima.'
+        ),
+      }
   coordinates = _client_coordinates(request.json, collection_point)
   if coordinates:
     data.update(coordinates)

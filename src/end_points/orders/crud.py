@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 
 from ...order_integrity import assert_order_service_types, lock_order_service_integrity
@@ -12,7 +12,7 @@ from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_products, update_products
 from ..delivery_coverage import SlotUnavailableError, resolve_delivery_entry
-from ..schedule.preload import order_is_preloaded
+from ..schedule.preload import order_is_preloaded, preloaded_pickup_ids_for_order
 from ..service.duration import payload_pickup_collection_point_ids
 from ..service.duration import order_products_payload
 from ...utils.geo import parse_coordinates
@@ -220,7 +220,7 @@ def create_order(user: User, data: dict):
       except SlotUnavailableError as error:
         return {'status': 'ko', 'message': str(error)}
       clean_data['preloaded'] = order_is_preloaded(
-        entry, payload_pickup_collection_point_ids(data.get('products')), session
+        entry, payload_pickup_collection_point_ids(data.get('products')), session, dpc=clean_data.get('dpc')
       )
       clean_data['delivery_slot_start'] = entry.start_time if entry else None
       clean_data['delivery_slot_end'] = entry.end_time if entry else None
@@ -356,6 +356,10 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
     # La fascia (sotto) va ricalcolata sulla posizione nuova, non su una stima.
     remember_address_coordinates(data.get('address', order.address), data.get('address_lat'), data.get('address_lon'))
   schedule_item = get_schedule_item_by_order(order, session=session)
+  # Il precarico di prima, per riallineare le tappe della vigilia se questa
+  # modifica lo cambia senza passare dal replan del cliente (vedi sync_order_preload).
+  previous_preload_ids = preloaded_pickup_ids_for_order(order, session)
+  previous_eve = order.dpc - timedelta(days=1) if previous_preload_ids and order.dpc else None
 
   if 'status' in data:
     data['status'] = OrderStatus(data['status'])
@@ -393,7 +397,9 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
         'delivery_slot_start': entry.start_time if entry else None,
         'delivery_slot_end': entry.end_time if entry else None,
         'delivery_transport_id': entry.transport_id if entry else None,
-        'preloaded': order_is_preloaded(entry, payload_pickup_collection_point_ids(products_payload), session),
+        'preloaded': order_is_preloaded(
+          entry, payload_pickup_collection_point_ids(products_payload), session, dpc=data.get('dpc', order.dpc)
+        ),
       }
       replan = True
       if order.status in (OrderStatus.SCHEDULED, OrderStatus.BOOKING):
@@ -445,6 +451,13 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
     session=session,
   )
   assert_order_service_types(order, session)
+
+  # Prodotti o data cambiati fuori dal replan: il precarico e le tappe della
+  # vigilia si riallineano qui (il replan li rifa gia' da zero).
+  if not replan and ('products' in data or 'dpc' in data):
+    from ...schedulation.auto_planning import sync_order_preload
+
+    sync_order_preload(order, previous_preload_ids, previous_eve, session)
 
   # Data o zona cambiate dal cliente: la tappa vecchia e' gia' uscita dal
   # borderò (unplan_order), quella nuova entra in quello della nuova fascia,

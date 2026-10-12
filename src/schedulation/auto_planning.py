@@ -34,8 +34,8 @@ from ..database.schema import (
 )
 from ..end_points.rae.product import emit_rae_products
 from ..end_points.orders.queries import query_products
-from ..end_points.schedule.preload import preloaded_pickup_ids_for_order
-from ..end_points.schedule.queries import get_schedule_items
+from ..end_points.schedule.preload import order_is_preloaded, preloaded_pickup_ids_for_order
+from ..end_points.schedule.queries import get_schedule_by_order, get_schedule_items
 from .routing import (
   link_missing_collection_points,
   link_preloaded_collection_points,
@@ -258,6 +258,64 @@ def unplan_order(order: Order, session: session_type) -> None:
       _drop_orphan_pickups(eve, preloaded_ids, session, exclude_order_id=order.id)
       _renumber_stops(eve, session)
       optimize_schedule_stops(eve, session=session)
+
+
+def sync_order_preload(order: Order, previous_ids: set[int], previous_eve, session: session_type) -> None:
+  """Riallinea il precarico dell'ordine dopo una modifica fuori dal replan del cliente.
+
+  Prodotti o data cambiati (tipicamente dall'operatore) non passano da
+  unplan/auto_plan: senza questo `Order.preloaded` resta quello di prima e le
+  tappe della vigilia non corrispondono ai prodotti. `previous_ids` e
+  `previous_eve` sono i punti precaricati e la vigilia PRIMA della modifica.
+  Se l'ordine non e' in nessun borderò aggiorna solo il flag.
+  """
+  products = query_products(order, session=session)
+  cp_ids = {product.collection_point_id for product in products if product.collection_point_id}
+  # La vigilia non si riesamina se la data non e' cambiata: un ordine gia' precaricato
+  # modificato a ritiro avvenuto non deve perdere il precarico perche' la vigilia e' passata.
+  same_eve = bool(previous_eve and order.dpc and previous_eve == order.dpc - timedelta(days=1))
+  preloaded = order_is_preloaded(
+    find_coverage_entry(order, session), cp_ids, session, dpc=None if same_eve else order.dpc
+  )
+  if preloaded != bool(order.preloaded):
+    update(order, {'preloaded': preloaded}, session=session)
+
+  current_ids = preloaded_pickup_ids_for_order(order, session)
+  current_eve = order.dpc - timedelta(days=1) if current_ids and order.dpc else None
+  day_schedule = get_schedule_by_order(order.id, session=session)
+  if not day_schedule or not order.delivery_transport_id or not (previous_ids or current_ids):
+    return
+
+  # Vigilia di prima: i ritiri che non ci sono piu' (o che si sono spostati) escono.
+  gone = previous_ids if previous_eve != current_eve else previous_ids - current_ids
+  if gone and previous_eve:
+    old_eve = (
+      session.query(Schedule)
+      .filter(Schedule.date == previous_eve, Schedule.transport_id == order.delivery_transport_id)
+      .first()
+    )
+    if old_eve:
+      _drop_orphan_pickups(old_eve, gone, session, exclude_order_id=order.id)
+      _renumber_stops(old_eve, session)
+      optimize_schedule_stops(old_eve, session=session)
+
+  if current_ids:
+    link_preloaded_collection_points(
+      order, order.delivery_transport_id, order.delivery_slot_start, order.delivery_slot_end, session=session
+    )
+
+  # Borderò della consegna: i punti ora precaricati non servono piu' li',
+  # quelli che hanno smesso di esserlo diventano ritiri normali.
+  now_preloaded = current_ids - previous_ids
+  if now_preloaded:
+    _drop_orphan_pickups(day_schedule, now_preloaded, session)
+    _renumber_stops(day_schedule, session)
+  if previous_ids - current_ids:
+    link_missing_collection_points(
+      order, day_schedule, order.delivery_slot_start, order.delivery_slot_end, session=session
+    )
+  if now_preloaded or previous_ids - current_ids:
+    optimize_schedule_stops(day_schedule, session=session)
 
 
 def _drop_orphan_pickups(

@@ -5,7 +5,7 @@ import requests
 from sqlalchemy.orm import joinedload
 
 from database_api import Session
-from src.database.schema import DeliveryCoverageCap, DeliveryCoverageEntry, Order
+from src.database.schema import DeliveryCoverageCap, DeliveryCoverageEntry, Order, Product
 from src.end_points.delivery_coverage import resolve_delivery_entry
 from src.end_points.service.duration import (
   PICKUP_POINT_MINUTES_PER_PRODUCT,
@@ -25,7 +25,7 @@ from src.end_points.service.duration import (
   request_memo,
 )
 
-from database_api.operations import create
+from database_api.operations import create, update
 
 from tests.unit.factories import (
   create_collection_point,
@@ -951,3 +951,48 @@ def test_payload_service_duration_sums_repeated_services_with_a_single_query(db)
   assert calculate_payload_service_duration({'services_id': [short_service.id, short_service.id, 'x']}) == 30
   assert calculate_payload_service_duration({'services_id': []}) == 0
   assert calculate_payload_service_duration({}) == 0
+
+
+def test_preloaded_product_does_not_weigh_on_the_delivery_day(db):
+  customer, service, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  order = update(create_order(), {'preloaded': True})
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+
+  with Session() as session:
+    loaded = (
+      session.query(Order)
+      .options(joinedload(Order.product).joinedload(Product.collection_point))
+      .filter(Order.id == order.id)
+      .one()
+    )
+    assert order_pickup_collection_point_ids(loaded) == []
+
+  update(order, {'preloaded': False})
+  with Session() as session:
+    loaded = (
+      session.query(Order)
+      .options(joinedload(Order.product).joinedload(Product.collection_point))
+      .filter(Order.id == order.id)
+      .one()
+    )
+    assert order_pickup_collection_point_ids(loaded) == [collection_point.id]
+
+
+def test_preloaded_pickups_weigh_on_the_first_slot_of_the_eve(db):
+  target = date.today() + timedelta(days=3)
+  eve = target - timedelta(days=1)
+  transport = create_transport()
+  first = _entry(transport, day_of_week=eve.weekday(), start='08:00:00', end='10:00:00')
+  second = _entry(transport, day_of_week=eve.weekday(), start='10:00:00', end='12:00:00')
+  customer, service, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  order = update(create_order(cap='70051', dpc=target), {'preloaded': True, 'delivery_transport_id': transport.id})
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+  link_order_to_schedule(order, create_schedule(transport, target))
+
+  # Solo la prima fascia della vigilia paga il ritiro, e una volta sola per punto.
+  assert entry_occupied_duration(first, eve) == PICKUP_POINT_MINUTES_PER_PRODUCT
+  assert entry_occupied_duration(second, eve) == 0
+  # L'ordine che si sta modificando non si conta contro se' stesso.
+  assert entry_occupied_duration(first, eve, exclude_order_id=order.id) == 0

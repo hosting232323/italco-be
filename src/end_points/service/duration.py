@@ -1,10 +1,11 @@
 import logging
-from datetime import date, time
+from datetime import date, time, timedelta
 
 import requests
 from flask import g, has_request_context
 from sqlalchemy import or_
 from sqlalchemy.orm import Session as session_type, joinedload
+from sqlalchemy.orm.exc import DetachedInstanceError
 
 from database_api import Session
 from ...database.schema import (
@@ -159,7 +160,10 @@ def query_slot_orders(
     caps = [cap_obj.cap for cap_obj in getattr(entry, 'caps', [])]
     query = (
       sess.query(Order)
-      .options(joinedload(Order.product).joinedload(Product.service_user).joinedload(ServiceUser.service))
+      .options(
+        joinedload(Order.product).joinedload(Product.service_user).joinedload(ServiceUser.service),
+        joinedload(Order.product).joinedload(Product.collection_point),
+      )
       .filter(
         Order.dpc == dpc,
         Order.delivery_slot_start == entry.start_time,
@@ -197,17 +201,68 @@ def query_slot_orders(
     return _query(sess)
 
 
+def _is_preloaded_pickup(order: Order, product: Product) -> bool:
+  """Se il ritiro di `product` avviene il giorno prima (precarico), non quello della consegna."""
+  if not getattr(order, 'preloaded', False):
+    return False
+  try:
+    point = product.collection_point
+  except DetachedInstanceError:
+    return False
+  return bool(point and point.preloaded)
+
+
 def order_pickup_collection_point_ids(order: Order) -> list[int]:
   """collection_point_id di ciascun prodotto dell'ordine che richiede un ritiro
 
-  (con ripetizioni: un ordine con più prodotti sullo stesso punto lo conta più volte,
-  la dedup è compito di chi aggrega più ordini, vedi calculate_orders_pickup_minutes).
+  il giorno della consegna (con ripetizioni: un ordine con più prodotti sullo
+  stesso punto lo conta più volte, la dedup è compito di chi aggrega più ordini,
+  vedi calculate_orders_pickup_minutes). I prodotti precaricati si ritirano la
+  vigilia e non pesano sul giorno della consegna: vedi eve_preload_pickup_minutes.
   """
   return [
     product.collection_point_id
     for product in getattr(order, 'product', []) or []
-    if getattr(product, 'collection_point_id', None)
+    if getattr(product, 'collection_point_id', None) and not _is_preloaded_pickup(order, product)
   ]
+
+
+def eve_preload_pickup_minutes(
+  entry: DeliveryCoverageEntry, dpc: date, session: session_type, exclude_order_id: int = None
+) -> int:
+  """Minuti dei ritiri precaricati che il veicolo fa il giorno `dpc` per le consegne del giorno dopo.
+
+  Si fanno in testa alla giornata (la tappa va nel primo borderò item della
+  vigilia): pesano quindi solo sulla prima fascia del veicolo. Un punto di
+  ritiro visitato da piu' ordini si conta una volta (stesso criterio di
+  calculate_orders_pickup_minutes).
+  """
+  if not entry.transport_id or not is_first_entry_of_day(entry, session):
+    return 0
+  query = (
+    session.query(Product.order_id, Product.collection_point_id)
+    .join(Order, Product.order_id == Order.id)
+    .join(CollectionPoint, Product.collection_point_id == CollectionPoint.id)
+    .filter(
+      Order.delivery_transport_id == entry.transport_id,
+      Order.dpc == dpc + timedelta(days=1),
+      Order.preloaded.is_(True),
+      Order.id.in_(session.query(ScheduleItemOrder.order_id)),
+      CollectionPoint.preloaded.is_(True),
+    )
+    .order_by(Product.order_id, Product.id)
+  )
+  if exclude_order_id:
+    query = query.filter(Order.id != exclude_order_id)
+  by_order: dict[int, list[int]] = {}
+  for order_id, collection_point_id in query.all():
+    by_order.setdefault(order_id, []).append(collection_point_id)
+  seen: set[int] = set()
+  count = 0
+  for order_id in sorted(by_order):
+    count += sum(1 for cp_id in by_order[order_id] if cp_id not in seen)
+    seen.update(by_order[order_id])
+  return PICKUP_POINT_MINUTES_PER_PRODUCT * count
 
 
 def calculate_order_pickup_minutes(order: Order, exclude_collection_point_ids: set[int] = None) -> int:
@@ -607,7 +662,10 @@ def query_entry_orders(
   def _query(sess: session_type):
     query = (
       sess.query(Order)
-      .options(joinedload(Order.product).joinedload(Product.service_user).joinedload(ServiceUser.service))
+      .options(
+        joinedload(Order.product).joinedload(Product.service_user).joinedload(ServiceUser.service),
+        joinedload(Order.product).joinedload(Product.collection_point),
+      )
       .filter(
         Order.dpc == dpc,
         Order.delivery_slot_start == entry.start_time,
@@ -712,6 +770,23 @@ def _new_order_coord(new_cap: str, new_address: str = None) -> tuple | None:
   return (lat, lon) if lat is not None else None
 
 
+def _new_preloaded_ids(entry: DeliveryCoverageEntry, dpc: date, new_products: dict, session: session_type) -> set[int]:
+  """Punti di ritiro del nuovo ordine (payload) che si ritirano la vigilia: non pesano su `dpc`."""
+  if not entry.accepts_preloads:
+    return set()
+  from ..schedule.preload import can_preload_on, preloaded_collection_point_ids
+
+  def _ids(sess: session_type) -> set[int]:
+    if not can_preload_on(dpc, entry.transport_id, sess):
+      return set()
+    return preloaded_collection_point_ids(set(payload_pickup_collection_point_ids(new_products)), sess)
+
+  if session is not None:
+    return _ids(session)
+  with Session() as own_session:
+    return _ids(own_session)
+
+
 def entry_occupied_duration(
   entry: DeliveryCoverageEntry,
   dpc: date,
@@ -743,8 +818,17 @@ def entry_occupied_duration(
   if new_products:
     existing_collection_points = {cp_id for order in orders for cp_id in order_pickup_collection_point_ids(order)}
     pickup_minutes += calculate_payload_pickup_minutes(
-      new_products, exclude_collection_point_ids=existing_collection_points
+      new_products,
+      exclude_collection_point_ids=existing_collection_points | _new_preloaded_ids(entry, dpc, new_products, session),
     )
+
+  # I ritiri precaricati delle consegne del giorno dopo si fanno oggi, in testa
+  # alla giornata.
+  if session is not None:
+    pickup_minutes += eve_preload_pickup_minutes(entry, dpc, session, exclude_order_id=exclude_order_id)
+  else:
+    with Session() as own_session:
+      pickup_minutes += eve_preload_pickup_minutes(entry, dpc, own_session, exclude_order_id=exclude_order_id)
 
   new_coord = None
   if new_cap:
