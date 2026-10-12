@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 from database_api import Session
 from database_api.operations import create, get_by_id, update
@@ -7,7 +7,9 @@ from src.database.enum import OrderStatus, ScheduleType, UserRole
 from src.database.schema import DeliveryCoverageEntry, Order, ScheduleItemCollectionPoint
 from src.end_points.schedule.delivery import get_items_for_delivery, update_schedule_item
 from src.end_points.schedule.preload import (
+  can_preload_on,
   order_is_preloaded,
+  preloaded_products_by_stop,
   preloaded_collection_point_ids,
   preloaded_pickup_ids_for_order,
 )
@@ -100,10 +102,18 @@ def test_pickup_stop_lists_products_with_next_day_preloads_flagged(db):
     delivery_transport_id=transport.id,
   )
   create_product_row(tomorrow, service_user, name='Lavatrice', collection_point_id=point.id)
+  link_order_to_schedule(tomorrow, create_schedule(transport, schedule_date=date.today() + timedelta(days=1)))
+  other_transport = create_transport()
   other_vehicle = create_order(
-    dpc=date.today() + timedelta(days=1), preloaded=True, delivery_transport_id=create_transport().id
+    dpc=date.today() + timedelta(days=1), preloaded=True, delivery_transport_id=other_transport.id
   )
   create_product_row(other_vehicle, service_user, name='Forno', collection_point_id=point.id)
+  link_order_to_schedule(
+    other_vehicle, create_schedule(other_transport, schedule_date=date.today() + timedelta(days=1))
+  )
+  # Preloaded ma tolto dal borderò: non genera nessun ritiro.
+  unplanned = create_order(dpc=date.today() + timedelta(days=1), preloaded=True, delivery_transport_id=transport.id)
+  create_product_row(unplanned, service_user, name='Tostapane', collection_point_id=point.id)
 
   stop = next(item for item in _items(delivery) if item['operation_type'] == 'CollectionPoint')
 
@@ -150,3 +160,68 @@ def test_order_stop_marks_preloaded_products_and_does_not_wait_for_their_pickup(
   update_schedule_item(delivery, normal_stop.id, True)
 
   assert get_by_id(Order, order.id).status == OrderStatus.BOOKING
+
+
+def _coverage(transport, day, accepts_preloads=True):
+  return create(
+    DeliveryCoverageEntry,
+    {
+      'day_of_week': day.weekday(),
+      'transport_id': transport.id,
+      'start_time': time(8, 0),
+      'end_time': time(12, 0),
+      'accepts_preloads': accepts_preloads,
+    },
+  )
+
+
+def test_can_preload_on_needs_a_future_eve_worked_by_the_vehicle(db):
+  transport = create_transport()
+  target = date.today() + timedelta(days=3)
+  with Session() as session:
+    assert can_preload_on(target, transport.id, session) is False
+  _coverage(transport, target - timedelta(days=1))
+  _coverage(transport, date.today())
+  with Session() as session:
+    assert can_preload_on(target, transport.id, session) is True
+    assert can_preload_on(target.isoformat(), transport.id, session) is True
+    # La vigilia di oggi e' ancora eseguibile (dpc domani), quella di ieri no.
+    assert can_preload_on(date.today() + timedelta(days=1), transport.id, session) is True
+    assert can_preload_on(date.today(), transport.id, session) is False
+    assert can_preload_on(target, None, session) is False
+
+
+def test_order_is_preloaded_checks_the_eve_when_dpc_is_given(db):
+  transport = create_transport()
+  customer = create_user(UserRole.CUSTOMER)
+  point = _point(customer, preloaded=True)
+  target = date.today() + timedelta(days=3)
+  entry = _coverage(transport, target)
+  with Session() as session:
+    assert order_is_preloaded(entry, [point.id], session) is True
+    assert order_is_preloaded(entry, [point.id], session, dpc=target) is False
+  _coverage(transport, target - timedelta(days=1))
+  with Session() as session:
+    assert order_is_preloaded(entry, [point.id], session, dpc=target) is True
+
+
+def test_preloaded_products_by_stop_lists_only_planned_orders_in_one_query(db):
+  customer, _, service_user, _ = customer_with_service()
+  point = _point(customer, preloaded=True)
+  transport = create_transport()
+  day = date.today() + timedelta(days=2)
+
+  def order(planned):
+    row = update(create_order(dpc=day + timedelta(days=1)), {'preloaded': True, 'delivery_transport_id': transport.id})
+    create_product_row(row, service_user, collection_point_id=point.id)
+    if planned:
+      link_order_to_schedule(row, create_schedule(transport, day + timedelta(days=1)))
+    return row
+
+  planned = order(True)
+  order(False)
+
+  with Session() as session:
+    result = preloaded_products_by_stop({(day, transport.id, point.id)}, session)
+    assert [row_order.id for row_order, _ in result[(day, transport.id, point.id)]] == [planned.id]
+    assert preloaded_products_by_stop({(day, transport.id, _point(customer).id)}, session) == {}

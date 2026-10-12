@@ -741,3 +741,63 @@ def test_preloaded_pickup_reuses_the_eve_stop_and_follows_the_last_order_out(_op
     unplan_order(session.get(Order, second.id), session)
     session.commit()
   assert _find(ScheduleItemCollectionPoint, collection_point_id=point.id) == []
+
+
+@patch('src.schedulation.routing.optimize_schedule_stops')
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_sync_order_preload_moves_the_eve_stop_when_products_change(_optimize, _optimize_eve, db, entry):
+  from database_api import Session
+  from database_api.operations import delete, update
+  from src.database.schema import Product, ScheduleItemCollectionPoint
+  from src.schedulation.auto_planning import sync_order_preload
+  from tests.unit.factories import create_collection_point, create_product_row, customer_with_service
+
+  update(entry, {'accepts_preloads': True})
+  first = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  second = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  order = _preloaded_order(entry, first)
+  _plan(order)
+  assert len(_find(ScheduleItemCollectionPoint, collection_point_id=first.id)) == 1
+  eve = TARGET - timedelta(days=1)
+
+  # L'operatore sostituisce il prodotto: il punto precaricato e' un altro.
+  _, _, service_user, _ = customer_with_service()
+  create_product_row(order, service_user, name='nuovo', collection_point_id=second.id)
+  delete(_find(Product, order_id=order.id, collection_point_id=first.id)[0])
+  with Session() as session:
+    sync_order_preload(session.get(Order, order.id), {first.id}, eve, session)
+    session.commit()
+
+  assert _find(ScheduleItemCollectionPoint, collection_point_id=first.id) == []
+  eve_schedule = _find(Schedule, date=eve)[0]
+  moved = _find(ScheduleItemCollectionPoint, collection_point_id=second.id)[0]
+  assert _find(ScheduleItem, id=moved.schedule_item_id)[0].schedule_id == eve_schedule.id
+  assert _find(Order, id=order.id)[0].preloaded is True
+
+
+@patch('src.schedulation.routing.optimize_schedule_stops')
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_sync_order_preload_gives_the_pickup_back_to_the_delivery_day(_optimize, _optimize_eve, db, entry):
+  from database_api import Session
+  from database_api.operations import update
+  from src.database.schema import ScheduleItemCollectionPoint
+  from src.schedulation.auto_planning import sync_order_preload
+  from tests.unit.factories import create_collection_point
+
+  update(entry, {'accepts_preloads': True})
+  point = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  order = _preloaded_order(entry, point)
+  _plan(order)
+  eve = TARGET - timedelta(days=1)
+
+  # L'area smette di accettare precarichi: il ritiro torna normale, nel borderò della consegna.
+  update(entry, {'accepts_preloads': False})
+  with Session() as session:
+    sync_order_preload(session.get(Order, order.id), {point.id}, eve, session)
+    session.commit()
+
+  assert _find(Order, id=order.id)[0].preloaded is False
+  stop = _find(ScheduleItemCollectionPoint, collection_point_id=point.id)
+  assert len(stop) == 1
+  day = _find(Schedule, date=TARGET)[0]
+  assert _find(ScheduleItem, id=stop[0].schedule_item_id)[0].schedule_id == day.id

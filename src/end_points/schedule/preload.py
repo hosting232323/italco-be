@@ -14,13 +14,13 @@ normalmente nel borderò della consegna. ``Order.preloaded`` dice solo che
 l'ordine ha almeno un prodotto precaricato, lo calcola il server.
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
 
-from ...database.schema import CollectionPoint, DeliveryCoverageEntry, Order, Product
+from ...database.schema import CollectionPoint, DeliveryCoverageEntry, Order, Product, ScheduleItemOrder
 
 
 def preloaded_collection_point_ids(collection_point_ids, session: session_type) -> set[int]:
@@ -34,9 +34,48 @@ def preloaded_collection_point_ids(collection_point_ids, session: session_type) 
   return {row.id for row in rows}
 
 
-def order_is_preloaded(entry: DeliveryCoverageEntry | None, collection_point_ids, session: session_type) -> bool:
-  """Se un ordine con questi punti di ritiro, preso da `entry`, e' precaricato."""
+def _as_date(value) -> date | None:
+  if isinstance(value, datetime):
+    return value.date()
+  if isinstance(value, date):
+    return value
+  try:
+    return date.fromisoformat(str(value)[:10])
+  except ValueError:
+    return None
+
+
+def can_preload_on(dpc, transport_id: int, session: session_type) -> bool:
+  """Se il ritiro della vigilia di `dpc` e' eseguibile dal veicolo `transport_id`.
+
+  La vigilia non puo' essere nel passato e il veicolo deve lavorare quel giorno
+  (almeno un blocco di copertura nel suo giorno della settimana): altrimenti il
+  prodotto si ritira normalmente nel borderò della consegna.
+  """
+  day = _as_date(dpc)
+  if day is None or not transport_id:
+    return False
+  eve = day - timedelta(days=1)
+  if eve < date.today():
+    return False
+  return (
+    session.query(DeliveryCoverageEntry.id)
+    .filter(DeliveryCoverageEntry.transport_id == transport_id, DeliveryCoverageEntry.day_of_week == eve.weekday())
+    .first()
+    is not None
+  )
+
+
+def order_is_preloaded(
+  entry: DeliveryCoverageEntry | None, collection_point_ids, session: session_type, dpc=None
+) -> bool:
+  """Se un ordine con questi punti di ritiro, preso da `entry`, e' precaricato.
+
+  Con `dpc` verifica anche che la vigilia sia eseguibile (vedi can_preload_on).
+  """
   if entry is None or not entry.accepts_preloads:
+    return False
+  if dpc is not None and not can_preload_on(dpc, entry.transport_id, session):
     return False
   return bool(preloaded_collection_point_ids(collection_point_ids, session))
 
@@ -54,28 +93,38 @@ def preloaded_pickup_ids_for_order(order: Order, session: session_type) -> set[i
   return preloaded_collection_point_ids(ids, session)
 
 
-def preloaded_products_for_stop(
-  schedule_date: date, transport_id: int, collection_point_id: int, session: session_type
-) -> list[tuple[Order, Product]]:
-  """Prodotti da ritirare a questa tappa per i precarichi del giorno dopo.
+def preloaded_products_by_stop(stops, session: session_type) -> dict[tuple, list[tuple[Order, Product]]]:
+  """Prodotti da ritirare alle tappe per i precarichi del giorno dopo.
 
-  Stesso veicolo, consegna il giorno successivo a `schedule_date`, ordine
-  precaricato e punto di ritiro che ammette il precarico.
+  `stops` sono tuple (data del borderò, veicolo, punto di ritiro): una sola query
+  per tutte, non una per tappa. Stesso veicolo, consegna il giorno successivo,
+  ordine precaricato e pianificato (un ordine tolto dal borderò non genera ritiri)
+  e punto di ritiro che ammette il precarico. Chiave del risultato: la tupla.
   """
-  if not preloaded_collection_point_ids([collection_point_id], session):
-    return []
-  return (
+  stops = set(stops)
+  preloaded_ids = preloaded_collection_point_ids({cp_id for _, _, cp_id in stops}, session)
+  stops = {stop for stop in stops if stop[2] in preloaded_ids}
+  if not stops:
+    return {}
+  rows = (
     session.query(Order, Product)
     .join(Product, Product.order_id == Order.id)
     .filter(
-      Order.delivery_transport_id == transport_id,
-      Order.dpc == schedule_date + timedelta(days=1),
+      Order.delivery_transport_id.in_({transport_id for _, transport_id, _ in stops}),
+      Order.dpc.in_({day + timedelta(days=1) for day, _, _ in stops}),
       Order.preloaded.is_(True),
-      Product.collection_point_id == collection_point_id,
+      Order.id.in_(session.query(ScheduleItemOrder.order_id)),
+      Product.collection_point_id.in_(preloaded_ids),
     )
     .order_by(Order.id, Product.id)
     .all()
   )
+  result: dict[tuple, list[tuple[Order, Product]]] = {}
+  for order, product in rows:
+    key = (order.dpc - timedelta(days=1), order.delivery_transport_id, product.collection_point_id)
+    if key in stops:
+      result.setdefault(key, []).append((order, product))
+  return result
 
 
 def _pickup_product(order: dict | Order, name: str, preloaded: bool, collected: bool) -> dict:
@@ -113,6 +162,15 @@ def annotate_preloads(schedules: list[dict], session: session_type = None) -> li
     if 'collection_point' in product
   }
   preloaded_ids = preloaded_collection_point_ids(cp_ids, session)
+  next_day_products = preloaded_products_by_stop(
+    {
+      (date.fromisoformat(schedule['date'][:10]), schedule['transport_id'], item['collection_point_id'])
+      for schedule in schedules
+      for item in schedule['schedule_items']
+      if item['operation_type'] == 'CollectionPoint'
+    },
+    session,
+  )
 
   for schedule in schedules:
     items = schedule['schedule_items']
@@ -136,7 +194,7 @@ def annotate_preloads(schedules: list[dict], session: session_type = None) -> li
         if product.get('collection_point', {}).get('id') == cp_id and not product.get('preloaded')
       ]
       schedule_date = date.fromisoformat(schedule['date'][:10])
-      for order, product in preloaded_products_for_stop(schedule_date, schedule['transport_id'], cp_id, session):
+      for order, product in next_day_products.get((schedule_date, schedule['transport_id'], cp_id), []):
         pickup.append(_pickup_product(order, product.name, True, product.collected))
       item['pickup_products'] = pickup
       item['has_preload'] = any(entry['preloaded'] for entry in pickup)

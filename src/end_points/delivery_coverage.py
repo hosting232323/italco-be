@@ -9,7 +9,7 @@ from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
 from database_api.operations import create, create_bulk, delete, delete_bulk, update, get_by_id
-from ..database.schema import Order, Product, Transport, DeliveryCoverageEntry, DeliveryCoverageCap
+from ..database.schema import Order, Product, ScheduleItemOrder, Transport, DeliveryCoverageEntry, DeliveryCoverageCap
 from ..utils.geo import parse_coordinates, point_in_polygon
 from ..utils.caps import get_lat_lon_by_address, get_lat_lon_by_cap, remember_address_coordinates
 
@@ -277,20 +277,22 @@ def _passes_same_pickup_points(
   """Se il veicolo di `entry` passa già dai punti di ritiro dell'ordine in `dpc`.
 
   Vale solo per le aree che accettano precarichi (accepts_preloads); le altre non
-  hanno questo vincolo. Un punto di ritiro è già visitato se un altro ordine dello
-  stesso veicolo, nella giornata (o in quella prima, se il punto ammette il
-  precarico), ha un prodotto da ritirare lì. Un ordine senza punti di ritiro non ha
-  nulla da incrociare: nessun vincolo.
+  hanno questo vincolo. Un punto di ritiro è già visitato se un altro ordine
+  pianificato dello stesso veicolo, nella giornata (o in quella prima, se il punto
+  ammette il precarico e la vigilia e' eseguibile), ha un prodotto da ritirare lì.
+  Un ordine senza punti di ritiro non ha nulla da incrociare: nessun vincolo.
   """
   if not entry.accepts_preloads:
     return True
-  from .schedule.preload import preloaded_collection_point_ids
+  from .schedule.preload import can_preload_on, preloaded_collection_point_ids
   from .service.duration import payload_pickup_collection_point_ids
 
   collection_point_ids = set(payload_pickup_collection_point_ids(new_products or {}))
   if not collection_point_ids:
     return True
-  preloaded_ids = preloaded_collection_point_ids(collection_point_ids, session)
+  preloaded_ids = set()
+  if can_preload_on(dpc, entry.transport_id, session):
+    preloaded_ids = preloaded_collection_point_ids(collection_point_ids, session)
   normal_ids = collection_point_ids - preloaded_ids
   conditions = []
   if normal_ids:
@@ -299,14 +301,66 @@ def _passes_same_pickup_points(
     conditions.append(
       and_(Order.dpc.in_([dpc, dpc - timedelta(days=1)]), Product.collection_point_id.in_(preloaded_ids))
     )
+  # Solo gli ordini pianificati: un ordine annullato o non ancora in un borderò
+  # non fa passare il veicolo da nessuna parte.
   query = (
     session.query(Product.id)
     .join(Order, Product.order_id == Order.id)
-    .filter(Order.delivery_transport_id == entry.transport_id, or_(*conditions))
+    .filter(
+      Order.delivery_transport_id == entry.transport_id,
+      Order.id.in_(session.query(ScheduleItemOrder.order_id)),
+      or_(*conditions),
+    )
   )
   if exclude_order_id:
     query = query.filter(Order.id != exclude_order_id)
   return query.first() is not None
+
+
+def _eve_can_take_preloads(
+  entry: DeliveryCoverageEntry,
+  dpc,
+  new_products: dict,
+  session,
+  exclude_order_id: int = None,
+) -> bool:
+  """Se la vigilia del veicolo ha tempo per i ritiri precaricati del nuovo ordine.
+
+  I ritiri precaricati si fanno in testa alla giornata prima (prima fascia del
+  veicolo): pesano su quella fascia, non su quella della consegna. Senza
+  precarichi, o con una fascia senza capienza dichiarata, nessun vincolo.
+  """
+  if not entry.accepts_preloads:
+    return True
+  from .schedule.preload import can_preload_on, preloaded_collection_point_ids
+  from .service.duration import (
+    PICKUP_POINT_MINUTES_PER_PRODUCT,
+    entry_occupied_duration,
+    get_entry_capacity_minutes,
+    payload_pickup_collection_point_ids,
+  )
+
+  pickup_ids = payload_pickup_collection_point_ids(new_products or {})
+  preloaded_ids = preloaded_collection_point_ids(set(pickup_ids), session)
+  dpc = _as_date(dpc)
+  if not preloaded_ids or dpc is None or not can_preload_on(dpc, entry.transport_id, session):
+    return True
+
+  eve = dpc - timedelta(days=1)
+  first = (
+    session.query(DeliveryCoverageEntry)
+    .filter(
+      DeliveryCoverageEntry.transport_id == entry.transport_id, DeliveryCoverageEntry.day_of_week == eve.weekday()
+    )
+    .order_by(DeliveryCoverageEntry.start_time)
+    .first()
+  )
+  capacity = get_entry_capacity_minutes(first)
+  if not capacity:
+    return True
+  occupied = entry_occupied_duration(first, eve, exclude_order_id=exclude_order_id, session=session)
+  new_minutes = PICKUP_POINT_MINUTES_PER_PRODUCT * len([cp_id for cp_id in pickup_ids if cp_id in preloaded_ids])
+  return occupied + new_minutes <= capacity
 
 
 def _entry_with_residual_capacity(
@@ -419,7 +473,9 @@ def available_slots(
   available = {}
   with Session() as session:
     for entry in entries:
-      if not _passes_same_pickup_points(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
+      if not _passes_same_pickup_points(
+        entry, dpc, new_products, session, exclude_order_id=exclude_order_id
+      ) or not _eve_can_take_preloads(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
         continue
       effective = _entry_with_residual_capacity(
         entry,
@@ -556,6 +612,7 @@ def resolve_delivery_entry(
       entry
       for entry in entries
       if _passes_same_pickup_points(entry, dpc, products, session, exclude_order_id=exclude_order_id)
+      and _eve_can_take_preloads(entry, dpc, products, session, exclude_order_id=exclude_order_id)
     ]
   if not entries:
     raise SlotUnavailableError('Non ci sono più fasce disponibili per questa data: scegli un altro giorno')

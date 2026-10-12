@@ -172,6 +172,34 @@ def test_collection_point_preloaded_flag_defaults_off_and_is_editable(client):
   assert get_by_id(CollectionPoint, collection_point.id).preloaded is True
 
 
+def test_collection_point_preload_cannot_be_turned_off_with_upcoming_preloaded_orders(client):
+  from datetime import date, timedelta
+
+  from database_api.operations import update
+
+  from tests.unit.factories import create_order, create_product_row, customer_with_service
+
+  customer, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  order = create_order(dpc=date.today() + timedelta(days=2))
+  update(order, {'preloaded': True})
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+
+  blocked = client.put(
+    f'/collection-point/{collection_point.id}', json={'preloaded': False}, headers=auth_header(customer)
+  ).get_json()
+  assert blocked['status'] == 'ko'
+  assert get_by_id(CollectionPoint, collection_point.id).preloaded is True
+
+  # Con l'ordine non piu' precaricato il flag si puo' spegnere.
+  update(order, {'preloaded': False})
+  allowed = client.put(
+    f'/collection-point/{collection_point.id}', json={'preloaded': False}, headers=auth_header(customer)
+  ).get_json()
+  assert allowed['status'] == 'ok'
+  assert get_by_id(CollectionPoint, collection_point.id).preloaded is False
+
+
 def test_delete_collection_point(client):
   customer = create_user(UserRole.CUSTOMER)
   collection_point = create_collection_point(customer)
