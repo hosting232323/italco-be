@@ -11,10 +11,13 @@ from src.end_points.exportation.utils import (
   get_company_logo,
   get_signature,
   get_signature_slots,
+  committente_label,
   _ares_logo,
 )
 
-from tests.unit.factories import create_company, create_order
+from src.database.enum import UserRole
+
+from tests.unit.factories import create_company, create_customer_info, create_order, create_user
 
 
 def test_get_signature_slots_delivered_without_anomaly(db):
@@ -98,3 +101,23 @@ def test_export_excel_sets_headers(app):
 
   assert response.headers['Content-Type'] == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   assert response.headers['Content-Disposition'] == 'attachment; filename=report.xlsx'
+
+
+def test_committente_label_joins_name_address_and_tax_code(db):
+  customer = create_user(UserRole.CUSTOMER)
+  create_customer_info(customer, company_name='Rossi SRL', address='Via Roma 1', city='Bari', tax_code='01234567890')
+
+  assert committente_label(customer.id, customer.nickname) == 'Rossi SRL, Via Roma 1, Bari, C.F./P.IVA 01234567890'
+
+
+def test_committente_label_skips_missing_data(db):
+  customer = create_user(UserRole.CUSTOMER)
+  create_customer_info(customer, company_name='Rossi SRL')
+
+  assert committente_label(customer.id, customer.nickname) == 'Rossi SRL'
+
+
+def test_committente_label_falls_back_to_nickname_without_info(db):
+  customer = create_user(UserRole.CUSTOMER)
+
+  assert committente_label(customer.id, customer.nickname) == customer.nickname

@@ -4,7 +4,7 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from ...database.schema import User, Order, RaeDisposalPlace
-from .utils import get_signature_slots, export_pdf, company_context
+from .utils import get_signature_slots, export_pdf, company_context, committente_label
 from .rae import get_rae_export_info_by_order
 from database_api.operations import get_by_id
 from ..users.queries import format_user_with_info
@@ -123,6 +123,7 @@ def export_schedule(user: User, id):
     order['rae_products'] = get_rae_export_info_by_order(order)
     for rae_product in order['rae_products']:
       rae_product['disposal_place'] = disposal_place
+    order['committente'] = committente_label(order['user']['id'], order['user']['nickname'])
     order['customer'] = format_user_with_info(get_by_id(User, order['user']['id']), user.role)
     delivery_signature, anomaly_signature = get_signature_slots(get_by_id(Order, order['id']))
     order['delivery_signature'] = delivery_signature

@@ -7,9 +7,11 @@ from ...database.enum import OrderStatus
 from ..orders.queries import query_orders, format_query_result
 
 
-def export_order_invoice(filters: list[dict]):
+def export_order_invoice(filters: list[dict], customer_id: int = None):
   orders = []
-  for tupla in query_orders(filters + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.DELIVERED}]):
+  for tupla in query_orders(
+    filters + [{'model': 'Order', 'field': 'status', 'value': OrderStatus.DELIVERED}], customer_id=customer_id
+  ):
     orders = format_query_result(tupla, orders)
   if not orders:
     return {'status': 'ko', 'message': 'Numero di ordini trovati non valido'}
@@ -25,8 +27,8 @@ def export_order_invoice(filters: list[dict]):
     src=render_template(
       'orders_invoice.html',
       orders=orders,
-      end_date=start_date,
-      start_date=end_date,
+      start_date=start_date,
+      end_date=end_date,
       total=sum([order['price'] for order in orders]),
       customer=orders[0]['user'].get('company_name') or orders[0]['user']['nickname'] if orders else None,
       **company_context(),
