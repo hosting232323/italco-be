@@ -3,7 +3,7 @@ from xhtml2pdf import pisa
 from flask import render_template
 
 from ...database.schema import Order
-from .utils import get_signature_slots, export_pdf, company_context
+from .utils import get_signature_slots, export_pdf, company_context, committente_label
 from database_api.operations import get_by_id
 from ..orders.queries import query_orders, format_query_result
 
@@ -25,7 +25,7 @@ def export_order(id, customer_id: int = None):
       dpc=orders[0]['dpc'],
       drc=orders[0]['drc'],
       booking_date=orders[0].get('booking_date', '/'),
-      customer=orders[0]['user'],
+      committente=committente_label(orders[0]['user']['id'], orders[0]['user']['nickname']),
       address=orders[0]['address'],
       addressee=orders[0]['addressee'],
       addressee_contact=orders[0].get('addressee_contact', '/'),

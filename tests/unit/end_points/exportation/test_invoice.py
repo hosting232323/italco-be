@@ -45,3 +45,35 @@ def test_export_invoice_requires_admin(client):
 
   assert response.status_code == 403
   assert response.get_json()['status'] == 'forbidden'
+
+
+def test_export_invoice_customer_gets_pdf_for_own_orders(client):
+  customer, _, service_user, _ = customer_with_service(price=42.0)
+  order = create_order(status=OrderStatus.DELIVERED, booking_date=date(2026, 7, 10))
+  create_product(order, service_user)
+
+  response = client.post(
+    '/export/invoice',
+    json={'filters': [{'model': 'Order', 'field': 'booking_date', 'value': ['2026-07-01', '2026-07-31']}]},
+    headers=auth_header(customer),
+  )
+
+  assert response.status_code == 200
+  assert response.headers['Content-Type'] == 'application/pdf'
+
+
+def test_export_invoice_customer_cannot_invoice_other_customers_orders(client):
+  customer, _, _, _ = customer_with_service()
+  _, _, other_service_user, _ = customer_with_service(price=42.0)
+  order = create_order(status=OrderStatus.DELIVERED, booking_date=date(2026, 7, 10))
+  create_product(order, other_service_user)
+
+  response = client.post(
+    '/export/invoice',
+    json={'filters': [{'model': 'Order', 'field': 'booking_date', 'value': ['2026-07-01', '2026-07-31']}]},
+    headers=auth_header(customer),
+  )
+
+  body = response.get_json()
+  assert body['status'] == 'ko'
+  assert body['message'] == 'Numero di ordini trovati non valido'

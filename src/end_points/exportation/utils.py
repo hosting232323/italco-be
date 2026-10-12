@@ -12,9 +12,10 @@ from reportlab.platypus import Paragraph
 from api.storage import get_full_path
 
 from ... import STATIC_FOLDER
-from ...database.schema import Order, Company
+from ...database.schema import Order, Company, CustomerUserInfo
 from ...database.enum import OrderStatus
 from ...database.queries import get_active_company
+from ..users.queries import get_user_info
 
 
 LOGO_SUBFOLDER = 'company-logos'
@@ -250,3 +251,13 @@ def export_excel(document):
   response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   response.headers['Content-Disposition'] = 'attachment; filename=report.xlsx'
   return response
+
+
+def committente_label(user_id: int, nickname: str) -> str:
+  """Anagrafica del punto vendita per il campo "Committente" dei PDF: ragione
+  sociale (o nickname se manca), indirizzo e C.F./P.IVA separati da virgola,
+  solo quelli presenti."""
+  info = get_user_info(user_id, CustomerUserInfo)
+  address = ', '.join(part for part in (info.address, info.city) if part) if info else ''
+  tax_code = f'C.F./P.IVA {info.tax_code}' if info and info.tax_code else ''
+  return ', '.join(part for part in ((info.company_name if info else None) or nickname, address, tax_code) if part)

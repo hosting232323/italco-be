@@ -4,7 +4,14 @@ from pypdf import PdfReader
 
 from src.database.enum import UserRole
 
-from tests.unit.factories import auth_header, create_order, create_product, create_user, customer_with_service
+from tests.unit.factories import (
+  auth_header,
+  create_customer_info,
+  create_order,
+  create_product,
+  create_user,
+  customer_with_service,
+)
 
 
 def test_export_order_returns_pdf(client):
@@ -77,3 +84,16 @@ def test_export_order_customer_exports_own_order(client):
   response = client.get(f'/export/order/{order.id}', headers=auth_header(customer))
 
   assert response.headers['Content-Type'] == 'application/pdf'
+
+
+def test_export_order_pdf_prints_the_selling_point_registry_as_committente(client):
+  admin = create_user(UserRole.ADMIN)
+  customer, _, service_user, collection_point = customer_with_service()
+  create_customer_info(customer, company_name='Rossi SRL', address='Via Roma 1', city='Bari', tax_code='01234567890')
+  order = create_order()
+  create_product(order, service_user, collection_point_id=collection_point.id)
+
+  response = client.get(f'/export/order/{order.id}', headers=auth_header(admin))
+
+  text = ' '.join(''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages).split())
+  assert 'Rossi SRL, Via Roma 1, Bari, C.F./P.IVA 01234567890' in text
