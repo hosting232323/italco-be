@@ -383,12 +383,16 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
   planning_fields = {}
   replan = False
   if user.role == UserRole.CUSTOMER and is_automatic_planning_enabled() and user.automatic_planning:
-    if _moves_the_order(order, data):
+    location_moved = _moves_the_order(order, data)
+    if location_moved or _products_change_the_load(order, data, session):
+      # Cambiando solo prodotti o servizi la fascia resta quella dell'ordine,
+      # ma la capienza si ricontrolla: puo' non starci piu'.
+      keep_slot = not location_moved
       entry = resolve_delivery_entry(
         data.get('cap', order.cap),
         data.get('dpc', order.dpc),
-        requested_start=data.get('delivery_slot_start'),
-        requested_end=data.get('delivery_slot_end'),
+        requested_start=data.get('delivery_slot_start') or (order.delivery_slot_start if keep_slot else None),
+        requested_end=data.get('delivery_slot_end') or (order.delivery_slot_end if keep_slot else None),
         exclude_order_id=order.id,
         products=data.get('products') or order_products_payload(order, session),
         user_id=user.id,
@@ -404,7 +408,9 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
         ),
       }
       replan = True
-      if order.status in (OrderStatus.SCHEDULED, OrderStatus.BOOKING):
+      # Qualunque sia lo stato, la tappa vecchia esce: auto_plan_order ne crea
+      # una nuova e l'ordine finirebbe in due borderò.
+      if order.status != OrderStatus.DELIVERED:
         from ...schedulation.auto_planning import unplan_order
 
         unplan_order(order, session)
@@ -496,6 +502,29 @@ def _moves_the_order(order: Order, data: dict) -> bool:
     if requested and str(requested)[:5] != str(getattr(order, field) or '')[:5]:
       return True
   return False
+
+
+def _products_change_the_load(order: Order, data: dict, session) -> bool:
+  """Se i prodotti mandati cambiano servizi o punti di ritiro rispetto a quelli salvati.
+
+  Come per _moves_the_order, il form rimanda i prodotti anche quando non sono
+  stati toccati: si confronta, non si ricalcola a ogni salvataggio.
+  """
+  products = data.get('products')
+  if not isinstance(products, dict):
+    return False
+
+  def _signature(payload: dict) -> dict:
+    signature = {}
+    for name, details in payload.items():
+      details = details if isinstance(details, dict) else {}
+      services = sorted(service.get('id') for service in details.get('services') or [] if isinstance(service, dict))
+      collection_point = details.get('collection_point')
+      cp_id = collection_point.get('id') if isinstance(collection_point, dict) else None
+      signature[name] = (services, cp_id)
+    return signature
+
+  return _signature(products) != _signature(order_products_payload(order, session))
 
 
 def update_order_customer(user: User, user_id: int, order_id: int):

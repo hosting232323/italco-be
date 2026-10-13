@@ -1,3 +1,4 @@
+import pytest
 from datetime import date, time, timedelta
 from unittest.mock import patch
 
@@ -37,6 +38,15 @@ from tests.unit.factories import (
   customer_with_service,
   link_order_to_schedule,
 )
+
+
+@pytest.fixture(autouse=True)
+def no_route_baseline():
+  """Questi test misurano il lavoro in testa alla giornata, con sequential_travel_minutes
+  mockato a un valore fisso: il percorso tra gli ordini della fascia (che usa la
+  stessa funzione) lo falserebbe. E' coperto a parte, in test_travel.py."""
+  with patch('src.end_points.service.duration._route_minutes', return_value=0):
+    yield
 
 
 def _entry(transport, day_of_week=0, start='08:00:00', end='09:00:00', caps=('70051',)):

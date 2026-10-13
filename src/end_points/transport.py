@@ -4,7 +4,7 @@ from sqlalchemy import desc
 from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
-from ..database.schema import Transport, DeliveryCoverageEntry, DeliveryUserInfo, Product, Schedule, User
+from ..database.schema import Transport, DeliveryCoverageEntry, DeliveryUserInfo, Order, Product, Schedule, User
 from database_api.operations import create, delete, get_by_id, get_by_params, update
 
 
@@ -45,6 +45,14 @@ def delete_transport(_, id):
         'Il veicolo è ancora usato in uno o più blocchi di copertura corrieri: '
         "rimuovili prima di procedere con l'eliminazione"
       ),
+    }
+
+  # Ogni ordine pianificato referenzia il veicolo (FK NO ACTION): senza questo
+  # controllo la delete esploderebbe in un errore generico.
+  if get_by_params(Order, [('delivery_transport_id', transport_id)]):
+    return {
+      'status': 'ko',
+      'message': "Il veicolo e' ancora associato a degli ordini pianificati: non si puo' eliminare",
     }
 
   if get_by_params(Product, [('transport_id', transport_id)]) or get_by_params(

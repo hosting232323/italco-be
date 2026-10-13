@@ -80,6 +80,30 @@ def test_format_schedule_data_fails_without_orders(db):
   assert schedule_items is None
 
 
+def test_format_schedule_data_accepts_a_preload_only_schedule(db):
+  """Il borderò della vigilia puo' avere solo i ritiri dei precarichi."""
+  collection_point = create_collection_point(create_user(UserRole.CUSTOMER))
+  payload = {
+    'date': '2026-07-15',
+    'transport_id': 1,
+    'schedule_items': [
+      {
+        'index': 0,
+        'operation_type': 'CollectionPoint',
+        'collection_point_id': collection_point.id,
+        'start_time_slot': '08:00',
+        'end_time_slot': '10:00',
+      },
+    ],
+  }
+
+  with Session() as session:
+    schedule_items, _, response = format_schedule_data(payload, session=session)
+
+  assert response is None
+  assert schedule_items[0]['collection_point'].id == collection_point.id
+
+
 def test_format_schedule_data_accepts_a_payload_without_users(db):
   order = create_order()
   payload = {

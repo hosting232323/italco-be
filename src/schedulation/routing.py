@@ -40,6 +40,7 @@ from database_api.operations import create, update, get_by_ids
 from ..database.enum import ScheduleType
 from ..database.schema import (
   CollectionPoint,
+  DeliveryCoverageEntry,
   Order,
   Schedule,
   ScheduleItem,
@@ -121,6 +122,18 @@ def link_preloaded_collection_points(order: Order, transport_id: int, start_time
   )
   if first_item:
     start_time_slot, end_time_slot = first_item.start_time_slot, first_item.end_time_slot
+  else:
+    # Borderò della vigilia nuovo: la tappa non e' una consegna e non ha la
+    # fascia di quella del giorno dopo. Prende la prima fascia che il veicolo
+    # copre la vigilia (la consegna resta solo come ripiego).
+    first_entry = (
+      session.query(DeliveryCoverageEntry)
+      .filter(DeliveryCoverageEntry.transport_id == transport_id, DeliveryCoverageEntry.day_of_week == eve.weekday())
+      .order_by(DeliveryCoverageEntry.start_time)
+      .first()
+    )
+    if first_entry:
+      start_time_slot, end_time_slot = first_entry.start_time, first_entry.end_time
   created = link_missing_collection_points(
     order, schedule, start_time_slot, end_time_slot, session=session, collection_point_ids=preloaded_ids
   )

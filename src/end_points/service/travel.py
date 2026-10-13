@@ -346,3 +346,31 @@ def calculate_travel_overhead_minutes(
     with_new = fut_with_new.result()
 
   return max(0, with_new - baseline)
+
+
+def calculate_route_minutes(
+  existing_orders: list[Order],
+  new_cap: str = None,
+  new_address: str = None,
+) -> int:
+  """Minuti di percorso tra gli ordini della fascia, col nuovo ordine in coda se c'e'.
+
+  A differenza di calculate_travel_overhead_minutes non e' solo il delta: conta
+  anche la strada gia' necessaria tra gli ordini esistenti, che pesa sulla
+  capienza come i minuti di servizio. Il tratto dal veicolo alla prima consegna
+  non e' qui (e' il lavoro in testa alla giornata, vedi front_route_minutes).
+
+  Se il nuovo ordine non e' geocodificabile conta solo il percorso esistente.
+  """
+  coords = [
+    (lat, lon) for lat, lon in get_lat_lon_for_orders(sorted(existing_orders, key=lambda o: o.id)) if lat is not None
+  ]
+  if new_cap:
+    new_lat, new_lon = get_lat_lon_by_address(new_address) if new_address else (None, None)
+    if new_lat is None:
+      new_lat, new_lon = get_lat_lon_by_cap(new_cap)
+    if new_lat is not None:
+      coords.append((new_lat, new_lon))
+    else:
+      logger.warning('Geocoding fallito per il nuovo ordine (indirizzo=%s, cap=%s)', new_address, new_cap)
+  return sequential_travel_minutes(coords)

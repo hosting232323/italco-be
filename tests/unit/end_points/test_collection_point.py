@@ -156,20 +156,38 @@ def test_update_collection_point(client):
   assert get_by_id(CollectionPoint, collection_point.id).name == 'Nuovo nome'
 
 
-def test_collection_point_preloaded_flag_defaults_off_and_is_editable(client):
+def test_collection_point_preloaded_flag_defaults_off_and_is_editable_by_admin(client):
+  admin = create_user(UserRole.ADMIN)
   customer = create_user(UserRole.CUSTOMER)
+
+  created = client.post(
+    '/collection-point',
+    json={'name': 'Magazzino', 'address': 'Via X 1', 'cap': '70020', 'preloaded': True, 'user_id': customer.id},
+    headers=auth_header(admin),
+  ).get_json()['collection_point']
+  assert created['preloaded'] is True
+
+  collection_point = create_collection_point(customer)
+  assert collection_point.preloaded is False
+  client.put(f'/collection-point/{collection_point.id}', json={'preloaded': True}, headers=auth_header(admin))
+  assert get_by_id(CollectionPoint, collection_point.id).preloaded is True
+
+
+def test_collection_point_preloaded_flag_is_ignored_for_non_admin(client):
+  customer = create_user(UserRole.CUSTOMER)
+  operator = create_user(UserRole.OPERATOR)
 
   created = client.post(
     '/collection-point',
     json={'name': 'Magazzino', 'address': 'Via X 1', 'cap': '70020', 'preloaded': True},
     headers=auth_header(customer),
   ).get_json()['collection_point']
-  assert created['preloaded'] is True
+  assert created['preloaded'] is False
 
   collection_point = create_collection_point(customer)
-  assert collection_point.preloaded is False
-  client.put(f'/collection-point/{collection_point.id}', json={'preloaded': True}, headers=auth_header(customer))
-  assert get_by_id(CollectionPoint, collection_point.id).preloaded is True
+  for user in (customer, operator):
+    client.put(f'/collection-point/{collection_point.id}', json={'preloaded': True}, headers=auth_header(user))
+    assert get_by_id(CollectionPoint, collection_point.id).preloaded is False
 
 
 def test_collection_point_preload_cannot_be_turned_off_with_upcoming_preloaded_orders(client):
@@ -180,13 +198,14 @@ def test_collection_point_preload_cannot_be_turned_off_with_upcoming_preloaded_o
   from tests.unit.factories import create_order, create_product_row, customer_with_service
 
   customer, _, service_user, collection_point = customer_with_service()
+  admin = create_user(UserRole.ADMIN)
   update(collection_point, {'preloaded': True})
   order = create_order(dpc=date.today() + timedelta(days=2))
   update(order, {'preloaded': True})
   create_product_row(order, service_user, collection_point_id=collection_point.id)
 
   blocked = client.put(
-    f'/collection-point/{collection_point.id}', json={'preloaded': False}, headers=auth_header(customer)
+    f'/collection-point/{collection_point.id}', json={'preloaded': False}, headers=auth_header(admin)
   ).get_json()
   assert blocked['status'] == 'ko'
   assert get_by_id(CollectionPoint, collection_point.id).preloaded is True
@@ -194,7 +213,7 @@ def test_collection_point_preload_cannot_be_turned_off_with_upcoming_preloaded_o
   # Con l'ordine non piu' precaricato il flag si puo' spegnere.
   update(order, {'preloaded': False})
   allowed = client.put(
-    f'/collection-point/{collection_point.id}', json={'preloaded': False}, headers=auth_header(customer)
+    f'/collection-point/{collection_point.id}', json={'preloaded': False}, headers=auth_header(admin)
   ).get_json()
   assert allowed['status'] == 'ok'
   assert get_by_id(CollectionPoint, collection_point.id).preloaded is False

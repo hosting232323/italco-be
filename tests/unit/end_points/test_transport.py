@@ -264,3 +264,16 @@ def test_delete_transport_rejects_when_products_reference_it(client):
 
   assert response.get_json()['status'] == 'ko'
   assert get_by_id(Transport, transport.id) is not None
+
+
+def test_delete_transport_rejects_when_orders_are_planned_on_it(client):
+  from tests.unit.factories import create_order
+
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  create_order(delivery_transport_id=transport.id)
+
+  response = client.delete(f'/transport/{transport.id}', headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
+  assert get_by_id(Transport, transport.id) is not None
