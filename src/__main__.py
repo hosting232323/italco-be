@@ -1,3 +1,4 @@
+from flask import request
 from .database.schema import User
 from .database.enum import UserRole
 from .database.seed import seed_data
@@ -23,7 +24,7 @@ from .end_points.collection_point import collection_point_bp
 from .end_points.service.constraint import check_services_date
 from .end_points.customer_rule import customer_rules_bp, check_customer_rules
 from .end_points.geographic_zone import geographic_zone_bp
-from .end_points.delivery_coverage import delivery_coverage_bp, check_delivery_coverage_slots
+from .end_points.delivery_coverage import delivery_coverage_bp, check_delivery_coverage_slots, query_entries_for_cap
 
 
 @app.route('/check-constraints', methods=['POST'])
@@ -37,10 +38,16 @@ def check_constraints(user: User):
   # e il calendario le mostra per farle scegliere al cliente al posto della dpc.
   slots = check_delivery_coverage_slots()
   dates = sorted(set(check_customer_rules(user)) & set(slots) & set(check_services_date()))
+  # `covered` distingue l'indirizzo fuori da ogni blocco di copertura (il cliente
+  # sceglie la data a mano) dalle fasce esaurite (nessuna data da scegliere).
+  payload = request.json or {}
+  cap = str(payload['cap']) if payload.get('cap') is not None else None
+  covered = bool(cap and query_entries_for_cap(cap, address=payload.get('address')))
   return {
     'status': 'ok',
     'dates': dates,
     'slots': {day: slots[day] for day in dates if day in slots},
+    'covered': covered,
   }
 
 
