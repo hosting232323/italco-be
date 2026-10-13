@@ -180,6 +180,7 @@ def test_pdf_import_splits_mixed_service_types(monkeypatch):
     ['A1', 'M', 'Frigo', '1', 'CHECK'],
   ]
   monkeypatch.setattr(module.pdfplumber, 'open', lambda _: _FakePdf([_FakePage(SAMPLE_TEXT, [table])]))
+  monkeypatch.setattr(module, 'get_cap_by_name', lambda city: '70056')
   result = module.order_import_by_pdf({'file': BytesIO(b'pdf')}, customer.id)
   assert result['imported_orders_count'] == 2
   with Session() as session:
