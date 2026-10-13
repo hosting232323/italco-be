@@ -362,3 +362,15 @@ def test_trip_order_osrm_returns_none_on_unparsable_body(mock_get):
   response.json = lambda: {'code': 'Ok'}
   mock_get.return_value = response
   assert trip_order_osrm([BARI, MOLFETTA]) is None
+
+
+@patch('src.end_points.service.travel.sequential_travel_minutes', return_value=60)
+@patch('src.end_points.service.travel.get_lat_lon_for_orders')
+def test_calculate_route_minutes_counts_the_travel_between_existing_orders(mock_coords, mock_travel):
+  from src.end_points.service.travel import calculate_route_minutes
+
+  mock_coords.return_value = [BARI, MOLFETTA, BARI]
+  orders = [create_order(cap='70020'), create_order(cap='70056'), create_order(cap='70020')]
+
+  assert calculate_route_minutes(orders) == 60
+  assert mock_travel.call_args.args[0] == [BARI, MOLFETTA, BARI]

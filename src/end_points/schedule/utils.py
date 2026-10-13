@@ -84,7 +84,9 @@ def format_schedule_data(schedule_data: dict, session=None):
           item['collection_point'] = collection_point
           break
 
-  if not orders:
+  # Il borderò della vigilia puo' avere solo i ritiri dei precarichi: senza
+  # ordini ma con almeno un punto di ritiro e' un borderò valido.
+  if not orders and not collection_points:
     return None, None, {'status': 'ko', 'message': 'Errore nella creazione del borderò'}
 
   # 'users' non arriva più dal client (gli utenti delivery li porta il veicolo),

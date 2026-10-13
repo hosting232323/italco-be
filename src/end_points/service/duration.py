@@ -738,19 +738,19 @@ def _entry_front_slot_for(
     )
 
 
-def _travel_overhead_minutes(orders: list[Order], new_cap: str, new_address: str = None) -> int:
-  """calculate_travel_overhead_minutes che degrada a zero se il geocoder non risponde.
+def _route_minutes(orders: list[Order], new_cap: str = None, new_address: str = None) -> int:
+  """calculate_route_minutes che degrada a zero se il geocoder non risponde.
 
-  E' una stima del percorso aggiunto dal nuovo ordine: se Nominatim e' giu' non
-  puo' far cadere la prenotazione, come non deve farla cadere la strada in testa
-  alla giornata (vedi entry_front_route_minutes).
+  E' una stima del percorso tra gli ordini della fascia (col nuovo in coda): se
+  Nominatim e' giu' non puo' far cadere la prenotazione, come non deve farla
+  cadere la strada in testa alla giornata (vedi entry_front_route_minutes).
   """
-  from .travel import calculate_travel_overhead_minutes
+  from .travel import calculate_route_minutes
 
   try:
-    return calculate_travel_overhead_minutes(orders, new_cap, new_address=new_address)
+    return calculate_route_minutes(orders, new_cap, new_address=new_address)
   except requests.RequestException as error:
-    logger.warning('Sovrapprezzo di percorso non calcolabile (geocoder non raggiungibile): %s', error)
+    logger.warning('Percorso tra gli ordini non calcolabile (geocoder non raggiungibile): %s', error)
     return 0
 
 
@@ -799,8 +799,8 @@ def entry_occupied_duration(
   """Calcola il totale dei minuti occupati dagli ordini attribuiti al blocco nel giorno.
 
   Include la durata dei servizi di ciascun ordine, il tempo di percorso aggiuntivo
-  introdotto dal nuovo ordine (new_cap, con new_address per la stima più precisa
-  quando disponibile) e il lavoro in testa alla giornata: i minuti dei punti di
+  tra gli ordini (compreso il tratto verso il nuovo ordine, new_cap con
+  new_address per la stima più precisa quando disponibile) e il lavoro in testa alla giornata: i minuti dei punti di
   ritiro richiesti dai prodotti (deduplicati, vedi calculate_orders_pickup_minutes,
   compresi quelli del nuovo ordine in new_products, payload non ancora salvato: un
   punto già coperto da un ordine esistente nella fascia non viene ricontato) e
@@ -830,12 +830,9 @@ def entry_occupied_duration(
     with Session() as own_session:
       pickup_minutes += eve_preload_pickup_minutes(entry, dpc, own_session, exclude_order_id=exclude_order_id)
 
-  new_coord = None
-  if new_cap:
-    travel_overhead = _travel_overhead_minutes(orders, new_cap, new_address=new_address)
-    new_coord = _new_order_coord(new_cap, new_address)
-  else:
-    travel_overhead = 0
+  # Strada tra gli ordini gia' nella fascia, piu' il tratto verso il nuovo.
+  travel_overhead = _route_minutes(orders, new_cap, new_address=new_address)
+  new_coord = _new_order_coord(new_cap, new_address) if new_cap else None
 
   # Il lavoro in testa alla giornata (strada dal veicolo ai ritiri e verso la
   # prima consegna, sosta ai ritiri) pesa sulla fascia solo per la parte che non

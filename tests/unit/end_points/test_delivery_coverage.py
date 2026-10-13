@@ -34,6 +34,18 @@ from tests.unit.factories import (
 )
 
 
+@pytest.fixture(autouse=True)
+def no_route_baseline(request):
+  """Questi test misurano il lavoro in testa alla giornata, con sequential_travel_minutes
+  mockato a un valore fisso: il percorso tra gli ordini della fascia (che usa la
+  stessa funzione) lo falserebbe. E' coperto a parte, in test_travel.py."""
+  if request.node.get_closest_marker('real_route'):
+    yield
+    return
+  with patch('src.end_points.service.duration._route_minutes', return_value=0):
+    yield
+
+
 # Capienza delle fasce da un'ora usate nei test sulla saturazione (08:00-09:00).
 SLOT_CAPACITY = 60
 
@@ -757,6 +769,7 @@ def test_resolve_delivery_slot_prefers_unsaturated_slot_and_balances_minutes(db)
   assert (chosen_start, chosen_end) == (afternoon.start_time, afternoon.end_time)
 
 
+@pytest.mark.real_route
 @patch('src.end_points.service.travel.sequential_travel_minutes')
 @patch('src.end_points.service.travel.get_lat_lon_by_address')
 @patch('src.end_points.service.travel.get_lat_lon_by_cap')
@@ -772,8 +785,8 @@ def test_available_slots_filters_saturated_slot_based_on_travel_overhead(
   # coordinate via CAP.
   mock_geocode_address.return_value = (None, None)
   mock_geocode.return_value = (41.0, 16.0)
-  # baseline (solo l'esistente): 20 min. Con il nuovo ordine aggiunto: 90 min -> overhead 70 min.
-  mock_sequential.side_effect = lambda coords: 20 if len(coords) == 1 else 90
+  # Percorso esistente + nuovo ordine: 90 minuti, oltre la fascia da 60.
+  mock_sequential.return_value = 90
 
   assert available_slots('70051', target, new_cap='70051') == []
 
@@ -1402,8 +1415,10 @@ def test_check_constraints_slots_use_preloaded_pickup_point(app, db):
   _pickup_order(transport, target - timedelta(days=1), collection_point, service_user)
   payload = {'cap': '70051', 'products': _products(collection_point)}
 
+  # La fascia della vigilia non accetta precarichi, quindi e' offerta comunque:
+  # a mancare e' solo il giorno di consegna, che senza precarico non ha il passaggio.
   with app.test_request_context(json=payload):
-    assert check_delivery_coverage_slots() == {}
+    assert target.strftime('%Y-%m-%d') not in check_delivery_coverage_slots()
 
   update(collection_point, {'preloaded': True})
   with app.test_request_context(json=payload):

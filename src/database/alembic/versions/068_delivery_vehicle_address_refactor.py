@@ -23,6 +23,24 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+  # Prima di eliminare delivery_group il corriere si aggancia al veicolo dell'ultimo
+  # borderò in cui e' stato assegnato: da ora i borderò ereditano i corrieri dal
+  # veicolo. Chi e' gia' agganciato (065) resta com'e'. Un corriere che ha guidato
+  # veicoli diversi prende quello piu' recente: se serve altro, lo cambia l'admin.
+  op.execute(
+    """
+    UPDATE delivery_user_info AS info
+    SET transport_id = latest.transport_id
+    FROM (
+      SELECT DISTINCT ON (dg.user_id) dg.user_id, s.transport_id
+      FROM delivery_group dg
+      JOIN schedule s ON s.id = dg.schedule_id
+      WHERE s.transport_id IS NOT NULL
+      ORDER BY dg.user_id, s.date DESC, s.id DESC
+    ) AS latest
+    WHERE info.user_id = latest.user_id AND info.transport_id IS NULL
+    """
+  )
   op.drop_table('delivery_group')
   op.add_column('company', sa.Column('activity_start_time', sa.Time(), nullable=True))
   op.add_column('company', sa.Column('activity_end_time', sa.Time(), nullable=True))

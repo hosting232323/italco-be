@@ -47,9 +47,13 @@ def _preloaded_orders_count(collection_point_id: int) -> int:
     )
 
 
-def _client_fields(payload: dict) -> dict:
+def _client_fields(payload: dict, user: User) -> dict:
   # Le coordinate passano da _client_coordinates, mai così come arrivano.
-  return {key: value for key, value in payload.items() if key not in ('lat', 'lon')}
+  # Il precarico cambia la pianificazione dei veicoli: lo imposta solo l'admin.
+  reserved = {'lat', 'lon'}
+  if user.role != UserRole.ADMIN:
+    reserved.add('preloaded')
+  return {key: value for key, value in payload.items() if key not in reserved}
 
 
 def _client_coordinates(payload: dict, collection_point: CollectionPoint = None) -> dict:
@@ -96,7 +100,7 @@ def backfill_coordinates(collection_points: list[CollectionPoint]) -> None:
 @collection_point_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def create_collection_point(user: User):
-  data = {**_client_fields(request.json)}
+  data = {**_client_fields(request.json, user)}
   # Il cliente crea solo per sé; operatore/admin lo creano per il cliente indicato.
   if user.role == UserRole.CUSTOMER or not data.get('user_id'):
     data['user_id'] = user.id
@@ -131,9 +135,9 @@ def get_collection_points(user: User):
 
 @collection_point_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
-def update_collection_point(_, id):
+def update_collection_point(user: User, id):
   collection_point: CollectionPoint = get_by_id(CollectionPoint, int(id))
-  data = _client_fields(request.json)
+  data = _client_fields(request.json, user)
   if collection_point.preloaded and 'preloaded' in data and not data['preloaded']:
     pending = _preloaded_orders_count(collection_point.id)
     if pending:
