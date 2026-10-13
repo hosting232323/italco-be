@@ -55,6 +55,8 @@ def test_check_constraints_intersects_rule_sets(client, monkeypatch):
   body = response.get_json()
   assert body['status'] == 'ok'
   assert body['dates'] == ['2026-07-16', '2026-07-17']
+  # Senza CAP nel payload non c'e' nessuna copertura da cui dipendere.
+  assert body['covered'] is False
   # Le fasce viaggiano solo per le date effettivamente ammesse dall'intersezione,
   # anche se check_delivery_coverage_slots ne restituisce di più (es. 07-18).
   assert body['slots'] == {
