@@ -93,6 +93,24 @@ TEST_DISPOSAL_PLACE = {
 
 
 @pytest.fixture(autouse=True)
+def _no_real_network(monkeypatch):
+  """Nessuna chiamata vera a Nominatim/OSRM dai test.
+
+  Geocoding e percorsi cadono in fallback (CAP, Haversine) come quando il
+  servizio non risponde. Prima i test chiamavano i server veri: dal runner CI
+  lenti o irraggiungibili, la suite sforava l'ora di timeout del job. I test che
+  vogliono una risposta la mockano da soli (patch di requests.get o delle
+  funzioni di geocoding), e quella patch vince su questa.
+  """
+  import requests
+
+  def _unreachable(url, *args, **kwargs):
+    raise requests.ConnectionError(f'rete disabilitata nei test: {url}')
+
+  monkeypatch.setattr(requests, 'get', _unreachable)
+
+
+@pytest.fixture(autouse=True)
 def _clear_caps_cache():
   """Isola i test dalla cache di src.utils.caps.
 
