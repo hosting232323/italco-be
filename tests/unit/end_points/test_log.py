@@ -1,11 +1,11 @@
 import src.end_points.log as log_endpoints
 from src.database.enum import UserRole
 
-from tests.unit.factories import auth_header, create_user
+from tests.unit.factories import auth_header, create_super_admin, create_user
 
 
 def test_get_logs_formats_entries(client, monkeypatch):
-  admin = create_user(UserRole.ADMIN)
+  super_admin = create_super_admin()
   entries = [{'id': 'log-1', 'user_id': 7, 'identifier': 'admin', 'path': '/order'}]
   captured = {}
 
@@ -15,7 +15,7 @@ def test_get_logs_formats_entries(client, monkeypatch):
 
   monkeypatch.setattr(log_endpoints, 'query_logs', fake_query_logs)
 
-  response = client.post('/log/filter', json={'filters': {'user': 'admin'}}, headers=auth_header(admin))
+  response = client.post('/log/filter', json={'filters': {'user': 'admin'}}, headers=auth_header(super_admin))
 
   body = response.get_json()
   assert body['status'] == 'ok'
@@ -25,11 +25,11 @@ def test_get_logs_formats_entries(client, monkeypatch):
 
 
 def test_get_log_found(client, monkeypatch):
-  admin = create_user(UserRole.ADMIN)
+  super_admin = create_super_admin()
   monkeypatch.setattr(log_endpoints, 'find_log', lambda log_id, folder: {'id': log_id})
   monkeypatch.setattr(log_endpoints, 'format_log', lambda entry: {'formatted': entry['id']})
 
-  response = client.get('/log/abc123', headers=auth_header(admin))
+  response = client.get('/log/abc123', headers=auth_header(super_admin))
 
   body = response.get_json()
   assert body['status'] == 'ok'
@@ -37,17 +37,29 @@ def test_get_log_found(client, monkeypatch):
 
 
 def test_get_log_not_found(client, monkeypatch):
-  admin = create_user(UserRole.ADMIN)
+  super_admin = create_super_admin()
   monkeypatch.setattr(log_endpoints, 'find_log', lambda log_id, folder: None)
 
-  response = client.get('/log/missing', headers=auth_header(admin))
+  response = client.get('/log/missing', headers=auth_header(super_admin))
 
   body = response.get_json()
   assert body['status'] == 'ko'
   assert body['message'] == 'Log non trovato'
 
 
-def test_log_endpoints_require_admin(client):
+def test_log_endpoints_reject_company_admin(client):
+  # I log mescolano i body di tutte le company: l'admin di una company non li vede.
+  admin = create_user(UserRole.ADMIN)
+
+  for response in (
+    client.post('/log/filter', json={'filters': {}}, headers=auth_header(admin)),
+    client.get('/log/abc123', headers=auth_header(admin)),
+  ):
+    assert response.status_code == 403
+    assert response.get_json()['status'] == 'forbidden'
+
+
+def test_log_endpoints_reject_operator(client):
   operator = create_user(UserRole.OPERATOR)
 
   response = client.post('/log/filter', json={'filters': {}}, headers=auth_header(operator))
