@@ -132,7 +132,7 @@ def update_schedule(user: User, id):
 
 
 @schedule_bp.route('suggestions', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN], automatic_planning_required=True)
+@flask_session_authentication([UserRole.ADMIN])
 def get_schedule_suggestions(_):
   return execute_schedulation(
     datetime.strptime(request.args['work_date'], '%Y-%m-%d'),
