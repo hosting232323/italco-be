@@ -143,6 +143,7 @@ def format_query_result(
     'user': {
       **tupla[4].format_user(),
       'company_name': customer_user_info.company_name if customer_user_info else None,
+      'name': customer_user_info.name if customer_user_info else None,
     },
   }
   add_service(output, tupla[3], tupla[1], tupla[5], tupla[6], tupla[2].price)

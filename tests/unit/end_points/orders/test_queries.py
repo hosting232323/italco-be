@@ -18,6 +18,7 @@ from src.end_points.orders.queries import (
 
 from tests.unit.factories import (
   assign_delivery_user_to_schedule,
+  create_customer_info,
   create_order,
   create_product,
   create_schedule,
@@ -182,6 +183,17 @@ def test_format_query_result_aggregates_products_and_price(db):
   assert orders[0]['price'] == 30.0
   assert set(orders[0]['products']) == {'TV', 'Soundbar'}
   assert orders[0]['products']['TV']['collection_point']['id'] == collection_point.id
+
+
+def test_format_query_result_exposes_selling_point_name(db):
+  customer, _, service_user, _ = customer_with_service(price=7.0)
+  create_customer_info(customer, name='Negozio Bari', company_name='Negozio SRL')
+  create_product(create_order(), service_user, name='TV')
+
+  orders = _orders_from(query_orders([]))
+
+  assert orders[0]['user']['name'] == 'Negozio Bari'
+  assert orders[0]['user']['company_name'] == 'Negozio SRL'
 
 
 def test_format_query_result_does_not_duplicate_services(db):

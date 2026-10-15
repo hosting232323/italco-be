@@ -91,6 +91,22 @@ def test_create_user_succeeds_with_valid_payload(client):
     assert created.role == UserRole.DELIVERY
 
 
+def test_create_customer_user_seeds_selling_point_name_from_nickname(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.post(
+    '/user',
+    json={'nickname': 'negozio-bari', 'password': 'pw', 'role': 'Customer'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+  with Session() as session:
+    created = session.query(User).filter(User.nickname == 'negozio-bari').one()
+    info = session.query(CustomerUserInfo).filter_by(user_id=created.id).one()
+    assert info.name == 'negozio-bari'
+
+
 def test_create_user_rejects_admin_role(client):
   admin = create_user(UserRole.ADMIN)
 
@@ -647,3 +663,54 @@ def test_save_user_info_rejects_a_user_of_another_company(client, db):
   assert response.get_json() == {'status': 'ko', 'message': 'Utente non trovato'}
   with scope(company_id=None), Session() as session:
     assert session.query(CustomerUserInfo).filter_by(user_id=foreign_customer.id).count() == 0
+
+
+def test_create_user_stores_optional_email(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.post(
+    '/user',
+    json={'nickname': 'con-mail', 'email': 'con@mail.it', 'password': 'pw', 'role': 'Delivery'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+  with Session() as session:
+    assert session.query(User).filter(User.nickname == 'con-mail').one().email == 'con@mail.it'
+
+
+def test_create_user_rejects_email_equal_to_other_nickname(client):
+  admin = create_user(UserRole.ADMIN)
+  create_user(UserRole.DELIVERY, nickname='lega')
+
+  response = client.post(
+    '/user',
+    json={'nickname': 'nuovo', 'email': 'lega', 'password': 'pw', 'role': 'Delivery'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Email già in uso'}
+
+
+def test_login_accepts_email_as_well_as_nickname(client):
+  create_user(UserRole.DELIVERY, nickname='driver-mail', email='driver@mail.it', password=hash_password('pw-mail'))
+
+  by_email = client.post('/user/login', json={'email': 'driver@mail.it', 'password': 'pw-mail'}).get_json()
+  by_nickname = client.post('/user/login', json={'email': 'driver-mail', 'password': 'pw-mail'}).get_json()
+
+  assert by_email['status'] == 'ok'
+  assert by_nickname['status'] == 'ok'
+
+
+def test_update_user_sets_email_and_rejects_duplicates(client):
+  admin = create_user(UserRole.ADMIN)
+  driver = create_user(UserRole.DELIVERY, nickname='driver-upd')
+  create_user(UserRole.DELIVERY, nickname='altro', email='preso@mail.it')
+
+  duplicate = client.put(f'/user/{driver.id}', json={'email': 'preso@mail.it'}, headers=auth_header(admin))
+  assert duplicate.get_json() == {'status': 'ko', 'message': 'Email già in uso'}
+
+  ok = client.put(f'/user/{driver.id}', json={'email': 'nuova@mail.it'}, headers=auth_header(admin))
+  assert ok.get_json()['status'] == 'ok'
+  with Session() as session:
+    assert session.get(User, driver.id).email == 'nuova@mail.it'
