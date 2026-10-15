@@ -16,7 +16,7 @@
   ("Data prevista consegna", dpc),
   ("Data richiesta consegna", drc),
   ("Data consegna effettiva", booking_date)
-], section_style="margin-bottom: 16px;") }}
+], section_style="margin-bottom: 16px;", footer=("Precaricato", "Sì" if preloaded else "No")) }}
 
 {{ products_table(products, cell_padding="5px 8px 3px", heading_style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;", section_style="margin-bottom: 16px;") }}
 

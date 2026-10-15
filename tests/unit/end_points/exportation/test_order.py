@@ -55,6 +55,23 @@ def test_export_order_pdf_carries_the_company_letterhead(client):
   assert 'Hubstra' in text
 
 
+def _order_pdf_text(client, admin, preloaded):
+  _, _, service_user, collection_point = customer_with_service()
+  order = create_order(preloaded=preloaded)
+  create_product(order, service_user, collection_point_id=collection_point.id)
+
+  response = client.get(f'/export/order/{order.id}', headers=auth_header(admin))
+
+  return ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
+
+
+def test_export_order_pdf_says_whether_the_order_is_preloaded(client):
+  admin = create_user(UserRole.ADMIN)
+
+  assert 'Precaricato: Sì' in _order_pdf_text(client, admin, True)
+  assert 'Precaricato: No' in _order_pdf_text(client, admin, False)
+
+
 def test_export_order_not_found(client):
   admin = create_user(UserRole.ADMIN)
 
