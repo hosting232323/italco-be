@@ -155,24 +155,23 @@ def test_login_carries_the_flag_to_the_frontend(db, client):
   assert body['company']['automatic_planning'] is True
 
 
-def test_suggestions_endpoint_is_closed_without_the_flag(planning_off, client):
+def test_suggestions_endpoint_is_open_without_the_flag(planning_off, client):
+  """Le proposte di borderò non dipendono dal flag: senza ordini la risposta è quella di merito."""
   admin = create_user(UserRole.ADMIN)
 
   body = client.get(SUGGESTIONS_PATH, headers=auth_header(admin)).get_json()
 
   assert body['status'] == 'ko'
-  assert body['message'] == PLANNING_OFF_MESSAGE
+  assert body['message'] != PLANNING_OFF_MESSAGE
 
 
-def test_super_admin_is_bound_to_the_flag_of_the_selected_company(db, client):
-  """Il super admin scavalca il ruolo, non il flag: quello è dell'attività."""
+def test_super_admin_reaches_suggestions_without_the_flag(db, client):
   super_admin = create_super_admin()
   without_planning = create_company()
 
   body = client.get(SUGGESTIONS_PATH, headers=auth_header(super_admin, without_planning.id)).get_json()
 
-  assert body['status'] == 'ko'
-  assert body['message'] == PLANNING_OFF_MESSAGE
+  assert body['message'] != PLANNING_OFF_MESSAGE
 
 
 def test_is_automatic_planning_enabled_reads_the_active_company(db):

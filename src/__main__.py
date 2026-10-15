@@ -63,6 +63,9 @@ def check_constraints(user: User):
   for day in set(blocked or {}) | (set(slots) if IS_DEV else set()):
     if day in rule_dates and day in service_dates:
       continue
+    # Giorno non coperto dalle fasce: il motivo di copertura e' gia' quello giusto.
+    if day not in slots:
+      continue
     blocked[day] = (
       'Limite ordini giornalieri del punto vendita raggiunto o giorno escluso'
       if day not in rule_dates

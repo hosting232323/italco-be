@@ -703,6 +703,7 @@ def test_preloaded_pickup_goes_to_the_eve_schedule(_optimize, _optimize_eve, db,
 
   point = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
   normal_point = create_collection_point(create_user(UserRole.CUSTOMER))
+  update(entry, {'accepts_preloads': True})
   order = _preloaded_order(entry, point, normal_point)
 
   _plan(order)
