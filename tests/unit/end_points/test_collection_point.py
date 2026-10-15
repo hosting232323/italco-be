@@ -322,3 +322,50 @@ def test_correcting_a_collection_point_on_the_map_saves_the_new_position(mock_ge
   point = get_by_id(CollectionPoint, point.id)
   assert (point.lat, point.lon) == (40.56, 17.81)
   mock_geocode.assert_not_called()
+
+
+def test_preload_areas_are_admin_only_and_listed_with_the_point(client):
+  admin = create_user(UserRole.ADMIN)
+  customer = create_user(UserRole.CUSTOMER)
+  point = create_collection_point(customer)
+  path = f'/collection-point/{point.id}/preload-area'
+
+  assert client.post(path, json={'caps': ['70051']}, headers=auth_header(customer)).status_code in (401, 403)
+
+  created = client.post(path, json={'name': 'Nord', 'caps': ['70051', ' 70051 ']}, headers=auth_header(admin))
+  area = created.get_json()['preload_area']
+  assert area['caps'] == ['70051']
+  assert area['collection_point_id'] == point.id
+
+  listed = client.get('/collection-point', headers=auth_header(admin)).get_json()['collection_points']
+  assert [a['id'] for p in listed if p['id'] == point.id for a in p['preload_areas']] == [area['id']]
+
+
+def test_preload_area_needs_caps_or_polygon(client):
+  admin = create_user(UserRole.ADMIN)
+  point = create_collection_point(create_user(UserRole.CUSTOMER))
+
+  response = client.post(
+    f'/collection-point/{point.id}/preload-area', json={'caps': [], 'polygon': [[1, 2]]}, headers=auth_header(admin)
+  )
+
+  assert response.get_json()['status'] == 'ko'
+
+
+def test_preload_area_update_and_delete(client):
+  admin = create_user(UserRole.ADMIN)
+  point = create_collection_point(create_user(UserRole.CUSTOMER))
+  area = client.post(
+    f'/collection-point/{point.id}/preload-area', json={'caps': ['70051']}, headers=auth_header(admin)
+  ).get_json()['preload_area']
+
+  polygon = [[41.0, 16.0], [41.0, 17.0], [42.0, 17.0]]
+  updated = client.put(
+    f'/collection-point/preload-area/{area["id"]}', json={'polygon': polygon}, headers=auth_header(admin)
+  ).get_json()['preload_area']
+  assert updated['polygon'] == polygon
+  assert updated['caps'] == []
+
+  client.delete(f'/collection-point/preload-area/{area["id"]}', headers=auth_header(admin))
+  listed = client.get('/collection-point', headers=auth_header(admin)).get_json()['collection_points']
+  assert [p['preload_areas'] for p in listed if p['id'] == point.id] == [[]]

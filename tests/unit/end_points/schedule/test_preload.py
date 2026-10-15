@@ -4,7 +4,7 @@ from database_api import Session
 from database_api.operations import create, get_by_id, update
 
 from src.database.enum import OrderStatus, ScheduleType, UserRole
-from src.database.schema import DeliveryCoverageEntry, Order, ScheduleItemCollectionPoint
+from src.database.schema import CollectionPointPreloadArea, DeliveryCoverageEntry, Order, ScheduleItemCollectionPoint
 from src.end_points.schedule.delivery import get_items_for_delivery, update_schedule_item
 from src.end_points.schedule.preload import (
   can_preload_on,
@@ -225,3 +225,65 @@ def test_preloaded_products_by_stop_lists_only_planned_orders_in_one_query(db):
     result = preloaded_products_by_stop({(day, transport.id, point.id)}, session)
     assert [row_order.id for row_order, _ in result[(day, transport.id, point.id)]] == [planned.id]
     assert preloaded_products_by_stop({(day, transport.id, _point(customer).id)}, session) == {}
+
+
+def _area(point, caps=None, polygon=None):
+  return create(CollectionPointPreloadArea, {'collection_point_id': point.id, 'caps': caps or [], 'polygon': polygon})
+
+
+def test_point_with_areas_is_preloaded_only_inside_them(db):
+  customer, _, _, _ = customer_with_service()
+  point = _point(customer, True)
+  _area(point, caps=['70051'])
+  refusing = DeliveryCoverageEntry(accepts_preloads=False)
+
+  with Session() as session:
+    # L'area del punto prevale sulla zona di copertura, anche se questa rifiuta.
+    assert order_is_preloaded(refusing, [point.id], session, cap='70051') is True
+    assert order_is_preloaded(refusing, [point.id], session, cap='70020') is False
+
+
+def test_point_with_areas_ignores_zone_that_accepts_preloads(db):
+  customer, _, _, _ = customer_with_service()
+  point = _point(customer, True)
+  _area(point, caps=['70051'])
+  accepting = DeliveryCoverageEntry(accepts_preloads=True)
+
+  with Session() as session:
+    assert order_is_preloaded(accepting, [point.id], session, cap='70020') is False
+
+
+def test_point_without_areas_follows_the_zone(db):
+  customer, _, _, _ = customer_with_service()
+  point = _point(customer, True)
+  accepting = DeliveryCoverageEntry(accepts_preloads=True)
+  refusing = DeliveryCoverageEntry(accepts_preloads=False)
+
+  with Session() as session:
+    assert order_is_preloaded(accepting, [point.id], session, cap='70020') is True
+    assert order_is_preloaded(refusing, [point.id], session, cap='70020') is False
+
+
+def test_polygon_area_matches_by_coordinates(db):
+  customer, _, _, _ = customer_with_service()
+  point = _point(customer, True)
+  _area(point, polygon=[[41.0, 16.0], [41.0, 17.0], [42.0, 17.0], [42.0, 16.0]])
+  refusing = DeliveryCoverageEntry(accepts_preloads=False)
+
+  with Session() as session:
+    assert order_is_preloaded(refusing, [point.id], session, cap='70020', lat=41.5, lon=16.5) is True
+    assert order_is_preloaded(refusing, [point.id], session, cap='70020', lat=43.0, lon=16.5) is False
+    assert order_is_preloaded(refusing, [point.id], session, cap='70020') is False
+
+
+def test_areas_are_per_point(db):
+  customer, _, _, _ = customer_with_service()
+  with_area, plain = _point(customer, True), _point(customer, True)
+  _area(with_area, caps=['70051'])
+  accepting = DeliveryCoverageEntry(accepts_preloads=True)
+
+  with Session() as session:
+    ids = preloaded_collection_point_ids(
+      [with_area.id, plain.id], session, address=('70020', None, None), zone_accepts=accepting.accepts_preloads
+    )
+    assert ids == {plain.id}

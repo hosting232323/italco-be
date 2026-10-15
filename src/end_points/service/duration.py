@@ -770,16 +770,31 @@ def _new_order_coord(new_cap: str, new_address: str = None) -> tuple | None:
   return (lat, lon) if lat is not None else None
 
 
-def _new_preloaded_ids(entry: DeliveryCoverageEntry, dpc: date, new_products: dict, session: session_type) -> set[int]:
+def _new_preloaded_ids(
+  entry: DeliveryCoverageEntry,
+  dpc: date,
+  new_products: dict,
+  session: session_type,
+  new_cap: str = None,
+  new_coord: tuple = None,
+) -> set[int]:
   """Punti di ritiro del nuovo ordine (payload) che si ritirano la vigilia: non pesano su `dpc`."""
-  if not entry.accepts_preloads:
-    return set()
   from ..schedule.preload import can_preload_on, preloaded_collection_point_ids
+
+  lat, lon = new_coord if new_coord else (None, None)
+  has_address = any(value is not None for value in (new_cap, lat, lon))
+  if not has_address and not entry.accepts_preloads:
+    return set()
 
   def _ids(sess: session_type) -> set[int]:
     if not can_preload_on(dpc, entry.transport_id, sess):
       return set()
-    return preloaded_collection_point_ids(set(payload_pickup_collection_point_ids(new_products)), sess)
+    return preloaded_collection_point_ids(
+      set(payload_pickup_collection_point_ids(new_products)),
+      sess,
+      address=(new_cap, lat, lon) if has_address else None,
+      zone_accepts=bool(entry.accepts_preloads),
+    )
 
   if session is not None:
     return _ids(session)
@@ -815,11 +830,14 @@ def entry_occupied_duration(
   service_minutes = sum(calculate_order_service_duration(order) for order in orders)
   pickup_minutes = calculate_orders_pickup_minutes(orders)
 
+  new_coord = _new_order_coord(new_cap, new_address) if new_cap else None
+
   if new_products:
     existing_collection_points = {cp_id for order in orders for cp_id in order_pickup_collection_point_ids(order)}
     pickup_minutes += calculate_payload_pickup_minutes(
       new_products,
-      exclude_collection_point_ids=existing_collection_points | _new_preloaded_ids(entry, dpc, new_products, session),
+      exclude_collection_point_ids=existing_collection_points
+      | _new_preloaded_ids(entry, dpc, new_products, session, new_cap=new_cap, new_coord=new_coord),
     )
 
   # I ritiri precaricati delle consegne del giorno dopo si fanno oggi, in testa
@@ -832,7 +850,6 @@ def entry_occupied_duration(
 
   # Strada tra gli ordini gia' nella fascia, piu' il tratto verso il nuovo.
   travel_overhead = _route_minutes(orders, new_cap, new_address=new_address)
-  new_coord = _new_order_coord(new_cap, new_address) if new_cap else None
 
   # Il lavoro in testa alla giornata (strada dal veicolo ai ritiri e verso la
   # prima consegna, sosta ai ritiri) pesa sulla fascia solo per la parte che non
