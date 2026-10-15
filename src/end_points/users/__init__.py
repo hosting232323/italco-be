@@ -8,7 +8,7 @@ from ...database.enum import UserRole
 from .session import get_token_payload, refresh_access_token_response, replace_access_token
 from .. import auth, delivery_build_block_response, flask_session_authentication
 from api.users.security import hash_password, verify_password
-from ...database.queries import get_user_by_nickname, get_user_by_id_unscoped, is_automatic_planning_enabled
+from ...database.queries import get_user_by_login, get_user_by_id_unscoped, is_login_identifier_taken, is_automatic_planning_enabled
 from database_api import Session
 from database_api.operations import delete, get_by_id, create, update
 from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo
@@ -59,16 +59,20 @@ def create_user(_):
     return {'status': 'error', 'message': 'Role not valid'}
 
   # Il nickname è unico su tutto il database, non per company: il login avviene
-  # prima di sapere quale sia il tenant. get_user_by_nickname cerca fuori scope
+  # prima di sapere quale sia il tenant. is_login_identifier_taken cerca fuori scope
   # apposta, altrimenti un nickname già preso altrove sembrerebbe libero.
   nickname = request.json['nickname'].strip()
-  if get_user_by_nickname(nickname):
+  email = (request.json.get('email') or '').strip() or None
+  if is_login_identifier_taken(nickname):
     return {'status': 'ko', 'message': 'Nickname già in uso'}
+  if email and is_login_identifier_taken(email):
+    return {'status': 'ko', 'message': 'Email già in uso'}
 
   password = request.json['password']
   user_data = {
     'role': role,
     'nickname': nickname,
+    'email': email,
     'password': hash_password(password),
   }
   # Il flag vale solo per i punti vendita e solo se l'attività ha già acceso
@@ -76,28 +80,11 @@ def create_user(_):
   # per nessuno, e il campo va ignorato invece di lasciarlo scegliere al client.
   if role == UserRole.CUSTOMER and 'automatic_planning' in request.json and is_automatic_planning_enabled():
     user_data['automatic_planning'] = bool(request.json['automatic_planning'])
-  create(User, user_data)
+  user = create(User, user_data)
+  if role == UserRole.CUSTOMER:
+    # Il nome del punto vendita parte uguale al nickname, poi si modifica dalla scheda.
+    save_user_info(user.id, {'name': nickname}, CustomerUserInfo)
   return {'status': 'ok', 'message': 'Utente registrato', 'password': password}
-
-
-@user_bp.route('<id>', methods=['PUT'])
-@flask_session_authentication([UserRole.ADMIN])
-def update_user(_, id):
-  user: User = get_by_id(User, int(id))
-  if not user:
-    return {'status': 'ko', 'message': 'Utente non trovato'}
-
-  # Scope minimo: solo il flag di pianificazione automatica, e solo per i
-  # punti vendita di un'attività che ha già acceso il flag gemello su Company
-  # (stessa condizione di create_user, qui riapplicata perché il flag può
-  # essere spento in un secondo momento dopo che il punto vendita esisteva già).
-  if 'automatic_planning' not in request.json:
-    return {'status': 'ko', 'message': 'Nessun campo da aggiornare'}
-  if user.role != UserRole.CUSTOMER or not is_automatic_planning_enabled():
-    return {'status': 'ko', 'message': 'Pianificazione automatica non disponibile per questo utente'}
-
-  user = update(user, {'automatic_planning': bool(request.json['automatic_planning'])})
-  return {'status': 'ok', 'user': user.format_user(UserRole.ADMIN)}
 
 
 @user_bp.route('login', methods=['POST'])
@@ -105,9 +92,9 @@ def login():
   password = request.json['password']
   # Copia-incolla e tastiere mobili lasciano spazi in coda al nome utente, anche
   # non separabili (NBSP): str.strip() li toglie tutti, il confronto resta esatto.
-  nickname = request.json['email'].strip()
-  user: User = get_user_by_nickname(nickname)
-  if not user or user.nickname != nickname:
+  identifier = request.json['email'].strip()
+  user: User = get_user_by_login(identifier)
+  if not user or identifier not in (user.nickname, user.email):
     return {'status': 'ko', 'message': 'Credenziali errate'}
   build_block = delivery_build_block_response(user)
   if build_block:
@@ -132,6 +119,51 @@ def login():
 
 def check_password(user: User, password: str) -> bool:
   return verify_password(password, user.password)
+
+
+@user_bp.route('<id>', methods=['PUT'])
+@flask_session_authentication([UserRole.ADMIN])
+def update_user(_, id):
+  user: User = get_by_id(User, int(id))
+  if not user:
+    return {'status': 'ko', 'message': 'Utente non trovato'}
+  # Il flag di pianificazione automatica si aggiorna da solo, e solo per i
+  # punti vendita di un'attività che ha già acceso il flag gemello su Company
+  # (stessa condizione di create_user, qui riapplicata perché il flag può
+  # essere spento in un secondo momento dopo che il punto vendita esisteva già).
+  if 'automatic_planning' in request.json:
+    if user.role != UserRole.CUSTOMER or not is_automatic_planning_enabled():
+      return {'status': 'ko', 'message': 'Pianificazione automatica non disponibile per questo utente'}
+
+    user = update(user, {'automatic_planning': bool(request.json['automatic_planning'])})
+    return {'status': 'ok', 'user': user.format_user(UserRole.ADMIN)}
+
+  if user.role == UserRole.ADMIN:
+    return {'status': 'ko', 'message': 'Non è possibile modificare un admin'}
+
+  nickname = (request.json.get('nickname') or '').strip()
+  email = (request.json.get('email') or '').strip()
+  password = (request.json.get('password') or '').strip()
+
+  if nickname and nickname != user.nickname and is_login_identifier_taken(nickname, user.id):
+    return {'status': 'ko', 'message': 'Nickname già in uso'}
+  if email and email != user.email and is_login_identifier_taken(email, user.id):
+    return {'status': 'ko', 'message': 'Email già in uso'}
+
+  with auth.user_session_lock(user.id) as session:
+    fresh = session.query(User).filter(User.id == user.id).one()
+    data = {}
+    if nickname:
+      data['nickname'] = nickname
+    if email:
+      data['email'] = email
+    if password:
+      data['password'] = hash_password(password)
+      auth.revoke_user_sessions(user.id, db=session)
+    if data:
+      update(fresh, data, session=session)
+
+  return {'status': 'ok', 'message': 'Utente aggiornato'}
 
 
 @user_bp.route('<id>/password', methods=['POST'])

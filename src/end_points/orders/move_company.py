@@ -133,7 +133,7 @@ def plan_order_move(order_id: int, source_company_id: int, target_company_id: in
   else:
     candidates = _customer_candidates(target_company_id, source_info.company_name, session)
     plan['target_users'] = [
-      {'id': user.id, 'nickname': user.nickname, 'company_name': info.company_name} for user, info in candidates
+      {'id': user.id, 'nickname': user.nickname, 'company_name': info.company_name, 'name': info.name} for user, info in candidates
     ]
     if not candidates:
       errors.append(f'Nessun punto vendita con Ragione Sociale "{source_info.company_name}" in {target_company.name}')
