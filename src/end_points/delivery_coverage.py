@@ -484,9 +484,7 @@ def available_slots(
   with Session() as session:
     for entry in entries:
       if not _passes_same_pickup_points(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
-        _note_blocked(
-          blocked_slots, entry, 'Nessun corriere in zona passa già dai punti di ritiro dell\'ordine'
-        )
+        _note_blocked(blocked_slots, entry, "Nessun corriere in zona passa già dai punti di ritiro dell'ordine")
         continue
       if not _eve_can_take_preloads(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
         _note_blocked(blocked_slots, entry, 'Il giorno prima il corriere non ha tempo per i ritiri precaricati')
@@ -504,7 +502,7 @@ def available_slots(
       if effective is not None:
         available.setdefault((entry.start_time, entry.end_time), []).append(entry)
       else:
-        _note_blocked(blocked_slots, entry, 'Capienza esaurita per i servizi dell\'ordine')
+        _note_blocked(blocked_slots, entry, "Capienza esaurita per i servizi dell'ordine")
 
   if blocked_slots is not None:
     for key in available:
