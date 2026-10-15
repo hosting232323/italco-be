@@ -159,26 +159,9 @@
     - docker logout "$CI_REGISTRY" || true
     - rm -rf "$CI_PROJECT_DIR/.docker-$CI_JOB_ID" || true
 
-deploy_test:
-  extends: .deploy
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: manual
-      allow_failure: true
-    - if: '$CI_COMMIT_BRANCH'
-      when: manual
-  variables:
-    SERVICE: "${PROJECT_NAME}-test"
-    PUBLIC_HOST_PIPELINE: "test.${PUBLIC_HOST}"
-    HOST_PREFIX: "test."
-    DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
-    EURONICS_API_PASSWORD_PIPELINE: 0
-    IS_DEV: 1
-
-# Ambiente dedicato ai lavori lunghi (es. pianificazione automatica): stessa
-# meccanica di deploy_test ma su un container/host/DB separati, cosi' il branch
-# resta online per giorni senza calpestare test. Il DB usa il suffisso _demo
-# dove test usa _test.
+# Ambiente dedicato ai lavori lunghi (es. pianificazione automatica): container,
+# host e DB separati da prod, cosi' il branch resta online per giorni. Il DB usa
+# il suffisso _demo.
 deploy_demo:
   extends: .deploy
   rules:

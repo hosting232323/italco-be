@@ -440,6 +440,7 @@ def available_slots(
   new_address: str = None,
   new_products: dict = None,
   entries: list[DeliveryCoverageEntry] = None,
+  blocked_reasons: set = None,
 ) -> list[dict]:
   """Fasce orarie coperte dal CAP nel giorno della settimana di dpc con capienza residua
 
@@ -460,6 +461,10 @@ def available_slots(
   `entries` sono i blocchi che coprono il CAP (query_entries_for_cap): chi chiama
   per molti giorni di fila li risolve una volta sola invece di ripetere, a ogni
   giorno, query e geocoding dell'indirizzo.
+
+  `blocked_reasons`, se passato, raccoglie i motivi per cui i blocchi del giorno
+  sono stati scartati: serve a spiegare al cliente perche' un giorno coperto non
+  compare nel calendario.
   """
   dpc = _as_date(dpc)
   if not cap or not dpc:
@@ -473,9 +478,13 @@ def available_slots(
   available = {}
   with Session() as session:
     for entry in entries:
-      if not _passes_same_pickup_points(
-        entry, dpc, new_products, session, exclude_order_id=exclude_order_id
-      ) or not _eve_can_take_preloads(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
+      if not _passes_same_pickup_points(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
+        if blocked_reasons is not None:
+          blocked_reasons.add('Nessun corriere in zona passa già dai punti di ritiro dell'ordine')
+        continue
+      if not _eve_can_take_preloads(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
+        if blocked_reasons is not None:
+          blocked_reasons.add('Il giorno prima il corriere non ha tempo per i ritiri precaricati')
         continue
       effective = _entry_with_residual_capacity(
         entry,
@@ -489,6 +498,8 @@ def available_slots(
       )
       if effective is not None:
         available.setdefault((entry.start_time, entry.end_time), []).append(entry)
+      elif blocked_reasons is not None:
+        blocked_reasons.add('Fasce complete: nessuna capienza residua per i servizi dell'ordine')
 
   return [
     {
@@ -507,6 +518,7 @@ def available_slots_by_date(
   new_cap: str = None,
   new_address: str = None,
   new_products: dict = None,
+  blocked_out: dict = None,
 ) -> dict:
   # Sostituisce il vecchio check_geographic_zone in /check-constraints: la
   # data prevista dal cliente è selezionabile se il suo CAP è coperto da
@@ -518,7 +530,9 @@ def available_slots_by_date(
   end = start + relativedelta(months=2)
   result = {}
   while start <= end:
+    iso = start.strftime('%Y-%m-%d')
     if start.weekday() in covered_days:
+      reasons = set() if blocked_out is not None else None
       slots = available_slots(
         cap,
         start,
@@ -528,11 +542,19 @@ def available_slots_by_date(
         new_address=new_address,
         new_products=new_products,
         entries=entries,
+        blocked_reasons=reasons,
       )
       if slots:
-        result[start.strftime('%Y-%m-%d')] = slots
+        result[iso] = slots
+      elif blocked_out is not None:
+        blocked_out[iso] = ' · '.join(sorted(reasons)) or 'Nessuna fascia disponibile'
+    elif blocked_out is not None and entries:
+      blocked_out[iso] = f'Nessun corriere in copertura il {WEEKDAY_NAMES[start.weekday()]}'
     start += timedelta(days=1)
   return result
+
+
+WEEKDAY_NAMES = ['lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica']
 
 
 def check_delivery_coverage(*args, **kwargs) -> list[str]:
@@ -554,6 +576,9 @@ def check_delivery_coverage_slots(*args, **kwargs) -> dict:
   remember_address_coordinates(
     payload.get('address'), *parse_coordinates(payload.get('address_lat'), payload.get('address_lon'))
   )
+  extra = {}
+  if kwargs.get('blocked_out') is not None:
+    extra['blocked_out'] = kwargs['blocked_out']
   return available_slots_by_date(
     new_cap,
     required_duration=required_duration,
@@ -561,6 +586,7 @@ def check_delivery_coverage_slots(*args, **kwargs) -> dict:
     new_cap=new_cap,
     new_address=payload.get('address'),
     new_products=payload.get('products'),
+    **extra,
   )
 
 
@@ -691,6 +717,65 @@ def query_entries_for_polygon_point(lat: float, lon: float) -> list[DeliveryCove
       .all()
     )
   return [entry for entry in entries if point_in_polygon((lat, lon), entry.polygon)]
+
+
+def annotate_slot_fill(slots_by_date: dict, user_id: int = None) -> None:
+  """Aggiunge a ogni fascia di `slots_by_date` (giorno -> [fascia]) `booked`, gli ordini
+  gia' presi in quella fascia, e `own_booked`, quelli del punto vendita `user_id`.
+
+  Una sola query per l'intero intervallo di date; si conta per data e fascia
+  (indipendentemente dal veicolo, come la lista delle fasce).
+  """
+  if not slots_by_date:
+    return
+  days = [date.fromisoformat(day) for day in slots_by_date]
+  with Session() as session:
+    rows = (
+      session.query(Order.dpc, Order.delivery_slot_start, Order.delivery_slot_end, Order.user_id)
+      .filter(Order.dpc.in_(days), Order.delivery_slot_start.isnot(None))
+      .all()
+    )
+  booked = {}
+  own_booked = {}
+  for dpc, start, end, owner_id in rows:
+    key = (dpc.strftime('%Y-%m-%d'), start.strftime('%H:%M'), end.strftime('%H:%M'))
+    booked[key] = booked.get(key, 0) + 1
+    if user_id is not None and owner_id == user_id:
+      own_booked[key] = own_booked.get(key, 0) + 1
+  for day, slots in slots_by_date.items():
+    for slot in slots:
+      key = (day, slot['start'], slot['end'])
+      slot['booked'] = booked.get(key, 0)
+      slot['own_booked'] = own_booked.get(key, 0)
+
+
+def annotate_out_of_zone(orders: list[dict]) -> None:
+  """Aggiunge `out_of_zone` a ogni ordine (dict) della lista.
+
+  Fuori zona = nessun blocco di copertura copre il CAP dell'ordine ne' il suo
+  poligono disegnato sulla mappa (con le coordinate salvate dell'indirizzo). Un
+  ordine con veicolo assegnato e' per definizione coperto. Se non esiste nessun
+  blocco la copertura non e' in uso e nessun ordine viene segnalato. Una sola
+  lettura dei blocchi per l'intera lista, nessun geocoding.
+  """
+  if not orders:
+    return
+  with Session() as session:
+    entries = session.query(DeliveryCoverageEntry).options(joinedload(DeliveryCoverageEntry.caps)).all()
+  if not entries:
+    for order in orders:
+      order['out_of_zone'] = False
+    return
+
+  covered_caps = {str(cap.cap).strip() for entry in entries for cap in entry.caps}
+  polygons = [entry.polygon for entry in entries if entry.polygon]
+  for order in orders:
+    if order.get('delivery_transport_id') or str(order.get('cap') or '').strip() in covered_caps:
+      order['out_of_zone'] = False
+      continue
+    lat, lon = order.get('address_lat'), order.get('address_lon')
+    in_polygon = lat is not None and lon is not None and any(point_in_polygon((lat, lon), p) for p in polygons)
+    order['out_of_zone'] = not in_polygon
 
 
 def count_orders_by_slot(cap: str, dpc: date, slots: list[tuple], exclude_order_id: int = None) -> dict:
