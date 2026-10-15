@@ -1,3 +1,4 @@
+from sqlalchemy import or_
 from sqlalchemy.orm import joinedload
 from database_api import Session, scope, current_scope
 
@@ -11,6 +12,33 @@ def get_user_by_nickname(nickname: str) -> User | None:
   # joinedload: l'utente esce detached dalla sessione e la company va letta dopo.
   with scope(company_id=None), Session() as session:
     return session.query(User).options(joinedload(User.company)).filter(User.nickname == nickname).first()
+
+
+def get_user_by_login(identifier: str) -> User | None:
+  """Utente che si autentica con il nickname o con l'email.
+
+  Nickname ed email non possono collidere tra loro (lo garantisce
+  is_login_identifier_taken), quindi l'identificativo risolve al più un utente.
+  """
+  with scope(company_id=None), Session() as session:
+    return (
+      session.query(User)
+      .options(joinedload(User.company))
+      .filter(or_(User.nickname == identifier, User.email == identifier))
+      .first()
+    )
+
+
+def is_login_identifier_taken(identifier: str, exclude_user_id: int = None) -> bool:
+  """True se nickname o email di un altro utente coincidono con l'identificativo.
+
+  Fuori scope: il login avviene prima di sapere il tenant, l'unicità è globale.
+  """
+  with scope(company_id=None), Session() as session:
+    query = session.query(User.id).filter(or_(User.nickname == identifier, User.email == identifier))
+    if exclude_user_id is not None:
+      query = query.filter(User.id != exclude_user_id)
+    return query.first() is not None
 
 
 def get_user_by_id_unscoped(user_id: int) -> User | None:

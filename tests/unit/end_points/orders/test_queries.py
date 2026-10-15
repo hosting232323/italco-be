@@ -19,6 +19,7 @@ from src.end_points.orders.queries import (
 from tests.unit.factories import (
   create_customer_info,
   assign_delivery_user_to_schedule,
+  create_customer_info,
   create_order,
   create_product,
   create_schedule,
