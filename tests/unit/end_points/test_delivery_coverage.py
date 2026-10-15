@@ -11,6 +11,8 @@ from src.database.schema import DeliveryCoverageCap, DeliveryCoverageEntry, Sche
 from src.end_points.service.duration import PICKUP_POINT_MINUTES_PER_PRODUCT
 from src.end_points.delivery_coverage import (
   SlotUnavailableError,
+  annotate_out_of_zone,
+  annotate_slot_fill,
   resolve_delivery_entry,
   available_slots,
   available_slots_by_date,
@@ -568,6 +570,72 @@ def test_check_delivery_coverage_slots_matches_check_delivery_coverage_dates(app
 
   assert sorted(slots.keys()) == sorted(dates)
   assert slots[target.strftime('%Y-%m-%d')] == [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]
+
+
+def test_available_slots_by_date_explains_blocked_days(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  blocked = {}
+
+  result = available_slots_by_date('70051', blocked_out=blocked)
+
+  assert target.strftime('%Y-%m-%d') in result
+  other_day = (target + timedelta(days=1)).strftime('%Y-%m-%d')
+  assert blocked[other_day].startswith('Nessun corriere in copertura il ')
+  assert target.strftime('%Y-%m-%d') not in blocked
+
+
+def test_available_slots_by_date_reports_full_slots_as_blocked(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  blocked = {}
+
+  with patch('src.end_points.delivery_coverage._entry_with_residual_capacity', return_value=None):
+    result = available_slots_by_date('70051', blocked_out=blocked)
+
+  assert result == {}
+  assert 'Fasce complete' in blocked[target.strftime('%Y-%m-%d')]
+
+
+def test_annotate_slot_fill_counts_bookings_per_slot_and_owner(db):
+  target = date.today() + timedelta(days=3)
+  mine = create_user(role=UserRole.CUSTOMER, nickname='mine')
+  other = create_user(role=UserRole.CUSTOMER, nickname='other')
+  for owner in (mine, other, other):
+    create_order(
+      cap='70051', dpc=target, user_id=owner.id, delivery_slot_start=time(8, 0), delivery_slot_end=time(12, 0)
+    )
+  slots = {target.strftime('%Y-%m-%d'): [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]}
+
+  annotate_slot_fill(slots, user_id=mine.id)
+
+  slot = slots[target.strftime('%Y-%m-%d')][0]
+  assert slot['booked'] == 3
+  assert slot['own_booked'] == 1
+  annotate_slot_fill({})
+
+
+def test_annotate_out_of_zone_flags_orders_outside_every_block(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), caps=('70051',))
+  orders = [
+    {'id': 1, 'cap': '70051'},
+    {'id': 2, 'cap': '99999'},
+    {'id': 3, 'cap': '99999', 'delivery_transport_id': 7},
+  ]
+
+  annotate_out_of_zone(orders)
+
+  assert [order['out_of_zone'] for order in orders] == [False, True, False]
+  annotate_out_of_zone([])
+
+
+def test_annotate_out_of_zone_ignores_orders_when_no_coverage_exists(db):
+  orders = [{'id': 1, 'cap': '99999'}]
+
+  annotate_out_of_zone(orders)
+
+  assert orders[0]['out_of_zone'] is False
 
 
 def test_resolve_delivery_slot_returns_none_without_coverage(db):

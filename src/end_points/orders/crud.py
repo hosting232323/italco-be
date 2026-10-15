@@ -11,7 +11,7 @@ from api.storage.session import SessionWithStorage
 from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_products, update_products
-from ..delivery_coverage import SlotUnavailableError, resolve_delivery_entry
+from ..delivery_coverage import SlotUnavailableError, annotate_out_of_zone, resolve_delivery_entry
 from ..schedule.preload import order_is_preloaded, preloaded_pickup_ids_for_order
 from ..service.duration import payload_pickup_collection_point_ids
 from ..service.duration import order_products_payload
@@ -272,6 +272,7 @@ def filter_orders(filters: dict, customer_id: int = None):
   orders = []
   for tupla in query_orders(filters, 500, customer_id):
     orders = format_query_result(tupla, orders)
+  annotate_out_of_zone(orders)
   return {'status': 'ok', 'orders': orders}
 
 
