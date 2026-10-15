@@ -74,8 +74,9 @@ def test_check_constraints_explains_blocked_days_only_in_dev(client, monkeypatch
   monkeypatch.setattr(main_module, 'check_customer_rules', lambda user: ['2026-07-16'])
   monkeypatch.setattr(main_module, 'check_services_date', lambda: ['2026-07-16', '2026-07-17'])
 
-  def fake_slots(user=None, blocked_out=None):
+  def fake_slots(user=None, blocked_out=None, slot_notes_out=None):
     blocked_out['2026-07-18'] = 'Fasce complete'
+    slot_notes_out['2026-07-16'] = [{'start': '14:00', 'end': '18:00', 'reason': 'Capienza esaurita'}]
     return {'2026-07-16': [{'start': '08:00', 'end': '12:00'}], '2026-07-17': [{'start': '08:00', 'end': '12:00'}]}
 
   monkeypatch.setattr(main_module, 'check_delivery_coverage_slots', fake_slots)
@@ -86,7 +87,7 @@ def test_check_constraints_explains_blocked_days_only_in_dev(client, monkeypatch
   reasons = {group['reason']: group['dates'] for group in body['blocked']}
   assert reasons['Fasce complete'] == ['2026-07-18']
   assert reasons['Limite ordini giornalieri del punto vendita raggiunto o giorno escluso'] == ['2026-07-17']
-  assert body['slots']['2026-07-16'][0]['booked'] == 0
+  assert body['slot_notes'] == {'2026-07-16': [{'start': '14:00', 'end': '18:00', 'reason': 'Capienza esaurita'}]}
 
 
 def test_check_constraints_requires_customer_role(client):
