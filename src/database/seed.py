@@ -143,6 +143,7 @@ def seed_company_data():
         'address': f'Via Cliente {index + 1}, Bari',
         'tax_code': f'TAXCODE{index + 1:04d}',
         'company_name': f'Cliente SPA {index + 1}',
+        'name': customer_user.nickname,
         'user_id': customer_user.id,
       },
     )
