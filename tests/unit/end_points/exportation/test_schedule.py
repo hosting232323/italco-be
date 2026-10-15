@@ -72,6 +72,22 @@ def test_export_schedule_prints_the_chosen_rae_disposal_place(client):
   assert 'Deposito Test' in text
 
 
+def test_export_schedule_marks_preloaded_orders(client):
+  admin = create_user(UserRole.ADMIN)
+  _, _, service_user, collection_point = customer_with_service()
+  order = create_order(status=OrderStatus.SCHEDULED, preloaded=True)
+  create_product(order, service_user, collection_point_id=collection_point.id)
+  schedule = create_schedule()
+  link_order_to_schedule(order, schedule)
+  assign_delivery_user_to_schedule(create_user(UserRole.DELIVERY), schedule)
+
+  response = client.get(f'/export/schedule/{schedule.id}', headers=auth_header(admin))
+
+  text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
+  assert 'PRECARICATO' in text
+  assert 'Precaricato: Sì' in text
+
+
 def test_export_schedule_not_found(client):
   admin = create_user(UserRole.ADMIN)
 

@@ -20,7 +20,7 @@
   {%- endif -%}
 {% endmacro %}
 
-{% macro dual_info_table(left_rows, right_rows, section_style=None) %}
+{% macro dual_info_table(left_rows, right_rows, section_style=None, footer=None) %}
 {% set row_count = [left_rows|length, right_rows|length]|max %}
 <div class="section"{% if section_style %} style="{{ section_style }}"{% endif %}>
   <table class="info-table">
@@ -40,6 +40,11 @@
         {% endif %}
       </tr>
     {% endfor %}
+    {% if footer %}
+      <tr>
+        <td colspan="4" style="padding: 5px 8px 3px;"><strong>{{ footer[0] }}:</strong> {{ footer[1] }}</td>
+      </tr>
+    {% endif %}
   </table>
 </div>
 {% endmacro %}
@@ -173,7 +178,7 @@
   ("Data richiesta consegna", order.drc),
   ("Data consegna effettiva", order.booking_date),
   ("Note aggiuntive", order.operator_note)
-], section_style="margin-bottom: 16px;") }}
+], section_style="margin-bottom: 16px;", footer=("Precaricato", "Sì" if order.preloaded else "No")) }}
 
 {{ products_table(order.products, cell_padding="5px 8px 3px", heading_style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;", section_style="margin-bottom: 16px;") }}
 
