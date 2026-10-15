@@ -9,8 +9,10 @@ from . import flask_session_authentication
 log_bp = Blueprint('log_bp', __name__)
 
 
+# I log sono unici per tutta la piattaforma e contengono i body delle richieste
+# di ogni company: li legge solo il super admin, senza bisogno di sceglierne una.
 @log_bp.route('filter', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
 def get_logs(_):
   return {
     'status': 'ok',
@@ -22,7 +24,7 @@ def get_logs(_):
 
 
 @log_bp.route('<log_id>', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
 def get_log(_, log_id):
   entry = find_log(log_id, STATIC_FOLDER)
   if not entry:
