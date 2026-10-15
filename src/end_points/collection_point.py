@@ -8,7 +8,8 @@ from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
 from database_api.operations import create, delete, get_by_id, update
-from ..database.schema import CollectionPoint, Order, User, ServiceUser, Product
+from ..database.schema import CollectionPoint, CollectionPointPreloadArea, Order, User, ServiceUser, Product
+from .delivery_coverage import _clean_caps, _clean_polygon
 from ..utils.geo import parse_coordinates
 from ..utils.caps import get_lat_lon_by_address
 
@@ -16,10 +17,31 @@ from ..utils.caps import get_lat_lon_by_address
 collection_point_bp = Blueprint('collection_point_bp', __name__)
 
 
-def format_collection_point(collection_point: CollectionPoint) -> dict:
+def format_collection_point(collection_point: CollectionPoint, preload_areas: list | None = None) -> dict:
   # lat/lon sono salvati sul punto: None se non sono ancora stati risolti (il FE
   # lo interpreta come "nessun marker per questo punto").
-  return {**collection_point.to_dict(), 'lat': collection_point.lat, 'lon': collection_point.lon}
+  return {
+    **collection_point.to_dict(),
+    'lat': collection_point.lat,
+    'lon': collection_point.lon,
+    'preload_areas': [area.to_dict() for area in preload_areas or []],
+  }
+
+
+def query_preload_areas(collection_point_ids: list[int]) -> dict[int, list[CollectionPointPreloadArea]]:
+  by_point: dict[int, list[CollectionPointPreloadArea]] = {}
+  if not collection_point_ids:
+    return by_point
+  with Session() as session:
+    areas = (
+      session.query(CollectionPointPreloadArea)
+      .filter(CollectionPointPreloadArea.collection_point_id.in_(collection_point_ids))
+      .order_by(CollectionPointPreloadArea.id)
+      .all()
+    )
+  for area in areas:
+    by_point.setdefault(area.collection_point_id, []).append(area)
+  return by_point
 
 
 def _coordinates(address: str) -> dict:
@@ -115,6 +137,11 @@ def create_collection_point(user: User):
 @collection_point_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.CUSTOMER])
 def delete_collection_point(_, id):
+  with Session() as session:
+    session.query(CollectionPointPreloadArea).filter(CollectionPointPreloadArea.collection_point_id == int(id)).delete(
+      synchronize_session=False
+    )
+    session.commit()
   delete(get_by_id(CollectionPoint, int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
@@ -127,9 +154,10 @@ def get_collection_points(user: User):
     return {'status': 'ok', 'collection_points': []}
 
   backfill_coordinates(collection_points)
+  areas = query_preload_areas([point.id for point in collection_points])
   return {
     'status': 'ok',
-    'collection_points': [format_collection_point(point) for point in collection_points],
+    'collection_points': [format_collection_point(point, areas.get(point.id)) for point in collection_points],
   }
 
 
@@ -154,6 +182,51 @@ def update_collection_point(user: User, id):
   elif 'address' in data and data['address'] != collection_point.address:
     data.update(_coordinates(data['address']))
   return {'status': 'ok', 'order': update(collection_point, data).to_dict()}
+
+
+def _preload_area_fields(payload: dict) -> dict | None:
+  """Campi validati di un'area di precarico, o None se non e' ne' per CAP ne' un poligono."""
+  caps = _clean_caps(payload.get('caps'))
+  polygon = _clean_polygon(payload.get('polygon'))
+  if not caps and not polygon:
+    return None
+  name = str(payload.get('name') or '').strip() or None
+  return {'name': name, 'caps': caps, 'polygon': polygon}
+
+
+@collection_point_bp.route('<id>/preload-area', methods=['POST'])
+@flask_session_authentication([UserRole.ADMIN])
+def create_preload_area(_, id):
+  collection_point = get_by_id(CollectionPoint, int(id))
+  if not collection_point:
+    return {'status': 'ko', 'message': 'Punto di ritiro non trovato'}
+  fields = _preload_area_fields(request.json)
+  if fields is None:
+    return {'status': 'ko', 'message': "Seleziona almeno un CAP o disegna un'area sulla mappa"}
+  area = create(CollectionPointPreloadArea, {**fields, 'collection_point_id': collection_point.id})
+  return {'status': 'ok', 'preload_area': area.to_dict()}
+
+
+@collection_point_bp.route('preload-area/<id>', methods=['PUT'])
+@flask_session_authentication([UserRole.ADMIN])
+def update_preload_area(_, id):
+  area = get_by_id(CollectionPointPreloadArea, int(id))
+  if not area:
+    return {'status': 'ko', 'message': 'Area non trovata'}
+  fields = _preload_area_fields(request.json)
+  if fields is None:
+    return {'status': 'ko', 'message': "Seleziona almeno un CAP o disegna un'area sulla mappa"}
+  return {'status': 'ok', 'preload_area': update(area, fields).to_dict()}
+
+
+@collection_point_bp.route('preload-area/<id>', methods=['DELETE'])
+@flask_session_authentication([UserRole.ADMIN])
+def delete_preload_area(_, id):
+  area = get_by_id(CollectionPointPreloadArea, int(id))
+  if not area:
+    return {'status': 'ko', 'message': 'Area non trovata'}
+  delete(area)
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 def query_collection_points(user: User, customer_id: int | None = None) -> list[CollectionPoint]:

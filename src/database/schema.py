@@ -441,6 +441,30 @@ class CollectionPoint(BaseItalcoEntity):
   release_product = relationship(
     'Product', foreign_keys='Product.release_collection_point_id', back_populates='release_collection_point'
   )
+  preload_areas = relationship(
+    'CollectionPointPreloadArea', back_populates='collection_point', cascade='all, delete-orphan'
+  )
+
+
+class CollectionPointPreloadArea(BaseItalcoEntity):
+  """Area in cui un punto di ritiro viene precaricato.
+
+  Per punto di ritiro, non per zona di copertura: la stessa zona puo' essere da
+  precaricare per un punto e non per un altro. L'area e' un insieme di CAP, un
+  poligono disegnato sulla mappa, o entrambi (basta che l'indirizzo cada in
+  uno). Un punto senza aree usa `accepts_preloads` della zona di copertura
+  (vedi end_points/schedule/preload.py).
+  """
+
+  __tablename__ = 'collection_point_preload_area'
+
+  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False, index=True)
+  name = Column(String)
+  # Lista di CAP (stringhe) e/o poligono [[lat, lon], ...], come DeliveryCoverageEntry.
+  caps = Column(JSON, nullable=False, default=list)
+  polygon = Column(JSON, nullable=True)
+
+  collection_point = relationship('CollectionPoint', back_populates='preload_areas')
 
 
 class Service(BaseItalcoEntity):

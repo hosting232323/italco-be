@@ -275,7 +275,13 @@ def sync_order_preload(order: Order, previous_ids: set[int], previous_eve, sessi
   # modificato a ritiro avvenuto non deve perdere il precarico perche' la vigilia e' passata.
   same_eve = bool(previous_eve and order.dpc and previous_eve == order.dpc - timedelta(days=1))
   preloaded = order_is_preloaded(
-    find_coverage_entry(order, session), cp_ids, session, dpc=None if same_eve else order.dpc
+    find_coverage_entry(order, session),
+    cp_ids,
+    session,
+    dpc=None if same_eve else order.dpc,
+    cap=order.cap,
+    lat=order.address_lat,
+    lon=order.address_lon,
   )
   if preloaded != bool(order.preloaded):
     update(order, {'preloaded': preloaded}, session=session)

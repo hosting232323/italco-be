@@ -220,7 +220,13 @@ def create_order(user: User, data: dict):
       except SlotUnavailableError as error:
         return {'status': 'ko', 'message': str(error)}
       clean_data['preloaded'] = order_is_preloaded(
-        entry, payload_pickup_collection_point_ids(data.get('products')), session, dpc=clean_data.get('dpc')
+        entry,
+        payload_pickup_collection_point_ids(data.get('products')),
+        session,
+        dpc=clean_data.get('dpc'),
+        cap=clean_data.get('cap'),
+        lat=clean_data.get('address_lat'),
+        lon=clean_data.get('address_lon'),
       )
       clean_data['delivery_slot_start'] = entry.start_time if entry else None
       clean_data['delivery_slot_end'] = entry.end_time if entry else None
@@ -403,7 +409,13 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
         'delivery_slot_end': entry.end_time if entry else None,
         'delivery_transport_id': entry.transport_id if entry else None,
         'preloaded': order_is_preloaded(
-          entry, payload_pickup_collection_point_ids(products_payload), session, dpc=data.get('dpc', order.dpc)
+          entry,
+          payload_pickup_collection_point_ids(products_payload),
+          session,
+          dpc=data.get('dpc', order.dpc),
+          cap=data.get('cap', order.cap),
+          lat=data.get('address_lat', order.address_lat),
+          lon=data.get('address_lon', order.address_lon),
         ),
       }
       replan = True

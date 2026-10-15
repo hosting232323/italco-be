@@ -2,10 +2,13 @@
 
 Il precarico vale solo se due cose sono vere insieme:
 
-- l'area di copertura dell'ordine accetta precarichi
-  (``DeliveryCoverageEntry.accepts_preloads``);
 - il punto di ritiro del prodotto ammette il precarico
-  (``CollectionPoint.preloaded``).
+  (``CollectionPoint.preloaded``);
+- l'indirizzo dell'ordine e' un'area di precarico per quel punto: se il punto ha
+  aree proprie (``CollectionPointPreloadArea``, per CAP o poligono) l'indirizzo
+  deve cadere in una di esse, altrimenti vale l'area di copertura dell'ordine
+  (``DeliveryCoverageEntry.accepts_preloads``). Le aree del punto prevalgono
+  sull'area di copertura, in entrambi i sensi.
 
 La scelta e' per punto di ritiro, non per ordine: se un ordine ha due prodotti
 con due punti diversi e uno solo e' precaricato, quel prodotto si ritira il
@@ -20,18 +23,61 @@ from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
 
-from ...database.schema import CollectionPoint, DeliveryCoverageEntry, Order, Product, ScheduleItemOrder
+from ...database.schema import (
+  CollectionPoint,
+  CollectionPointPreloadArea,
+  DeliveryCoverageEntry,
+  Order,
+  Product,
+  ScheduleItemOrder,
+)
+from ...utils.geo import point_in_polygon
 
 
-def preloaded_collection_point_ids(collection_point_ids, session: session_type) -> set[int]:
-  """Tra `collection_point_ids`, quelli che ammettono il precarico."""
+def area_contains(area: CollectionPointPreloadArea, cap, lat, lon) -> bool:
+  """Se l'indirizzo (CAP e/o coordinate) cade nell'area di precarico."""
+  if cap and str(cap).strip() in {str(item).strip() for item in area.caps or []}:
+    return True
+  if lat is None or lon is None or not area.polygon:
+    return False
+  return point_in_polygon((lat, lon), area.polygon)
+
+
+def preloaded_collection_point_ids(
+  collection_point_ids, session: session_type, address: tuple | None = None, zone_accepts: bool = True
+) -> set[int]:
+  """Tra `collection_point_ids`, quelli che ammettono il precarico.
+
+  Con `address` (cap, lat, lon) restano solo i punti per cui quell'indirizzo e'
+  da precaricare: se il punto ha aree di precarico l'indirizzo deve cadere in
+  una, altrimenti vale `zone_accepts` (l'area di copertura accetta precarichi).
+  Senza `address` conta solo il flag del punto.
+  """
   ids = {cp_id for cp_id in collection_point_ids if cp_id}
   if not ids:
     return set()
   rows = (
     session.query(CollectionPoint.id).filter(CollectionPoint.id.in_(ids), CollectionPoint.preloaded.is_(True)).all()
   )
-  return {row.id for row in rows}
+  flagged = {row.id for row in rows}
+  if address is None or not flagged:
+    return flagged
+
+  cap, lat, lon = address
+  areas_by_point: dict[int, list[CollectionPointPreloadArea]] = {}
+  for area in session.query(CollectionPointPreloadArea).filter(
+    CollectionPointPreloadArea.collection_point_id.in_(flagged)
+  ):
+    areas_by_point.setdefault(area.collection_point_id, []).append(area)
+  return {
+    cp_id
+    for cp_id in flagged
+    if (
+      any(area_contains(area, cap, lat, lon) for area in areas_by_point[cp_id])
+      if cp_id in areas_by_point
+      else zone_accepts
+    )
+  }
 
 
 def _as_date(value) -> date | None:
@@ -67,30 +113,56 @@ def can_preload_on(dpc, transport_id: int, session: session_type) -> bool:
 
 
 def order_is_preloaded(
-  entry: DeliveryCoverageEntry | None, collection_point_ids, session: session_type, dpc=None
+  entry: DeliveryCoverageEntry | None,
+  collection_point_ids,
+  session: session_type,
+  dpc=None,
+  cap=None,
+  lat=None,
+  lon=None,
 ) -> bool:
   """Se un ordine con questi punti di ritiro, preso da `entry`, e' precaricato.
 
   Con `dpc` verifica anche che la vigilia sia eseguibile (vedi can_preload_on).
+  `cap`, `lat`, `lon` sono l'indirizzo di consegna: servono per le aree di
+  precarico dei punti. Senza indirizzo vale solo l'area di copertura.
   """
-  if entry is None or not entry.accepts_preloads:
+  if entry is None:
+    return False
+  has_address = any(value is not None for value in (cap, lat, lon))
+  if not has_address and not entry.accepts_preloads:
     return False
   if dpc is not None and not can_preload_on(dpc, entry.transport_id, session):
     return False
-  return bool(preloaded_collection_point_ids(collection_point_ids, session))
+  address = (cap, lat, lon) if has_address else None
+  return bool(
+    preloaded_collection_point_ids(
+      collection_point_ids, session, address=address, zone_accepts=bool(entry.accepts_preloads)
+    )
+  )
 
 
 def preloaded_pickup_ids_for_order(order: Order, session: session_type) -> set[int]:
   """Punti di ritiro dell'ordine il cui ritiro avviene il giorno prima."""
   if not order.preloaded:
     return set()
+  from ...schedulation.auto_planning import find_coverage_entry
+
   ids = {
     row.collection_point_id
     for row in session.query(Product.collection_point_id)
     .filter(Product.order_id == order.id, Product.collection_point_id.isnot(None))
     .all()
   }
-  return preloaded_collection_point_ids(ids, session)
+  entry = find_coverage_entry(order, session)
+  return preloaded_collection_point_ids(
+    ids,
+    session,
+    address=(order.cap, order.address_lat, order.address_lon),
+    # Senza fascia trovata non si puo' rileggere la zona: l'ordine e' gia' precaricato,
+    # quindi per i punti senza aree vale com'e' stato deciso.
+    zone_accepts=bool(entry.accepts_preloads) if entry else True,
+  )
 
 
 def preloaded_products_by_stop(stops, session: session_type) -> dict[tuple, list[tuple[Order, Product]]]:
@@ -120,7 +192,14 @@ def preloaded_products_by_stop(stops, session: session_type) -> dict[tuple, list
     .all()
   )
   result: dict[tuple, list[tuple[Order, Product]]] = {}
+  order_pickup_ids: dict[int, set[int]] = {}
   for order, product in rows:
+    # Il flag del punto non basta: l'indirizzo dell'ordine deve essere un'area
+    # di precarico per quel punto.
+    if order.id not in order_pickup_ids:
+      order_pickup_ids[order.id] = preloaded_pickup_ids_for_order(order, session)
+    if product.collection_point_id not in order_pickup_ids[order.id]:
+      continue
     key = (order.dpc - timedelta(days=1), order.delivery_transport_id, product.collection_point_id)
     if key in stops:
       result.setdefault(key, []).append((order, product))
@@ -153,15 +232,15 @@ def annotate_preloads(schedules: list[dict], session: session_type = None) -> li
     with Session() as own_session:
       return annotate_preloads(schedules, own_session)
 
-  cp_ids = {
-    product['collection_point']['id']
-    for schedule in schedules
-    for item in schedule['schedule_items']
-    if item['operation_type'] == 'Order'
-    for product in item.get('products', {}).values()
-    if 'collection_point' in product
-  }
-  preloaded_ids = preloaded_collection_point_ids(cp_ids, session)
+  order_pickup_ids: dict[int, set[int]] = {}
+
+  def _pickup_ids(item: dict) -> set[int]:
+    order_id = item.get('order_id') or item.get('id')
+    if order_id not in order_pickup_ids:
+      order = session.get(Order, order_id) if order_id else None
+      order_pickup_ids[order_id] = preloaded_pickup_ids_for_order(order, session) if order else set()
+    return order_pickup_ids[order_id]
+
   next_day_products = preloaded_products_by_stop(
     {
       (date.fromisoformat(schedule['date'][:10]), schedule['transport_id'], item['collection_point_id'])
@@ -179,7 +258,7 @@ def annotate_preloads(schedules: list[dict], session: session_type = None) -> li
         continue
       for product in item.get('products', {}).values():
         cp = product.get('collection_point')
-        if cp and item.get('preloaded') and cp['id'] in preloaded_ids:
+        if cp and item.get('preloaded') and cp['id'] in _pickup_ids(item):
           product['preloaded'] = True
 
     for item in items:
