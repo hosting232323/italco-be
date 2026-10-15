@@ -26,7 +26,6 @@ from .end_points.service.constraint import check_services_date
 from .end_points.customer_rule import customer_rules_bp, check_customer_rules
 from .end_points.geographic_zone import geographic_zone_bp
 from .end_points.delivery_coverage import (
-  annotate_slot_fill,
   check_delivery_coverage_slots,
   delivery_coverage_bp,
   query_entries_for_cap,
@@ -53,7 +52,8 @@ def check_constraints(user: User):
   # Motivi dei giorni bloccati e riempimento delle fasce sono diagnostica per
   # gli ambienti di test/demo: in produzione non si calcolano ne' si inviano.
   blocked = {} if IS_DEV else None
-  slots = check_delivery_coverage_slots(user=user, blocked_out=blocked)
+  slot_notes = {} if IS_DEV else None
+  slots = check_delivery_coverage_slots(user=user, blocked_out=blocked, slot_notes_out=slot_notes)
   rule_dates = set(check_customer_rules(user))
   service_dates = set(check_services_date())
   dates = sorted(rule_dates & set(slots) & service_dates)
@@ -76,8 +76,9 @@ def check_constraints(user: User):
   visible_slots = {day: slots[day] for day in dates if day in slots}
   response = {'status': 'ok', 'dates': dates, 'slots': visible_slots, 'covered': covered}
   if IS_DEV:
-    annotate_slot_fill(visible_slots, user_id=user.id)
     response['blocked'] = _group_blocked_days(blocked)
+    # Fasce bloccate dei giorni selezionabili, col motivo.
+    response['slot_notes'] = {day: notes for day, notes in slot_notes.items() if day in visible_slots}
   return response
 
 

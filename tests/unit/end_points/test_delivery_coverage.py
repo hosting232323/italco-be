@@ -12,7 +12,6 @@ from src.end_points.service.duration import PICKUP_POINT_MINUTES_PER_PRODUCT
 from src.end_points.delivery_coverage import (
   SlotUnavailableError,
   annotate_out_of_zone,
-  annotate_slot_fill,
   resolve_delivery_entry,
   available_slots,
   available_slots_by_date,
@@ -594,25 +593,26 @@ def test_available_slots_by_date_reports_full_slots_as_blocked(db):
     result = available_slots_by_date('70051', blocked_out=blocked)
 
   assert result == {}
-  assert 'Fasce complete' in blocked[target.strftime('%Y-%m-%d')]
+  assert 'Capienza esaurita' in blocked[target.strftime('%Y-%m-%d')]
 
 
-def test_annotate_slot_fill_counts_bookings_per_slot_and_owner(db):
+def test_available_slots_by_date_explains_blocked_slots_of_available_days(db):
   target = date.today() + timedelta(days=3)
-  mine = create_user(role=UserRole.CUSTOMER, nickname='mine')
-  other = create_user(role=UserRole.CUSTOMER, nickname='other')
-  for owner in (mine, other, other):
-    create_order(
-      cap='70051', dpc=target, user_id=owner.id, delivery_slot_start=time(8, 0), delivery_slot_end=time(12, 0)
-    )
-  slots = {target.strftime('%Y-%m-%d'): [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]}
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  blocked_entry = _entry(
+    create_transport(), day_of_week=target.weekday(), start='14:00:00', end='18:00:00', caps=('70051',)
+  )
+  notes = {}
 
-  annotate_slot_fill(slots, user_id=mine.id)
+  def residual(entry, *args, **kwargs):
+    return None if entry.id == blocked_entry.id else entry
 
-  slot = slots[target.strftime('%Y-%m-%d')][0]
-  assert slot['booked'] == 3
-  assert slot['own_booked'] == 1
-  annotate_slot_fill({})
+  with patch('src.end_points.delivery_coverage._entry_with_residual_capacity', side_effect=residual):
+    result = available_slots_by_date('70051', slot_notes_out=notes)
+
+  day = target.strftime('%Y-%m-%d')
+  assert [slot['start'] for slot in result[day]] == ['08:00']
+  assert notes[day] == [{'start': '14:00', 'end': '18:00', 'reason': "Capienza esaurita per i servizi dell'ordine"}]
 
 
 def test_annotate_out_of_zone_flags_orders_outside_every_block(db):

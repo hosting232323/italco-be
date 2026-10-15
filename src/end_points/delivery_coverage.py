@@ -431,6 +431,11 @@ def _first_with_residual_capacity(
   return None
 
 
+def _note_blocked(blocked_slots: dict, entry: DeliveryCoverageEntry, reason: str) -> None:
+  if blocked_slots is not None:
+    blocked_slots.setdefault((entry.start_time, entry.end_time), set()).add(reason)
+
+
 def available_slots(
   cap: str,
   dpc,
@@ -440,7 +445,7 @@ def available_slots(
   new_address: str = None,
   new_products: dict = None,
   entries: list[DeliveryCoverageEntry] = None,
-  blocked_reasons: set = None,
+  blocked_slots: dict = None,
 ) -> list[dict]:
   """Fasce orarie coperte dal CAP nel giorno della settimana di dpc con capienza residua
 
@@ -462,9 +467,9 @@ def available_slots(
   per molti giorni di fila li risolve una volta sola invece di ripetere, a ogni
   giorno, query e geocoding dell'indirizzo.
 
-  `blocked_reasons`, se passato, raccoglie i motivi per cui i blocchi del giorno
-  sono stati scartati: serve a spiegare al cliente perche' un giorno coperto non
-  compare nel calendario.
+  `blocked_slots`, se passato, raccoglie per ogni fascia (start, end) senza
+  nessun blocco disponibile i motivi per cui e' stata scartata: serve a spiegare
+  perche' di un giorno coperto si possono scegliere solo certe fasce.
   """
   dpc = _as_date(dpc)
   if not cap or not dpc:
@@ -479,12 +484,12 @@ def available_slots(
   with Session() as session:
     for entry in entries:
       if not _passes_same_pickup_points(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
-        if blocked_reasons is not None:
-          blocked_reasons.add('Nessun corriere in zona passa già dai punti di ritiro dell'ordine')
+        _note_blocked(
+          blocked_slots, entry, 'Nessun corriere in zona passa già dai punti di ritiro dell\'ordine'
+        )
         continue
       if not _eve_can_take_preloads(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
-        if blocked_reasons is not None:
-          blocked_reasons.add('Il giorno prima il corriere non ha tempo per i ritiri precaricati')
+        _note_blocked(blocked_slots, entry, 'Il giorno prima il corriere non ha tempo per i ritiri precaricati')
         continue
       effective = _entry_with_residual_capacity(
         entry,
@@ -498,8 +503,12 @@ def available_slots(
       )
       if effective is not None:
         available.setdefault((entry.start_time, entry.end_time), []).append(entry)
-      elif blocked_reasons is not None:
-        blocked_reasons.add('Fasce complete: nessuna capienza residua per i servizi dell'ordine')
+      else:
+        _note_blocked(blocked_slots, entry, 'Capienza esaurita per i servizi dell\'ordine')
+
+  if blocked_slots is not None:
+    for key in available:
+      blocked_slots.pop(key, None)
 
   return [
     {
@@ -519,6 +528,7 @@ def available_slots_by_date(
   new_address: str = None,
   new_products: dict = None,
   blocked_out: dict = None,
+  slot_notes_out: dict = None,
 ) -> dict:
   # Sostituisce il vecchio check_geographic_zone in /check-constraints: la
   # data prevista dal cliente è selezionabile se il suo CAP è coperto da
@@ -532,7 +542,7 @@ def available_slots_by_date(
   while start <= end:
     iso = start.strftime('%Y-%m-%d')
     if start.weekday() in covered_days:
-      reasons = set() if blocked_out is not None else None
+      blocked_slots = {} if (blocked_out is not None or slot_notes_out is not None) else None
       slots = available_slots(
         cap,
         start,
@@ -542,12 +552,18 @@ def available_slots_by_date(
         new_address=new_address,
         new_products=new_products,
         entries=entries,
-        blocked_reasons=reasons,
+        blocked_slots=blocked_slots,
       )
       if slots:
         result[iso] = slots
+        if slot_notes_out is not None and blocked_slots:
+          slot_notes_out[iso] = [
+            {'start': s_start.strftime('%H:%M'), 'end': s_end.strftime('%H:%M'), 'reason': ' · '.join(sorted(reasons))}
+            for (s_start, s_end), reasons in sorted(blocked_slots.items())
+          ]
       elif blocked_out is not None:
-        blocked_out[iso] = ' · '.join(sorted(reasons)) or 'Nessuna fascia disponibile'
+        all_reasons = set().union(*blocked_slots.values()) if blocked_slots else set()
+        blocked_out[iso] = ' · '.join(sorted(all_reasons)) or 'Nessuna fascia disponibile'
     elif blocked_out is not None and entries:
       blocked_out[iso] = f'Nessun corriere in copertura il {WEEKDAY_NAMES[start.weekday()]}'
     start += timedelta(days=1)
@@ -576,9 +592,7 @@ def check_delivery_coverage_slots(*args, **kwargs) -> dict:
   remember_address_coordinates(
     payload.get('address'), *parse_coordinates(payload.get('address_lat'), payload.get('address_lon'))
   )
-  extra = {}
-  if kwargs.get('blocked_out') is not None:
-    extra['blocked_out'] = kwargs['blocked_out']
+  extra = {key: kwargs[key] for key in ('blocked_out', 'slot_notes_out') if kwargs.get(key) is not None}
   return available_slots_by_date(
     new_cap,
     required_duration=required_duration,
@@ -717,36 +731,6 @@ def query_entries_for_polygon_point(lat: float, lon: float) -> list[DeliveryCove
       .all()
     )
   return [entry for entry in entries if point_in_polygon((lat, lon), entry.polygon)]
-
-
-def annotate_slot_fill(slots_by_date: dict, user_id: int = None) -> None:
-  """Aggiunge a ogni fascia di `slots_by_date` (giorno -> [fascia]) `booked`, gli ordini
-  gia' presi in quella fascia, e `own_booked`, quelli del punto vendita `user_id`.
-
-  Una sola query per l'intero intervallo di date; si conta per data e fascia
-  (indipendentemente dal veicolo, come la lista delle fasce).
-  """
-  if not slots_by_date:
-    return
-  days = [date.fromisoformat(day) for day in slots_by_date]
-  with Session() as session:
-    rows = (
-      session.query(Order.dpc, Order.delivery_slot_start, Order.delivery_slot_end, Order.user_id)
-      .filter(Order.dpc.in_(days), Order.delivery_slot_start.isnot(None))
-      .all()
-    )
-  booked = {}
-  own_booked = {}
-  for dpc, start, end, owner_id in rows:
-    key = (dpc.strftime('%Y-%m-%d'), start.strftime('%H:%M'), end.strftime('%H:%M'))
-    booked[key] = booked.get(key, 0) + 1
-    if user_id is not None and owner_id == user_id:
-      own_booked[key] = own_booked.get(key, 0) + 1
-  for day, slots in slots_by_date.items():
-    for slot in slots:
-      key = (day, slot['start'], slot['end'])
-      slot['booked'] = booked.get(key, 0)
-      slot['own_booked'] = own_booked.get(key, 0)
 
 
 def annotate_out_of_zone(orders: list[dict]) -> None:
