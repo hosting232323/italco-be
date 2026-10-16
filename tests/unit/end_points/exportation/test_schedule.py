@@ -85,7 +85,7 @@ def test_export_schedule_marks_preloaded_orders(client):
 
   text = ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
   assert 'PRECARICATO' in text
-  assert 'Precaricato: Sì' in text
+  assert 'Precaricato' in text
 
 
 def test_export_schedule_not_found(client):

@@ -42,7 +42,8 @@
     {% endfor %}
     {% if footer %}
       <tr>
-        <td colspan="4" style="padding: 5px 8px 3px;"><strong>{{ footer[0] }}:</strong> {{ footer[1] }}</td>
+        <td class="label" style="width: 20%; padding: 5px 8px 3px;">{{ footer[0] }}</td>
+        <td colspan="3" style="padding: 5px 8px 3px;">{{ footer[1] }}</td>
       </tr>
     {% endif %}
   </table>
@@ -178,7 +179,7 @@
   ("Data richiesta consegna", order.drc),
   ("Data consegna effettiva", order.booking_date),
   ("Note aggiuntive", order.operator_note)
-], section_style="margin-bottom: 16px;", footer=("Precaricato", "Sì" if order.preloaded else "No")) }}
+], section_style="margin-bottom: 16px;", footer=("Precaricato", "Sì") if order.preloaded else None) }}
 
 {{ products_table(order.products, cell_padding="5px 8px 3px", heading_style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;", section_style="margin-bottom: 16px;") }}
 

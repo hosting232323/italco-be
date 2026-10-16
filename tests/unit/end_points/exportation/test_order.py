@@ -65,11 +65,11 @@ def _order_pdf_text(client, admin, preloaded):
   return ''.join(page.extract_text() for page in PdfReader(BytesIO(response.data)).pages)
 
 
-def test_export_order_pdf_says_whether_the_order_is_preloaded(client):
+def test_export_order_pdf_shows_the_preloaded_row_only_when_preloaded(client):
   admin = create_user(UserRole.ADMIN)
 
-  assert 'Precaricato: Sì' in _order_pdf_text(client, admin, True)
-  assert 'Precaricato: No' in _order_pdf_text(client, admin, False)
+  assert 'Precaricato' in _order_pdf_text(client, admin, True)
+  assert 'Precaricato' not in _order_pdf_text(client, admin, False)
 
 
 def test_export_order_not_found(client):
