@@ -17,3 +17,4 @@ static/
 
 .coverage
 coverage.xml
+.cache/

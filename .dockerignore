@@ -1,0 +1,12 @@
+.git
+.gitignore
+.gitlab-ci.yml
+gitlab
+.cache
+.npm
+**/__pycache__
+*.pyc
+.coverage*
+coverage.xml
+tests
+docs
