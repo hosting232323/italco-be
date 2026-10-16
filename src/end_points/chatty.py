@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 from ..database.enum import UserRole
 from ..database.schema import User, Chatty
+from database_api import Session
 from database_api.operations import create
 from . import flask_session_authentication
 from .orders.queries import query_orders, format_query_result
@@ -15,16 +16,32 @@ MAX_TOOL_OUTPUT_BYTES = 450_000
 client = OpenAI(api_key=os.environ['OPENAI_KEY'])
 assistant_id = os.environ['ASSISTANT_ID']
 chatty_bp = Blueprint('chatty_bp', __name__)
+CHATTY_ROLES = [UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.DELIVERY]
+THREAD_NOT_FOUND = {'status': 'ko', 'message': 'Conversazione non trovata'}
+
+
+def owns_thread(user: User, thread_id) -> bool:
+  """Un thread si legge o si continua solo se l'ha aperto questo utente.
+
+  Le conversazioni contengono gli ordini dell'utente (indirizzi, nomi,
+  telefoni): l'id del thread non e' un segreto sufficiente a proteggerle.
+  """
+  if not isinstance(thread_id, str) or not thread_id:
+    return False
+  with Session() as session:
+    return session.query(Chatty.id).filter(Chatty.thread_id == thread_id, Chatty.user_id == user.id).first() is not None
 
 
 @chatty_bp.route('chat', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN, UserRole.OPERATOR, UserRole.CUSTOMER, UserRole.DELIVERY])
+@flask_session_authentication(CHATTY_ROLES)
 def send_message(user: User):
   if 'session_id' in request.json and request.json['session_id']:
     thread_id = request.json['session_id']
+    if not owns_thread(user, thread_id):
+      return THREAD_NOT_FOUND
   else:
     thread_id = client.beta.threads.create().id
-    create(Chatty, {'thread_id': thread_id})
+    create(Chatty, {'thread_id': thread_id, 'user_id': user.id})
 
   user_message = f'Oggi è: {datetime.now().date()}\n\n{request.json["message"]}'
   client.beta.threads.messages.create(thread_id=thread_id, role='user', content=user_message)
@@ -53,7 +70,11 @@ def send_message(user: User):
 
 
 @chatty_bp.route('thread/<thread_id>', methods=['GET'])
-def get_thread_messages(thread_id):
+@flask_session_authentication(CHATTY_ROLES)
+def get_thread_messages(user: User, thread_id):
+  if not owns_thread(user, thread_id):
+    return THREAD_NOT_FOUND
+
   messages = []
   for m in client.beta.threads.messages.list(thread_id=thread_id).data:
     for c in m.content:
