@@ -7,6 +7,7 @@ from src.database.enum import UserRole
 from src.database.schema import Chatty
 
 from database_api import Session
+from database_api.operations import create
 
 from tests.unit.factories import auth_header, create_order, create_product, create_user, customer_with_service
 
@@ -91,6 +92,7 @@ def test_send_message_reuses_existing_thread(client, monkeypatch):
   fake = FakeOpenAI()
   monkeypatch.setattr(chatty, 'client', fake)
   admin = create_user(UserRole.ADMIN)
+  create(Chatty, {'thread_id': 'thread-esistente', 'user_id': admin.id})
 
   response = client.post(
     '/chatty/chat', json={'message': 'Ancora', 'session_id': 'thread-esistente'}, headers=auth_header(admin)
@@ -99,7 +101,45 @@ def test_send_message_reuses_existing_thread(client, monkeypatch):
   assert response.get_json()['session_id'] == 'thread-esistente'
   assert fake.created_threads == 0
   with Session() as session:
-    assert session.query(Chatty).count() == 0
+    assert session.query(Chatty).count() == 1
+
+
+def test_send_message_records_the_owner_of_a_new_thread(client, monkeypatch):
+  monkeypatch.setattr(chatty, 'client', FakeOpenAI())
+  customer = create_user(UserRole.CUSTOMER)
+
+  client.post('/chatty/chat', json={'message': 'Ciao'}, headers=auth_header(customer))
+
+  with Session() as session:
+    assert session.query(Chatty.user_id).filter_by(thread_id='thread-nuovo').scalar() == customer.id
+
+
+def test_send_message_refuses_a_thread_of_another_user(client, monkeypatch):
+  fake = FakeOpenAI()
+  monkeypatch.setattr(chatty, 'client', fake)
+  owner = create_user(UserRole.CUSTOMER)
+  intruder = create_user(UserRole.CUSTOMER)
+  create(Chatty, {'thread_id': 'thread-altrui', 'user_id': owner.id})
+
+  response = client.post(
+    '/chatty/chat', json={'message': 'Leggo io', 'session_id': 'thread-altrui'}, headers=auth_header(intruder)
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Conversazione non trovata'}
+  assert fake.user_messages == []
+
+
+def test_send_message_refuses_an_unknown_thread(client, monkeypatch):
+  fake = FakeOpenAI()
+  monkeypatch.setattr(chatty, 'client', fake)
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.post(
+    '/chatty/chat', json={'message': 'Ancora', 'session_id': 'thread-inventato'}, headers=auth_header(admin)
+  )
+
+  assert response.get_json()['status'] == 'ko'
+  assert fake.user_messages == []
 
 
 def test_send_message_resolves_tool_call_with_orders(client, monkeypatch):
@@ -128,12 +168,47 @@ def test_send_message_resolves_tool_call_with_orders(client, monkeypatch):
 def test_get_thread_messages(client, monkeypatch):
   fake = FakeOpenAI(reply_text='Contenuto thread')
   monkeypatch.setattr(chatty, 'client', fake)
+  admin = create_user(UserRole.ADMIN)
+  create(Chatty, {'thread_id': 'thread-x', 'user_id': admin.id})
 
-  response = client.get('/chatty/thread/thread-x')
+  response = client.get('/chatty/thread/thread-x', headers=auth_header(admin))
 
   body = response.get_json()
   assert body['status'] == 'ok'
   assert body['messages'] == [{'role': 'assistant', 'text': 'Contenuto thread'}]
+
+
+def test_get_thread_messages_requires_login(client, monkeypatch):
+  monkeypatch.setattr(chatty, 'client', FakeOpenAI(reply_text='Contenuto thread'))
+  owner = create_user(UserRole.ADMIN)
+  create(Chatty, {'thread_id': 'thread-x', 'user_id': owner.id})
+
+  response = client.get('/chatty/thread/thread-x')
+
+  assert response.status_code == 401
+  assert 'Contenuto thread' not in response.get_data(as_text=True)
+
+
+def test_get_thread_messages_of_another_user_is_not_found(client, monkeypatch):
+  monkeypatch.setattr(chatty, 'client', FakeOpenAI(reply_text='Contenuto thread'))
+  owner = create_user(UserRole.CUSTOMER)
+  other_admin = create_user(UserRole.ADMIN)
+  create(Chatty, {'thread_id': 'thread-x', 'user_id': owner.id})
+
+  response = client.get('/chatty/thread/thread-x', headers=auth_header(other_admin))
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Conversazione non trovata'}
+
+
+def test_threads_without_owner_are_no_longer_readable(client, monkeypatch):
+  # I thread salvati prima della colonna user_id non hanno proprietario.
+  monkeypatch.setattr(chatty, 'client', FakeOpenAI(reply_text='Contenuto thread'))
+  admin = create_user(UserRole.ADMIN)
+  create(Chatty, {'thread_id': 'thread-vecchio'})
+
+  response = client.get('/chatty/thread/thread-vecchio', headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
 
 
 def test_get_order_for_chatty_filters_by_customer(db):

@@ -492,6 +492,10 @@ class Chatty(BaseEntity):
   __tablename__ = 'chatty'
 
   thread_id = Column(String, nullable=False)
+  # Chi ha aperto la conversazione: solo lui puo' rileggerla o continuarla.
+  # Nullable per i thread nati prima della colonna, che restano senza
+  # proprietario e quindi non piu' accessibili.
+  user_id = Column(Integer, ForeignKey('user.id', ondelete='CASCADE'), nullable=True, index=True)
 
 
 class Carrier(BaseEntity):
