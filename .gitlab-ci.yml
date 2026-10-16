@@ -7,14 +7,12 @@ workflow:
     - when: never
 
 stages:
-  - build
   - deploy
   - operations
   - housekeeping
   - test
 
 include:
-  - local: 'gitlab/build.yml'
   - local: 'gitlab/deploy.yml'
   - local: 'gitlab/operations.yml'
   - local: 'gitlab/housekeeping.yml'

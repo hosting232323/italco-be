@@ -3,11 +3,11 @@
   when: manual
   allow_failure: false
   resource_group: "${SERVICE}"
-  needs:
-    - build_image
+  needs: []
   tags:
     - "${SERVER_NAME}-deploy"
   variables:
+    DOCKER_CONFIG: "$CI_PROJECT_DIR/.docker-$CI_JOB_ID"
     API_PREFIX: api
     MAINTENANCE: "0"
     # Il cookie di refresh serve solo alle chiamate API: fuori da /api non
@@ -47,9 +47,25 @@
         REFRESH_COOKIE_SAMESITE=$REFRESH_COOKIE_SAMESITE
       EOF
 
+      # L'immagine si costruisce qui, sullo stesso runner che la avvia: niente
+      # job di build separato che giri a ogni pipeline anche senza deploy. Il
+      # push nel registry resta per avere lo storico delle immagini deployate.
       echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
       IMAGE="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
-      docker pull "$IMAGE"
+
+      # generic_lib non e' versionata: ne risolvo lo sha e lo passo al build,
+      # cosi' il layer della lib resta in cache solo se la lib non e' cambiata.
+      # Se GitHub non risponde uso un valore sempre diverso: si reinstalla la
+      # lib (build piu' lento) invece di rischiare una versione vecchia.
+      LIB_REF=$(git ls-remote https://github.com/hosting232323/generic-lib.git HEAD | cut -f1 || true)
+      LIB_REF="${LIB_REF:-nocache-$(date +%s)}"
+      echo "generic_lib: ${LIB_REF}"
+
+      # --cache-from sul registry come ripiego se la cache locale del runner
+      # non c'e' (runner nuovo, cache potata).
+      docker build --provenance=false --sbom=false         --build-arg BUILDKIT_INLINE_CACHE=1         --build-arg "LIB_REF=$LIB_REF"         --cache-from "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG"         --cache-from "$CI_REGISTRY_IMAGE:main"         -t "$IMAGE" -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG" .
+      docker push "$IMAGE"
+      docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG"
 
       if docker ps -q -f "name=^/${SERVICE}-blue$" | grep -q .; then
         CURRENT=blue; NEXT=green
@@ -136,7 +152,12 @@
 
   after_script:
     - rm -f env_file
+    - docker image prune -f || true
+    # Niente prune totale: la cache dei layer e' cio' che rende veloce il build.
+    # Si elimina solo quella vecchia o oltre la soglia di spazio.
+    - docker builder prune -f --filter until=168h --keep-storage 15GB || true
     - docker logout "$CI_REGISTRY" || true
+    - rm -rf "$CI_PROJECT_DIR/.docker-$CI_JOB_ID" || true
 
 deploy_test:
   extends: .deploy

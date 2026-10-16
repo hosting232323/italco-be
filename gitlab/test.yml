@@ -41,6 +41,15 @@
   env_file.write_text('\n'.join(updated_lines) + '\n')
   PY
 
+# La cache dei pacchetti pip evita di riscaricare pandas/scipy & co. a ogni
+# job. generic_lib (git) viene comunque sempre risolta da GitHub.
+.pip_cache: &pip_cache
+  key:
+    files:
+      - pyproject.toml
+  paths:
+    - .cache/pip
+
 .python_test_template: &python_test_template
   stage: test
   image: python:3.11
@@ -60,6 +69,8 @@
     DECODE_JWT_TOKEN: dummy
     PYTHONPATH: $CI_PROJECT_DIR
     PIP_ROOT_USER_ACTION: ignore
+    PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
+  cache: *pip_cache
   before_script:
     - git config --global http.version HTTP/1.1
     - git config --global http.postBuffer 524288000
@@ -67,16 +78,67 @@
     - pip install --retries 10 --timeout 120 ".[dev]"
     - *rewrite_test_env
 
-# Unit tests: strict, con gate di copertura > 90% (esce rosso sotto soglia,
-# la soglia e' in pyproject.toml).
+# Divide i file di test unit in $CI_NODE_TOTAL shard bilanciati per
+# dimensione (greedy: il file piu' grande va allo shard piu' leggero) e
+# scrive in shard_tests.txt quelli dello shard $CI_NODE_INDEX (1-based).
+.select_test_shard: &select_test_shard |
+  python - <<'PY'
+  import os
+  from pathlib import Path
+
+  total = int(os.environ.get('CI_NODE_TOTAL', '1'))
+  index = int(os.environ.get('CI_NODE_INDEX', '1')) - 1
+
+  files = sorted(
+    (p for p in Path('tests').rglob('test_*.py') if 'e2e' not in p.parts),
+    key=lambda p: (-p.stat().st_size, str(p)),
+  )
+  shards = [[] for _ in range(total)]
+  loads = [0] * total
+  for path in files:
+    target = loads.index(min(loads))
+    shards[target].append(str(path))
+    loads[target] += path.stat().st_size
+
+  selected = sorted(shards[index])
+  Path('shard_tests.txt').write_text(' '.join(selected))
+  print(f'Shard {index + 1}/{total}: {len(selected)} file su {len(files)}')
+  PY
+
+# Unit tests divisi in due job paralleli: ogni shard produce il suo file
+# .coverage.*, il gate di copertura > 90% lo applica coverage_backend sulla
+# copertura combinata (la soglia e' in pyproject.toml).
 test_backend:
   <<: *python_test_template
+  parallel: 2
   rules:
     - if: '$GITLAB_CI == "false"'
     - if: '$CI_COMMIT_BRANCH != "main"'
+  script:
+    - *select_test_shard
+    - coverage run --parallel-mode -m pytest -m "not e2e" $(cat shard_tests.txt)
+  artifacts:
+    when: always
+    paths:
+      - .coverage.*
+
+coverage_backend:
+  stage: test
+  image: python:3.11
+  interruptible: true
+  tags:
+    - test
+  needs:
+    - test_backend
+  rules:
+    - if: '$GITLAB_CI == "false"'
+    - if: '$CI_COMMIT_BRANCH != "main"'
+  variables:
+    PIP_ROOT_USER_ACTION: ignore
   coverage: '/^TOTAL\s+.*\s+(\d+)%/'
   script:
-    - coverage run -m pytest -m "not e2e"
+    - pip install coverage
+    - coverage combine
     # --fail-under=0 solo qui: il gate e' `coverage report`, cosi' il report
     # cobertura viene prodotto anche quando la soglia non e' rispettata.
     - coverage xml --fail-under=0
@@ -121,6 +183,15 @@ e2e_tests:
     # frontend serve le rotte SPA con res.sendFile su path assoluto, e send
     # risponde 404 se un segmento del path e' un dotfile.
     ITALCO_FE_DIR: $CI_PROJECT_DIR/e2e-frontend/italco-fe
+    PIP_CACHE_DIR: $CI_PROJECT_DIR/.cache/pip
+    PLAYWRIGHT_BROWSERS_PATH: $CI_PROJECT_DIR/.cache/ms-playwright
+    npm_config_cache: $CI_PROJECT_DIR/.cache/npm
+  cache:
+    - *pip_cache
+    - key: e2e-browsers-and-npm
+      paths:
+        - .cache/ms-playwright
+        - .cache/npm
   before_script:
     - apt-get update
     - apt-get install -y --no-install-recommends curl git ca-certificates gnupg chromium

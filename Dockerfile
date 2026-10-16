@@ -22,6 +22,13 @@ RUN curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/c
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir .
 
+# generic_lib e' una dipendenza git senza versione: il layer qui sopra resta in
+# cache finche' pyproject.toml non cambia, quindi la lib va riallineata a parte.
+# LIB_REF e' lo sha di HEAD di generic-lib (lo risolve il job di deploy): se la
+# lib non e' cambiata il layer e' in cache, altrimenti viene reinstallata.
+ARG LIB_REF=HEAD
+RUN pip install --no-cache-dir --upgrade --upgrade-strategy only-if-needed   "generic_lib[unix] @ git+https://github.com/hosting232323/generic-lib.git@${LIB_REF}"
+
 COPY . .
 
 CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8080", "--access-logfile", "-", "--error-logfile", "-", "src.__main__:app"]
