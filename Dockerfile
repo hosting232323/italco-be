@@ -31,4 +31,7 @@ RUN pip install --no-cache-dir --upgrade --upgrade-strategy only-if-needed   "ge
 
 COPY . .
 
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8080", "--access-logfile", "-", "--error-logfile", "-", "src.__main__:app"]
+# Access log senza query string: alcuni endpoint (export, RAEE, switch company)
+# accettano il token di sessione come ?token=, e la riga di default di gunicorn
+# ("%(r)s") lo scriverebbe in chiaro nei log del container.
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8080", "--access-logfile", "-", "--access-logformat", "%(h)s %(l)s %(u)s %(t)s \"%(m)s %(U)s %(H)s\" %(s)s %(b)s \"%(f)s\" \"%(a)s\"", "--error-logfile", "-", "src.__main__:app"]
