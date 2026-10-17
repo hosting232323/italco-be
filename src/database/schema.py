@@ -167,9 +167,10 @@ class DeliveryCoverageEntry(BaseItalcoEntity):
   # Modalità alternativa al CAP: zona disegnata sulla mappa, lista di [lat, lon].
   # Un blocco ha o dei caps o un polygon (validato in end_points/delivery_coverage.py).
   polygon = Column(JSON, nullable=True)
-  # Area che accetta precarichi: un ordine di quest'area ha come fasce solo
-  # quelle dei giorni in cui il veicolo passa già dagli stessi punti di ritiro
-  # (vedi _passes_same_pickup_points in end_points/delivery_coverage.py).
+  # Area che accetta precarichi: se in un giorno un veicolo passa già dai punti
+  # di ritiro dell'ordine, quel giorno si offrono solo le sue fasce; se non ci
+  # passa nessuno restano tutte (vedi _passes_same_pickup_points in
+  # end_points/delivery_coverage.py).
   accepts_preloads = Column(Boolean, nullable=False, default=False, server_default='false')
 
   transport = relationship('Transport')

@@ -204,13 +204,22 @@ e2e_tests:
     - mkdir -p "$(dirname "$ITALCO_FE_DIR")"
     - |
       ITALCO_FE_REF="${ITALCO_FE_REF:-$CI_COMMIT_REF_NAME}"
+      # Branch del frontend in ordine di preferenza: quello con lo stesso nome,
+      # poi (nelle MR) il branch di destinazione, poi main. Una MR di sola
+      # correzione backend verso un branch di funzionalita' deve provarsi con il
+      # frontend di quella funzionalita', non con quello di main.
+      ITALCO_FE_REFS="$ITALCO_FE_REF ${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-} main"
 
       clone_frontend() {
         repo_url="$1"
-        if ! git clone --depth 1 --branch "$ITALCO_FE_REF" "$repo_url" "$ITALCO_FE_DIR"; then
+        for ref in $ITALCO_FE_REFS; do
           rm -rf "$ITALCO_FE_DIR"
-          git clone --depth 1 --branch main "$repo_url" "$ITALCO_FE_DIR"
-        fi
+          if git clone --depth 1 --branch "$ref" "$repo_url" "$ITALCO_FE_DIR"; then
+            echo "Frontend italco-fe dal branch $ref"
+            return 0
+          fi
+        done
+        return 1
       }
 
       if [ -n "$LOCAL_ITALCO_FE_DIR" ] && [ -d "$LOCAL_ITALCO_FE_DIR/.git" ]; then
@@ -218,9 +227,9 @@ e2e_tests:
         git clone --depth 1 "$LOCAL_ITALCO_FE_DIR" "$ITALCO_FE_DIR"
       elif [ -n "$CI_ITALCO_FE_USERNAME" ] && [ -n "$CI_ITALCO_FE_TOKEN" ] && [ -d "$ITALCO_FE_DIR/.git" ]; then
         git -C "$ITALCO_FE_DIR" remote set-url origin "https://$CI_ITALCO_FE_USERNAME:$CI_ITALCO_FE_TOKEN@gitlab.com/generic-lab/italco/italco-fe.git"
-        if ! git -C "$ITALCO_FE_DIR" fetch --depth 1 origin "$ITALCO_FE_REF"; then
-          git -C "$ITALCO_FE_DIR" fetch --depth 1 origin main
-        fi
+        for ref in $ITALCO_FE_REFS; do
+          git -C "$ITALCO_FE_DIR" fetch --depth 1 origin "$ref" && echo "Frontend italco-fe dal branch $ref" && break
+        done
         git -C "$ITALCO_FE_DIR" reset --hard FETCH_HEAD
         git -C "$ITALCO_FE_DIR" clean -fdx
       elif [ -n "$CI_ITALCO_FE_USERNAME" ] && [ -n "$CI_ITALCO_FE_TOKEN" ]; then
