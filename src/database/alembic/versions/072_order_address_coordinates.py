@@ -1,7 +1,7 @@
 """coordinate dell'indirizzo dell'ordine
 
-Revision ID: 071
-Revises: 070
+Revision ID: 072
+Revises: 071
 Create Date: 2026-10-05 18:00:00.000000
 
 L'indirizzo scelto dal menu Google nel form arriva con la sua posizione esatta:
@@ -20,8 +20,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '071'
-down_revision: Union[str, None] = '070'
+revision: str = '072'
+down_revision: Union[str, None] = '071'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

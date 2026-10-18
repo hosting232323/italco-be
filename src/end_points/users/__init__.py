@@ -61,13 +61,14 @@ def create_user(_):
   # Il nickname è unico su tutto il database, non per company: il login avviene
   # prima di sapere quale sia il tenant. get_user_by_nickname cerca fuori scope
   # apposta, altrimenti un nickname già preso altrove sembrerebbe libero.
-  if get_user_by_nickname(request.json['nickname']):
+  nickname = request.json['nickname'].strip()
+  if get_user_by_nickname(nickname):
     return {'status': 'ko', 'message': 'Nickname già in uso'}
 
   password = request.json['password']
   user_data = {
     'role': role,
-    'nickname': request.json['nickname'],
+    'nickname': nickname,
     'password': hash_password(password),
   }
   # Il flag vale solo per i punti vendita e solo se l'attività ha già acceso
@@ -102,8 +103,11 @@ def update_user(_, id):
 @user_bp.route('login', methods=['POST'])
 def login():
   password = request.json['password']
-  user: User = get_user_by_nickname(request.json['email'])
-  if not user or user.nickname != request.json['email']:
+  # Copia-incolla e tastiere mobili lasciano spazi in coda al nome utente, anche
+  # non separabili (NBSP): str.strip() li toglie tutti, il confronto resta esatto.
+  nickname = request.json['email'].strip()
+  user: User = get_user_by_nickname(nickname)
+  if not user or user.nickname != nickname:
     return {'status': 'ko', 'message': 'Credenziali errate'}
   build_block = delivery_build_block_response(user)
   if build_block:

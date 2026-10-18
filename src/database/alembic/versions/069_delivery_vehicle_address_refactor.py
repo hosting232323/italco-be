@@ -1,7 +1,7 @@
 """via la relazione utenti delivery - borderò, orario di attività company, indirizzo sul veicolo
 
-Revision ID: 068
-Revises: 067
+Revision ID: 069
+Revises: 068
 Create Date: 2026-09-23 12:00:00.000000
 
 - Il borderò eredita i corrieri dal veicolo (delivery_user_info.transport_id):
@@ -16,8 +16,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '068'
-down_revision: Union[str, None] = '067'
+revision: str = '069'
+down_revision: Union[str, None] = '068'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -25,7 +25,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
   # Prima di eliminare delivery_group il corriere si aggancia al veicolo dell'ultimo
   # borderò in cui e' stato assegnato: da ora i borderò ereditano i corrieri dal
-  # veicolo. Chi e' gia' agganciato (065) resta com'e'. Un corriere che ha guidato
+  # veicolo. Chi e' gia' agganciato (066) resta com'e'. Un corriere che ha guidato
   # veicoli diversi prende quello piu' recente: se serve altro, lo cambia l'admin.
   op.execute(
     """

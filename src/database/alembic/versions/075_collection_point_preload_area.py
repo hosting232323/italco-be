@@ -1,7 +1,7 @@
 """aree di precarico per punto di ritiro
 
-Revision ID: 074
-Revises: 073
+Revision ID: 075
+Revises: 074
 Create Date: 2026-10-15 12:00:00.000000
 
 collection_point_preload_area: le aree in cui un punto di ritiro viene
@@ -15,8 +15,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '074'
-down_revision: Union[str, None] = '073'
+revision: str = '075'
+down_revision: Union[str, None] = '074'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

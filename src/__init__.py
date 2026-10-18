@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 import time
@@ -68,7 +69,29 @@ else:
   CORS(app, origins=allowed_origins, supports_credentials=True)
 
 
-register_flask_hooks(app, STATIC_FOLDER, user_log_field='nickname')
+# Percorsi di cui il log tiene solo metodo, path, utente ed esito, senza i body:
+# login, refresh e gestione utenti portano credenziali e posizioni dei corrieri,
+# il tracking pubblico e la richiesta demo portano dati di chi non e' un utente.
+LOG_BODY_EXCLUDED_PREFIXES = ('/user', '/order/public', '/demo-request')
+
+
+def _register_log_hooks(flask_app):
+  # generic-lib non e' fissata a una versione: body_excluded_prefixes esiste
+  # solo dalle versioni che lo introducono. Con una generic-lib piu' vecchia
+  # l'app deve comunque partire, con il log di prima.
+  if 'body_excluded_prefixes' in inspect.signature(register_flask_hooks).parameters:
+    return register_flask_hooks(
+      flask_app,
+      STATIC_FOLDER,
+      user_log_field='nickname',
+      body_excluded_prefixes=LOG_BODY_EXCLUDED_PREFIXES,
+    )
+
+  logger.warning('generic-lib senza body_excluded_prefixes: i body di %s restano nel log', LOG_BODY_EXCLUDED_PREFIXES)
+  return register_flask_hooks(flask_app, STATIC_FOLDER, user_log_field='nickname')
+
+
+_register_log_hooks(app)
 register_client_error_handlers(app)
 
 

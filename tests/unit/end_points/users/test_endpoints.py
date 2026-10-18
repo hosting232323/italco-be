@@ -167,6 +167,14 @@ def test_login_ok_returns_token_and_role(client):
   assert body['access_token']
 
 
+def test_login_ignores_trailing_spaces_including_non_breaking(client):
+  create_user(UserRole.CUSTOMER, nickname='Idea Monopoli', password=hash_password('pw-spazi'))
+
+  for typed in ('Idea Monopoli ', ' Idea Monopoli ', 'Idea Monopoli'):
+    response = client.post('/user/login', json={'email': typed, 'password': 'pw-spazi'})
+    assert response.get_json()['status'] == 'ok', repr(typed)
+
+
 def test_login_rejects_wrong_password(client):
   create_user(UserRole.DELIVERY, nickname='driver2', password=hash_password('pw-corretta'))
 
