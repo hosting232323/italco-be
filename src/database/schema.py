@@ -168,8 +168,9 @@ class DeliveryCoverageEntry(BaseItalcoEntity):
   # Un blocco ha o dei caps o un polygon (validato in end_points/delivery_coverage.py).
   polygon = Column(JSON, nullable=True)
   # Area che accetta precarichi: un ordine di quest'area ha come fasce solo
-  # quelle dei giorni in cui il veicolo passa già dagli stessi punti di ritiro
-  # (vedi _passes_same_pickup_points in end_points/delivery_coverage.py).
+  # quelle dei giorni in cui un borderò passa già dagli stessi punti di ritiro,
+  # quel giorno o (per i punti precaricati) il giorno prima (vedi
+  # _passes_same_pickup_points in end_points/delivery_coverage.py).
   accepts_preloads = Column(Boolean, nullable=False, default=False, server_default='false')
 
   transport = relationship('Transport')
