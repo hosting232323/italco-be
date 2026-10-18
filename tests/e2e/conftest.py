@@ -249,7 +249,10 @@ def pw_page(page: Page, pw_base_url: str, e2e_user: dict, backend_server: str, w
 
   # I locator si risolvono dopo l'attesa: se Vite ha ricaricato durante il
   # caricamento, quelli presi prima punterebbero a nodi non piu' attaccati.
-  page.locator("input[type='email'], input[name='email']").fill(e2e_user['email'])
+  # Il campo identificativo del login e' «Nome utente» (type text) da quando
+  # generic-module ne rende configurabili etichetta e tipo: si prende il primo
+  # campo del form che non e' la password, qualunque sia il suo tipo.
+  page.locator("form input:not([type='password']):not([type='hidden'])").first.fill(e2e_user['email'])
   password = page.locator("input[type='password'], input[name='password']")
   password.fill(e2e_user['password'])
   password.press('Enter')
