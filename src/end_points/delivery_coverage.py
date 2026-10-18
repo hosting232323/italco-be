@@ -9,7 +9,17 @@ from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
 from database_api.operations import create, create_bulk, delete, delete_bulk, update, get_by_id
-from ..database.schema import Order, Product, ScheduleItemOrder, Transport, DeliveryCoverageEntry, DeliveryCoverageCap
+from ..database.schema import (
+  DeliveryCoverageCap,
+  DeliveryCoverageEntry,
+  Order,
+  Product,
+  Schedule,
+  ScheduleItem,
+  ScheduleItemCollectionPoint,
+  ScheduleItemOrder,
+  Transport,
+)
 from ..utils.geo import parse_coordinates, point_in_polygon
 from ..utils.caps import get_lat_lon_by_address, get_lat_lon_by_cap, remember_address_coordinates
 
@@ -274,47 +284,76 @@ def _passes_same_pickup_points(
   session,
   exclude_order_id: int = None,
 ) -> bool:
-  """Se il veicolo di `entry` passa già dai punti di ritiro dell'ordine in `dpc`.
+  """Se in `dpc` (o il giorno prima) un borderò passa già dai punti di ritiro dell'ordine.
 
   Vale solo per le aree che accettano precarichi (accepts_preloads); le altre non
-  hanno questo vincolo. Un punto di ritiro è già visitato se un altro ordine
-  pianificato dello stesso veicolo, nella giornata (o in quella prima, se il punto
-  ammette il precarico e la vigilia e' eseguibile), ha un prodotto da ritirare lì.
+  hanno questo vincolo. Il giorno si offre solo se un borderò di quel giorno
+  passa da uno dei punti di ritiro dell'ordine o, per i punti che ammettono il
+  precarico, un borderò del giorno prima. Conta qualunque veicolo dell'attività:
+  il passaggio si legge dal borderò reale, non dal veicolo salvato sull'ordine.
   Un ordine senza punti di ritiro non ha nulla da incrociare: nessun vincolo.
   """
   if not entry.accepts_preloads:
     return True
-  from .schedule.preload import can_preload_on, preloaded_collection_point_ids
+  from .schedule.preload import preloaded_collection_point_ids
   from .service.duration import payload_pickup_collection_point_ids
 
   collection_point_ids = set(payload_pickup_collection_point_ids(new_products or {}))
   if not collection_point_ids:
     return True
-  preloaded_ids = set()
-  if can_preload_on(dpc, entry.transport_id, session):
-    preloaded_ids = preloaded_collection_point_ids(collection_point_ids, session)
-  normal_ids = collection_point_ids - preloaded_ids
-  conditions = []
-  if normal_ids:
-    conditions.append(and_(Order.dpc == dpc, Product.collection_point_id.in_(normal_ids)))
-  if preloaded_ids:
-    conditions.append(
-      and_(Order.dpc.in_([dpc, dpc - timedelta(days=1)]), Product.collection_point_id.in_(preloaded_ids))
-    )
-  # Solo gli ordini pianificati: un ordine annullato o non ancora in un borderò
-  # non fa passare il veicolo da nessuna parte.
-  query = (
-    session.query(Product.id)
-    .join(Order, Product.order_id == Order.id)
+  dpc = _as_date(dpc)
+  if dpc is None:
+    return False
+  preloaded_ids = preloaded_collection_point_ids(collection_point_ids, session)
+  days_by_point = {
+    cp_id: [dpc, dpc - timedelta(days=1)] if cp_id in preloaded_ids else [dpc] for cp_id in collection_point_ids
+  }
+  return schedules_pass_pickup_points(days_by_point, session, exclude_order_id=exclude_order_id)
+
+
+def schedules_pass_pickup_points(days_by_point: dict, session, exclude_order_id: int = None) -> bool:
+  """Se un borderò passa da almeno uno dei punti di ritiro nei giorni indicati.
+
+  `days_by_point` è {collection_point_id: [date, ...]}. Conta il borderò reale
+  (la data dello Schedule), non la dpc né il veicolo salvati sull'ordine: un
+  ordine messo a mano nel borderò dall'operatore non ha `delivery_transport_id`
+  e può stare in un borderò con una data diversa dalla sua dpc. Un borderò passa
+  da un punto se ha la tappa di ritiro di quel punto o un ordine con un prodotto
+  da ritirare lì; ordini annullati o non pianificati non contano.
+  """
+  if not days_by_point:
+    return False
+  order_stop = (
+    session.query(Schedule.id)
+    .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
+    .join(ScheduleItemOrder, ScheduleItemOrder.schedule_item_id == ScheduleItem.id)
+    .join(Product, Product.order_id == ScheduleItemOrder.order_id)
     .filter(
-      Order.delivery_transport_id == entry.transport_id,
-      Order.id.in_(session.query(ScheduleItemOrder.order_id)),
-      or_(*conditions),
+      or_(
+        *[and_(Schedule.date.in_(days), Product.collection_point_id == cp_id) for cp_id, days in days_by_point.items()]
+      )
     )
   )
   if exclude_order_id:
-    query = query.filter(Order.id != exclude_order_id)
-  return query.first() is not None
+    # La tappa di ritiro è condivisa tra gli ordini e non dice a chi serve: per
+    # l'ordine in modifica conta il passaggio degli altri ordini, non il suo.
+    return order_stop.filter(ScheduleItemOrder.order_id != exclude_order_id).first() is not None
+  if order_stop.first() is not None:
+    return True
+  pickup_stop = (
+    session.query(Schedule.id)
+    .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
+    .join(ScheduleItemCollectionPoint, ScheduleItemCollectionPoint.schedule_item_id == ScheduleItem.id)
+    .filter(
+      or_(
+        *[
+          and_(Schedule.date.in_(days), ScheduleItemCollectionPoint.collection_point_id == cp_id)
+          for cp_id, days in days_by_point.items()
+        ]
+      )
+    )
+  )
+  return pickup_stop.first() is not None
 
 
 def _eve_can_take_preloads(
@@ -484,7 +523,9 @@ def available_slots(
   with Session() as session:
     for entry in entries:
       if not _passes_same_pickup_points(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
-        _note_blocked(blocked_slots, entry, "Nessun corriere in zona passa già dai punti di ritiro dell'ordine")
+        _note_blocked(
+          blocked_slots, entry, "Nessun borderò passa dai punti di ritiro dell'ordine quel giorno o il giorno prima"
+        )
         continue
       if not _eve_can_take_preloads(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
         _note_blocked(blocked_slots, entry, 'Il giorno prima il corriere non ha tempo per i ritiri precaricati')
