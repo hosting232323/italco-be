@@ -72,7 +72,8 @@ def _preloaded_orders_count(collection_point_id: int) -> int:
 def _client_fields(payload: dict, user: User) -> dict:
   # Le coordinate passano da _client_coordinates, mai così come arrivano.
   # Il precarico cambia la pianificazione dei veicoli: lo imposta solo l'admin.
-  reserved = {'lat', 'lon'}
+  # preload_areas e' una relationship in sola lettura: il form rimanda il punto intero.
+  reserved = {'lat', 'lon', 'preload_areas'}
   if user.role != UserRole.ADMIN:
     reserved.add('preloaded')
   return {key: value for key, value in payload.items() if key not in reserved}

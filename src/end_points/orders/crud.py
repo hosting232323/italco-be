@@ -389,7 +389,12 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
   # dpc resta manuale, niente slot, anche se il client ne manda uno.
   planning_fields = {}
   replan = False
-  if user.role == UserRole.CUSTOMER and is_automatic_planning_enabled() and user.automatic_planning:
+  if (
+    user.role == UserRole.CUSTOMER
+    and is_automatic_planning_enabled()
+    and user.automatic_planning
+    and order.status != OrderStatus.DELIVERED
+  ):
     location_moved = _moves_the_order(order, data)
     if location_moved or _products_change_the_load(order, data, session):
       # Cambiando solo prodotti o servizi la fascia resta quella dell'ordine,
@@ -421,12 +426,11 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
         ),
       }
       replan = True
-      # Qualunque sia lo stato, la tappa vecchia esce: auto_plan_order ne crea
-      # una nuova e l'ordine finirebbe in due borderò.
-      if order.status != OrderStatus.DELIVERED:
-        from ...schedulation.auto_planning import unplan_order
+      # La tappa vecchia esce: auto_plan_order ne crea una nuova e l'ordine
+      # finirebbe in due borderò.
+      from ...schedulation.auto_planning import unplan_order
 
-        unplan_order(order, session)
+      unplan_order(order, session)
   if user.role == UserRole.CUSTOMER:
     data.pop('delivery_slot_start', None)
     data.pop('delivery_slot_end', None)

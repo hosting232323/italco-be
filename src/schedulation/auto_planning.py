@@ -35,7 +35,7 @@ from ..database.schema import (
 from ..end_points.rae.product import emit_rae_products
 from ..end_points.orders.queries import query_products
 from ..end_points.schedule.preload import order_is_preloaded, preloaded_pickup_ids_for_order
-from ..end_points.schedule.queries import get_schedule_by_order, get_schedule_items
+from ..end_points.schedule.queries import get_schedule_by_order, get_schedule_items, lock_transport_assignment
 from .routing import (
   link_missing_collection_points,
   link_preloaded_collection_points,
@@ -128,6 +128,9 @@ def find_or_create_schedule(entry: DeliveryCoverageEntry, order: Order, session:
   Returns:
     (schedule, created): created=True se appena creato, False se già esistente.
   """
+  # Stesso lock del flusso manuale: due richieste concorrenti non creano due
+  # borderò per lo stesso veicolo e giorno.
+  lock_transport_assignment(entry.transport_id, order.dpc, session=session)
   existing = (
     session.query(Schedule)
     .filter(
