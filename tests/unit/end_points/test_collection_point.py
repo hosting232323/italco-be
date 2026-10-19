@@ -156,6 +156,23 @@ def test_update_collection_point(client):
   assert get_by_id(CollectionPoint, collection_point.id).name == 'Nuovo nome'
 
 
+def test_update_collection_point_ignores_preload_areas_sent_back_by_the_form(client):
+  admin = create_user(UserRole.ADMIN)
+  point = create_collection_point(create_user(UserRole.CUSTOMER))
+  client.post(f'/collection-point/{point.id}/preload-area', json={'caps': ['70051']}, headers=auth_header(admin))
+  listed = client.get('/collection-point', headers=auth_header(admin)).get_json()['collection_points'][0]
+  assert listed['preload_areas']
+  # Come il frontend: il punto intero, senza i campi gestiti dal server.
+  full_point = {key: value for key, value in listed.items() if key not in ('created_at', 'updated_at', 'users')}
+
+  response = client.put(
+    f'/collection-point/{point.id}', json={**full_point, 'name': 'Rinominato'}, headers=auth_header(admin)
+  )
+
+  assert response.get_json()['status'] == 'ok'
+  assert get_by_id(CollectionPoint, point.id).name == 'Rinominato'
+
+
 def test_collection_point_preloaded_flag_defaults_off_and_is_editable_by_admin(client):
   admin = create_user(UserRole.ADMIN)
   customer = create_user(UserRole.CUSTOMER)

@@ -100,7 +100,9 @@ def travel_time_matrix_osrm(coords: list[tuple[float, float]]) -> list[list[floa
       data = resp.json()
     except ValueError:
       return None
-    if data.get('code') == 'Ok':
+    # Tra punti senza strada OSRM restituisce null: matrice inutilizzabile,
+    # trattata come chiamata fallita (fallback Haversine, niente cache).
+    if data.get('code') == 'Ok' and all(d is not None for row in data['durations'] for d in row):
       if len(_MATRIX_CACHE) >= _MATRIX_CACHE_MAX:
         _MATRIX_CACHE.clear()
       _MATRIX_CACHE[key] = data['durations']

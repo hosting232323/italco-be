@@ -56,6 +56,15 @@ def test_travel_time_matrix_osrm_returns_none_on_non_ok_code(mock_get):
   assert travel_time_matrix_osrm([BARI, MOLFETTA]) is None
 
 
+@patch('src.end_points.service.travel.requests.get')
+def test_travel_time_matrix_osrm_rejects_null_durations_without_caching(mock_get):
+  travel_time_matrix_osrm.cache_clear()
+  mock_get.return_value = _osrm_response(durations=[[0, None], [None, 0]])
+
+  assert travel_time_matrix_osrm([BARI, MOLFETTA]) is None
+  assert travel._MATRIX_CACHE == {}
+
+
 def test_sequential_travel_minutes_with_fewer_than_two_coords_is_zero():
   assert sequential_travel_minutes([]) == 0
   assert sequential_travel_minutes([BARI]) == 0
