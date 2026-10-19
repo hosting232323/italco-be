@@ -284,18 +284,19 @@ def _passes_same_pickup_points(
   session,
   exclude_order_id: int = None,
 ) -> bool:
-  """Se in `dpc` (o il giorno prima) un borderò passa già dai punti di ritiro dell'ordine.
+  """Se il veicolo di `entry` passa già dai punti di ritiro dell'ordine in `dpc` o il giorno prima.
 
   Vale solo per le aree che accettano precarichi (accepts_preloads); le altre non
-  hanno questo vincolo. Il giorno si offre solo se un borderò di quel giorno
-  passa da uno dei punti di ritiro dell'ordine o, per i punti che ammettono il
-  precarico, un borderò del giorno prima. Conta qualunque veicolo dell'attività:
-  il passaggio si legge dal borderò reale, non dal veicolo salvato sull'ordine.
+  hanno questo vincolo. La fascia si offre solo se il borderò dello stesso
+  veicolo passa da uno dei punti di ritiro dell'ordine quel giorno o, per i
+  punti che ammettono il precarico, il giorno prima: il precarico lo fa chi
+  consegna, quindi serve anche che il veicolo lavori la vigilia (can_preload_on).
+  Il passaggio si legge dal borderò reale, non dal veicolo salvato sull'ordine.
   Un ordine senza punti di ritiro non ha nulla da incrociare: nessun vincolo.
   """
   if not entry.accepts_preloads:
     return True
-  from .schedule.preload import preloaded_collection_point_ids
+  from .schedule.preload import can_preload_on, preloaded_collection_point_ids
   from .service.duration import payload_pickup_collection_point_ids
 
   collection_point_ids = set(payload_pickup_collection_point_ids(new_products or {}))
@@ -304,15 +305,21 @@ def _passes_same_pickup_points(
   dpc = _as_date(dpc)
   if dpc is None:
     return False
-  preloaded_ids = preloaded_collection_point_ids(collection_point_ids, session)
+  preloaded_ids = set()
+  if can_preload_on(dpc, entry.transport_id, session):
+    preloaded_ids = preloaded_collection_point_ids(collection_point_ids, session)
   days_by_point = {
     cp_id: [dpc, dpc - timedelta(days=1)] if cp_id in preloaded_ids else [dpc] for cp_id in collection_point_ids
   }
-  return schedules_pass_pickup_points(days_by_point, session, exclude_order_id=exclude_order_id)
+  return schedules_pass_pickup_points(
+    days_by_point, session, transport_id=entry.transport_id, exclude_order_id=exclude_order_id
+  )
 
 
-def schedules_pass_pickup_points(days_by_point: dict, session, exclude_order_id: int = None) -> bool:
-  """Se un borderò passa da almeno uno dei punti di ritiro nei giorni indicati.
+def schedules_pass_pickup_points(
+  days_by_point: dict, session, transport_id: int = None, exclude_order_id: int = None
+) -> bool:
+  """Se un borderò (del veicolo `transport_id`, se dato) passa da almeno uno dei punti di ritiro nei giorni indicati.
 
   `days_by_point` è {collection_point_id: [date, ...]}. Conta il borderò reale
   (la data dello Schedule), non la dpc né il veicolo salvati sull'ordine: un
@@ -334,6 +341,8 @@ def schedules_pass_pickup_points(days_by_point: dict, session, exclude_order_id:
       )
     )
   )
+  if transport_id:
+    order_stop = order_stop.filter(Schedule.transport_id == transport_id)
   if exclude_order_id:
     # La tappa di ritiro è condivisa tra gli ordini e non dice a chi serve: per
     # l'ordine in modifica conta il passaggio degli altri ordini, non il suo.
@@ -353,6 +362,8 @@ def schedules_pass_pickup_points(days_by_point: dict, session, exclude_order_id:
       )
     )
   )
+  if transport_id:
+    pickup_stop = pickup_stop.filter(Schedule.transport_id == transport_id)
   return pickup_stop.first() is not None
 
 
@@ -524,7 +535,7 @@ def available_slots(
     for entry in entries:
       if not _passes_same_pickup_points(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
         _note_blocked(
-          blocked_slots, entry, "Nessun borderò passa dai punti di ritiro dell'ordine quel giorno o il giorno prima"
+          blocked_slots, entry, "Il veicolo non passa dai punti di ritiro dell'ordine quel giorno o il giorno prima"
         )
         continue
       if not _eve_can_take_preloads(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
