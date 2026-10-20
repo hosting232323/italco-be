@@ -109,6 +109,14 @@ def update_order_endpoint(user: User, id):
     lock_order_service_integrity(session)
     order: Order = get_by_id(Order, int(id), session=session)
     if not user_can_access_order(user, order.id, session):
+      if user.role == UserRole.DELIVERY:
+        # L'app corrieri mostra il messaggio del JSON; con la pagina HTML del
+        # 404 mostrava un errore generico e il corriere non capiva di non
+        # essere piu' nel borderò.
+        return {
+          'status': 'ko',
+          'message': "Non sei più assegnato a questo borderò, avvisa l'ufficio.",
+        }, 404
       abort(404)
     if isinstance(request.form.get('data'), str):
       data = handle_photos(json.loads(request.form.get('data')), order, session=session)

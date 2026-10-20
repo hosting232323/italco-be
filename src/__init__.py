@@ -8,6 +8,7 @@ from flask_cors import CORS
 from api.settings import IS_DEV, TELEGRAM_TOKEN
 from api.telegram import send_telegram_message
 from .checks import trigger_checks
+from .rate_limit import client_ip, rate_limited
 from api.storage import folder_backup
 from database_api.backup import db_backup
 from api import swagger_decorator, register_flask_hooks, PrefixMiddleware
@@ -67,8 +68,10 @@ else:
 
 # Percorsi di cui il log tiene solo metodo, path, utente ed esito, senza i body:
 # login, refresh e gestione utenti portano credenziali e posizioni dei corrieri,
-# il tracking pubblico e la richiesta demo portano dati di chi non e' un utente.
-LOG_BODY_EXCLUDED_PREFIXES = ('/user', '/order/public', '/demo-request')
+# il tracking pubblico e la richiesta demo portano dati di chi non e' un utente,
+# i rapporti d'errore dell'app corrieri sono aperti e il loro contenuto e' gia'
+# loggato in forma troncata dall'endpoint.
+LOG_BODY_EXCLUDED_PREFIXES = ('/user', '/order/public', '/demo-request', '/delivery-app')
 
 
 def _register_log_hooks(flask_app):
@@ -166,6 +169,9 @@ DELIVERY_APP_ERROR_REPORT_FIELDS = {
 # DELIVERY_APP_ERROR_ALERTS_PER_HOUR avvisi all'ora. Il log li ha comunque tutti.
 DELIVERY_APP_ERROR_ALERT_WINDOW_SECONDS = 3600
 DELIVERY_APP_ERROR_ALERTS_PER_HOUR = 10
+# Tetto per IP ai rapporti accettati: oltre, 429 senza scrivere nel log. Largo,
+# perche' piu' corrieri possono uscire dallo stesso IP (rete mobile condivisa).
+DELIVERY_APP_ERROR_REPORTS_PER_HOUR_PER_IP = 60
 _delivery_app_error_alerts = {}
 
 
@@ -195,6 +201,9 @@ def delivery_app_error_report():
   # Rapporto di un errore non gestito dell'app corrieri (ErrorReporter in
   # delivery-app). Nessuna autenticazione, come /delivery-app/min-version, e
   # nessuna tabella: finisce nel log del servizio, una riga per rapporto.
+  if rate_limited(client_ip(), 'delivery-app-error-report', DELIVERY_APP_ERROR_REPORTS_PER_HOUR_PER_IP):
+    return {'status': 'ko', 'message': 'Troppi rapporti, riprova più tardi'}, 429
+
   body = request.get_json(silent=True)
   if not isinstance(body, dict):
     return {'status': 'ko', 'message': 'Rapporto non valido'}, 400

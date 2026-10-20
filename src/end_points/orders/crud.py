@@ -171,6 +171,9 @@ def get_public_order(token: str):
     return None
 
   full_order = get_order(order.id)['order']
+  # Il telefono del destinatario resta fuori: chiunque abbia il link (inoltrato,
+  # finito in chiaro in un SMS) non deve poterlo leggere. La posizione del
+  # corriere invece è il motivo stesso della pagina.
   public_order = {
     key: full_order[key]
     for key in (
@@ -178,7 +181,6 @@ def get_public_order(token: str):
       'status',
       'addressee',
       'address',
-      'addressee_contact',
       'dpc',
       'drc',
       'booking_date',

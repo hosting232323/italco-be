@@ -88,9 +88,9 @@ def format_schedule_data(schedule_data: dict, session=None):
   if not orders or not users or len(users) == 0:
     return None, None, None, {'status': 'ko', 'message': 'Errore nella creazione del borderò'}
 
-  schedule_fields = {
-    key: value for key, value in schedule_data.items() if key not in ('users', 'schedule_items', 'deleted_users')
-  }
+  # 'version' e' il controllo di concorrenza letto dall'endpoint, non un campo da scrivere.
+  excluded_fields = ('users', 'schedule_items', 'deleted_users', 'version')
+  schedule_fields = {key: value for key, value in schedule_data.items() if key not in excluded_fields}
 
   # Se il borderò raccoglie ordini con prodotti RAE, il luogo di smaltimento va
   # scelto qui: lo smaltimento non lo chiede più, lo eredita da questo campo.

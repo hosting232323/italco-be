@@ -38,7 +38,7 @@ def test_log_hooks_exclude_the_bodies_of_sensitive_paths(monkeypatch):
   app_module._register_log_hooks(Flask(__name__))
 
   assert calls == [{'user_log_field': 'nickname', 'body_excluded_prefixes': app_module.LOG_BODY_EXCLUDED_PREFIXES}]
-  assert {'/user', '/order/public', '/demo-request'} <= set(app_module.LOG_BODY_EXCLUDED_PREFIXES)
+  assert {'/user', '/order/public', '/demo-request', '/delivery-app'} <= set(app_module.LOG_BODY_EXCLUDED_PREFIXES)
 
 
 def test_log_hooks_still_start_with_an_older_generic_lib(monkeypatch):

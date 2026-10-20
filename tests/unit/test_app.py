@@ -1,10 +1,18 @@
 """Test delle route registrate direttamente sull'app (src/__init__.py, src/__main__.py)."""
 
+import pytest
+
 import src as app_module
+from src import rate_limit
 import src.__main__ as main_module
 from src.database.enum import UserRole
 
 from tests.unit.factories import auth_header, create_user
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limit():
+  rate_limit._attempts.clear()
 
 
 def test_index_route(client):
@@ -185,6 +193,22 @@ def test_delivery_app_error_report_rejects_a_body_that_is_not_an_object(client):
 
   assert response.status_code == 400
   assert response.get_json()['status'] == 'ko'
+
+
+def test_delivery_app_error_report_is_rate_limited_per_ip(client, monkeypatch):
+  lines = capture_error_log(monkeypatch)
+  headers = {'X-Forwarded-For': '1.2.3.4'}
+  limit = app_module.DELIVERY_APP_ERROR_REPORTS_PER_HOUR_PER_IP
+
+  for _ in range(limit):
+    assert client.post('/delivery-app/error-report', json={'message': 'boom'}, headers=headers).status_code == 200
+  blocked = client.post('/delivery-app/error-report', json={'message': 'boom'}, headers=headers)
+  other_ip = client.post('/delivery-app/error-report', json={'message': 'boom'}, headers={'X-Forwarded-For': '5.6.7.8'})
+
+  assert blocked.status_code == 429
+  assert blocked.get_json()['status'] == 'ko'
+  assert len(lines) == limit + 1
+  assert other_ip.status_code == 200
 
 
 def enable_telegram(monkeypatch):

@@ -1,13 +1,12 @@
 import os
 import re
-import time
-import threading
 from flask import request, Blueprint
 
 from api.email import send_email
 from database_api.operations import create
 from .orders.mailer import MAILS
 from ..database.schema import Mail
+from ..rate_limit import client_ip, rate_limited
 
 
 demo_request_bp = Blueprint('demo_request_bp', __name__)
@@ -21,7 +20,6 @@ DEMO_REQUEST_EMAILS = [
 ] or MAILS
 
 RATE_LIMIT_MAX = 5
-RATE_LIMIT_WINDOW_SECONDS = 3600
 
 EMAIL_REGEX = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 CONTROL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
@@ -39,33 +37,6 @@ FIELDS = [
   ('cap', 'CAP', 12, False),
   ('messaggio', 'Messaggio', 2000, False),
 ]
-
-_attempts: dict[str, list[float]] = {}
-_attempts_lock = threading.Lock()
-
-
-def client_ip() -> str:
-  # Dietro il proxy remote_addr e' quello del proxy: conta il primo hop di
-  # X-Forwarded-For. Il limite e' un freno agli abusi, non una barriera.
-  forwarded = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-  return forwarded or request.remote_addr or 'unknown'
-
-
-def rate_limited(ip: str) -> bool:
-  now = time.time()
-  with _attempts_lock:
-    recent = [stamp for stamp in _attempts.get(ip, []) if now - stamp < RATE_LIMIT_WINDOW_SECONDS]
-    if len(recent) >= RATE_LIMIT_MAX:
-      _attempts[ip] = recent
-      return True
-    recent.append(now)
-    _attempts[ip] = recent
-    # Sfoltisce le voci scadute degli altri indirizzi, cosi' il dizionario non cresce all'infinito.
-    for other in [
-      key for key, stamps in _attempts.items() if not any(now - s < RATE_LIMIT_WINDOW_SECONDS for s in stamps)
-    ]:
-      del _attempts[other]
-    return False
 
 
 def clean(value, max_length: int, multiline: bool = False) -> str | None:
@@ -121,7 +92,7 @@ def demo_request_endpoint():
   values, error = parse_request(data)
   if error:
     return {'status': 'ko', 'message': error}, 400
-  if rate_limited(client_ip()):
+  if rate_limited(client_ip(), 'demo-request', RATE_LIMIT_MAX):
     return {'status': 'ko', 'message': 'Troppe richieste, riprova più tardi'}, 429
 
   content = build_content(values)

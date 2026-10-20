@@ -3,6 +3,7 @@ import pytest
 from database_api import Session
 
 from src.database.schema import Mail
+from src import rate_limit
 from src.end_points import demo_request
 
 
@@ -16,7 +17,7 @@ VALID = {
 
 @pytest.fixture(autouse=True)
 def mailer(monkeypatch):
-  demo_request._attempts.clear()
+  rate_limit._attempts.clear()
   monkeypatch.setattr(demo_request, 'DEMO_REQUEST_EMAILS', ['uno@hubstra.it', 'due@hubstra.it'])
   sent = []
 

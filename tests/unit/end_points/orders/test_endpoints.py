@@ -180,6 +180,21 @@ def test_update_order_endpoint_rejects_version_conflict(client):
   assert 'modificato nel frattempo' in body['message']
 
 
+def test_update_order_by_unassigned_delivery_returns_json_404(client):
+  delivery = create_user(UserRole.DELIVERY)
+  _, _, service_user, _ = customer_with_service()
+  order = create_order()
+  create_product(order, service_user)
+
+  response = client.put(f'/order/{order.id}', json={'id': order.id, 'delay': True}, headers=auth_header(delivery))
+
+  assert response.status_code == 404
+  assert response.is_json
+  body = response.get_json()
+  assert body['status'] == 'ko'
+  assert 'non sei più assegnato' in body['message'].lower()
+
+
 def test_update_order_endpoint_updates_fields(client):
   admin = create_user(UserRole.ADMIN)
   _, _, service_user, _ = customer_with_service()
