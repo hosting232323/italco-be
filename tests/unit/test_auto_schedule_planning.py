@@ -682,6 +682,29 @@ def _plan(order):
     session.commit()
 
 
+def _eve_passage(entry, *points):
+  """Il borderò della vigilia del veicolo passa già dai punti: senza, niente precarico."""
+  from src.database.schema import ScheduleItemCollectionPoint
+
+  eve = TARGET - timedelta(days=1)
+  schedule = (_find(Schedule, date=eve, transport_id=entry.transport_id) or [None])[0] or create(
+    Schedule, {'date': eve, 'transport_id': entry.transport_id}
+  )
+  for point in points:
+    item = create(
+      ScheduleItem,
+      {
+        'index': 0,
+        'schedule_id': schedule.id,
+        'operation_type': ScheduleType.COLLECTIONPOINT,
+        'start_time_slot': entry.start_time,
+        'end_time_slot': entry.end_time,
+      },
+    )
+    create(ScheduleItemCollectionPoint, {'schedule_item_id': item.id, 'collection_point_id': point.id})
+  return schedule
+
+
 def _preloaded_order(entry, *points):
   """Ordine precaricato con un prodotto per ognuno dei punti di ritiro."""
   from database_api.operations import update
@@ -704,6 +727,7 @@ def test_preloaded_pickup_goes_to_the_eve_schedule(_optimize, _optimize_eve, db,
   point = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
   normal_point = create_collection_point(create_user(UserRole.CUSTOMER))
   update(entry, {'accepts_preloads': True})
+  _eve_passage(entry, point)
   order = _preloaded_order(entry, point, normal_point)
 
   _plan(order)
@@ -728,10 +752,15 @@ def test_preloaded_pickup_reuses_the_eve_stop_and_follows_the_last_order_out(_op
   from tests.unit.factories import create_collection_point
 
   point = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  update(entry, {'accepts_preloads': True})
+  # Il precarico si aggancia al passaggio della vigilia: la tappa c'e' gia' e si riusa.
+  eve = _eve_passage(entry, point)
   first, second = _preloaded_order(entry, point), _preloaded_order(entry, point)
   _plan(first)
   _plan(second)
-  assert len(_find(ScheduleItemCollectionPoint, collection_point_id=point.id)) == 1
+  stops = _find(ScheduleItemCollectionPoint, collection_point_id=point.id)
+  assert len(stops) == 1
+  assert _find(ScheduleItem, id=stops[0].schedule_item_id)[0].schedule_id == eve.id
 
   with Session() as session:
     unplan_order(session.get(Order, first.id), session)
@@ -756,12 +785,15 @@ def test_sync_order_preload_moves_the_eve_stop_when_products_change(_optimize, _
   update(entry, {'accepts_preloads': True})
   first = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
   second = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  _eve_passage(entry, first)
   order = _preloaded_order(entry, first)
   _plan(order)
   assert len(_find(ScheduleItemCollectionPoint, collection_point_id=first.id)) == 1
   eve = TARGET - timedelta(days=1)
 
-  # L'operatore sostituisce il prodotto: il punto precaricato e' un altro.
+  # L'operatore sostituisce il prodotto: il punto precaricato e' un altro, da cui
+  # la vigilia il veicolo passa gia' per un altro ordine.
+  _eve_passage(entry, second)
   _, _, service_user, _ = customer_with_service()
   create_product_row(order, service_user, name='nuovo', collection_point_id=second.id)
   delete(_find(Product, order_id=order.id, collection_point_id=first.id)[0])

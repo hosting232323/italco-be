@@ -777,9 +777,10 @@ def _new_preloaded_ids(
   session: session_type,
   new_cap: str = None,
   new_coord: tuple = None,
+  exclude_order_id: int = None,
 ) -> set[int]:
   """Punti di ritiro del nuovo ordine (payload) che si ritirano la vigilia: non pesano su `dpc`."""
-  from ..schedule.preload import can_preload_on, preloaded_collection_point_ids
+  from ..schedule.preload import preload_ready_ids, preloaded_collection_point_ids
 
   lat, lon = new_coord if new_coord else (None, None)
   has_address = any(value is not None for value in (new_cap, lat, lon))
@@ -787,14 +788,13 @@ def _new_preloaded_ids(
     return set()
 
   def _ids(sess: session_type) -> set[int]:
-    if not can_preload_on(dpc, entry.transport_id, sess):
-      return set()
-    return preloaded_collection_point_ids(
+    ids = preloaded_collection_point_ids(
       set(payload_pickup_collection_point_ids(new_products)),
       sess,
       address=(new_cap, lat, lon) if has_address else None,
       zone_accepts=bool(entry.accepts_preloads),
     )
+    return preload_ready_ids(dpc, entry.transport_id, ids, sess, exclude_order_id=exclude_order_id)
 
   if session is not None:
     return _ids(session)
@@ -837,7 +837,9 @@ def entry_occupied_duration(
     pickup_minutes += calculate_payload_pickup_minutes(
       new_products,
       exclude_collection_point_ids=existing_collection_points
-      | _new_preloaded_ids(entry, dpc, new_products, session, new_cap=new_cap, new_coord=new_coord),
+      | _new_preloaded_ids(
+        entry, dpc, new_products, session, new_cap=new_cap, new_coord=new_coord, exclude_order_id=exclude_order_id
+      ),
     )
 
   # I ritiri precaricati delle consegne del giorno dopo si fanno oggi, in testa

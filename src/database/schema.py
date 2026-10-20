@@ -169,8 +169,8 @@ class DeliveryCoverageEntry(BaseItalcoEntity):
   polygon = Column(JSON, nullable=True)
   # Area che accetta precarichi: un ordine di quest'area ha come fasce solo
   # quelle dei giorni in cui il borderò dello stesso veicolo passa già dagli
-  # stessi punti di ritiro, quel giorno o (per i punti precaricati, se il veicolo
-  # lavora la vigilia) il giorno prima (vedi
+  # stessi punti di ritiro, quel giorno (ordine normale) o, per i punti
+  # precaricati, il giorno prima (precarico) (vedi
   # _passes_same_pickup_points in end_points/delivery_coverage.py).
   accepts_preloads = Column(Boolean, nullable=False, default=False, server_default='false')
 

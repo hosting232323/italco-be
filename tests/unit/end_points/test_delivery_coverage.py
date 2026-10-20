@@ -1581,10 +1581,9 @@ def test_preload_area_ignores_orders_not_in_any_schedule(db):
   assert available_slots('70051', target, new_products=_products(collection_point)) == []
 
 
-def test_preload_needs_the_same_vehicle_working_the_eve(db):
-  # Il passaggio del giorno prima conta solo se è dello stesso veicolo e se quel
-  # veicolo lavora la vigilia: altrimenti il precarico non è possibile e la
-  # fascia non si offre.
+def test_preload_needs_the_same_vehicle_passing_on_the_eve(db):
+  # Il passaggio del giorno prima conta solo se è dello stesso veicolo: il
+  # precarico si aggancia a un giro che c'è già, altrimenti la fascia non si offre.
   target = date.today() + timedelta(days=3)
   eve = target - timedelta(days=1)
   transport = create_transport()
@@ -1597,10 +1596,10 @@ def test_preload_needs_the_same_vehicle_working_the_eve(db):
   _pickup_order(other, eve, collection_point, service_user)
   assert available_slots('70051', target, new_products=_products(collection_point)) == []
 
-  _pickup_order(transport, eve, collection_point, service_user)
+  _eve_entry(transport, target)
   assert available_slots('70051', target, new_products=_products(collection_point)) == []
 
-  _eve_entry(transport, target)
+  _pickup_order(transport, eve, collection_point, service_user)
   assert len(available_slots('70051', target, new_products=_products(collection_point))) == 1
 
 

@@ -4,11 +4,17 @@ from database_api import Session
 from database_api.operations import create, get_by_id, update
 
 from src.database.enum import OrderStatus, ScheduleType, UserRole
-from src.database.schema import CollectionPointPreloadArea, DeliveryCoverageEntry, Order, ScheduleItemCollectionPoint
+from src.database.schema import (
+  CollectionPointPreloadArea,
+  DeliveryCoverageEntry,
+  Order,
+  Schedule,
+  ScheduleItemCollectionPoint,
+)
 from src.end_points.schedule.delivery import get_items_for_delivery, update_schedule_item
 from src.end_points.schedule.preload import (
-  can_preload_on,
   order_is_preloaded,
+  preload_ready_ids,
   preloaded_products_by_stop,
   preloaded_collection_point_ids,
   preloaded_pickup_ids_for_order,
@@ -73,8 +79,10 @@ def test_order_is_preloaded_needs_area_and_a_preloaded_point(db):
 def test_preloaded_pickup_ids_for_order_are_empty_when_order_is_not_preloaded(db):
   customer, _, service_user, _ = customer_with_service()
   point = _point(customer, True)
-  order = create_order()
+  transport = create_transport()
+  order = create_order(dpc=date.today() + timedelta(days=1), delivery_transport_id=transport.id)
   create_product_row(order, service_user, collection_point_id=point.id)
+  _stop(create_schedule(transport, date.today()), point)
 
   with Session() as session:
     assert preloaded_pickup_ids_for_order(order, session) == set()
@@ -82,6 +90,20 @@ def test_preloaded_pickup_ids_for_order_are_empty_when_order_is_not_preloaded(db
   order = update(order, {'preloaded': True})
   with Session() as session:
     assert preloaded_pickup_ids_for_order(order, session) == {point.id}
+
+
+def test_preloaded_pickup_ids_for_order_keep_only_points_visited_on_the_eve(db):
+  customer, _, service_user, _ = customer_with_service()
+  visited, other = _point(customer, True), _point(customer, True)
+  transport = create_transport()
+  order = create_order(dpc=date.today() + timedelta(days=1), delivery_transport_id=transport.id, preloaded=True)
+  create_product_row(order, service_user, collection_point_id=visited.id)
+  create_product_row(order, service_user, collection_point_id=other.id)
+  _stop(create_schedule(transport, date.today()), visited)
+
+  with Session() as session:
+    # Il veicolo la vigilia passa solo da uno dei due punti: l'altro si ritira il giorno stesso.
+    assert preloaded_pickup_ids_for_order(order, session) == {visited.id}
 
 
 def test_pickup_stop_lists_products_with_next_day_preloads_flagged(db):
@@ -146,7 +168,9 @@ def test_order_stop_marks_preloaded_products_and_does_not_wait_for_their_pickup(
   preloaded, normal = _point(customer, True), _point(customer)
   today = create_schedule(schedule_date=date.today())
   delivery = _delivery(today)
-  order = create_order(status=OrderStatus.SCHEDULED, preloaded=True)
+  # Ieri il veicolo e' passato dal punto precaricato.
+  _stop(create(Schedule, {'date': date.today() - timedelta(days=1), 'transport_id': today.transport_id}), preloaded)
+  order = create_order(status=OrderStatus.SCHEDULED, preloaded=True, delivery_transport_id=today.transport_id)
   create_product_row(order, service_user, name='Frigo', collection_point_id=preloaded.id)
   create_product_row(order, service_user, name='Forno', collection_point_id=normal.id)
   link_order_to_schedule(order, today, index=1)
@@ -162,6 +186,11 @@ def test_order_stop_marks_preloaded_products_and_does_not_wait_for_their_pickup(
   assert get_by_id(Order, order.id).status == OrderStatus.BOOKING
 
 
+def get_schedule(transport, day):
+  with Session() as session:
+    return session.query(Schedule).filter(Schedule.transport_id == transport.id, Schedule.date == day).one()
+
+
 def _coverage(transport, day, accepts_preloads=True):
   return create(
     DeliveryCoverageEntry,
@@ -175,32 +204,66 @@ def _coverage(transport, day, accepts_preloads=True):
   )
 
 
-def test_can_preload_on_needs_a_future_eve_worked_by_the_vehicle(db):
-  transport = create_transport()
+def test_preload_ready_ids_needs_the_vehicle_already_passing_on_the_eve(db):
+  transport, other = create_transport(), create_transport()
+  customer = create_user(UserRole.CUSTOMER)
+  point, elsewhere = _point(customer, preloaded=True), _point(customer, preloaded=True)
   target = date.today() + timedelta(days=3)
+  eve = target - timedelta(days=1)
+  # Il veicolo lavora la vigilia ma non passa dal punto: niente precarico.
+  _coverage(transport, eve)
+  _stop(create_schedule(transport, eve), elsewhere)
   with Session() as session:
-    assert can_preload_on(target, transport.id, session) is False
-  _coverage(transport, target - timedelta(days=1))
-  _coverage(transport, date.today())
+    assert preload_ready_ids(target, transport.id, [point.id], session) == set()
+  # Un altro veicolo che passa la vigilia non conta: il precarico lo fa chi consegna.
+  _stop(create_schedule(other, eve), point)
   with Session() as session:
-    assert can_preload_on(target, transport.id, session) is True
-    assert can_preload_on(target.isoformat(), transport.id, session) is True
-    # La vigilia di oggi e' ancora eseguibile (dpc domani), quella di ieri no.
-    assert can_preload_on(date.today() + timedelta(days=1), transport.id, session) is True
-    assert can_preload_on(date.today(), transport.id, session) is False
-    assert can_preload_on(target, None, session) is False
+    assert preload_ready_ids(target, transport.id, [point.id], session) == set()
+  _stop(get_schedule(transport, eve), point, index=1)
+  with Session() as session:
+    assert preload_ready_ids(target, transport.id, [point.id, elsewhere.id], session) == {point.id, elsewhere.id}
+    assert preload_ready_ids(target.isoformat(), transport.id, [point.id], session) == {point.id}
+    assert preload_ready_ids(target, None, [point.id], session) == set()
 
 
-def test_order_is_preloaded_checks_the_eve_when_dpc_is_given(db):
+def test_preload_ready_ids_skips_points_visited_on_the_delivery_day(db):
+  transport = create_transport()
+  customer = create_user(UserRole.CUSTOMER)
+  point = _point(customer, preloaded=True)
+  target = date.today() + timedelta(days=3)
+  _stop(create_schedule(transport, target - timedelta(days=1)), point)
+  with Session() as session:
+    assert preload_ready_ids(target, transport.id, [point.id], session) == {point.id}
+  # Il veicolo passa dal punto anche il giorno della consegna: ordine normale.
+  _stop(create_schedule(transport, target), point)
+  with Session() as session:
+    assert preload_ready_ids(target, transport.id, [point.id], session) == set()
+
+
+def test_preload_ready_ids_ignores_a_past_eve(db):
+  transport = create_transport()
+  customer = create_user(UserRole.CUSTOMER)
+  point = _point(customer, preloaded=True)
+  _stop(create_schedule(transport, date.today()), point)
+  _stop(create_schedule(transport, date.today() - timedelta(days=1)), point)
+  with Session() as session:
+    # La vigilia di oggi e' ancora utile (consegna domani), quella di ieri no.
+    assert preload_ready_ids(date.today() + timedelta(days=1), transport.id, [point.id], session) == {point.id}
+    assert preload_ready_ids(date.today(), transport.id, [point.id], session) == set()
+
+
+def test_order_is_preloaded_checks_the_eve_passage_when_dpc_is_given(db):
   transport = create_transport()
   customer = create_user(UserRole.CUSTOMER)
   point = _point(customer, preloaded=True)
   target = date.today() + timedelta(days=3)
   entry = _coverage(transport, target)
+  _coverage(transport, target - timedelta(days=1))
   with Session() as session:
     assert order_is_preloaded(entry, [point.id], session) is True
+    # Il veicolo lavora la vigilia ma non passa dal punto.
     assert order_is_preloaded(entry, [point.id], session, dpc=target) is False
-  _coverage(transport, target - timedelta(days=1))
+  _stop(create_schedule(transport, target - timedelta(days=1)), point)
   with Session() as session:
     assert order_is_preloaded(entry, [point.id], session, dpc=target) is True
 
@@ -220,6 +283,7 @@ def test_preloaded_products_by_stop_lists_only_planned_orders_in_one_query(db):
 
   planned = order(True)
   order(False)
+  _stop(create_schedule(transport, day), point)
 
   with Session() as session:
     result = preloaded_products_by_stop({(day, transport.id, point.id)}, session)
