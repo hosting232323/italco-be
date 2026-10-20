@@ -1,4 +1,4 @@
-import pytest
+from database_api import Session
 from database_api.operations import get_by_id
 
 from src.database.enum import OrderType, UserRole
@@ -148,15 +148,7 @@ def test_set_all_users_associates_customers_without_the_service(client):
   assert body['service_users'][0]['price'] == 20.0
 
 
-@pytest.mark.xfail(
-  strict=True,
-  reason=(
-    'Bug sorgente: set_all_users confronta User.id con la lista degli ID di ServiceUser '
-    '(query_service_user restituisce ServiceUser, non user_id), quindi i clienti già '
-    'associati al servizio non vengono esclusi e ricevono un ServiceUser duplicato.'
-  ),
-)
-def test_set_all_users_should_skip_already_associated_customers(client):
+def test_set_all_users_skips_already_associated_customers(client):
   admin = create_user(UserRole.ADMIN)
   service = create_service()
   already = create_user(UserRole.CUSTOMER)
@@ -166,5 +158,9 @@ def test_set_all_users_should_skip_already_associated_customers(client):
   response = client.get(f'/service/set-all-users?service_id={service.id}&price=20', headers=auth_header(admin))
 
   body = response.get_json()
-  # Comportamento corretto atteso: solo il cliente senza il servizio viene associato
+  # Solo il cliente senza il servizio viene associato: chi ce l'ha già non riceve un doppione
   assert [entry['user_id'] for entry in body['service_users']] == [missing.id]
+  with Session() as session:
+    already_links = session.query(ServiceUser).filter_by(service_id=service.id, user_id=already.id).all()
+    assert len(already_links) == 1
+    assert already_links[0].price == 5.0
