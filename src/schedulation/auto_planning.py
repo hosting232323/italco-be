@@ -285,11 +285,15 @@ def sync_order_preload(order: Order, previous_ids: set[int], previous_eve, sessi
     cap=order.cap,
     lat=order.address_lat,
     lon=order.address_lon,
+    exclude_order_id=order.id,
   )
   if preloaded != bool(order.preloaded):
     update(order, {'preloaded': preloaded}, session=session)
 
   current_ids = preloaded_pickup_ids_for_order(order, session)
+  if order.preloaded and not current_ids:
+    # Nessun punto da cui il veicolo passi gia' la vigilia: ordine normale.
+    update(order, {'preloaded': False}, session=session)
   current_eve = order.dpc - timedelta(days=1) if current_ids and order.dpc else None
   day_schedule = get_schedule_by_order(order.id, session=session)
   if not day_schedule or not order.delivery_transport_id or not (previous_ids or current_ids):

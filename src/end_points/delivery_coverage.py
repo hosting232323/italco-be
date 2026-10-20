@@ -288,15 +288,16 @@ def _passes_same_pickup_points(
 
   Vale solo per le aree che accettano precarichi (accepts_preloads); le altre non
   hanno questo vincolo. La fascia si offre solo se il borderò dello stesso
-  veicolo passa da uno dei punti di ritiro dell'ordine quel giorno o, per i
-  punti che ammettono il precarico, il giorno prima: il precarico lo fa chi
-  consegna, quindi serve anche che il veicolo lavori la vigilia (can_preload_on).
+  veicolo passa da uno dei punti di ritiro dell'ordine quel giorno (ordine
+  normale, il prodotto si ritira lì) o, per i punti che ammettono il precarico,
+  il giorno prima (precarico: si aggancia al passaggio della vigilia, vedi
+  schedule/preload.py). Una vigilia nel passato non conta.
   Il passaggio si legge dal borderò reale, non dal veicolo salvato sull'ordine.
   Un ordine senza punti di ritiro non ha nulla da incrociare: nessun vincolo.
   """
   if not entry.accepts_preloads:
     return True
-  from .schedule.preload import can_preload_on, preloaded_collection_point_ids
+  from .schedule.preload import preloaded_collection_point_ids
   from .service.duration import payload_pickup_collection_point_ids
 
   collection_point_ids = set(payload_pickup_collection_point_ids(new_products or {}))
@@ -305,12 +306,9 @@ def _passes_same_pickup_points(
   dpc = _as_date(dpc)
   if dpc is None:
     return False
-  preloaded_ids = set()
-  if can_preload_on(dpc, entry.transport_id, session):
-    preloaded_ids = preloaded_collection_point_ids(collection_point_ids, session)
-  days_by_point = {
-    cp_id: [dpc, dpc - timedelta(days=1)] if cp_id in preloaded_ids else [dpc] for cp_id in collection_point_ids
-  }
+  eve = dpc - timedelta(days=1)
+  preloaded_ids = preloaded_collection_point_ids(collection_point_ids, session) if eve >= date.today() else set()
+  days_by_point = {cp_id: [dpc, eve] if cp_id in preloaded_ids else [dpc] for cp_id in collection_point_ids}
   return schedules_pass_pickup_points(
     days_by_point, session, transport_id=entry.transport_id, exclude_order_id=exclude_order_id
   )
@@ -382,7 +380,7 @@ def _eve_can_take_preloads(
   """
   if not entry.accepts_preloads:
     return True
-  from .schedule.preload import can_preload_on, preloaded_collection_point_ids
+  from .schedule.preload import preload_ready_ids, preloaded_collection_point_ids
   from .service.duration import (
     PICKUP_POINT_MINUTES_PER_PRODUCT,
     entry_occupied_duration,
@@ -391,9 +389,17 @@ def _eve_can_take_preloads(
   )
 
   pickup_ids = payload_pickup_collection_point_ids(new_products or {})
-  preloaded_ids = preloaded_collection_point_ids(set(pickup_ids), session)
   dpc = _as_date(dpc)
-  if not preloaded_ids or dpc is None or not can_preload_on(dpc, entry.transport_id, session):
+  if dpc is None:
+    return True
+  preloaded_ids = preload_ready_ids(
+    dpc,
+    entry.transport_id,
+    preloaded_collection_point_ids(set(pickup_ids), session),
+    session,
+    exclude_order_id=exclude_order_id,
+  )
+  if not preloaded_ids:
     return True
 
   eve = dpc - timedelta(days=1)

@@ -423,6 +423,7 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
           cap=data.get('cap', order.cap),
           lat=data.get('address_lat', order.address_lat),
           lon=data.get('address_lon', order.address_lon),
+          exclude_order_id=order.id,
         ),
       }
       replan = True

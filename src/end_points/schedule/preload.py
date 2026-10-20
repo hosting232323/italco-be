@@ -1,6 +1,6 @@
 """Precarico: ritiro dei prodotti il giorno prima della consegna.
 
-Il precarico vale solo se due cose sono vere insieme:
+Il precarico vale solo se queste cose sono vere insieme:
 
 - il punto di ritiro del prodotto ammette il precarico
   (``CollectionPoint.preloaded``);
@@ -8,7 +8,12 @@ Il precarico vale solo se due cose sono vere insieme:
   aree proprie (``CollectionPointPreloadArea``, per CAP o poligono) l'indirizzo
   deve cadere in una di esse, altrimenti vale l'area di copertura dell'ordine
   (``DeliveryCoverageEntry.accepts_preloads``). Le aree del punto prevalgono
-  sull'area di copertura, in entrambi i sensi.
+  sull'area di copertura, in entrambi i sensi;
+- il borderò dello stesso veicolo il giorno prima della consegna passa gia' da
+  quel punto di ritiro (``vehicle_passes_pickup_point``): il precarico si
+  aggancia a un passaggio che c'e' gia', non apre un giro nuovo;
+- il giorno della consegna lo stesso veicolo non passa gia' da quel punto: in
+  quel caso il prodotto si ritira lì quel giorno, ed e' un ordine normale.
 
 La scelta e' per punto di ritiro, non per ordine: se un ordine ha due prodotti
 con due punti diversi e uno solo e' precaricato, quel prodotto si ritira il
@@ -91,25 +96,48 @@ def _as_date(value) -> date | None:
     return None
 
 
-def can_preload_on(dpc, transport_id: int, session: session_type) -> bool:
-  """Se il ritiro della vigilia di `dpc` e' eseguibile dal veicolo `transport_id`.
+def vehicle_passes_pickup_point(
+  day, transport_id: int, collection_point_id: int, session: session_type, exclude_order_id: int = None
+) -> bool:
+  """Se il borderò del veicolo `transport_id` del giorno `day` passa dal punto di ritiro.
 
-  La vigilia non puo' essere nel passato e il veicolo deve lavorare quel giorno
-  (almeno un blocco di copertura nel suo giorno della settimana): altrimenti il
-  prodotto si ritira normalmente nel borderò della consegna.
+  Conta il borderò reale (tappa di ritiro del punto o ordine con un prodotto da
+  ritirare lì), come per le fasce (vedi schedules_pass_pickup_points). Con
+  `exclude_order_id` conta solo il passaggio degli altri ordini.
+  """
+  day = _as_date(day)
+  if day is None or not transport_id or not collection_point_id:
+    return False
+  from ..delivery_coverage import schedules_pass_pickup_points
+
+  return schedules_pass_pickup_points(
+    {collection_point_id: [day]}, session, transport_id=transport_id, exclude_order_id=exclude_order_id
+  )
+
+
+def preload_ready_ids(
+  dpc, transport_id: int, collection_point_ids, session: session_type, exclude_order_id: int = None
+) -> set[int]:
+  """Tra `collection_point_ids`, quelli che il veicolo puo' precaricare per una consegna in `dpc`.
+
+  La vigilia non puo' essere nel passato, il borderò del veicolo della vigilia
+  deve passare gia' dal punto e quello del giorno della consegna no (se ci passa
+  quel giorno il prodotto si ritira lì: ordine normale, niente precarico).
+  Non guarda il flag del punto ne' le aree: vedi preloaded_collection_point_ids.
   """
   day = _as_date(dpc)
-  if day is None or not transport_id:
-    return False
+  ids = {cp_id for cp_id in collection_point_ids or () if cp_id}
+  if day is None or not transport_id or not ids:
+    return set()
   eve = day - timedelta(days=1)
   if eve < date.today():
-    return False
-  return (
-    session.query(DeliveryCoverageEntry.id)
-    .filter(DeliveryCoverageEntry.transport_id == transport_id, DeliveryCoverageEntry.day_of_week == eve.weekday())
-    .first()
-    is not None
-  )
+    return set()
+  return {
+    cp_id
+    for cp_id in ids
+    if vehicle_passes_pickup_point(eve, transport_id, cp_id, session)
+    and not vehicle_passes_pickup_point(day, transport_id, cp_id, session, exclude_order_id=exclude_order_id)
+  }
 
 
 def order_is_preloaded(
@@ -120,31 +148,38 @@ def order_is_preloaded(
   cap=None,
   lat=None,
   lon=None,
+  exclude_order_id: int = None,
 ) -> bool:
   """Se un ordine con questi punti di ritiro, preso da `entry`, e' precaricato.
 
-  Con `dpc` verifica anche che la vigilia sia eseguibile (vedi can_preload_on).
-  `cap`, `lat`, `lon` sono l'indirizzo di consegna: servono per le aree di
-  precarico dei punti. Senza indirizzo vale solo l'area di copertura.
+  Con `dpc` verifica anche il passaggio del veicolo: la vigilia passa gia' dal
+  punto, il giorno della consegna no (vedi preload_ready_ids). `cap`, `lat`,
+  `lon` sono l'indirizzo di consegna: servono per le aree di precarico dei
+  punti. Senza indirizzo vale solo l'area di copertura. `exclude_order_id` e'
+  l'ordine in modifica: il suo passaggio non conta.
   """
   if entry is None:
     return False
   has_address = any(value is not None for value in (cap, lat, lon))
   if not has_address and not entry.accepts_preloads:
     return False
-  if dpc is not None and not can_preload_on(dpc, entry.transport_id, session):
-    return False
   address = (cap, lat, lon) if has_address else None
-  return bool(
-    preloaded_collection_point_ids(
-      collection_point_ids, session, address=address, zone_accepts=bool(entry.accepts_preloads)
-    )
+  ids = preloaded_collection_point_ids(
+    collection_point_ids, session, address=address, zone_accepts=bool(entry.accepts_preloads)
   )
+  if dpc is not None:
+    ids = preload_ready_ids(dpc, entry.transport_id, ids, session, exclude_order_id=exclude_order_id)
+  return bool(ids)
 
 
 def preloaded_pickup_ids_for_order(order: Order, session: session_type) -> set[int]:
-  """Punti di ritiro dell'ordine il cui ritiro avviene il giorno prima."""
-  if not order.preloaded:
+  """Punti di ritiro dell'ordine il cui ritiro avviene il giorno prima.
+
+  Oltre al flag e alle aree, il borderò del veicolo della vigilia deve passare
+  dal punto: in un ordine con piu' punti si precaricano solo quelli da cui il
+  veicolo passa gia' il giorno prima, gli altri si ritirano il giorno stesso.
+  """
+  if not order.preloaded or not order.dpc or not order.delivery_transport_id:
     return set()
   from ...schedulation.auto_planning import find_coverage_entry
 
@@ -155,7 +190,7 @@ def preloaded_pickup_ids_for_order(order: Order, session: session_type) -> set[i
     .all()
   }
   entry = find_coverage_entry(order, session)
-  return preloaded_collection_point_ids(
+  ids = preloaded_collection_point_ids(
     ids,
     session,
     address=(order.cap, order.address_lat, order.address_lon),
@@ -163,6 +198,8 @@ def preloaded_pickup_ids_for_order(order: Order, session: session_type) -> set[i
     # quindi per i punti senza aree vale com'e' stato deciso.
     zone_accepts=bool(entry.accepts_preloads) if entry else True,
   )
+  eve = order.dpc - timedelta(days=1)
+  return {cp_id for cp_id in ids if vehicle_passes_pickup_point(eve, order.delivery_transport_id, cp_id, session)}
 
 
 def preloaded_products_by_stop(stops, session: session_type) -> dict[tuple, list[tuple[Order, Product]]]:
