@@ -26,8 +26,10 @@ RUN pip install --no-cache-dir .
 # cache finche' pyproject.toml non cambia, quindi la lib va riallineata a parte.
 # LIB_REF e' lo sha di HEAD di generic-lib (lo risolve il job di deploy): se la
 # lib non e' cambiata il layer e' in cache, altrimenti viene reinstallata.
+# --force-reinstall: con la stessa versione in pyproject pip considera la lib gia'
+# soddisfatta anche se lo sha e' un altro, e il fix non arriverebbe nel container.
 ARG LIB_REF=HEAD
-RUN pip install --no-cache-dir --upgrade --upgrade-strategy only-if-needed   "generic_lib[unix] @ git+https://github.com/hosting232323/generic-lib.git@${LIB_REF}"
+RUN pip install --no-cache-dir --force-reinstall --no-deps   "generic_lib @ git+https://github.com/hosting232323/generic-lib.git@${LIB_REF}"
 
 COPY . .
 
