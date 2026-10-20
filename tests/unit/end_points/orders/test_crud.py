@@ -10,10 +10,12 @@ from src.end_points.orders.crud import (
   delete_order,
   filter_orders,
   get_order,
+  get_public_order,
   update_order,
   update_order_customer,
 )
 from src.end_points.orders.services import InvalidOrderProductsError
+from src.end_points.orders.sms_sender import create_order_tracking_token
 
 from tests.unit.factories import (
   create_delivery_group,
@@ -170,6 +172,37 @@ def test_get_order_ignores_position_after_closing(db):
 
   assert result['status'] == 'ok'
   assert 'lat' not in result['order']
+
+
+def test_get_public_order_hides_addressee_contact(db):
+  _, _, service_user, _ = customer_with_service()
+  order = create_order(addressee_contact='+390000000')
+  create_product(order, service_user)
+  token = create_order_tracking_token(order)
+
+  public_order = get_public_order(token)['order']
+
+  assert public_order['id'] == order.id
+  assert public_order['addressee'] == order.addressee
+  assert 'addressee_contact' not in public_order
+
+
+def test_get_public_order_keeps_delivery_position(db):
+  _, _, service_user, _ = customer_with_service()
+  order = create_order(status=OrderStatus.BOOKING)
+  create_product(order, service_user)
+  delivery = create_user(UserRole.DELIVERY)
+  create_delivery_info(delivery, lat=41.1, lon=16.8)
+  schedule = create_schedule()
+  link_order_to_schedule(order, schedule)
+  create_delivery_group(delivery, schedule)
+  create_schedule_item_user(delivery, schedule)
+  token = create_order_tracking_token(order)
+
+  public_order = get_public_order(token)['order']
+
+  assert float(public_order['lat']) == 41.1
+  assert float(public_order['lon']) == 16.8
 
 
 def test_delete_order_rejects_scheduled_orders(db):

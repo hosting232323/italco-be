@@ -30,7 +30,7 @@ def export_order_invoice(filters: list[dict], customer_id: int = None):
       start_date=start_date,
       end_date=end_date,
       total=sum([order['price'] for order in orders]),
-      customer=orders[0]['user'].get('company_name') or orders[0]['user']['nickname'] if orders else None,
+      customer=(orders[0]['user'].get('company_name') or orders[0]['user']['nickname']) if orders else None,
       **company_context(),
     ),
     dest=result,

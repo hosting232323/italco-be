@@ -311,6 +311,102 @@ def test_update_schedule_replaces_users_and_items(client):
     assert session.query(ScheduleItemOrder).count() == 2
 
 
+def schedule_with_one_order():
+  _, _, service_user, _ = customer_with_service()
+  order = create_order(status=OrderStatus.SCHEDULED)
+  create_product(order, service_user)
+  schedule = create_schedule()
+  item = link_order_to_schedule(order, schedule, index=0)
+  delivery = create_user(UserRole.DELIVERY)
+  create_delivery_group(delivery, schedule)
+  return schedule, item, order, delivery
+
+
+def schedule_payload(schedule, item, order, delivery, **extra):
+  return {
+    'date': date.today().strftime('%Y-%m-%d'),
+    'transport_id': schedule.transport_id,
+    'users': [{'id': delivery.id}],
+    'schedule_items': [
+      {
+        'id': item.id,
+        'index': 0,
+        'operation_type': 'Order',
+        'order_id': order.id,
+        'start_time_slot': '10:00',
+        'end_time_slot': '12:00',
+      }
+    ],
+    **extra,
+  }
+
+
+def test_update_schedule_increments_version_and_ignores_the_client_one_as_a_value(client):
+  operator = create_user(UserRole.OPERATOR)
+  schedule, item, order, delivery = schedule_with_one_order()
+
+  response = client.put(
+    f'/schedule/{schedule.id}',
+    json=schedule_payload(schedule, item, order, delivery, version=0),
+    headers=auth_header(operator),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+  assert response.get_json()['schedule']['version'] == 1
+
+
+def test_update_schedule_rejects_a_stale_version(client):
+  operator = create_user(UserRole.OPERATOR)
+  schedule, item, order, delivery = schedule_with_one_order()
+  payload = schedule_payload(schedule, item, order, delivery, version=0)
+
+  first = client.put(f'/schedule/{schedule.id}', json=payload, headers=auth_header(operator))
+  second = client.put(f'/schedule/{schedule.id}', json=payload, headers=auth_header(operator))
+
+  assert first.get_json()['status'] == 'ok'
+  assert second.get_json()['status'] == 'ko'
+  assert 'modificato nel frattempo' in second.get_json()['message']
+  with Session() as session:
+    assert session.get(Schedule, schedule.id).version == 1
+
+
+def test_stale_update_does_not_touch_users_or_items(client):
+  operator = create_user(UserRole.OPERATOR)
+  schedule, item, order, delivery = schedule_with_one_order()
+  other = create_user(UserRole.DELIVERY)
+  client.put(
+    f'/schedule/{schedule.id}',
+    json=schedule_payload(schedule, item, order, delivery, version=0, users=[{'id': delivery.id}, {'id': other.id}]),
+    headers=auth_header(operator),
+  )
+
+  stale = client.put(
+    f'/schedule/{schedule.id}',
+    json=schedule_payload(schedule, item, order, delivery, version=0, deleted_users=[other.id]),
+    headers=auth_header(operator),
+  )
+
+  assert stale.get_json()['status'] == 'ko'
+  with Session() as session:
+    assert {group.user_id for group in session.query(DeliveryGroup).filter_by(schedule_id=schedule.id)} == {
+      delivery.id,
+      other.id,
+    }
+
+
+def test_update_schedule_without_version_still_saves(client):
+  operator = create_user(UserRole.OPERATOR)
+  schedule, item, order, delivery = schedule_with_one_order()
+
+  response = client.put(
+    f'/schedule/{schedule.id}',
+    json=schedule_payload(schedule, item, order, delivery),
+    headers=auth_header(operator),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+
+
 def test_pianification_requires_known_orders(client):
   operator = create_user(UserRole.OPERATOR)
 

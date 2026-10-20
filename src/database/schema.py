@@ -250,6 +250,10 @@ class Schedule(BaseItalcoEntity):
   # qui invece di richiederlo di nuovo. Nullable: i borderò senza RAE non lo
   # valorizzano; l'obbligatorietà condizionata la impone l'endpoint.
   rae_disposal_place_id = Column(Integer, ForeignKey('rae_disposal_place.id'))
+  # Controllo di versione come sull'ordine, ma incrementato a mano da
+  # update_schedule: le modifiche a voci e corrieri non toccano la riga del
+  # borderò, quindi un listener before_update non scatterebbe.
+  version = Column(Integer, nullable=False, default=0, server_default='0')
 
   transport = relationship('Transport', back_populates='schedule')
   rae_disposal_place = relationship('RaeDisposalPlace')

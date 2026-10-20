@@ -1,5 +1,6 @@
 from datetime import datetime
 from flask import Blueprint, request
+from sqlalchemy import select
 
 from database_api import Session
 from ...database.enum import UserRole
@@ -108,7 +109,14 @@ def get_schedules(_):
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def update_schedule(user: User, id):
   with Session() as session:
+    # Lock di riga: due salvataggi concorrenti si serializzano e il secondo
+    # vede la versione gia' incrementata dal primo.
+    session.execute(select(Schedule.id).where(Schedule.id == int(id)).with_for_update())
     schedule: Schedule = get_by_id(Schedule, int(id), session=session)
+    expected_version = request.json.get('version')
+    if expected_version is not None and expected_version != schedule.version:
+      session.rollback()
+      return {'status': 'ko', 'message': 'Il borderò è stato modificato nel frattempo. Ricarica la pagina e riprova.'}
     actual_schedule_items = get_schedule_items(schedule, session=session)
     delivery_groups = get_delivery_groups(schedule, session=session)
     deleted_users = request.json.get('deleted_users', [])
@@ -128,7 +136,7 @@ def update_schedule(user: User, id):
       session.rollback()
       return {'status': 'ko', 'message': 'Uno o più utenti selezionati non sono utenti delivery validi'}
 
-    schedule = update(schedule, schedule_data, session=session)
+    schedule = update(schedule, {**schedule_data, 'version': (schedule.version or 0) + 1}, session=session)
     actual_user_ids = list(set([delivery_group.user_id for delivery_group in delivery_groups]) - set(deleted_users))
     # Lo stato finale include anche gli utenti già associati e non cancellati,
     # pur se omessi dal payload: restano nel DB e vanno verificati anch'essi.
