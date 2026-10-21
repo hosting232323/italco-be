@@ -24,16 +24,28 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-  op.add_column('user', sa.Column('email', sa.String(), nullable=True))
-  op.create_unique_constraint('user_email_key', 'user', ['email'])
+  # Idempotente: alcuni ambienti hanno gia' queste colonne, applicate quando la
+  # migration si chiamava 065 (poi ceduta a schedule_version).
+  op.execute('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS email VARCHAR')
+  op.execute(
+    """
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'user_email_key') THEN
+        ALTER TABLE "user" ADD CONSTRAINT user_email_key UNIQUE (email);
+      END IF;
+    END $$
+    """
+  )
 
-  op.add_column('customer_user_info', sa.Column('name', sa.String(), nullable=True))
+  op.execute('ALTER TABLE customer_user_info ADD COLUMN IF NOT EXISTS name VARCHAR')
   op.execute(
     """
     UPDATE customer_user_info
     SET name = "user".nickname
     FROM "user"
     WHERE "user".id = customer_user_info.user_id
+      AND customer_user_info.name IS NULL
     """
   )
   op.execute(
