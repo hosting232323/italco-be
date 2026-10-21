@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import and_, asc, or_
@@ -283,15 +284,21 @@ def _passes_same_pickup_points(
   new_products: dict,
   session,
   exclude_order_id: int = None,
+  address: tuple | None = None,
 ) -> bool:
-  """Se il veicolo di `entry` passa già dai punti di ritiro dell'ordine in `dpc` o il giorno prima.
+  """Se il veicolo di `entry` passa già da tutti i punti di ritiro dell'ordine in `dpc` o il giorno prima.
 
   Vale solo per le aree che accettano precarichi (accepts_preloads); le altre non
   hanno questo vincolo. La fascia si offre solo se il borderò dello stesso
-  veicolo passa da uno dei punti di ritiro dell'ordine quel giorno (ordine
-  normale, il prodotto si ritira lì) o, per i punti che ammettono il precarico,
-  il giorno prima (precarico: si aggancia al passaggio della vigilia, vedi
-  schedule/preload.py). Una vigilia nel passato non conta.
+  veicolo passa da ciascun punto di ritiro dell'ordine quel giorno (ordine
+  normale, il prodotto si ritira lì) o, per i punti che l'ordine può
+  precaricare, il giorno prima (precarico: si aggancia al passaggio della
+  vigilia, vedi schedule/preload.py). Basta un punto senza passaggio per
+  scartare la fascia: il suo ritiro aprirebbe un giro nuovo. Una vigilia nel
+  passato non conta.
+  `address` (cap, lat, lon) è l'indirizzo di consegna: un punto con aree di
+  precarico si precarica solo se l'indirizzo cade in una, come in
+  order_is_preloaded; altrimenti il passaggio della vigilia non serve all'ordine.
   Il passaggio si legge dal borderò reale, non dal veicolo salvato sull'ordine.
   Un ordine senza punti di ritiro non ha nulla da incrociare: nessun vincolo.
   """
@@ -307,10 +314,19 @@ def _passes_same_pickup_points(
   if dpc is None:
     return False
   eve = dpc - timedelta(days=1)
-  preloaded_ids = preloaded_collection_point_ids(collection_point_ids, session) if eve >= date.today() else set()
-  days_by_point = {cp_id: [dpc, eve] if cp_id in preloaded_ids else [dpc] for cp_id in collection_point_ids}
-  return schedules_pass_pickup_points(
-    days_by_point, session, transport_id=entry.transport_id, exclude_order_id=exclude_order_id
+  preloaded_ids = (
+    preloaded_collection_point_ids(collection_point_ids, session, address=address, zone_accepts=True)
+    if eve >= date.today()
+    else set()
+  )
+  return all(
+    schedules_pass_pickup_points(
+      {cp_id: [dpc, eve] if cp_id in preloaded_ids else [dpc]},
+      session,
+      transport_id=entry.transport_id,
+      exclude_order_id=exclude_order_id,
+    )
+    for cp_id in collection_point_ids
   )
 
 
@@ -323,30 +339,15 @@ def schedules_pass_pickup_points(
   (la data dello Schedule), non la dpc né il veicolo salvati sull'ordine: un
   ordine messo a mano nel borderò dall'operatore non ha `delivery_transport_id`
   e può stare in un borderò con una data diversa dalla sua dpc. Un borderò passa
-  da un punto se ha la tappa di ritiro di quel punto o un ordine con un prodotto
-  da ritirare lì; ordini annullati o non pianificati non contano.
+  da un punto se ha la tappa di ritiro di quel punto, chiunque l'abbia messa
+  (operatore, altri ordini o l'ordine in modifica: è un passaggio vero), o un
+  ordine con un prodotto da ritirare lì quel giorno. Il prodotto di un ordine
+  precaricato non conta: si ritira la vigilia, non nel borderò della consegna.
+  `exclude_order_id` è l'ordine in modifica: i suoi prodotti non contano come
+  passaggio. Ordini annullati o non pianificati non contano.
   """
   if not days_by_point:
     return False
-  order_stop = (
-    session.query(Schedule.id)
-    .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
-    .join(ScheduleItemOrder, ScheduleItemOrder.schedule_item_id == ScheduleItem.id)
-    .join(Product, Product.order_id == ScheduleItemOrder.order_id)
-    .filter(
-      or_(
-        *[and_(Schedule.date.in_(days), Product.collection_point_id == cp_id) for cp_id, days in days_by_point.items()]
-      )
-    )
-  )
-  if transport_id:
-    order_stop = order_stop.filter(Schedule.transport_id == transport_id)
-  if exclude_order_id:
-    # La tappa di ritiro è condivisa tra gli ordini e non dice a chi serve: per
-    # l'ordine in modifica conta il passaggio degli altri ordini, non il suo.
-    return order_stop.filter(ScheduleItemOrder.order_id != exclude_order_id).first() is not None
-  if order_stop.first() is not None:
-    return True
   pickup_stop = (
     session.query(Schedule.id)
     .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
@@ -362,7 +363,34 @@ def schedules_pass_pickup_points(
   )
   if transport_id:
     pickup_stop = pickup_stop.filter(Schedule.transport_id == transport_id)
-  return pickup_stop.first() is not None
+  # Prima le tappe di ritiro: una query sola, e la tappa della vigilia di un
+  # ordine precaricato risponde subito senza ripercorrere i giorni prima.
+  if pickup_stop.first() is not None:
+    return True
+
+  from .schedule.preload import preloaded_pickup_ids_for_order
+
+  order_stop = (
+    session.query(ScheduleItemOrder.order_id, Product.collection_point_id)
+    .select_from(Schedule)
+    .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
+    .join(ScheduleItemOrder, ScheduleItemOrder.schedule_item_id == ScheduleItem.id)
+    .join(Product, Product.order_id == ScheduleItemOrder.order_id)
+    .filter(
+      or_(
+        *[and_(Schedule.date.in_(days), Product.collection_point_id == cp_id) for cp_id, days in days_by_point.items()]
+      )
+    )
+  )
+  if transport_id:
+    order_stop = order_stop.filter(Schedule.transport_id == transport_id)
+  if exclude_order_id:
+    order_stop = order_stop.filter(ScheduleItemOrder.order_id != exclude_order_id)
+  for order_id, cp_id in order_stop.distinct():
+    order = session.get(Order, order_id)
+    if not order.preloaded or cp_id not in preloaded_pickup_ids_for_order(order, session):
+      return True
+  return False
 
 
 def _eve_can_take_preloads(
@@ -371,6 +399,7 @@ def _eve_can_take_preloads(
   new_products: dict,
   session,
   exclude_order_id: int = None,
+  address: tuple | None = None,
 ) -> bool:
   """Se la vigilia del veicolo ha tempo per i ritiri precaricati del nuovo ordine.
 
@@ -395,7 +424,7 @@ def _eve_can_take_preloads(
   preloaded_ids = preload_ready_ids(
     dpc,
     entry.transport_id,
-    preloaded_collection_point_ids(set(pickup_ids), session),
+    preloaded_collection_point_ids(set(pickup_ids), session, address=address, zone_accepts=True),
     session,
     exclude_order_id=exclude_order_id,
   )
@@ -487,6 +516,15 @@ def _first_with_residual_capacity(
   return None
 
 
+def _slot_still_open(entry: DeliveryCoverageEntry, dpc) -> bool:
+  """Se la fascia di `entry` in `dpc` non e' gia' finita: oggi non si offrono fasce passate.
+
+  L'ora e' quella italiana, non quella del server (in Docker spesso UTC).
+  """
+  now = datetime.now(ZoneInfo('Europe/Rome'))
+  return dpc != now.date() or entry.end_time > now.time()
+
+
 def _note_blocked(blocked_slots: dict, entry: DeliveryCoverageEntry, reason: str) -> None:
   if blocked_slots is not None:
     blocked_slots.setdefault((entry.start_time, entry.end_time), set()).add(reason)
@@ -532,19 +570,26 @@ def available_slots(
     return []
   if entries is None:
     entries = query_entries_for_cap(cap, address=new_address)
-  entries = [entry for entry in entries if entry.day_of_week == dpc.weekday()]
+  entries = [entry for entry in entries if entry.day_of_week == dpc.weekday() and _slot_still_open(entry, dpc)]
   if not entries:
     return []
 
+  from .schedule.preload import delivery_address
+
+  address = delivery_address(new_cap or cap, new_address)
   available = {}
   with Session() as session:
     for entry in entries:
-      if not _passes_same_pickup_points(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
+      if not _passes_same_pickup_points(
+        entry, dpc, new_products, session, exclude_order_id=exclude_order_id, address=address
+      ):
         _note_blocked(
           blocked_slots, entry, "Il veicolo non passa dai punti di ritiro dell'ordine quel giorno o il giorno prima"
         )
         continue
-      if not _eve_can_take_preloads(entry, dpc, new_products, session, exclude_order_id=exclude_order_id):
+      if not _eve_can_take_preloads(
+        entry, dpc, new_products, session, exclude_order_id=exclude_order_id, address=address
+      ):
         _note_blocked(blocked_slots, entry, 'Il giorno prima il corriere non ha tempo per i ritiri precaricati')
         continue
       effective = _entry_with_residual_capacity(
@@ -621,7 +666,7 @@ def available_slots_by_date(
         all_reasons = set().union(*blocked_slots.values()) if blocked_slots else set()
         blocked_out[iso] = ' · '.join(sorted(all_reasons)) or 'Nessuna fascia disponibile'
     elif blocked_out is not None and entries:
-      blocked_out[iso] = f'Nessun corriere in copertura il {WEEKDAY_NAMES[start.weekday()]}'
+      blocked_out[iso] = f'Nessun corriere in copertura di {WEEKDAY_NAMES[start.weekday()]}'
     start += timedelta(days=1)
   return result
 
@@ -697,18 +742,24 @@ def resolve_delivery_entry(
   entries = [entry for entry in query_entries_for_cap(cap, address=address) if entry.day_of_week == dpc.weekday()]
   if not entries:
     return None
+  entries = [entry for entry in entries if _slot_still_open(entry, dpc)]
+  if not entries:
+    raise SlotUnavailableError('Non ci sono più fasce disponibili per questa data: scegli un altro giorno')
 
   from .service.duration import calculate_payload_service_duration, entry_priority_key
 
   if required_duration == 0 and products:
     required_duration = calculate_payload_service_duration({'products': products, 'user_id': user_id})
 
+  from .schedule.preload import delivery_address
+
+  delivery = delivery_address(cap, address)
   with Session() as session:
     entries = [
       entry
       for entry in entries
-      if _passes_same_pickup_points(entry, dpc, products, session, exclude_order_id=exclude_order_id)
-      and _eve_can_take_preloads(entry, dpc, products, session, exclude_order_id=exclude_order_id)
+      if _passes_same_pickup_points(entry, dpc, products, session, exclude_order_id=exclude_order_id, address=delivery)
+      and _eve_can_take_preloads(entry, dpc, products, session, exclude_order_id=exclude_order_id, address=delivery)
     ]
   if not entries:
     raise SlotUnavailableError('Non ci sono più fasce disponibili per questa data: scegli un altro giorno')

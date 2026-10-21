@@ -31,10 +31,11 @@ from ..database.schema import (
   Schedule,
   ScheduleItem,
   ScheduleItemOrder,
+  ScheduleItemUser,
 )
 from ..end_points.rae.product import emit_rae_products
 from ..end_points.orders.queries import query_products
-from ..end_points.schedule.preload import order_is_preloaded, preloaded_pickup_ids_for_order
+from ..end_points.schedule.preload import delivery_address, order_is_preloaded, preloaded_pickup_ids_for_order
 from ..end_points.schedule.queries import get_schedule_by_order, get_schedule_items, lock_transport_assignment
 from .routing import (
   link_missing_collection_points,
@@ -236,7 +237,9 @@ def unplan_order(order: Order, session: session_type) -> None:
 
   schedule_ids = {item.schedule_id for item, _ in rows}
   pickup_ids = required_collection_point_ids_for_order(order, session)
-  preloaded_ids = preloaded_pickup_ids_for_order(order, session)
+  # I ritiri precaricati della vigilia escono con l'ordine dentro
+  # delete_schedule_items (release_preloaded_pickups), come quando
+  # l'operatore toglie l'ordine dal borderò.
   delete_schedule_items([(item, None, sio) for item, sio in rows], session=session)
   session.flush()
 
@@ -245,22 +248,43 @@ def unplan_order(order: Order, session: session_type) -> None:
     _drop_orphan_pickups(schedule, pickup_ids, session)
     _renumber_stops(schedule, session)
     optimize_schedule_stops(schedule, session=session)
+    delete_schedule_if_empty(schedule, session)
 
-  # I ritiri precaricati erano nel borderò della vigilia: escono con l'ordine
-  # se nessun altro li richiede.
-  if preloaded_ids and order.delivery_transport_id and order.dpc:
-    eve = (
-      session.query(Schedule)
-      .filter(
-        Schedule.date == order.dpc - timedelta(days=1),
-        Schedule.transport_id == order.delivery_transport_id,
-      )
-      .first()
-    )
-    if eve:
-      _drop_orphan_pickups(eve, preloaded_ids, session, exclude_order_id=order.id)
-      _renumber_stops(eve, session)
-      optimize_schedule_stops(eve, session=session)
+
+def release_preloaded_pickups(
+  order: Order, pickup_ids: set[int], eve, transport_id: int, session: session_type
+) -> None:
+  """Toglie dal borderò della vigilia i ritiri precaricati di un ordine uscito dal suo borderò.
+
+  Una tappa resta se serve ancora ad altri (ordini del borderò o altri
+  precarichi del giorno dopo). Il borderò della vigilia rimasto senza tappe
+  si cancella.
+  """
+  if not pickup_ids or not eve or not transport_id:
+    return
+  schedule = session.query(Schedule).filter(Schedule.date == eve, Schedule.transport_id == transport_id).first()
+  if not schedule:
+    return
+  _drop_orphan_pickups(schedule, pickup_ids, session, exclude_order_id=order.id)
+  _renumber_stops(schedule, session)
+  optimize_schedule_stops(schedule, session=session)
+  delete_schedule_if_empty(schedule, session)
+
+
+def delete_schedule_if_empty(schedule: Schedule, session: session_type) -> bool:
+  """Cancella il borderò rimasto senza tappe dopo che la pianificazione ne ha tolto gli ordini.
+
+  Un borderò vuoto non compare nella lista ma occupa il veicolo in quella data:
+  l'operatore non potrebbe più crearne uno. Resta se i corrieri l'hanno già
+  usato (eventi in ScheduleItemUser): è storia del giro.
+  """
+  if session.query(ScheduleItem.id).filter(ScheduleItem.schedule_id == schedule.id).first():
+    return False
+  if session.query(ScheduleItemUser.id).filter(ScheduleItemUser.schedule_id == schedule.id).first():
+    return False
+  delete(schedule, session=session)
+  session.flush()
+  return True
 
 
 def sync_order_preload(order: Order, previous_ids: set[int], previous_eve, session: session_type) -> None:
@@ -277,14 +301,15 @@ def sync_order_preload(order: Order, previous_ids: set[int], previous_eve, sessi
   # La vigilia non si riesamina se la data non e' cambiata: un ordine gia' precaricato
   # modificato a ritiro avvenuto non deve perdere il precarico perche' la vigilia e' passata.
   same_eve = bool(previous_eve and order.dpc and previous_eve == order.dpc - timedelta(days=1))
+  cap, lat, lon = delivery_address(order.cap, order.address, order.address_lat, order.address_lon)
   preloaded = order_is_preloaded(
     find_coverage_entry(order, session),
     cp_ids,
     session,
     dpc=None if same_eve else order.dpc,
-    cap=order.cap,
-    lat=order.address_lat,
-    lon=order.address_lon,
+    cap=cap,
+    lat=lat,
+    lon=lon,
     exclude_order_id=order.id,
   )
   if preloaded != bool(order.preloaded):
@@ -311,6 +336,7 @@ def sync_order_preload(order: Order, previous_ids: set[int], previous_eve, sessi
       _drop_orphan_pickups(old_eve, gone, session, exclude_order_id=order.id)
       _renumber_stops(old_eve, session)
       optimize_schedule_stops(old_eve, session=session)
+      delete_schedule_if_empty(old_eve, session)
 
   if current_ids:
     link_preloaded_collection_points(

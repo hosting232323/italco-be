@@ -509,7 +509,8 @@ def test_unplan_order_drops_pickups_only_that_order_needed(_optimize, db, entry,
     session.commit()
 
   assert _find(ScheduleItemCollectionPoint, collection_point_id=point.id) == []
-  assert _find(ScheduleItem, schedule_id=_find(Schedule, date=TARGET)[0].id) == []
+  # Rimasto senza tappe, il borderò si cancella: vuoto occuperebbe il veicolo in quella data.
+  assert _find(Schedule, date=TARGET) == []
 
 
 @patch('src.schedulation.routing.trip_order_osrm')
