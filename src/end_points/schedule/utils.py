@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from ..orders.queries import query_products
 from ..orders.api import save_order_status_to_euronics
 from ...database.enum import OrderStatus, ScheduleType
@@ -160,6 +162,36 @@ def handle_schedule_item(item: dict, schedule: Schedule, session, pending_sms: l
 def delete_schedule_items(
   schedule_items: list[tuple[ScheduleItem, ScheduleItemCollectionPoint, ScheduleItemOrder]], session=None
 ):
+  """Toglie le tappe dal borderò e riallinea i precarichi che ne dipendevano.
+
+  - Un ordine precaricato che esce dal borderò della consegna lascia la sua
+    tappa di ritiro nel borderò della vigilia: esce anche quella, se non serve
+    ad altri, e l'ordine smette di essere precaricato (pianificato di nuovo, il
+    precarico si ricalcola).
+  - Una tappa di ritiro tolta dal borderò della vigilia lascia senza ritiro i
+    precarichi del giorno dopo che ci si appoggiavano: tornano ordini normali,
+    con il ritiro nel loro borderò.
+  """
+  from .preload import preloaded_pickup_ids_for_order
+
+  leaving = []
+  for _item, _scp, sio in schedule_items:
+    if sio:
+      order = get_by_id(Order, sio.order_id, session=session)
+      ids = preloaded_pickup_ids_for_order(order, session)
+      if ids:
+        leaving.append((order, ids, order.dpc - timedelta(days=1), order.delivery_transport_id))
+  removed_ids = {item[0].id for item in schedule_items}
+  dependents = []
+  for item, scp, _sio in schedule_items:
+    if scp:
+      schedule = session.get(Schedule, item.schedule_id)
+      for order in _next_day_preloaded_orders(schedule, session):
+        if order.id not in {o.id for o, _ in dependents} and scp.collection_point_id in preloaded_pickup_ids_for_order(
+          order, session
+        ):
+          dependents.append((order, scp.collection_point_id))
+
   for schedule_item in schedule_items:
     if schedule_item[2]:
       delete(schedule_item[2], session=session)
@@ -173,6 +205,42 @@ def delete_schedule_items(
     ):
       delete(activity, session=session)
     delete(schedule_item[0], session=session)
+
+  if not leaving and not dependents:
+    return
+  from ...schedulation.auto_planning import release_preloaded_pickups
+  from ...schedulation.routing import link_missing_collection_points, optimize_schedule_stops
+  from .queries import get_schedule_by_order, get_schedule_item_by_order
+
+  session.flush()
+  for order, ids, eve, transport_id in leaving:
+    update(order, {'preloaded': False}, session=session)
+    release_preloaded_pickups(order, ids, eve, transport_id, session)
+  for order, _cp_id in dependents:
+    item = get_schedule_item_by_order(order, session=session)
+    if not item or item.id in removed_ids:
+      continue
+    if not preloaded_pickup_ids_for_order(order, session):
+      update(order, {'preloaded': False}, session=session)
+    day_schedule = get_schedule_by_order(order.id, session=session)
+    if day_schedule and link_missing_collection_points(
+      order, day_schedule, item.start_time_slot, item.end_time_slot, session=session
+    ):
+      optimize_schedule_stops(day_schedule, session=session)
+
+
+def _next_day_preloaded_orders(schedule: Schedule, session) -> list[Order]:
+  """Ordini precaricati e pianificati del giorno dopo, sullo stesso veicolo del borderò."""
+  return (
+    session.query(Order)
+    .filter(
+      Order.delivery_transport_id == schedule.transport_id,
+      Order.dpc == schedule.date + timedelta(days=1),
+      Order.preloaded.is_(True),
+      Order.id.in_(session.query(ScheduleItemOrder.order_id)),
+    )
+    .all()
+  )
 
 
 def schedule_items_updating(

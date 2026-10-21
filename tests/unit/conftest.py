@@ -217,6 +217,7 @@ def offline_geo():
     'src.end_points.service.travel.get_lat_lon_by_cap': geo.by_cap,
     'src.end_points.service.duration.get_lat_lon_by_address': geo.by_address,
     'src.end_points.service.duration.get_lat_lon_by_cap': geo.by_cap,
+    'src.end_points.schedule.preload.get_lat_lon_by_address': geo.by_address,
     'src.end_points.service.travel.sequential_travel_minutes': geo.sequential,
   }
   patches = [patch(target, replacement) for target, replacement in targets.items()]

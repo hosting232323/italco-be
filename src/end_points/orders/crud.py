@@ -12,7 +12,7 @@ from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_products, update_products
 from ..delivery_coverage import SlotUnavailableError, annotate_out_of_zone, resolve_delivery_entry
-from ..schedule.preload import order_is_preloaded, preloaded_pickup_ids_for_order
+from ..schedule.preload import delivery_address, order_is_preloaded, preloaded_pickup_ids_for_order
 from ..service.duration import payload_pickup_collection_point_ids
 from ..service.duration import order_products_payload
 from ...utils.geo import parse_coordinates
@@ -219,14 +219,17 @@ def create_order(user: User, data: dict):
         )
       except SlotUnavailableError as error:
         return {'status': 'ko', 'message': str(error)}
+      cap, lat, lon = delivery_address(
+        clean_data.get('cap'), clean_data.get('address'), clean_data.get('address_lat'), clean_data.get('address_lon')
+      )
       clean_data['preloaded'] = order_is_preloaded(
         entry,
         payload_pickup_collection_point_ids(data.get('products')),
         session,
         dpc=clean_data.get('dpc'),
-        cap=clean_data.get('cap'),
-        lat=clean_data.get('address_lat'),
-        lon=clean_data.get('address_lon'),
+        cap=cap,
+        lat=lat,
+        lon=lon,
       )
       clean_data['delivery_slot_start'] = entry.start_time if entry else None
       clean_data['delivery_slot_end'] = entry.end_time if entry else None
@@ -345,7 +348,7 @@ def delete_order(user: User, order_id: int):
     if not order or item or order.status not in [OrderStatus.ACQUIRED, OrderStatus.BOOKED]:
       return {
         'status': 'ko',
-        'message': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",
+        'message': 'Si può eliminare solo un ordine in attesa e senza borderò',
       }
 
     for photo in order.photo:
@@ -409,6 +412,13 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
         address=data.get('address', order.address),
       )
       products_payload = data.get('products') or order_products_payload(order, session)
+      moved_address = data.get('address', order.address) != order.address
+      cap, lat, lon = delivery_address(
+        data.get('cap', order.cap),
+        data.get('address', order.address),
+        data.get('address_lat', None if moved_address else order.address_lat),
+        data.get('address_lon', None if moved_address else order.address_lon),
+      )
       planning_fields = {
         'delivery_slot_start': entry.start_time if entry else None,
         'delivery_slot_end': entry.end_time if entry else None,
@@ -418,9 +428,9 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
           payload_pickup_collection_point_ids(products_payload),
           session,
           dpc=data.get('dpc', order.dpc),
-          cap=data.get('cap', order.cap),
-          lat=data.get('address_lat', order.address_lat),
-          lon=data.get('address_lon', order.address_lon),
+          cap=cap,
+          lat=lat,
+          lon=lon,
           exclude_order_id=order.id,
         ),
       }

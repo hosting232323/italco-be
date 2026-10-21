@@ -582,7 +582,7 @@ def test_available_slots_by_date_explains_blocked_days(db):
 
   assert target.strftime('%Y-%m-%d') in result
   other_day = (target + timedelta(days=1)).strftime('%Y-%m-%d')
-  assert blocked[other_day].startswith('Nessun corriere in copertura il ')
+  assert blocked[other_day].startswith('Nessun corriere in copertura di ')
   assert target.strftime('%Y-%m-%d') not in blocked
 
 
@@ -1494,7 +1494,8 @@ def test_preload_area_counts_previous_day_only_for_preloaded_pickup_points(db):
 
 def test_preload_applies_per_pickup_point_of_the_same_order(db):
   # Due punti di ritiro: il precaricato si incrocia anche con la vigilia,
-  # quello normale solo con il giorno della consegna.
+  # quello normale solo con il giorno della consegna. Servono entrambi i
+  # passaggi: un punto senza passaggio aprirebbe un ritiro nuovo.
   target = date.today() + timedelta(days=3)
   transport = create_transport()
   _preload_entry(transport, target.weekday())
@@ -1511,6 +1512,10 @@ def test_preload_applies_per_pickup_point_of_the_same_order(db):
   assert available_slots('70051', target, new_products=products) == []
 
   _pickup_order(transport, target - timedelta(days=1), preloaded_point, service_user)
+  # Il precaricato ora passa la vigilia, ma il normale il giorno della consegna no.
+  assert available_slots('70051', target, new_products=products) == []
+
+  _pickup_order(transport, target, normal_point, other_service_user)
   assert len(available_slots('70051', target, new_products=products)) == 1
 
 

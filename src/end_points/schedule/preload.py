@@ -36,7 +36,21 @@ from ...database.schema import (
   Product,
   ScheduleItemOrder,
 )
+from ...utils.caps import get_lat_lon_by_address
 from ...utils.geo import point_in_polygon
+
+
+def delivery_address(cap, address: str = None, lat=None, lon=None) -> tuple:
+  """(cap, lat, lon) dell'indirizzo di consegna, per le aree di precarico dei punti.
+
+  Le coordinate date (menu Google o mappa) valgono così come sono; senza, quelle
+  del geocoding dell'indirizzo, in cache: le stesse con cui si scelgono zona e
+  fasce. Così le fasce offerte, il precarico deciso alla creazione e le tappe
+  del borderò guardano lo stesso punto.
+  """
+  if (lat is None or lon is None) and address:
+    lat, lon = get_lat_lon_by_address(address)
+  return (cap, lat, lon)
 
 
 def area_contains(area: CollectionPointPreloadArea, cap, lat, lon) -> bool:
@@ -193,7 +207,7 @@ def preloaded_pickup_ids_for_order(order: Order, session: session_type) -> set[i
   ids = preloaded_collection_point_ids(
     ids,
     session,
-    address=(order.cap, order.address_lat, order.address_lon),
+    address=delivery_address(order.cap, order.address, order.address_lat, order.address_lon),
     # Senza fascia trovata non si puo' rileggere la zona: l'ordine e' gia' precaricato,
     # quindi per i punti senza aree vale com'e' stato deciso.
     zone_accepts=bool(entry.accepts_preloads) if entry else True,
