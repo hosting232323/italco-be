@@ -8,7 +8,13 @@ from src.database.enum import UserRole
 from database_api import Session
 
 from src.database.enum import ScheduleType
-from src.database.schema import DeliveryCoverageCap, DeliveryCoverageEntry, Schedule, ScheduleItemCollectionPoint
+from src.database.schema import (
+  CollectionPointPreloadArea,
+  DeliveryCoverageCap,
+  DeliveryCoverageEntry,
+  Schedule,
+  ScheduleItemCollectionPoint,
+)
 from src.end_points.service.duration import PICKUP_POINT_MINUTES_PER_PRODUCT
 from src.end_points.delivery_coverage import (
   SlotUnavailableError,
@@ -1383,6 +1389,7 @@ def test_preload_area_offers_only_days_with_same_pickup_point(db):
   transport = create_transport()
   _preload_entry(transport, target.weekday())
   _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
 
   assert available_slots('70051', target, new_products=_products(collection_point)) == []
 
@@ -1397,6 +1404,7 @@ def test_preload_area_ignores_other_pickup_points(db):
   transport = create_transport()
   _preload_entry(transport, target.weekday())
   _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
   _, _, other_service_user, other_point = customer_with_service()
 
   _pickup_order(transport, target, other_point, other_service_user)
@@ -1411,6 +1419,7 @@ def test_preload_area_ignores_the_pickup_of_another_vehicle(db):
   transport = create_transport()
   _preload_entry(transport, target.weekday())
   _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
 
   _pickup_order(create_transport(), target, collection_point, service_user)
 
@@ -1449,6 +1458,7 @@ def test_preload_area_uses_the_schedule_date_not_the_order_dpc(db):
   transport = create_transport()
   _preload_entry(transport, target.weekday())
   _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
   later = target + timedelta(days=7)
 
   # dpc il giorno target ma borderò di un'altra settimana: il target non ha passaggi.
@@ -1465,6 +1475,7 @@ def test_preload_area_counts_pickup_stops_of_the_schedule(db):
   transport = create_transport()
   _preload_entry(transport, target.weekday())
   _, _, _, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
   assert available_slots('70051', target, new_products=_products(collection_point)) == []
 
   item = create_schedule_item(create_schedule(create_transport(), target), ScheduleType.COLLECTIONPOINT)
@@ -1476,46 +1487,61 @@ def test_preload_area_counts_pickup_stops_of_the_schedule(db):
   assert len(available_slots('70051', target, new_products=_products(collection_point))) == 1
 
 
-def test_preload_area_counts_previous_day_only_for_preloaded_pickup_points(db):
+def test_preload_area_constrains_only_preloaded_pickup_points(db):
+  # Un punto senza precarico segue le regole normali: nessun passaggio richiesto,
+  # il ritiro si aggiunge al borderò del giorno della consegna. Il punto
+  # precaricato invece si aggancia a un passaggio che c'e' gia'.
   target = date.today() + timedelta(days=3)
   transport = create_transport()
   _preload_entry(transport, target.weekday())
   _eve_entry(transport, target)
   _, _, service_user, collection_point = customer_with_service()
-  _pickup_order(transport, target - timedelta(days=1), collection_point, service_user)
+  slot = [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]
 
-  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+  assert available_slots('70051', target, new_products=_products(collection_point)) == slot
 
   update(collection_point, {'preloaded': True})
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+  _pickup_order(transport, target - timedelta(days=1), collection_point, service_user)
+  assert available_slots('70051', target, new_products=_products(collection_point)) == slot
+
+
+def test_preload_area_ignores_preloaded_point_outside_its_preload_areas(db):
+  # MW Bari 2 sulla demo: punto precaricato con area solo sul 70124, destinatario
+  # a Casamassima (70010). Per quell'ordine il punto non e' un precarico: regole
+  # normali, la fascia si offre anche senza nessun borderò.
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, _, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  create(CollectionPointPreloadArea, {'collection_point_id': collection_point.id, 'caps': ['70124'], 'polygon': None})
+
   assert available_slots('70051', target, new_products=_products(collection_point)) == [
     {'start': '08:00', 'end': '12:00', 'caps': ['70051']}
   ]
 
 
 def test_preload_applies_per_pickup_point_of_the_same_order(db):
-  # Due punti di ritiro: il precaricato si incrocia anche con la vigilia,
-  # quello normale solo con il giorno della consegna. Servono entrambi i
-  # passaggi: un punto senza passaggio aprirebbe un ritiro nuovo.
+  # Due punti di ritiro: il precaricato deve avere il suo passaggio (vigilia o
+  # giorno della consegna), quello normale segue le regole normali e non chiede
+  # nessun passaggio.
   target = date.today() + timedelta(days=3)
   transport = create_transport()
   _preload_entry(transport, target.weekday())
   _eve_entry(transport, target)
   _, _, service_user, preloaded_point = customer_with_service()
-  _, _, other_service_user, normal_point = customer_with_service()
+  _, _, _, normal_point = customer_with_service()
   update(preloaded_point, {'preloaded': True})
   products = {
     'frigo': {'collection_point': {'id': preloaded_point.id}},
     'lavatrice': {'collection_point': {'id': normal_point.id}},
   }
 
-  _pickup_order(transport, target - timedelta(days=1), normal_point, other_service_user)
   assert available_slots('70051', target, new_products=products) == []
 
   _pickup_order(transport, target - timedelta(days=1), preloaded_point, service_user)
-  # Il precaricato ora passa la vigilia, ma il normale il giorno della consegna no.
-  assert available_slots('70051', target, new_products=products) == []
-
-  _pickup_order(transport, target, normal_point, other_service_user)
   assert len(available_slots('70051', target, new_products=products)) == 1
 
 
@@ -1524,6 +1550,7 @@ def test_preload_area_excludes_the_order_being_edited(db):
   transport = create_transport()
   _preload_entry(transport, target.weekday())
   _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
   order = _pickup_order(transport, target, collection_point, service_user)
 
   assert available_slots('70051', target, new_products=_products(collection_point), exclude_order_id=order.id) == []
@@ -1547,6 +1574,7 @@ def test_resolve_delivery_entry_rejects_day_without_same_pickup_point(db):
   transport = create_transport()
   entry = _preload_entry(transport, target.weekday())
   _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
 
   with pytest.raises(SlotUnavailableError):
     resolve_delivery_entry('70051', target, products=_products(collection_point))
@@ -1561,15 +1589,14 @@ def test_check_constraints_slots_use_preloaded_pickup_point(app, db):
   _preload_entry(transport, target.weekday())
   _eve_entry(transport, target)
   _, _, service_user, collection_point = customer_with_service()
-  _pickup_order(transport, target - timedelta(days=1), collection_point, service_user)
+  update(collection_point, {'preloaded': True})
   payload = {'cap': '70051', 'products': _products(collection_point)}
 
-  # La fascia della vigilia non accetta precarichi, quindi e' offerta comunque:
-  # a mancare e' solo il giorno di consegna, che senza precarico non ha il passaggio.
+  # Punto precaricato senza passaggi: il giorno di consegna non si offre.
   with app.test_request_context(json=payload):
     assert target.strftime('%Y-%m-%d') not in check_delivery_coverage_slots()
 
-  update(collection_point, {'preloaded': True})
+  _pickup_order(transport, target - timedelta(days=1), collection_point, service_user)
   with app.test_request_context(json=payload):
     assert target.strftime('%Y-%m-%d') in check_delivery_coverage_slots()
 
@@ -1579,6 +1606,7 @@ def test_preload_area_ignores_orders_not_in_any_schedule(db):
   transport = create_transport()
   _preload_entry(transport, target.weekday())
   _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
   # Stesso veicolo e giorno, ma l'ordine non e' in nessun borderò: nessun passaggio.
   order = create_order(cap='70051', dpc=target, delivery_transport_id=transport.id)
   create_product_row(order, service_user, collection_point_id=collection_point.id)

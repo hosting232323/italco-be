@@ -286,21 +286,22 @@ def _passes_same_pickup_points(
   exclude_order_id: int = None,
   address: tuple | None = None,
 ) -> bool:
-  """Se il veicolo di `entry` passa già da tutti i punti di ritiro dell'ordine in `dpc` o il giorno prima.
+  """Se il veicolo di `entry` passa già dai punti di ritiro precaricabili dell'ordine in `dpc` o il giorno prima.
 
-  Vale solo per le aree che accettano precarichi (accepts_preloads); le altre non
-  hanno questo vincolo. La fascia si offre solo se il borderò dello stesso
-  veicolo passa da ciascun punto di ritiro dell'ordine quel giorno (ordine
-  normale, il prodotto si ritira lì) o, per i punti che l'ordine può
-  precaricare, il giorno prima (precarico: si aggancia al passaggio della
-  vigilia, vedi schedule/preload.py). Basta un punto senza passaggio per
-  scartare la fascia: il suo ritiro aprirebbe un giro nuovo. Una vigilia nel
-  passato non conta.
-  `address` (cap, lat, lon) è l'indirizzo di consegna: un punto con aree di
-  precarico si precarica solo se l'indirizzo cade in una, come in
-  order_is_preloaded; altrimenti il passaggio della vigilia non serve all'ordine.
+  Vale solo per le aree che accettano precarichi (accepts_preloads) e solo per
+  i punti di ritiro che l'ordine può precaricare: punto col precarico attivo e
+  indirizzo di consegna nelle sue aree di precarico (o, se il punto non ne ha,
+  nell'area di copertura), come in order_is_preloaded. Per questi punti la
+  fascia si offre solo se il borderò dello stesso veicolo ci passa quel giorno
+  (il prodotto si ritira lì) o il giorno prima (precarico: si aggancia al
+  passaggio della vigilia, vedi schedule/preload.py); un punto senza passaggio
+  scarta la fascia. Una vigilia nel passato non conta.
+  Gli altri punti (senza precarico, o con un destinatario fuori dalle aree di
+  precarico del punto) seguono le regole normali della pianificazione: nessun
+  vincolo, il ritiro si aggiunge al borderò del giorno della consegna.
+  `address` (cap, lat, lon) è l'indirizzo di consegna.
   Il passaggio si legge dal borderò reale, non dal veicolo salvato sull'ordine.
-  Un ordine senza punti di ritiro non ha nulla da incrociare: nessun vincolo.
+  Un ordine senza punti di ritiro precaricabili non ha nulla da incrociare.
   """
   if not entry.accepts_preloads:
     return True
@@ -310,23 +311,22 @@ def _passes_same_pickup_points(
   collection_point_ids = set(payload_pickup_collection_point_ids(new_products or {}))
   if not collection_point_ids:
     return True
+  preloaded_ids = preloaded_collection_point_ids(collection_point_ids, session, address=address, zone_accepts=True)
+  if not preloaded_ids:
+    return True
   dpc = _as_date(dpc)
   if dpc is None:
     return False
   eve = dpc - timedelta(days=1)
-  preloaded_ids = (
-    preloaded_collection_point_ids(collection_point_ids, session, address=address, zone_accepts=True)
-    if eve >= date.today()
-    else set()
-  )
+  days = [dpc, eve] if eve >= date.today() else [dpc]
   return all(
     schedules_pass_pickup_points(
-      {cp_id: [dpc, eve] if cp_id in preloaded_ids else [dpc]},
+      {cp_id: days},
       session,
       transport_id=entry.transport_id,
       exclude_order_id=exclude_order_id,
     )
-    for cp_id in collection_point_ids
+    for cp_id in preloaded_ids
   )
 
 
