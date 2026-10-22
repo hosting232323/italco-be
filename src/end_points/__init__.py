@@ -5,7 +5,12 @@ from api.users.auth import build_auth
 from database_api import scope
 
 from ..database.enum import UserRole
-from ..database.queries import get_user_by_id_unscoped, is_rae_enabled, is_automatic_planning_enabled
+from ..database.queries import (
+  get_user_by_id_unscoped,
+  is_rae_enabled,
+  is_automatic_planning_enabled,
+  is_automatic_payment_enabled,
+)
 from ..database.schema import User, UserSession
 
 
@@ -53,6 +58,7 @@ def flask_session_authentication(
   tenant_required: bool = True,
   rae_required: bool = False,
   automatic_planning_required: bool = False,
+  automatic_payment_required: bool = False,
 ):
   """Autenticazione access/refresh e risoluzione del tenant attivo.
 
@@ -69,6 +75,8 @@ def flask_session_authentication(
 
   automatic_planning_required=True fa lo stesso per la pianificazione automatica
   degli ordini: l'endpoint risponde ko se l'attività non ha il flag acceso.
+
+  automatic_payment_required=True idem per il pagamento automatico (abbonamento).
   """
 
   def decorator(func):
@@ -93,6 +101,9 @@ def flask_session_authentication(
 
       if automatic_planning_required and not is_automatic_planning_enabled(company_id):
         return {'status': 'ko', 'message': 'Pianificazione automatica non attiva per questa attività'}
+
+      if automatic_payment_required and not is_automatic_payment_enabled(company_id):
+        return {'status': 'ko', 'message': 'Pagamento automatico non attivo per questa attività'}
 
       with scope(company_id=company_id):
         return func(user, *args, **kwargs)

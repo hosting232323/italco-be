@@ -19,6 +19,7 @@ dependencies = [
   "camelot-py[cv]",
   "xlrd",
   "flask-cors",
+  "stripe",
 ]
 
 [project.optional-dependencies]

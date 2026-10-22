@@ -60,6 +60,12 @@ class Company(BaseEntity):
   # semplice interruttore per attività.
   automatic_planning = Column(Boolean, nullable=False, default=False, server_default='false')
 
+  # Pagamento automatico (abbonamento Stripe): lo abilita il super admin per
+  # l'attività, poi è l'admin a sottoscrivere e gestire il piano dalla pagina
+  # di configurazione. Il flag dice solo "può farlo"; lo stato dell'abbonamento
+  # vive su CompanySubscription.
+  automatic_payment = Column(Boolean, nullable=False, default=False, server_default='false')
+
   # Dati legali dell'attività, stampati nei PDF al posto dei valori un tempo
   # scritti a mano nei template. A DB restano tutti nullable: l'unico vincolo
   # NOT NULL di company è name, e l'obbligatorietà (legal_name/address/city
@@ -75,6 +81,24 @@ class Company(BaseEntity):
   address = Column(String)
   city = Column(String)
   rae_registration = Column(String)
+
+
+class CompanySubscription(BaseEntity):
+  # Abbonamento Stripe dell'attività, una riga per company. Tabella a parte e
+  # fuori dal filtro tenant (BaseEntity, come Mail): il webhook di Stripe non
+  # ha una sessione utente, ritrova la company da customer/subscription id. Gli
+  # id Stripe non passano da Company.to_dict(), che finisce nel login di tutti.
+  __tablename__ = 'company_subscription'
+
+  company_id = Column(Integer, ForeignKey('company.id'), nullable=False, unique=True)
+  stripe_customer_id = Column(String, unique=True)
+  stripe_subscription_id = Column(String, unique=True)
+  plan = Column(String)
+  # Stato così com'è su Stripe (active, trialing, past_due, canceled, ...);
+  # 'none' finché l'attività non ha mai sottoscritto.
+  status = Column(String, nullable=False, default='none', server_default='none')
+  current_period_end = Column(DateTime)
+  cancel_at_period_end = Column(Boolean, nullable=False, default=False, server_default='false')
 
 
 class User(BaseItalcoEntity):
