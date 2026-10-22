@@ -1,7 +1,7 @@
 """user.email e customer_user_info.name migrato dal nickname
 
-Revision ID: 066
-Revises: 065
+Revision ID: 067
+Revises: 066
 Create Date: 2026-10-15 10:00:00.000000
 
 Il nickname resta l'identificativo di login, l'email è facoltativa e unica.
@@ -17,8 +17,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '066'
-down_revision: Union[str, None] = '065'
+revision: str = '067'
+down_revision: Union[str, None] = '066'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
