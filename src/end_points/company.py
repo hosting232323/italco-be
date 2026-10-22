@@ -179,6 +179,7 @@ def create_company(_):
   # la pianificazione automatica degli ordini.
   rae = bool(payload.get('rae'))
   automatic_planning = bool(payload.get('automatic_planning'))
+  automatic_payment = bool(payload.get('automatic_payment'))
   legal = _clean_legal(payload, only_present=False)
   legal_error = _legal_error(legal, rae)
   if legal_error:
@@ -195,7 +196,15 @@ def create_company(_):
     return {'status': 'ko', 'message': RAE_WITHOUT_PLACE_ERROR}
 
   company = create(
-    Company, {'name': name, 'rae': rae, 'automatic_planning': automatic_planning, **legal, **activity_times}
+    Company,
+    {
+      'name': name,
+      'rae': rae,
+      'automatic_planning': automatic_planning,
+      'automatic_payment': automatic_payment,
+      **legal,
+      **activity_times,
+    },
   )
 
   # Crea l'admin nella company appena nata usando lo scope tenant
@@ -236,6 +245,8 @@ def update_company(_, id):
     return {'status': 'ko', 'message': 'Il flag RAEE deve essere booleano'}
   if 'automatic_planning' in payload and not isinstance(payload['automatic_planning'], bool):
     return {'status': 'ko', 'message': 'Il flag di pianificazione automatica deve essere booleano'}
+  if 'automatic_payment' in payload and not isinstance(payload['automatic_payment'], bool):
+    return {'status': 'ko', 'message': 'Il flag di pagamento automatico deve essere booleano'}
 
   logo_file = request.files.get('logo')
 
@@ -272,6 +283,8 @@ def update_company(_, id):
       changes['rae'] = payload['rae']
     if 'automatic_planning' in payload:
       changes['automatic_planning'] = payload['automatic_planning']
+    if 'automatic_payment' in payload:
+      changes['automatic_payment'] = payload['automatic_payment']
     if logo_file:
       changes['logo'] = _store_logo(int(id), logo_file, session)
 
