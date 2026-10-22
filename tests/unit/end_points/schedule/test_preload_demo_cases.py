@@ -70,7 +70,7 @@ def _stops(schedule_id):
 def test_order_in_edit_still_sees_the_pickup_stop_of_its_borderò(db):
   """22198/22199: in modifica il calendario era vuoto perche' la tappa di ritiro non contava."""
   customer, _, service_user, _ = customer_with_service()
-  point = create_collection_point(customer)
+  point = create_collection_point(customer, preloaded=True)
   transport = create_transport()
   schedule = create_schedule(transport, DAY)
   _stop(schedule, point)
@@ -102,36 +102,45 @@ def test_preloaded_order_is_not_a_passage_on_its_delivery_day(db):
     assert preload_ready_ids(DAY, transport.id, {point.id}, session) == {point.id}
 
 
-def test_eve_passage_does_not_open_slots_outside_the_point_preload_area(db):
-  """22200: Idea Bari ha l'area solo sul 70043, un ordine verso il 70124 non si precarica."""
+def test_point_outside_its_preload_area_follows_the_normal_rules(db):
+  """22200 e MW Bari 2 (22/10): fuori dall'area del punto l'ordine non e' un precarico.
+
+  Idea Bari ha l'area solo sul 70043: verso il 70124 non si precarica e la
+  fascia segue le regole normali, senza bisogno di passaggi. Dentro l'area
+  serve il passaggio del veicolo (qui la vigilia).
+  """
   customer, _, _, _ = customer_with_service()
   point = create_collection_point(customer, preloaded=True)
   create(CollectionPointPreloadArea, {'collection_point_id': point.id, 'caps': ['70043'], 'polygon': None})
   transport = create_transport()
-  _stop(create_schedule(transport, EVE), point)
 
   with Session() as session:
     entry = _entry(transport)
-    assert not _passes_same_pickup_points(entry, DAY, _products(point), session, address=('70124', None, None))
-    assert _passes_same_pickup_points(entry, DAY, _products(point), session, address=('70043', None, None))
+    assert _passes_same_pickup_points(entry, DAY, _products(point), session, address=('70124', None, None))
+    assert not _passes_same_pickup_points(entry, DAY, _products(point), session, address=('70043', None, None))
+
+  _stop(create_schedule(transport, EVE), point)
+  with Session() as session:
+    assert _passes_same_pickup_points(_entry(transport), DAY, _products(point), session, address=('70043', None, None))
 
 
-def test_every_pickup_point_of_the_order_needs_its_own_passage(db):
-  """22202: col solo passaggio di Idea Monopoli, Idea Triggiano apriva un ritiro nuovo."""
+def test_every_preloaded_pickup_point_of_the_order_needs_its_own_passage(db):
+  """22202: col solo passaggio di Idea Monopoli, un secondo punto precaricato apriva un ritiro nuovo.
+
+  Il punto senza precarico (Idea Triggiano) segue le regole normali: non chiede passaggi.
+  """
   customer, _, _, _ = customer_with_service()
-  preloadable = create_collection_point(customer, preloaded=True)
+  passing = create_collection_point(customer, preloaded=True)
+  not_passing = create_collection_point(customer, preloaded=True)
   normal = create_collection_point(customer)
   transport = create_transport()
-  eve = create_schedule(transport, EVE)
-  _stop(eve, preloadable)
-  _stop(eve, normal, index=1)
+  _stop(create_schedule(transport, EVE), passing)
 
   with Session() as session:
     entry = _entry(transport)
-    # Il punto normale passa solo la vigilia: il giorno della consegna nessuno ci va.
-    assert not _passes_same_pickup_points(entry, DAY, _products(preloadable, normal), session)
-    assert _passes_same_pickup_points(entry, DAY, _products(preloadable), session)
-    assert _passes_same_pickup_points(entry, EVE, _products(preloadable, normal), session)
+    assert not _passes_same_pickup_points(entry, DAY, _products(passing, not_passing), session)
+    assert _passes_same_pickup_points(entry, DAY, _products(passing), session)
+    assert _passes_same_pickup_points(entry, DAY, _products(passing, normal), session)
 
 
 def test_borderò_left_empty_by_the_planning_is_deleted(db):
