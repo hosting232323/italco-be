@@ -307,7 +307,7 @@ def schedule_with_one_order():
   schedule = create_schedule()
   item = link_order_to_schedule(order, schedule, index=0)
   delivery = create_user(UserRole.DELIVERY)
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
   return schedule, item, order, delivery
 
 
@@ -378,9 +378,8 @@ def test_stale_update_does_not_touch_users_or_items(client):
 
   assert stale.get_json()['status'] == 'ko'
   with Session() as session:
-    assert {group.user_id for group in session.query(DeliveryGroup).filter_by(schedule_id=schedule.id)} == {
+    assert {info.user_id for info in session.query(DeliveryUserInfo).filter_by(transport_id=schedule.transport_id)} == {
       delivery.id,
-      other.id,
     }
 
 

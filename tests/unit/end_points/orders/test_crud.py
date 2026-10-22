@@ -195,7 +195,7 @@ def test_get_public_order_keeps_delivery_position(db):
   create_delivery_info(delivery, lat=41.1, lon=16.8)
   schedule = create_schedule()
   link_order_to_schedule(order, schedule)
-  create_delivery_group(delivery, schedule)
+  assign_delivery_user_to_schedule(delivery, schedule)
   create_schedule_item_user(delivery, schedule)
   token = create_order_tracking_token(order)
 
