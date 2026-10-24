@@ -19,7 +19,7 @@ from .rae.disposal_place import (
   get_rae_disposal_places,
   update_rae_disposal_place,
 )
-from .subscription.plans import MIN_PRICE_CENTS
+from .subscription.plans import MIN_PRICE_CENTS, is_valid_price
 from .users.session import create_jwt_token
 from database_api import Session, scope, current_scope
 from database_api.operations import create, delete, get_by_id, update
@@ -97,7 +97,7 @@ def _price_error(payload: dict) -> str | None:
   price = payload.get('subscription_price_cents')
   if price is None:
     return None
-  if isinstance(price, bool) or not isinstance(price, int) or price < MIN_PRICE_CENTS:
+  if not is_valid_price(price):
     return f"Il prezzo dell'abbonamento deve essere di almeno {MIN_PRICE_CENTS} centesimi"
   return None
 
