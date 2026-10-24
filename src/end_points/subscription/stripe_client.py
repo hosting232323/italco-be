@@ -3,12 +3,19 @@ from datetime import datetime, timezone
 
 import stripe
 
-from .plans import CURRENCY, INTERVAL, PLANS
+from .plans import CURRENCY, INTERVAL
+
+
+class StripeNotConfigured(Exception):
+  pass
 
 
 # Unico punto che parla con Stripe: i test lo sostituiscono, nessuna rete.
 def _configure() -> None:
-  stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
+  api_key = os.environ.get('STRIPE_SECRET_KEY')
+  if not api_key:
+    raise StripeNotConfigured()
+  stripe.api_key = api_key
 
 
 def frontend_url() -> str:
@@ -20,9 +27,8 @@ def create_customer(company_id: int, name: str) -> str:
   return stripe.Customer.create(name=name, metadata={'company_id': str(company_id)}).id
 
 
-def create_checkout_url(company_id: int, customer_id: str, plan_id: str) -> str:
+def create_checkout_url(company_id: int, customer_id: str, price_cents: int) -> str:
   _configure()
-  plan = PLANS[plan_id]
   base = frontend_url()
   session = stripe.checkout.Session.create(
     mode='subscription',
@@ -32,15 +38,15 @@ def create_checkout_url(company_id: int, customer_id: str, plan_id: str) -> str:
         'quantity': 1,
         'price_data': {
           'currency': CURRENCY,
-          'unit_amount': plan['amount'],
+          'unit_amount': price_cents,
           'recurring': {'interval': INTERVAL},
-          'product_data': {'name': f'Hubstra {plan["name"]}'},
+          'product_data': {'name': 'Abbonamento Hubstra'},
         },
       }
     ],
-    # I metadata sull'abbonamento permettono al webhook di risalire a company e
-    # piano senza altre letture.
-    subscription_data={'metadata': {'company_id': str(company_id), 'plan': plan_id}},
+    # I metadata sull'abbonamento permettono al webhook di risalire alla company
+    # senza altre letture.
+    subscription_data={'metadata': {'company_id': str(company_id)}},
     success_url=f'{base}/configuration?checkout=success',
     cancel_url=f'{base}/configuration?checkout=cancel',
   )
@@ -83,7 +89,6 @@ def subscription_fields(subscription) -> dict:
   return {
     'stripe_subscription_id': subscription['id'],
     'status': subscription['status'],
-    'plan': _get(_get(subscription, 'metadata', {}), 'plan'),
     'cancel_at_period_end': bool(_get(subscription, 'cancel_at_period_end', False)),
     'current_period_end': (
       datetime.fromtimestamp(period_end, tz=timezone.utc).replace(tzinfo=None) if period_end else None
