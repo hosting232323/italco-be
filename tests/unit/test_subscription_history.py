@@ -53,6 +53,24 @@ def customer(db):
   return create(CompanySubscription, {'company_id': db.id, 'stripe_customer_id': 'cus_1', 'status': 'active'})
 
 
+class StripeLike:
+  """Come gli oggetti dell'SDK recente: non un dict, si converte con to_dict()."""
+
+  def __init__(self, data):
+    self._data = data
+
+  def to_dict(self):
+    return self._data
+
+
+def test_stripe_objects_that_are_not_dicts_are_converted_first():
+  history = build_history([StripeLike(subscription_record())], [StripeLike(invoice('in_1'))])
+
+  assert history['invoices'][0]['id'] == 'in_1'
+  assert history['subscriptions'][0]['price_cents'] == 4900
+  assert history['summary']['regular'] is True
+
+
 def test_all_paid_on_first_attempt_is_regular():
   history = build_history([subscription_record()], [invoice('in_1'), invoice('in_2', created=FEB)])
 

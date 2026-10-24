@@ -218,7 +218,7 @@ def webhook():
 
   if event['type'] in WEBHOOK_SUBSCRIPTION_EVENTS:
     stripe_subscription = event['data']['object']
-    company_id = (stripe_subscription.get('metadata') or {}).get('company_id')
+    company_id = stripe_client.get_field(stripe_client.get_field(stripe_subscription, 'metadata', {}), 'company_id')
     if company_id:
       _apply_subscription(int(company_id), stripe_subscription)
 
