@@ -56,6 +56,9 @@ markers = [
 
 [tool.coverage.run]
 source = ["src"]
+# Percorsi relativi nel file .coverage: i job di test e quello che combina la
+# copertura possono girare su runner con cartelle di build diverse.
+relative_files = true
 omit = [
   "src/__main__.py",
   "src/database/alembic/*",
