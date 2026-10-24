@@ -10,7 +10,7 @@ from .. import flask_session_authentication
 from ...database.enum import UserRole
 from ...database.schema import Company, CompanySubscription
 from . import stripe_client
-from .plans import CURRENCY, INTERVAL
+from .plans import CURRENCY, INTERVAL, MIN_PRICE_CENTS, is_valid_price
 
 
 subscription_bp = Blueprint('subscription_bp', __name__)
@@ -139,6 +139,59 @@ def sync(_):
       # disdetta seguita da una nuova sottoscrizione.
       _apply_subscription(company_id, stripe_subscriptions[0])
   return {'status': 'ok', 'subscription': serialize_subscription(get_subscription(company_id))}
+
+
+def _company_subscription_info(company_id: int) -> dict:
+  return {
+    'status': 'ok',
+    'price_cents': get_price_cents(company_id),
+    'subscription': serialize_subscription(get_subscription(company_id)),
+  }
+
+
+# Gestione del prezzo da parte del super admin: non ha una company attiva (si sceglie
+# l'attività dalla tabella), quindi niente scope e niente flag richiesto.
+@subscription_bp.route('company/<company_id>', methods=['GET'])
+@flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
+def get_company_subscription_info(_, company_id):
+  with Session() as session:
+    if not session.get(Company, int(company_id)):
+      return {'status': 'ko', 'message': 'Company non trovata'}
+  return _company_subscription_info(int(company_id))
+
+
+@subscription_bp.route('company/<company_id>/price', methods=['PUT'])
+@flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
+@stripe_errors
+def update_company_price(_, company_id):
+  """Fissa il prezzo mensile di un'attività.
+
+  Vale per i nuovi abbonamenti. Con apply_to_active l'abbonamento già attivo
+  passa al nuovo importo dal prossimo rinnovo (vedi update_subscription_price);
+  senza, mantiene quello con cui il cliente si è abbonato.
+  """
+  company_id = int(company_id)
+  payload = request.get_json(silent=True) or {}
+  price_cents = payload.get('price_cents')
+  if not is_valid_price(price_cents):
+    return {'status': 'ko', 'message': f"Il prezzo dell'abbonamento deve essere di almeno {MIN_PRICE_CENTS} centesimi"}
+  if 'apply_to_active' in payload and not isinstance(payload['apply_to_active'], bool):
+    return {'status': 'ko', 'message': 'apply_to_active deve essere booleano'}
+
+  with Session() as session:
+    company = session.get(Company, company_id)
+  if not company:
+    return {'status': 'ko', 'message': 'Company non trovata'}
+
+  subscription = get_subscription(company_id)
+  active = serialize_subscription(subscription)['active'] and subscription.stripe_subscription_id
+  # Prima Stripe, poi il DB: se Stripe rifiuta il prezzo resta quello di prima e
+  # nessuno dei due lati è a metà.
+  if payload.get('apply_to_active') and active:
+    stripe_client.update_subscription_price(subscription.stripe_subscription_id, price_cents)
+
+  update(company, {'subscription_price_cents': price_cents})
+  return _company_subscription_info(company_id)
 
 
 # Endpoint pubblico: l'unica autenticazione è la firma Stripe sul body grezzo.
