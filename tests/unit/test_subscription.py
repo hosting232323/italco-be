@@ -454,3 +454,23 @@ def test_admin_serves_only_the_logo_of_his_company(db, client, admin):
 
   assert own.status_code == 200
   assert other.status_code == 403
+
+
+def test_webhook_reads_events_made_of_non_dict_stripe_objects(db, client, monkeypatch):
+  """L'SDK recente non restituisce dict: niente .get sull'abbonamento dell'evento."""
+
+  class StripeLike:
+    def __init__(self, data):
+      self._data = data
+
+    def __getitem__(self, key):
+      value = self._data[key]
+      return StripeLike(value) if isinstance(value, dict) else value
+
+  event = StripeLike({'type': 'customer.subscription.updated', 'data': {'object': stripe_subscription(db.id)}})
+  monkeypatch.setattr(stripe_client, 'construct_event', lambda payload, signature: event)
+
+  response = client.post('/subscription/webhook', data=b'{}', headers={'Stripe-Signature': 'x'})
+
+  assert response.get_json() == {'status': 'ok'}
+  assert get_subscription(db.id).stripe_subscription_id == 'sub_1'

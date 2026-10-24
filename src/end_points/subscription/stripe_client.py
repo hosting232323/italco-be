@@ -99,7 +99,8 @@ def construct_event(payload: bytes, signature: str):
   return stripe.Webhook.construct_event(payload, signature, os.environ.get('STRIPE_WEBHOOK_SECRET', ''))
 
 
-def _get(obj, key, default=None):
+def get_field(obj, key, default=None):
+  # Gli oggetti dell'SDK recente non sono dict (niente .get): si legge per chiave.
   try:
     value = obj[key]
   except (KeyError, TypeError):
@@ -113,15 +114,15 @@ def subscription_fields(subscription) -> dict:
   current_period_end sta sull'abbonamento nelle API vecchie e sugli item in
   quelle recenti: si legge dove c'è.
   """
-  period_end = _get(subscription, 'current_period_end')
+  period_end = get_field(subscription, 'current_period_end')
   if period_end is None:
-    items = _get(_get(subscription, 'items', {}), 'data', [])
-    period_end = _get(items[0], 'current_period_end') if items else None
+    items = get_field(get_field(subscription, 'items', {}), 'data', [])
+    period_end = get_field(items[0], 'current_period_end') if items else None
 
   return {
     'stripe_subscription_id': subscription['id'],
     'status': subscription['status'],
-    'cancel_at_period_end': bool(_get(subscription, 'cancel_at_period_end', False)),
+    'cancel_at_period_end': bool(get_field(subscription, 'cancel_at_period_end', False)),
     'current_period_end': (
       datetime.fromtimestamp(period_end, tz=timezone.utc).replace(tzinfo=None) if period_end else None
     ),
