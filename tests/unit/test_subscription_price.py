@@ -68,27 +68,18 @@ def test_only_the_super_admin_manages_the_price(db, client):
   assert response.status_code == 403
 
 
-def test_new_price_applies_to_new_subscriptions_only_by_default(
-  db, client, super_admin, active_subscription, stripe_updates
-):
+def test_new_price_moves_the_active_subscription_too(db, client, super_admin, active_subscription, stripe_updates):
   body = put_price(client, super_admin, db.id, price_cents=5900)
 
   assert body['price_cents'] == 5900
   assert stored_price(db) == 5900
-  assert stripe_updates == []
-
-
-def test_new_price_can_move_the_active_subscription_too(db, client, super_admin, active_subscription, stripe_updates):
-  body = put_price(client, super_admin, db.id, price_cents=5900, apply_to_active=True)
-
-  assert body['price_cents'] == 5900
   assert stripe_updates == [('sub_1', 5900)]
 
 
 def test_without_an_active_subscription_nothing_is_sent_to_stripe(db, client, super_admin, stripe_updates):
   update(db, {'automatic_payment': True})
 
-  body = put_price(client, super_admin, db.id, price_cents=5900, apply_to_active=True)
+  body = put_price(client, super_admin, db.id, price_cents=5900)
 
   assert body['price_cents'] == 5900
   assert body['subscription']['status'] == 'none'
@@ -98,7 +89,7 @@ def test_without_an_active_subscription_nothing_is_sent_to_stripe(db, client, su
 def test_a_canceled_subscription_is_not_updated(db, client, super_admin, active_subscription, stripe_updates):
   update(get_subscription(db.id), {'status': 'canceled'})
 
-  put_price(client, super_admin, db.id, price_cents=5900, apply_to_active=True)
+  put_price(client, super_admin, db.id, price_cents=5900)
 
   assert stripe_updates == []
 
@@ -109,7 +100,7 @@ def test_if_stripe_refuses_the_saved_price_does_not_change(db, client, super_adm
 
   monkeypatch.setattr(stripe_client, 'update_subscription_price', refuse)
 
-  body = put_price(client, super_admin, db.id, price_cents=5900, apply_to_active=True)
+  body = put_price(client, super_admin, db.id, price_cents=5900)
 
   assert body['status'] == 'ko'
   assert body['message'].startswith('Errore Stripe')
@@ -119,10 +110,6 @@ def test_if_stripe_refuses_the_saved_price_does_not_change(db, client, super_adm
 @pytest.mark.parametrize('payload', [{}, {'price_cents': 10}, {'price_cents': 'x'}, {'price_cents': True}])
 def test_invalid_prices_are_refused(db, client, super_admin, payload):
   assert put_price(client, super_admin, db.id, **payload)['status'] == 'ko'
-
-
-def test_apply_to_active_must_be_boolean(db, client, super_admin):
-  assert put_price(client, super_admin, db.id, price_cents=5000, apply_to_active='si')['status'] == 'ko'
 
 
 def test_stripe_client_swaps_the_price_of_the_item_without_prorations(monkeypatch):
