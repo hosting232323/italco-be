@@ -513,3 +513,38 @@ def test_other_stripe_errors_on_the_product_are_not_swallowed(monkeypatch):
 
   with pytest.raises(stripe_client.stripe.InvalidRequestError):
     stripe_client.ensure_product()
+
+
+def test_opening_the_page_realigns_the_state_to_stripe_without_a_webhook(
+  payment_on, client, admin, stripe_calls, monkeypatch
+):
+  client.post('/subscription/checkout', headers=auth_header(admin))
+  monkeypatch.setattr(stripe_client, 'list_subscriptions', lambda customer_id: [stripe_subscription(payment_on.id)])
+
+  body = client.get('/subscription', headers=auth_header(admin)).get_json()
+
+  assert body['subscription']['active'] is True
+  assert get_subscription(payment_on.id).stripe_subscription_id == 'sub_1'
+
+
+def test_opening_the_page_shows_the_last_known_state_if_stripe_is_down(
+  payment_on, client, admin, stripe_calls, monkeypatch
+):
+  client.post('/subscription/checkout', headers=auth_header(admin))
+
+  def down(customer_id):
+    raise stripe_client.stripe.StripeError('rete', None)
+
+  monkeypatch.setattr(stripe_client, 'list_subscriptions', down)
+
+  body = client.get('/subscription', headers=auth_header(admin)).get_json()
+
+  assert body['status'] == 'ok'
+  assert body['subscription']['status'] == 'none'
+
+
+def test_opening_the_page_without_a_stripe_key_still_works(payment_on, client, admin, stripe_calls, monkeypatch):
+  client.post('/subscription/checkout', headers=auth_header(admin))
+  monkeypatch.delenv('STRIPE_SECRET_KEY', raising=False)
+
+  assert client.get('/subscription', headers=auth_header(admin)).get_json()['status'] == 'ok'

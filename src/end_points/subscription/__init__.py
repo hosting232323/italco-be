@@ -82,6 +82,22 @@ def _get_or_create_customer(company_id: int) -> str:
   return customer_id
 
 
+def refresh_from_stripe(company_id: int) -> None:
+  """Riallinea lo stato locale a quello di Stripe (se l'attività ha un cliente).
+
+  Il webhook fa lo stesso, ma non sempre arriva: in locale non è configurato, e
+  chi paga può non tornare sulla pagina di conferma."""
+  subscription = get_subscription(company_id)
+  if not subscription or not subscription.stripe_customer_id:
+    return
+
+  stripe_subscriptions = stripe_client.list_subscriptions(subscription.stripe_customer_id)
+  if stripe_subscriptions:
+    # Stripe le elenca dalla più recente: conta quella, anche dopo una
+    # disdetta seguita da una nuova sottoscrizione.
+    _apply_subscription(company_id, stripe_subscriptions[0])
+
+
 def _apply_subscription(company_id: int, stripe_subscription) -> None:
   update(_get_or_create_subscription(company_id), stripe_client.subscription_fields(stripe_subscription))
 
@@ -90,6 +106,12 @@ def _apply_subscription(company_id: int, stripe_subscription) -> None:
 @flask_session_authentication([UserRole.ADMIN], automatic_payment_required=True)
 def get_company_subscription(_):
   company_id = current_scope()['company_id']
+  # Se Stripe non risponde si mostra l'ultimo stato noto: leggere la pagina non
+  # deve fallire per un problema di rete.
+  try:
+    refresh_from_stripe(company_id)
+  except (stripe_client.StripeNotConfigured, stripe.StripeError):
+    pass
   return {
     'status': 'ok',
     'price_cents': get_price_cents(company_id),
@@ -132,13 +154,7 @@ def sync(_):
   essere ancora arrivato (o, in locale, non essere configurato): la pagina
   chiama questo per mostrare subito lo stato reale."""
   company_id = current_scope()['company_id']
-  subscription = get_subscription(company_id)
-  if subscription and subscription.stripe_customer_id:
-    stripe_subscriptions = stripe_client.list_subscriptions(subscription.stripe_customer_id)
-    if stripe_subscriptions:
-      # Stripe le elenca dalla più recente: conta quella, anche dopo una
-      # disdetta seguita da una nuova sottoscrizione.
-      _apply_subscription(company_id, stripe_subscriptions[0])
+  refresh_from_stripe(company_id)
   return {'status': 'ok', 'subscription': serialize_subscription(get_subscription(company_id))}
 
 
