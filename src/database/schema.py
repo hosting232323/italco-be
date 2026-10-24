@@ -65,6 +65,10 @@ class Company(BaseEntity):
   # di configurazione. Il flag dice solo "può farlo"; lo stato dell'abbonamento
   # vive su CompanySubscription.
   automatic_payment = Column(Boolean, nullable=False, default=False, server_default='false')
+  # Prezzo mensile dell'abbonamento di questa attività, in centesimi: lo decide
+  # il super admin insieme al flag. NULL = non ancora definito, e senza prezzo
+  # l'admin non può sottoscrivere.
+  subscription_price_cents = Column(Integer)
 
   # Dati legali dell'attività, stampati nei PDF al posto dei valori un tempo
   # scritti a mano nei template. A DB restano tutti nullable: l'unico vincolo
@@ -93,7 +97,6 @@ class CompanySubscription(BaseEntity):
   company_id = Column(Integer, ForeignKey('company.id'), nullable=False, unique=True)
   stripe_customer_id = Column(String, unique=True)
   stripe_subscription_id = Column(String, unique=True)
-  plan = Column(String)
   # Stato così com'è su Stripe (active, trialing, past_due, canceled, ...);
   # 'none' finché l'attività non ha mai sottoscritto.
   status = Column(String, nullable=False, default='none', server_default='none')
