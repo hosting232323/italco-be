@@ -114,8 +114,9 @@ def test_invalid_prices_are_refused(db, client, super_admin, payload):
 
 def test_stripe_client_swaps_the_price_of_the_item_without_prorations(monkeypatch):
   seen = {}
-  item = {'id': 'si_1', 'price': {'product': 'prod_1'}}
+  item = {'id': 'si_1', 'price': {'product': 'prod_vecchio_inattivo'}}
   monkeypatch.setenv('STRIPE_SECRET_KEY', 'sk_test_x')
+  monkeypatch.setattr(stripe_client.stripe.Product, 'retrieve', lambda product_id: {'active': True})
   monkeypatch.setattr(
     stripe_client.stripe.Subscription, 'retrieve', lambda subscription_id: {'items': {'data': [item]}}
   )
@@ -131,6 +132,11 @@ def test_stripe_client_swaps_the_price_of_the_item_without_prorations(monkeypatc
   assert seen['items'] == [
     {
       'id': 'si_1',
-      'price_data': {'currency': 'eur', 'unit_amount': 5900, 'recurring': {'interval': 'month'}, 'product': 'prod_1'},
+      'price_data': {
+        'currency': 'eur',
+        'unit_amount': 5900,
+        'recurring': {'interval': 'month'},
+        'product': 'hubstra_subscription',
+      },
     }
   ]
