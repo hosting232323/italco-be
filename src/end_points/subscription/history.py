@@ -8,6 +8,12 @@ from datetime import datetime, timezone
 UNPAID_STATUSES = ('open', 'uncollectible')
 
 
+def _plain(stripe_object) -> dict:
+  # Dalle versioni recenti dell'SDK gli oggetti Stripe non sono più dict (niente
+  # .get): si lavora su copie semplici.
+  return stripe_object.to_dict() if hasattr(stripe_object, 'to_dict') else stripe_object
+
+
 def _iso(timestamp: int | None) -> str | None:
   if not timestamp:
     return None
@@ -62,9 +68,10 @@ def summarize(invoices: list[dict]) -> dict:
 
 def build_history(subscriptions: list, invoices: list) -> dict:
   # Le bozze non sono ancora addebiti: non fanno storico.
+  invoices = [_plain(invoice) for invoice in invoices]
   serialized = [serialize_invoice(invoice) for invoice in invoices if invoice['status'] != 'draft']
   return {
-    'subscriptions': [serialize_subscription_record(subscription) for subscription in subscriptions],
+    'subscriptions': [serialize_subscription_record(_plain(subscription)) for subscription in subscriptions],
     'invoices': serialized,
     'summary': summarize(serialized),
   }
