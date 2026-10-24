@@ -19,8 +19,9 @@ from .rae.disposal_place import (
   get_rae_disposal_places,
   update_rae_disposal_place,
 )
+from .subscription.plans import MIN_PRICE_CENTS
 from .users.session import create_jwt_token
-from database_api import Session, scope
+from database_api import Session, scope, current_scope
 from database_api.operations import create, delete, get_by_id, update
 from api.storage import get_full_path
 from api.storage.files import validate_files, IMAGE_EXTENSIONS
@@ -45,6 +46,10 @@ LOGO_SUBFOLDER = 'company-logos'
 ALWAYS_REQUIRED_LEGAL = ('legal_name', 'vat_number', 'address', 'city')
 RAE_REQUIRED_LEGAL = ('rae_registration',)
 LEGAL_FIELDS = ALWAYS_REQUIRED_LEGAL + RAE_REQUIRED_LEGAL + ('tax_code',)
+
+# Campi che l'admin modifica dalla pagina di configurazione: anagrafica e dati
+# legali (iscrizione Albo compresa). Moduli e prezzo restano del super admin.
+ADMIN_FIELDS = ('name',) + LEGAL_FIELDS
 
 LEGAL_LABELS = {
   'legal_name': 'Ragione sociale',
@@ -85,6 +90,15 @@ def _legal_error(legal: dict, rae: bool) -> str | None:
   ]
   if missing:
     return f'Campi obbligatori mancanti: {", ".join(missing)}'
+  return None
+
+
+def _price_error(payload: dict) -> str | None:
+  price = payload.get('subscription_price_cents')
+  if price is None:
+    return None
+  if isinstance(price, bool) or not isinstance(price, int) or price < MIN_PRICE_CENTS:
+    return f"Il prezzo dell'abbonamento deve essere di almeno {MIN_PRICE_CENTS} centesimi"
   return None
 
 
@@ -135,6 +149,9 @@ def create_company(_):
   rae = bool(payload.get('rae'))
   automatic_planning = bool(payload.get('automatic_planning'))
   automatic_payment = bool(payload.get('automatic_payment'))
+  price_error = _price_error(payload)
+  if price_error:
+    return {'status': 'ko', 'message': price_error}
   legal = _clean_legal(payload, only_present=False)
   legal_error = _legal_error(legal, rae)
   if legal_error:
@@ -152,6 +169,7 @@ def create_company(_):
       'rae': rae,
       'automatic_planning': automatic_planning,
       'automatic_payment': automatic_payment,
+      'subscription_price_cents': payload.get('subscription_price_cents'),
       **legal,
     },
   )
@@ -182,11 +200,31 @@ def create_company(_):
 @company_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
 def update_company(_, id):
+  return _update_company(int(id), restricted=False)
+
+
+@company_bp.route('me', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN])
+def get_my_company(_):
+  return {'status': 'ok', 'company': get_by_id(Company, current_scope()['company_id']).to_dict()}
+
+
+@company_bp.route('me', methods=['PUT'])
+@flask_session_authentication([UserRole.ADMIN])
+def update_my_company(_):
+  return _update_company(current_scope()['company_id'], restricted=True)
+
+
+def _update_company(company_id: int, restricted: bool):
   error = validate_files(request.files.values(), IMAGE_EXTENSIONS)
   if error:
     return {'status': 'ko', 'message': error}
 
   payload = _payload()
+  if restricted:
+    # Un admin non accende moduli né fissa il prezzo: quello che non è anagrafica
+    # viene ignorato, non rifiutato.
+    payload = {key: value for key, value in payload.items() if key in ADMIN_FIELDS}
   name = (payload.get('name') or '').strip()
   if not name:
     return {'status': 'ko', 'message': 'Nome obbligatorio'}
@@ -196,13 +234,16 @@ def update_company(_, id):
     return {'status': 'ko', 'message': 'Il flag di pianificazione automatica deve essere booleano'}
   if 'automatic_payment' in payload and not isinstance(payload['automatic_payment'], bool):
     return {'status': 'ko', 'message': 'Il flag di pagamento automatico deve essere booleano'}
+  price_error = _price_error(payload)
+  if price_error:
+    return {'status': 'ko', 'message': price_error}
 
   logo_file = request.files.get('logo')
 
   # Update and serialize the company in the same transaction, so both the
   # response and the next list read reflect the persisted database row.
   with SessionWithStorage() as session:
-    company: Company = get_by_id(Company, int(id), session=session)
+    company: Company = get_by_id(Company, company_id, session=session)
     if not company:
       return {'status': 'ko', 'message': 'Company non trovata'}
 
@@ -219,7 +260,7 @@ def update_company(_, id):
       registration = legal['rae_registration'] if 'rae_registration' in legal else company.rae_registration
       if not registration:
         return {'status': 'ko', 'message': RAE_WITHOUT_REGISTRATION_ERROR}
-      if count_rae_disposal_places(int(id)) == 0:
+      if count_rae_disposal_places(company_id) == 0:
         return {'status': 'ko', 'message': RAE_WITHOUT_PLACE_ERROR}
 
     changes = {'name': name, **legal}
@@ -229,12 +270,14 @@ def update_company(_, id):
       changes['automatic_planning'] = payload['automatic_planning']
     if 'automatic_payment' in payload:
       changes['automatic_payment'] = payload['automatic_payment']
+    if 'subscription_price_cents' in payload:
+      changes['subscription_price_cents'] = payload['subscription_price_cents']
     if logo_file:
-      changes['logo'] = _store_logo(int(id), logo_file, session)
+      changes['logo'] = _store_logo(company_id, logo_file, session)
 
     update(company, changes, session=session)
     session.commit()
-    response_company = get_by_id(Company, int(id), session=session).to_dict()
+    response_company = get_by_id(Company, company_id, session=session).to_dict()
 
   return {'status': 'ok', 'company': response_company}
 
@@ -276,8 +319,11 @@ def update_company_mails(_):
 
 
 @company_bp.route('logo/<filename>', methods=['GET'])
-@flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False, allow_query_token=True)
-def serve_company_logo(_, filename):
+@flask_session_authentication([UserRole.ADMIN], tenant_required=False, allow_query_token=True)
+def serve_company_logo(user, filename):
+  # I file si chiamano <company_id>.<ext>: un admin vede solo il logo della sua attività.
+  if user.role != UserRole.SUPER_ADMIN and os.path.splitext(filename)[0] != str(user.company_id):
+    return {'status': 'forbidden', 'message': "Logo di un'altra attività"}, 403
   return send_from_directory(get_full_path(STATIC_FOLDER, LOGO_SUBFOLDER), filename)
 
 
