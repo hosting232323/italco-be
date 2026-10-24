@@ -10,6 +10,7 @@ from .. import flask_session_authentication
 from ...database.enum import UserRole
 from ...database.schema import Company, CompanySubscription
 from . import stripe_client
+from .history import build_history
 from .plans import CURRENCY, INTERVAL, MIN_PRICE_CENTS, is_valid_price
 
 
@@ -158,6 +159,19 @@ def get_company_subscription_info(_, company_id):
     if not session.get(Company, int(company_id)):
       return {'status': 'ko', 'message': 'Company non trovata'}
   return _company_subscription_info(int(company_id))
+
+
+@subscription_bp.route('company/<company_id>/history', methods=['GET'])
+@flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
+@stripe_errors
+def get_company_payment_history(_, company_id):
+  """Abbonamenti e fatture dell'attività, letti da Stripe: da quando paga e se ha
+  sempre saldato. Senza un cliente Stripe (mai abbonata) lo storico è vuoto."""
+  subscription = get_subscription(int(company_id))
+  customer_id = subscription.stripe_customer_id if subscription else None
+  subscriptions = stripe_client.list_subscriptions(customer_id, limit=100) if customer_id else []
+  invoices = stripe_client.list_invoices(customer_id) if customer_id else []
+  return {'status': 'ok', **build_history(subscriptions, invoices)}
 
 
 @subscription_bp.route('company/<company_id>/price', methods=['PUT'])
