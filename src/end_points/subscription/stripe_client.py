@@ -63,6 +63,33 @@ def list_subscriptions(customer_id: str) -> list:
   return list(stripe.Subscription.list(customer=customer_id, status='all', limit=10).data)
 
 
+def update_subscription_price(subscription_id: str, price_cents: int) -> None:
+  """Cambia il prezzo di un abbonamento già attivo, senza disdirlo.
+
+  Stripe non modifica un prezzo esistente: si sostituisce quello dell'item con
+  uno nuovo sullo stesso prodotto. proration_behavior='none' fa partire il nuovo
+  importo dal prossimo rinnovo, senza addebiti né crediti immediati: il cliente
+  non vede interruzioni e non deve riabbonarsi.
+  """
+  _configure()
+  item = stripe.Subscription.retrieve(subscription_id)['items']['data'][0]
+  stripe.Subscription.modify(
+    subscription_id,
+    items=[
+      {
+        'id': item['id'],
+        'price_data': {
+          'currency': CURRENCY,
+          'unit_amount': price_cents,
+          'recurring': {'interval': INTERVAL},
+          'product': item['price']['product'],
+        },
+      }
+    ],
+    proration_behavior='none',
+  )
+
+
 def construct_event(payload: bytes, signature: str):
   return stripe.Webhook.construct_event(payload, signature, os.environ.get('STRIPE_WEBHOOK_SECRET', ''))
 
