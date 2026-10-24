@@ -58,9 +58,14 @@ def create_portal_url(customer_id: str) -> str:
   return stripe.billing_portal.Session.create(customer=customer_id, return_url=f'{frontend_url()}/configuration').url
 
 
-def list_subscriptions(customer_id: str) -> list:
+def list_subscriptions(customer_id: str, limit: int = 10) -> list:
   _configure()
-  return list(stripe.Subscription.list(customer=customer_id, status='all', limit=10).data)
+  return list(stripe.Subscription.list(customer=customer_id, status='all', limit=limit).data)
+
+
+def list_invoices(customer_id: str, limit: int = 100) -> list:
+  _configure()
+  return list(stripe.Invoice.list(customer=customer_id, limit=limit).data)
 
 
 def update_subscription_price(subscription_id: str, price_cents: int) -> None:
