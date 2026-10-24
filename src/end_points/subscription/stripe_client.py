@@ -18,6 +18,26 @@ def _configure() -> None:
   stripe.api_key = api_key
 
 
+# Prodotto unico dell'abbonamento, con ID fisso così si ritrova senza salvarlo nel DB.
+# Serve un prodotto vero: quelli creati al volo da price_data/product_data risultano
+# inattivi, e Stripe rifiuta nuovi abbonamenti (o lo spostamento di uno esistente)
+# su un prodotto inattivo.
+PRODUCT_ID = 'hubstra_subscription'
+PRODUCT_NAME = 'Abbonamento Hubstra'
+
+
+def ensure_product() -> str:
+  _configure()
+  try:
+    if not stripe.Product.retrieve(PRODUCT_ID)['active']:
+      stripe.Product.modify(PRODUCT_ID, active=True)
+  except stripe.InvalidRequestError as error:
+    if error.code != 'resource_missing':
+      raise
+    stripe.Product.create(id=PRODUCT_ID, name=PRODUCT_NAME)
+  return PRODUCT_ID
+
+
 def frontend_url() -> str:
   return os.environ.get('FRONTEND_URL', 'https://hubstra.it').rstrip('/')
 
@@ -40,7 +60,7 @@ def create_checkout_url(company_id: int, customer_id: str, price_cents: int) -> 
           'currency': CURRENCY,
           'unit_amount': price_cents,
           'recurring': {'interval': INTERVAL},
-          'product_data': {'name': 'Abbonamento Hubstra'},
+          'product': ensure_product(),
         },
       }
     ],
@@ -72,12 +92,14 @@ def update_subscription_price(subscription_id: str, price_cents: int) -> None:
   """Cambia il prezzo di un abbonamento già attivo, senza disdirlo.
 
   Stripe non modifica un prezzo esistente: si sostituisce quello dell'item con
-  uno nuovo sullo stesso prodotto. proration_behavior='none' fa partire il nuovo
+  uno nuovo, sul prodotto attivo (gli abbonamenti nati con prodotti al volo, poi
+  inattivi, vengono così spostati su quello vero). proration_behavior='none' fa partire il nuovo
   importo dal prossimo rinnovo, senza addebiti né crediti immediati: il cliente
   non vede interruzioni e non deve riabbonarsi.
   """
   _configure()
   item = stripe.Subscription.retrieve(subscription_id)['items']['data'][0]
+  product = ensure_product()
   stripe.Subscription.modify(
     subscription_id,
     items=[
@@ -87,7 +109,7 @@ def update_subscription_price(subscription_id: str, price_cents: int) -> None:
           'currency': CURRENCY,
           'unit_amount': price_cents,
           'recurring': {'interval': INTERVAL},
-          'product': item['price']['product'],
+          'product': product,
         },
       }
     ],

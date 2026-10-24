@@ -337,6 +337,7 @@ def test_stripe_client_forwards_to_the_sdk(monkeypatch):
   monkeypatch.setenv('STRIPE_SECRET_KEY', 'sk_test_x')
   monkeypatch.setenv('FRONTEND_URL', 'http://localhost:5173')
   monkeypatch.setattr(stripe_client.stripe.Customer, 'create', record('customer', SimpleNamespace(id='cus_9')))
+  monkeypatch.setattr(stripe_client.stripe.Product, 'retrieve', lambda product_id: {'active': True})
   monkeypatch.setattr(stripe_client.stripe.checkout.Session, 'create', record('checkout', SimpleNamespace(url='u1')))
   monkeypatch.setattr(
     stripe_client.stripe.billing_portal.Session, 'create', record('portal', SimpleNamespace(url='u2'))
@@ -352,6 +353,7 @@ def test_stripe_client_forwards_to_the_sdk(monkeypatch):
   assert seen['customer']['metadata'] == {'company_id': '7'}
   assert seen['checkout']['subscription_data']['metadata'] == {'company_id': '7'}
   assert seen['checkout']['line_items'][0]['price_data']['unit_amount'] == 4900
+  assert seen['checkout']['line_items'][0]['price_data']['product'] == 'hubstra_subscription'
   assert seen['checkout']['success_url'] == 'http://localhost:5173/configuration?checkout=success'
   assert seen['portal']['return_url'] == 'http://localhost:5173/configuration'
   assert seen['list']['customer'] == 'cus_9'
@@ -474,3 +476,40 @@ def test_webhook_reads_events_made_of_non_dict_stripe_objects(db, client, monkey
 
   assert response.get_json() == {'status': 'ok'}
   assert get_subscription(db.id).stripe_subscription_id == 'sub_1'
+
+
+def test_the_subscription_product_is_created_once_with_a_fixed_id(monkeypatch):
+  created = []
+  monkeypatch.setenv('STRIPE_SECRET_KEY', 'sk_test_x')
+
+  def missing(product_id):
+    raise stripe_client.stripe.InvalidRequestError('assente', 'id', code='resource_missing')
+
+  monkeypatch.setattr(stripe_client.stripe.Product, 'retrieve', missing)
+  monkeypatch.setattr(stripe_client.stripe.Product, 'create', lambda **kwargs: created.append(kwargs))
+
+  assert stripe_client.ensure_product() == 'hubstra_subscription'
+  assert created == [{'id': 'hubstra_subscription', 'name': 'Abbonamento Hubstra'}]
+
+
+def test_an_inactive_subscription_product_is_reactivated(monkeypatch):
+  modified = []
+  monkeypatch.setenv('STRIPE_SECRET_KEY', 'sk_test_x')
+  monkeypatch.setattr(stripe_client.stripe.Product, 'retrieve', lambda product_id: {'active': False})
+  monkeypatch.setattr(stripe_client.stripe.Product, 'modify', lambda product_id, **kwargs: modified.append(kwargs))
+
+  stripe_client.ensure_product()
+
+  assert modified == [{'active': True}]
+
+
+def test_other_stripe_errors_on_the_product_are_not_swallowed(monkeypatch):
+  monkeypatch.setenv('STRIPE_SECRET_KEY', 'sk_test_x')
+
+  def broken(product_id):
+    raise stripe_client.stripe.InvalidRequestError('altro', 'id', code='api_key_expired')
+
+  monkeypatch.setattr(stripe_client.stripe.Product, 'retrieve', broken)
+
+  with pytest.raises(stripe_client.stripe.InvalidRequestError):
+    stripe_client.ensure_product()
