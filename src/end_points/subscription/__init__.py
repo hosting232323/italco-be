@@ -180,17 +180,14 @@ def get_company_payment_history(_, company_id):
 def update_company_price(_, company_id):
   """Fissa il prezzo mensile di un'attività.
 
-  Vale per i nuovi abbonamenti. Con apply_to_active l'abbonamento già attivo
-  passa al nuovo importo dal prossimo rinnovo (vedi update_subscription_price);
-  senza, mantiene quello con cui il cliente si è abbonato.
+  Vale per i nuovi abbonamenti e anche per quello già attivo, che passa al nuovo
+  importo dal prossimo rinnovo (vedi update_subscription_price).
   """
   company_id = int(company_id)
   payload = request.get_json(silent=True) or {}
   price_cents = payload.get('price_cents')
   if not is_valid_price(price_cents):
     return {'status': 'ko', 'message': f"Il prezzo dell'abbonamento deve essere di almeno {MIN_PRICE_CENTS} centesimi"}
-  if 'apply_to_active' in payload and not isinstance(payload['apply_to_active'], bool):
-    return {'status': 'ko', 'message': 'apply_to_active deve essere booleano'}
 
   with Session() as session:
     company = session.get(Company, company_id)
@@ -201,7 +198,7 @@ def update_company_price(_, company_id):
   active = serialize_subscription(subscription)['active'] and subscription.stripe_subscription_id
   # Prima Stripe, poi il DB: se Stripe rifiuta il prezzo resta quello di prima e
   # nessuno dei due lati è a metà.
-  if payload.get('apply_to_active') and active:
+  if active:
     stripe_client.update_subscription_price(subscription.stripe_subscription_id, price_cents)
 
   update(company, {'subscription_price_cents': price_cents})
