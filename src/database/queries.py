@@ -111,3 +111,15 @@ def is_automatic_payment_enabled(company_id: int = None) -> bool:
   with Session() as session:
     company: Company = session.get(Company, company_id)
     return bool(company and company.automatic_payment)
+
+
+def is_company_blocked(company_id: int = None) -> bool:
+  """Attività bloccata a mano dal super admin. Stessa logica di is_automatic_planning_enabled."""
+  if company_id is None:
+    company_id = current_scope().get('company_id')
+  if not company_id:
+    return False
+
+  with Session() as session:
+    company: Company = session.get(Company, company_id)
+    return bool(company and company.blocked)

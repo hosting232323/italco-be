@@ -223,9 +223,35 @@ def update_company(_, id):
   return _update_company(int(id), restricted=False)
 
 
+@company_bp.route('<id>/block', methods=['PUT'])
+@flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
+def block_company(_, id):
+  """Blocco manuale: gli utenti dell'attività restano fuori finché il super admin
+  non la sblocca (o, con pagamento automatico, finché l'admin non paga)."""
+  blocked = (request.get_json(silent=True) or {}).get('blocked')
+  if not isinstance(blocked, bool):
+    return {'status': 'ko', 'message': 'Il flag di blocco deve essere booleano'}
+
+  company: Company = get_by_id(Company, int(id))
+  if not company:
+    return {'status': 'ko', 'message': 'Company non trovata'}
+
+  update(company, {'blocked': blocked})
+  return {'status': 'ok', 'company': get_by_id(Company, int(id)).to_dict()}
+
+
 @company_bp.route('me', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN])
+@flask_session_authentication([UserRole.ADMIN], blocked_allowed=True)
 def get_my_company(_):
+  return {'status': 'ok', 'company': get_by_id(Company, current_scope()['company_id']).to_dict()}
+
+
+@company_bp.route('me/status', methods=['GET'])
+@flask_session_authentication(blocked_allowed=True)
+def get_my_company_status(_):
+  """Stato aggiornato della propria attività, per qualunque ruolo: il frontend ne
+  tiene una copia salvata (dal login) e, davanti a un blocco, la rilegge da qui
+  per accorgersi di uno sblocco avvenuto nel frattempo."""
   return {'status': 'ok', 'company': get_by_id(Company, current_scope()['company_id']).to_dict()}
 
 
