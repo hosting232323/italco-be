@@ -146,12 +146,26 @@ def _apply_subscription(company_id: int, stripe_subscription, state_at: datetime
   subscription = _get_or_create_subscription(company_id)
   if subscription.synced_at and state_at < subscription.synced_at:
     return False
-  update(subscription, {**stripe_client.subscription_fields(stripe_subscription), 'synced_at': state_at})
+  fields = stripe_client.subscription_fields(stripe_subscription)
+  was_paying = subscription.status in ACTIVE_STATUSES
+  update(subscription, {**fields, 'synced_at': state_at})
+  # Il pagamento è lo sblocco: solo nel passaggio a "paga", così un abbonamento già
+  # attivo riletto da Stripe non annulla un blocco messo a mano dal super admin.
+  if not was_paying and fields['status'] in ACTIVE_STATUSES:
+    _unblock_company(company_id)
   return True
 
 
+def _unblock_company(company_id: int) -> None:
+  with Session() as session:
+    company: Company = session.get(Company, company_id)
+    if company and company.blocked:
+      update(company, {'blocked': False}, session=session)
+      session.commit()
+
+
 @subscription_bp.route('', methods=['GET'])
-@flask_session_authentication([UserRole.ADMIN], automatic_payment_required=True)
+@flask_session_authentication([UserRole.ADMIN], automatic_payment_required=True, blocked_allowed=True)
 def get_company_subscription(_):
   company_id = current_scope()['company_id']
   # Se Stripe non risponde si mostra l'ultimo stato noto: leggere la pagina non
@@ -170,7 +184,7 @@ def get_company_subscription(_):
 
 
 @subscription_bp.route('checkout', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN], automatic_payment_required=True)
+@flask_session_authentication([UserRole.ADMIN], automatic_payment_required=True, blocked_allowed=True)
 @stripe_errors
 def checkout(_):
   company_id = current_scope()['company_id']
@@ -185,7 +199,7 @@ def checkout(_):
 
 
 @subscription_bp.route('portal', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN], automatic_payment_required=True)
+@flask_session_authentication([UserRole.ADMIN], automatic_payment_required=True, blocked_allowed=True)
 @stripe_errors
 def portal(_):
   subscription = get_subscription(current_scope()['company_id'])
@@ -195,7 +209,7 @@ def portal(_):
 
 
 @subscription_bp.route('sync', methods=['POST'])
-@flask_session_authentication([UserRole.ADMIN], automatic_payment_required=True)
+@flask_session_authentication([UserRole.ADMIN], automatic_payment_required=True, blocked_allowed=True)
 @stripe_errors
 def sync(_):
   """Rilegge lo stato da Stripe. Al ritorno da Checkout il webhook può non

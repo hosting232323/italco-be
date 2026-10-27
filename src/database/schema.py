@@ -70,6 +70,10 @@ class Company(BaseEntity):
   # il super admin insieme al flag. NULL = non ancora definito, e senza prezzo
   # l'admin non può sottoscrivere.
   subscription_price_cents = Column(Integer)
+  # Blocco manuale deciso dal super admin: gli utenti dell'attività non possono più
+  # usare il gestionale. Un admin con pagamento automatico e senza abbonamento in
+  # corso può sbloccarsi pagando (vedi _apply_subscription).
+  blocked = Column(Boolean, nullable=False, default=False, server_default='false')
 
   # Dati legali dell'attività, stampati nei PDF al posto dei valori un tempo
   # scritti a mano nei template. A DB restano tutti nullable: l'unico vincolo

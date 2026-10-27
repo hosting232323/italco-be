@@ -10,6 +10,7 @@ from ..database.queries import (
   is_rae_enabled,
   is_automatic_planning_enabled,
   is_automatic_payment_enabled,
+  is_company_blocked,
 )
 from ..database.schema import User, UserSession
 
@@ -59,6 +60,7 @@ def flask_session_authentication(
   rae_required: bool = False,
   automatic_planning_required: bool = False,
   automatic_payment_required: bool = False,
+  blocked_allowed: bool = False,
 ):
   """Autenticazione access/refresh e risoluzione del tenant attivo.
 
@@ -77,6 +79,11 @@ def flask_session_authentication(
   degli ordini: l'endpoint risponde ko se l'attività non ha il flag acceso.
 
   automatic_payment_required=True idem per il pagamento automatico (abbonamento).
+
+  Un'attività bloccata dal super admin risponde status 'company_blocked' (HTTP 200,
+  come i moduli spenti: il client http condiviso scarta i 403 senza leggerne il body)
+  a tutti i suoi utenti. blocked_allowed=True lascia passare gli endpoint che servono a
+  uscirne (lettura dell'attività, abbonamento): il super admin non è mai bloccato.
   """
 
   def decorator(func):
@@ -95,6 +102,9 @@ def flask_session_authentication(
       company_id = get_token_company_id(allow_query_token) if user.role == UserRole.SUPER_ADMIN else user.company_id
       if tenant_required and not company_id:
         return {'status': 'forbidden', 'message': 'Nessuna company selezionata'}, 403
+
+      if user.role != UserRole.SUPER_ADMIN and not blocked_allowed and is_company_blocked(company_id):
+        return {'status': 'company_blocked', 'message': 'Attività bloccata'}
 
       if rae_required and not is_rae_enabled(company_id):
         return {'status': 'ko', 'message': 'Modulo RAEE non attivo per questa attività'}
