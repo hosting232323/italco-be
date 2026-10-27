@@ -1,7 +1,7 @@
 """delivery coverage polygon
 
-Revision ID: 067
-Revises: 066
+G0
+F9
 Create Date: 2026-09-18 12:00:00.000000
 
 Modalità alternativa al CAP per creare un blocco di copertura: disegnare la
@@ -17,8 +17,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '067'
-down_revision: Union[str, None] = '066'
+revision: str = '070'
+down_revision: Union[str, None] = '069'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

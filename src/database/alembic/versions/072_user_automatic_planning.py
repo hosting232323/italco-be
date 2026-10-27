@@ -1,7 +1,7 @@
 """user automatic planning flag
 
-Revision ID: 069
-Revises: 068
+G2
+G1
 Create Date: 2026-09-24 12:00:00.000000
 
 Pianificazione automatica per punto vendita (User con role Customer), gemella
@@ -16,8 +16,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '069'
-down_revision: Union[str, None] = '068'
+revision: str = '072'
+down_revision: Union[str, None] = '071'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

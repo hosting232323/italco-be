@@ -1,7 +1,7 @@
 """punti di ritiro che ammettono il precarico
 
-Revision ID: 073
-Revises: 072
+G6
+G5
 Create Date: 2026-10-10 12:00:00.000000
 
 collection_point.preloaded: il punto ammette il precarico. Il precarico di un
@@ -16,8 +16,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '073'
-down_revision: Union[str, None] = '072'
+revision: str = '076'
+down_revision: Union[str, None] = '075'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

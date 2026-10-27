@@ -1,6 +1,6 @@
 # Audit del branch demo (09-10-2026)
 
-Branch `demo/pianificazione-automatica` dopo il rebase su main (migration 064-072), contro una copia del
+Branch `demo/pianificazione-automatica` dopo il rebase su main (migration 067-077), contro una copia del
 DB del demo del 09-10 (13.806 ordini, 13 veicoli, 58 punti di ritiro, 2 company). Tutto in Docker
 (`python:3.11` + `postgres:17`), Nominatim e OSRM finti, rete isolata per il test delle rotte.
 
