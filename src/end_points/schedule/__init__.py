@@ -7,7 +7,7 @@ from ...database.enum import UserRole
 from ...schedulation import execute_schedulation
 from .. import flask_session_authentication
 from ...schedulation.building import build_schedule_items
-from ...database.schema import Schedule, User, DeliveryGroup
+from ...database.schema import Schedule, User, DeliveryGroup, Order, ScheduleItem, ScheduleItemOrder
 from .delivery import get_items_for_delivery, get_history_for_delivery, update_schedule_item
 from .position import get_schedule_position, claim_schedule_position
 from .sms_sender import schedule_sms_check
@@ -37,6 +37,27 @@ from .queries import (
 schedule_bp = Blueprint('schedule_bp', __name__)
 
 
+def lock_and_validate_order_assignments(order_ids: list[int], session, exclude_schedule_id: int = None) -> bool:
+  """Serializza le assegnazioni dello stesso ordine e impedisce borderò duplicati."""
+  unique_order_ids = sorted(set(order_ids))
+  if len(unique_order_ids) != len(order_ids):
+    return False
+  if not unique_order_ids:
+    return True
+
+  # La riga dell'ordine è il lock condiviso anche quando le richieste creano
+  # borderò diversi. Senza questo lock entrambe potrebbero superare il check.
+  session.execute(select(Order.id).where(Order.id.in_(unique_order_ids)).order_by(Order.id).with_for_update()).all()
+  query = (
+    session.query(ScheduleItemOrder.order_id)
+    .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+    .filter(ScheduleItemOrder.order_id.in_(unique_order_ids))
+  )
+  if exclude_schedule_id is not None:
+    query = query.filter(ScheduleItem.schedule_id != exclude_schedule_id)
+  return query.first() is None
+
+
 @schedule_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.OPERATOR, UserRole.ADMIN])
 def create_schedule(user: User):
@@ -44,6 +65,14 @@ def create_schedule(user: User):
     schedule_items, schedule_data, users, response = format_schedule_data(request.json, session=session)
     if response:
       return response
+
+    order_ids = [item['order_id'] for item in schedule_items if item['operation_type'] == 'Order']
+    if not lock_and_validate_order_assignments(order_ids, session=session):
+      session.rollback()
+      return {
+        'status': 'ko',
+        'message': 'Uno o più ordini sono già presenti in un altro borderò. Ricarica gli ordini.',
+      }
 
     user_ids = sorted({delivery_user['id'] for delivery_user in users})
     if query_invalid_delivery_user_ids(user_ids, session=session):
@@ -114,7 +143,10 @@ def update_schedule(user: User, id):
     session.execute(select(Schedule.id).where(Schedule.id == int(id)).with_for_update())
     schedule: Schedule = get_by_id(Schedule, int(id), session=session)
     expected_version = request.json.get('version')
-    if expected_version is not None and expected_version != schedule.version:
+    if expected_version is None:
+      session.rollback()
+      return {'status': 'ko', 'message': 'Versione del borderò mancante. Ricarica la pagina e riprova.'}, 400
+    if expected_version != schedule.version:
       session.rollback()
       return {'status': 'ko', 'message': 'Il borderò è stato modificato nel frattempo. Ricarica la pagina e riprova.'}
     actual_schedule_items = get_schedule_items(schedule, session=session)
@@ -130,6 +162,14 @@ def update_schedule(user: User, id):
     if response:
       session.rollback()
       return response
+
+    order_ids = [item['order_id'] for item in schedule_items if item['operation_type'] == 'Order']
+    if not lock_and_validate_order_assignments(order_ids, session=session, exclude_schedule_id=schedule.id):
+      session.rollback()
+      return {
+        'status': 'ko',
+        'message': 'Uno o più ordini sono già presenti in un altro borderò. Ricarica il borderò.',
+      }
 
     payload_user_ids = sorted({delivery_user['id'] for delivery_user in users})
     if query_invalid_delivery_user_ids(payload_user_ids, session=session):

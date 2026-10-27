@@ -195,7 +195,7 @@ e2e_tests:
   before_script:
     - apt-get update
     - apt-get install -y --no-install-recommends curl git ca-certificates gnupg chromium
-    - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    - curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
     - apt-get install -y --no-install-recommends nodejs
     - pip install --upgrade pip
     - pip install --retries 10 --timeout 120 ".[dev]"
@@ -243,7 +243,7 @@ e2e_tests:
 
       cd "$ITALCO_FE_DIR"
       VITE_HOSTNAME="http://${CONTAINER_IP}:8080/" npm run build
-      HOST=0.0.0.0 LOCAL_PORT=3000 npm run serve > "$CI_PROJECT_DIR/frontend.log" 2>&1 &
+      npx vite preview --host 0.0.0.0 --port 3000 --strictPort > "$CI_PROJECT_DIR/frontend.log" 2>&1 &
       cd "$CI_PROJECT_DIR"
 
       python -c "

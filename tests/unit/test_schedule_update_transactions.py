@@ -45,8 +45,11 @@ def _create_schedule_with_order(delivery: User):
 
 
 def _payload(schedule_id, item_id, order_id, transport_id, delivery_id, schedule_date=None, deleted_users=None):
+  with Session() as session:
+    version = session.get(Schedule, schedule_id).version
   return {
     'id': schedule_id,
+    'version': version,
     'date': (schedule_date or date.today()).isoformat(),
     'transport_id': transport_id,
     'deleted_users': [delivery_id] if deleted_users is None else deleted_users,

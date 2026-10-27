@@ -55,6 +55,7 @@ markers = [
 
 [tool.coverage.run]
 source = ["src"]
+relative_files = true
 omit = [
   "src/__main__.py",
   "src/database/alembic/*",
