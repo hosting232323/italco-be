@@ -68,7 +68,7 @@ def reconcile_schedule_vehicles(*, months: int, apply: bool, seed: int = None) -
       elif schedule_date < cutoff:
         chosen = rng.choice(transport_ids)
         action = 'assegnato' if apply else 'da assegnare'
-        print(f'  + borderò {schedule_id} del {schedule_date}: veicoli {transport_ids}, {action} {chosen}, era {current}')
+        print(f'  + borderò {schedule_id} del {schedule_date}: veicoli {transport_ids}, {action} {chosen}')
         if apply:
           session.execute(
             text('UPDATE schedule SET transport_id = :transport_id WHERE id = :id'),
