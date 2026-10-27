@@ -3,7 +3,6 @@ import pytest
 from database_api import Session
 
 from src.database.schema import Mail
-from src import rate_limit
 from src.end_points import demo_request
 
 
@@ -17,7 +16,6 @@ VALID = {
 
 @pytest.fixture(autouse=True)
 def mailer(monkeypatch):
-  rate_limit._attempts.clear()
   monkeypatch.setattr(demo_request, 'DEMO_REQUEST_EMAILS', ['uno@hubstra.it', 'due@hubstra.it'])
   sent = []
 
@@ -113,10 +111,10 @@ def test_honeypot_is_silently_discarded(client, mailer):
 
 def test_rate_limit_per_ip(client, mailer):
   for _ in range(demo_request.RATE_LIMIT_MAX):
-    assert post(client, VALID, headers={'X-Forwarded-For': '1.2.3.4'}).status_code == 200
+    assert post(client, VALID, headers={'CF-Connecting-IP': '1.2.3.4'}).status_code == 200
 
-  assert post(client, VALID, headers={'X-Forwarded-For': '1.2.3.4'}).status_code == 429
-  assert post(client, VALID, headers={'X-Forwarded-For': '5.6.7.8'}).status_code == 200
+  assert post(client, VALID, headers={'CF-Connecting-IP': '1.2.3.4'}).status_code == 429
+  assert post(client, VALID, headers={'CF-Connecting-IP': '5.6.7.8'}).status_code == 200
 
 
 def test_reports_failure_when_no_email_is_delivered(client, monkeypatch):

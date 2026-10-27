@@ -6,7 +6,7 @@ from database_api.operations import create
 
 import src.end_points.schedule as schedule_endpoints
 from src.database.enum import ScheduleItemUserType
-from src.database.schema import Order, ScheduleItem, ScheduleItemActivity, ScheduleItemUser, Transport, User
+from src.database.schema import Order, Schedule, ScheduleItem, ScheduleItemActivity, ScheduleItemUser, Transport, User
 from src.end_points.schedule.delivery import get_history_for_delivery, get_items_for_delivery, update_schedule_item
 from src.end_points.schedule.queries import get_latest_schedule_item_user
 from tests.unit.factories import admin_header
@@ -40,6 +40,8 @@ def _setup():
 
 
 def _put(client, schedule_id, payload):
+  with Session() as session:
+    payload['version'] = session.get(Schedule, schedule_id).version
   return client.put(f'/schedule/{schedule_id}', json=payload, headers=admin_header()).get_json()
 
 

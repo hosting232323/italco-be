@@ -9,6 +9,7 @@ from sqlalchemy import (
   Text,
   Float,
   Integer,
+  BigInteger,
   LargeBinary,
   ForeignKey,
   Boolean,
@@ -115,6 +116,16 @@ class UserSession(BaseEntity):
   revoked = Column(Boolean, default=False, nullable=False)
   rotated_at = Column(DateTime(timezone=True))
   family_id = Column(String, nullable=False, index=True)
+
+
+class RateLimitCounter(BaseEntity):
+  __tablename__ = 'rate_limit_counter'
+  __table_args__ = (UniqueConstraint('scope', 'ip', 'bucket_start', name='uq_rate_limit_counter_scope_ip_bucket'),)
+
+  scope = Column(String, nullable=False)
+  ip = Column(String, nullable=False)
+  bucket_start = Column(BigInteger, nullable=False)
+  attempts = Column(Integer, nullable=False, default=0)
 
 
 class DeliveryUserInfo(BaseItalcoEntity):
@@ -378,6 +389,7 @@ class Service(BaseItalcoEntity):
 
 class ServiceUser(BaseItalcoEntity):
   __tablename__ = 'service_user'
+  __table_args__ = (UniqueConstraint('service_id', 'user_id', name='uq_service_user_service_user'),)
 
   code = Column(String)
   price = Column(Float, nullable=False)

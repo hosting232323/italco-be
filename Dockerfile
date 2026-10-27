@@ -29,7 +29,7 @@ RUN pip install --no-cache-dir .
 # --force-reinstall: con la stessa versione in pyproject pip considera la lib gia'
 # soddisfatta anche se lo sha e' un altro, e il fix non arriverebbe nel container.
 ARG LIB_REF=HEAD
-RUN pip install --no-cache-dir --force-reinstall --no-deps   "generic_lib @ git+https://github.com/hosting232323/generic-lib.git@${LIB_REF}"
+RUN pip install --no-cache-dir --force-reinstall   "generic_lib @ git+https://github.com/hosting232323/generic-lib.git@${LIB_REF}"
 
 COPY . .
 

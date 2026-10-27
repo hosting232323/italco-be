@@ -1,33 +1,34 @@
-import threading
 import time
 from flask import request
+from sqlalchemy import delete
+from sqlalchemy.dialects.postgresql import insert
+from database_api import Session, scope as db_scope
+
+from .database.schema import RateLimitCounter
 
 WINDOW_SECONDS = 3600
 
-# Chiave (scope, ip): ogni endpoint ha il suo budget. In memoria e per processo:
-# con piu' worker gunicorn il limite effettivo e' moltiplicato, e X-Forwarded-For
-# e' falsificabile. Un freno agli abusi, non una barriera.
-_attempts: dict[tuple[str, str], list[float]] = {}
-_attempts_lock = threading.Lock()
+# Contatore su PostgreSQL: il limite resta coerente tra worker e istanze.
 
 
 def client_ip() -> str:
-  # Dietro il proxy remote_addr e' quello del proxy: conta il primo hop di
-  # X-Forwarded-For.
-  forwarded = request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
-  return forwarded or request.remote_addr or 'unknown'
+  # Cloudflare imposta questo header all'ingresso. X-Forwarded-For puo' invece
+  # contenere valori forniti dal client e non va usato come identita' attendibile.
+  return request.headers.get('CF-Connecting-IP', '').strip() or request.remote_addr or 'unknown'
 
 
 def rate_limited(ip: str, scope: str, max_attempts: int) -> bool:
-  now = time.time()
-  with _attempts_lock:
-    recent = [stamp for stamp in _attempts.get((scope, ip), []) if now - stamp < WINDOW_SECONDS]
-    if len(recent) >= max_attempts:
-      _attempts[(scope, ip)] = recent
-      return True
-    recent.append(now)
-    _attempts[(scope, ip)] = recent
-    # Sfoltisce le voci scadute degli altri indirizzi, cosi' il dizionario non cresce all'infinito.
-    for other in [key for key, stamps in _attempts.items() if not any(now - s < WINDOW_SECONDS for s in stamps)]:
-      del _attempts[other]
-    return False
+  now = int(time.time())
+  bucket_start = now // WINDOW_SECONDS * WINDOW_SECONDS
+  table = RateLimitCounter.__table__
+  statement = insert(table).values(scope=scope, ip=ip, bucket_start=bucket_start, attempts=1)
+  statement = statement.on_conflict_do_update(
+    index_elements=['scope', 'ip', 'bucket_start'],
+    set_={'attempts': table.c.attempts + 1},
+  ).returning(table.c.attempts)
+  with db_scope(company_id=None), Session() as session:
+    attempts = session.execute(statement).scalar_one()
+    if now % WINDOW_SECONDS < 10:
+      session.execute(delete(table).where(table.c.bucket_start < bucket_start - WINDOW_SECONDS))
+    session.commit()
+  return attempts > max_attempts

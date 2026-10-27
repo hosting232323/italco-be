@@ -277,6 +277,7 @@ def test_update_schedule_replaces_users_and_items(client):
     f'/schedule/{schedule.id}',
     json={
       'date': date.today().strftime('%Y-%m-%d'),
+      'version': schedule.version,
       'transport_id': schedule.transport_id,
       'deleted_users': [old_delivery.id],
       'users': [{'id': new_delivery.id}],
@@ -325,6 +326,7 @@ def schedule_with_one_order():
 def schedule_payload(schedule, item, order, delivery, **extra):
   return {
     'date': date.today().strftime('%Y-%m-%d'),
+    'version': schedule.version,
     'transport_id': schedule.transport_id,
     'users': [{'id': delivery.id}],
     'schedule_items': [
@@ -394,17 +396,20 @@ def test_stale_update_does_not_touch_users_or_items(client):
     }
 
 
-def test_update_schedule_without_version_still_saves(client):
+def test_update_schedule_without_version_is_rejected(client):
   operator = create_user(UserRole.OPERATOR)
   schedule, item, order, delivery = schedule_with_one_order()
+  payload = schedule_payload(schedule, item, order, delivery)
+  payload.pop('version')
 
   response = client.put(
     f'/schedule/{schedule.id}',
-    json=schedule_payload(schedule, item, order, delivery),
+    json=payload,
     headers=auth_header(operator),
   )
 
-  assert response.get_json()['status'] == 'ok'
+  assert response.status_code == 400
+  assert 'versione' in response.get_json()['message'].lower()
 
 
 def test_pianification_requires_known_orders(client):

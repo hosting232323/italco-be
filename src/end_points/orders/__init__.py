@@ -37,6 +37,12 @@ from .sms_sender import create_order_tracking_token
 order_bp = Blueprint('order_bp', __name__)
 
 
+def _not_found(user: User):
+  if user.role == UserRole.DELIVERY:
+    return {'status': 'ko', 'message': 'Ordine o borderò non trovato.'}, 404
+  abort(404)
+
+
 @order_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def create_order_endpoint(user: User):
@@ -61,11 +67,11 @@ def get_order_endpoint(user: User, id):
   try:
     order_id = int(id)
   except (TypeError, ValueError):
-    abort(404)
+    return _not_found(user)
   with Session() as session:
     order = session.query(Order).filter(Order.id == order_id).first()
     if not order or not user_can_access_order(user, order_id, session):
-      abort(404)
+      return _not_found(user)
   return get_order(order_id, customer_id=user.id if user.role == UserRole.CUSTOMER else None)
 
 
@@ -93,7 +99,7 @@ def create_tracking_link_endpoint(user: User, id):
   with Session() as session:
     order = session.query(Order).filter(Order.id == order_id).first()
     if not order or not user_can_access_order(user, order_id, session):
-      abort(404)
+      return _not_found(user)
     token = create_order_tracking_token(order)
   return {'status': 'ok', 'token': token}
 
@@ -150,7 +156,7 @@ def get_delivery_details(user: User, order_id: int):
   with Session() as session:
     order = session.query(Order).filter(Order.id == int(order_id)).first()
     if not order or not user_can_access_order(user, order.id, session):
-      abort(404)
+      return _not_found(user)
   return {
     'status': 'ok',
     'photos': [photo.link for photo in get_order_photos(order_id)],
@@ -175,7 +181,7 @@ def serve_image_endpoint(user: User, filename):
   with Session() as session:
     photo = session.query(Photo).filter(Photo.link.endswith('/' + filename, autoescape=True)).first()
     if not photo or not user_can_access_order(user, photo.order_id, session):
-      abort(404)
+      return _not_found(user)
   return send_from_directory(get_full_path(STATIC_FOLDER, 'photos'), filename)
 
 
