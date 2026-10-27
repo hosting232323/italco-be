@@ -10,12 +10,20 @@ class StripeNotConfigured(Exception):
   pass
 
 
+# Senza timeout l'SDK aspetta 80 secondi: una Stripe lenta bloccherebbe un worker
+# per richiesta. Pochi secondi e un paio di tentativi sui soli errori di rete.
+API_TIMEOUT_SECONDS = 10
+MAX_NETWORK_RETRIES = 2
+
+
 # Unico punto che parla con Stripe: i test lo sostituiscono, nessuna rete.
 def _configure() -> None:
   api_key = os.environ.get('STRIPE_SECRET_KEY')
   if not api_key:
     raise StripeNotConfigured()
   stripe.api_key = api_key
+  stripe.max_network_retries = MAX_NETWORK_RETRIES
+  stripe.default_http_client = stripe.http_client.RequestsClient(timeout=API_TIMEOUT_SECONDS)
 
 
 # Prodotto unico dell'abbonamento, con ID fisso così si ritrova senza salvarlo nel DB.
@@ -39,7 +47,8 @@ def ensure_product() -> str:
 
 
 def frontend_url() -> str:
-  return os.environ.get('FRONTEND_URL', 'https://hubstra.it').rstrip('/')
+  # Vuota (variabile CI non definita) vale come assente.
+  return (os.environ.get('FRONTEND_URL') or 'https://hubstra.it').rstrip('/')
 
 
 def create_customer(company_id: int, name: str) -> str:
@@ -118,7 +127,12 @@ def update_subscription_price(subscription_id: str, price_cents: int) -> None:
 
 
 def construct_event(payload: bytes, signature: str):
-  return stripe.Webhook.construct_event(payload, signature, os.environ.get('STRIPE_WEBHOOK_SECRET', ''))
+  # Senza segreto la firma si calcolerebbe con una chiave vuota, che chiunque
+  # conosce: il webhook non accetta nulla finché non è configurato.
+  secret = os.environ.get('STRIPE_WEBHOOK_SECRET')
+  if not secret:
+    raise StripeNotConfigured()
+  return stripe.Webhook.construct_event(payload, signature, secret)
 
 
 def get_field(obj, key, default=None):

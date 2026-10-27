@@ -45,6 +45,9 @@
         SERVER_NAME=$SERVER_NAME
         REFRESH_COOKIE_PATH=$REFRESH_COOKIE_PATH
         REFRESH_COOKIE_SAMESITE=$REFRESH_COOKIE_SAMESITE
+        STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+        STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+        FRONTEND_URL=${FRONTEND_URL:-}
       EOF
 
       # L'immagine si costruisce qui, sullo stesso runner che la avvia: niente

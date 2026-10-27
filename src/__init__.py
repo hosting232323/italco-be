@@ -70,8 +70,9 @@ else:
 # login, refresh e gestione utenti portano credenziali e posizioni dei corrieri,
 # il tracking pubblico e la richiesta demo portano dati di chi non e' un utente,
 # i rapporti d'errore dell'app corrieri sono aperti e il loro contenuto e' gia'
-# loggato in forma troncata dall'endpoint.
-LOG_BODY_EXCLUDED_PREFIXES = ('/user', '/order/public', '/demo-request', '/delivery-app')
+# loggato in forma troncata dall'endpoint; l'abbonamento porta il body firmato del
+# webhook Stripe e gli URL di checkout, portale e fatture, che si aprono senza login.
+LOG_BODY_EXCLUDED_PREFIXES = ('/user', '/order/public', '/demo-request', '/delivery-app', '/subscription')
 
 
 def _register_log_hooks(flask_app):

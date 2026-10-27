@@ -113,6 +113,18 @@ class CompanySubscription(BaseEntity):
   status = Column(String, nullable=False, default='none', server_default='none')
   current_period_end = Column(DateTime)
   cancel_at_period_end = Column(Boolean, nullable=False, default=False, server_default='false')
+  # Istante (UTC) a cui lo stato sopra era certamente vero su Stripe: la creazione
+  # dell'ultimo evento applicato o l'inizio dell'ultima lettura diretta. Un evento
+  # più vecchio non lo sovrascrive; una lettura recente evita di richiamare Stripe.
+  synced_at = Column(DateTime)
+
+
+class StripeEvent(BaseEntity):
+  # Eventi webhook già elaborati: Stripe consegna "almeno una volta", lo stesso
+  # evento può arrivare due volte (o rientrare dopo un timeout).
+  __tablename__ = 'stripe_event'
+
+  event_id = Column(String, nullable=False, unique=True)
 
 
 class User(BaseItalcoEntity):

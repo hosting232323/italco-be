@@ -4,11 +4,19 @@ Stripe è sempre sostituito: nessuna rete, si verifica cosa il backend gli chied
 e cosa salva di ciò che risponde.
 """
 
+import hashlib
+import hmac
+import json
+import time
+from datetime import datetime
+
 import pytest
 
-from database_api.operations import update
+from database_api import Session
+from database_api.operations import create, get_by_id, update
 
 from src.database.enum import UserRole
+from src.database.schema import Company, CompanySubscription
 from src.database.queries import is_automatic_payment_enabled
 from src.end_points.subscription import get_subscription, serialize_subscription, stripe_client
 
@@ -548,3 +556,251 @@ def test_opening_the_page_without_a_stripe_key_still_works(payment_on, client, a
   monkeypatch.delenv('STRIPE_SECRET_KEY', raising=False)
 
   assert client.get('/subscription', headers=auth_header(admin)).get_json()['status'] == 'ok'
+
+
+# --- webhook: firma, segreto, idempotenza, ordine degli eventi ---
+
+
+WEBHOOK_SECRET = 'whsec_test'
+
+
+def signed_headers(payload: bytes, secret: str):
+  """Firma Stripe vera (v1 = HMAC-SHA256 di "<t>.<body>"), costruita con la chiave data."""
+  timestamp = int(time.time())
+  digest = hmac.new(secret.encode(), f'{timestamp}.'.encode() + payload, hashlib.sha256).hexdigest()
+  return {'Stripe-Signature': f't={timestamp},v1={digest}', 'Content-Type': 'application/json'}
+
+
+def event_payload(company_id, event_id='evt_1', created=1893000000, event_type='customer.subscription.updated', **sub):
+  return json.dumps(
+    {
+      'id': event_id,
+      'object': 'event',
+      'type': event_type,
+      'created': created,
+      'data': {'object': stripe_subscription(company_id, **sub)},
+    }
+  ).encode()
+
+
+def post_signed(client, payload, secret=WEBHOOK_SECRET):
+  return client.post('/subscription/webhook', data=payload, headers=signed_headers(payload, secret))
+
+
+def test_webhook_applies_an_event_with_a_valid_signature(db, client, monkeypatch):
+  monkeypatch.setenv('STRIPE_WEBHOOK_SECRET', WEBHOOK_SECRET)
+
+  response = post_signed(client, event_payload(db.id))
+
+  assert response.get_json() == {'status': 'ok'}
+  assert get_subscription(db.id).status == 'active'
+
+
+def test_webhook_rejects_a_signature_made_with_another_key(db, client, monkeypatch):
+  monkeypatch.setenv('STRIPE_WEBHOOK_SECRET', WEBHOOK_SECRET)
+
+  response = post_signed(client, event_payload(db.id), secret='whsec_altro')
+
+  assert response.status_code == 400
+  assert get_subscription(db.id) is None
+
+
+@pytest.mark.parametrize('secret_value', [None, ''])
+def test_webhook_without_a_secret_accepts_nothing_even_if_signed_with_an_empty_key(
+  db, client, monkeypatch, secret_value
+):
+  if secret_value is None:
+    monkeypatch.delenv('STRIPE_WEBHOOK_SECRET', raising=False)
+  else:
+    monkeypatch.setenv('STRIPE_WEBHOOK_SECRET', secret_value)
+
+  response = post_signed(client, event_payload(db.id), secret='')
+
+  assert response.status_code == 503
+  assert get_subscription(db.id) is None
+
+
+def test_webhook_for_a_missing_company_is_confirmed_not_a_500(db, client, monkeypatch):
+  monkeypatch.setenv('STRIPE_WEBHOOK_SECRET', WEBHOOK_SECRET)
+
+  response = post_signed(client, event_payload(999999))
+
+  assert response.status_code == 200
+  assert get_subscription(999999) is None
+
+
+def test_webhook_with_a_malformed_company_id_is_confirmed(db, client, monkeypatch):
+  monkeypatch.setenv('STRIPE_WEBHOOK_SECRET', WEBHOOK_SECRET)
+
+  assert post_signed(client, event_payload('abc')).status_code == 200
+
+
+def test_webhook_applies_the_same_event_only_once(db, client, monkeypatch):
+  monkeypatch.setenv('STRIPE_WEBHOOK_SECRET', WEBHOOK_SECRET)
+  post_signed(client, event_payload(db.id, event_id='evt_dup', status='active'))
+  update(get_subscription(db.id), {'status': 'past_due'})
+
+  # Stessa consegna ripetuta da Stripe: non deve sovrascrivere ciò che è successo dopo.
+  post_signed(client, event_payload(db.id, event_id='evt_dup', status='active'))
+
+  assert get_subscription(db.id).status == 'past_due'
+
+
+def test_webhook_ignores_an_event_older_than_the_applied_state(db, client, monkeypatch):
+  monkeypatch.setenv('STRIPE_WEBHOOK_SECRET', WEBHOOK_SECRET)
+  post_signed(client, event_payload(db.id, 'evt_del', 1893000100, 'customer.subscription.deleted', status='canceled'))
+
+  # Un `updated` nato prima della cancellazione, consegnato dopo: non riapre l'abbonamento.
+  post_signed(client, event_payload(db.id, 'evt_upd', 1893000000, status='active'))
+
+  assert get_subscription(db.id).status == 'canceled'
+
+
+def test_get_or_create_subscription_keeps_a_single_row(db):
+  from src.end_points.subscription import _get_or_create_subscription
+
+  first = _get_or_create_subscription(db.id)
+  second = _get_or_create_subscription(db.id)
+
+  assert first.id == second.id
+  with Session() as session:
+    assert session.query(CompanySubscription).filter_by(company_id=db.id).count() == 1
+
+
+# --- flag e prezzo contro Stripe ---
+
+
+@pytest.fixture
+def live_subscription(payment_on):
+  return create(
+    CompanySubscription,
+    {'company_id': payment_on.id, 'stripe_customer_id': 'cus_1', 'stripe_subscription_id': 'sub_1', 'status': 'active'},
+  )
+
+
+@pytest.fixture
+def stripe_price_updates(monkeypatch):
+  calls = []
+  monkeypatch.setattr(stripe_client, 'update_subscription_price', lambda *args: calls.append(args))
+  return calls
+
+
+def put_company(client, company, **changes):
+  return client.put(
+    f'/company/{company.id}', json={'name': company.name, **changes}, headers=auth_header(create_super_admin())
+  ).get_json()
+
+
+def test_flag_cannot_be_turned_off_while_stripe_is_charging(payment_on, live_subscription, client):
+  body = put_company(client, payment_on, automatic_payment=False)
+
+  assert body['status'] == 'ko'
+  assert is_automatic_payment_enabled(payment_on.id) is True
+
+
+def test_flag_can_be_turned_off_once_the_subscription_ends_at_period_end(payment_on, live_subscription, client):
+  update(live_subscription, {'cancel_at_period_end': True})
+
+  assert put_company(client, payment_on, automatic_payment=False)['status'] == 'ok'
+  assert is_automatic_payment_enabled(payment_on.id) is False
+
+
+def test_flag_can_be_turned_off_when_the_subscription_is_canceled(payment_on, live_subscription, client):
+  update(live_subscription, {'status': 'canceled'})
+
+  assert put_company(client, payment_on, automatic_payment=False)['status'] == 'ok'
+
+
+def test_price_changed_from_the_company_form_goes_through_stripe(
+  payment_on, live_subscription, client, stripe_price_updates
+):
+  body = put_company(client, payment_on, subscription_price_cents=5900)
+
+  assert body['company']['subscription_price_cents'] == 5900
+  assert stripe_price_updates == [('sub_1', 5900)]
+
+
+def test_price_changed_from_the_company_form_is_not_saved_if_stripe_refuses(
+  payment_on, live_subscription, client, monkeypatch
+):
+  def refuse(subscription_id, price_cents):
+    raise stripe_client.stripe.StripeError('rifiutato', None)
+
+  monkeypatch.setattr(stripe_client, 'update_subscription_price', refuse)
+
+  body = put_company(client, payment_on, subscription_price_cents=5900)
+
+  assert body['status'] == 'ko'
+  assert get_by_id(Company, payment_on.id).subscription_price_cents == 4900
+
+
+def test_the_price_cannot_be_removed_while_stripe_is_charging(payment_on, live_subscription, client):
+  assert put_company(client, payment_on, subscription_price_cents=None)['status'] == 'ko'
+
+
+def test_unchanged_price_does_not_call_stripe(payment_on, live_subscription, client, stripe_price_updates):
+  put_company(client, payment_on, subscription_price_cents=4900)
+
+  assert stripe_price_updates == []
+
+
+def test_a_past_due_subscription_also_gets_the_new_price_on_stripe(
+  payment_on, live_subscription, client, stripe_price_updates
+):
+  update(live_subscription, {'status': 'past_due'})
+
+  body = client.put(
+    f'/subscription/company/{payment_on.id}/price',
+    json={'price_cents': 5900},
+    headers=auth_header(create_super_admin()),
+  ).get_json()
+
+  assert body['price_cents'] == 5900
+  assert stripe_price_updates == [('sub_1', 5900)]
+
+
+# --- chiamate a Stripe: timeout e frequenza ---
+
+
+def test_stripe_calls_have_a_timeout_and_network_retries(monkeypatch):
+  monkeypatch.setenv('STRIPE_SECRET_KEY', 'sk_test_x')
+
+  stripe_client._configure()
+
+  assert stripe_client.stripe.max_network_retries == stripe_client.MAX_NETWORK_RETRIES
+  assert stripe_client.stripe.default_http_client._timeout == stripe_client.API_TIMEOUT_SECONDS
+
+
+@pytest.fixture
+def stripe_reads(payment_on, client, admin, stripe_calls, monkeypatch):
+  client.post('/subscription/checkout', headers=auth_header(admin))
+  reads = []
+  monkeypatch.setattr(
+    stripe_client,
+    'list_subscriptions',
+    lambda customer_id: reads.append(customer_id) or [stripe_subscription(payment_on.id)],
+  )
+  return reads
+
+
+def test_opening_the_page_does_not_call_stripe_while_the_state_is_fresh(payment_on, client, admin, stripe_reads):
+  for _ in range(3):
+    client.get('/subscription', headers=auth_header(admin))
+
+  assert len(stripe_reads) == 1
+
+
+def test_opening_the_page_rereads_a_stale_state(payment_on, client, admin, stripe_reads):
+  client.get('/subscription', headers=auth_header(admin))
+  update(get_subscription(payment_on.id), {'synced_at': datetime(2000, 1, 1)})
+
+  client.get('/subscription', headers=auth_header(admin))
+
+  assert len(stripe_reads) == 2
+
+
+def test_explicit_sync_always_reads_stripe(payment_on, client, admin, stripe_reads):
+  client.post('/subscription/sync', headers=auth_header(admin))
+  client.post('/subscription/sync', headers=auth_header(admin))
+
+  assert len(stripe_reads) == 2

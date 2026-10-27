@@ -1,24 +1,38 @@
+import logging
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 import stripe
 from flask import Blueprint, request
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 
 from database_api import Session, current_scope
 from database_api.operations import create, update
 
 from .. import flask_session_authentication
 from ...database.enum import UserRole
-from ...database.schema import Company, CompanySubscription
+from ...database.schema import Company, CompanySubscription, StripeEvent
 from . import stripe_client
 from .history import build_history
 from .plans import CURRENCY, INTERVAL, MIN_PRICE_CENTS, is_valid_price
 
+
+logger = logging.getLogger(__name__)
 
 subscription_bp = Blueprint('subscription_bp', __name__)
 
 # Stati Stripe in cui l'attività sta pagando (o è in prova): gli altri
 # (past_due, canceled, incomplete...) non contano come abbonamento attivo.
 ACTIVE_STATUSES = ('active', 'trialing')
+
+# Stati in cui Stripe può ancora addebitare: finché uno di questi è in corso
+# (e non è già disdetto a fine periodo) il pagamento automatico non si spegne.
+BILLING_STATUSES = ('active', 'trialing', 'past_due', 'unpaid', 'paused')
+
+# Oltre questo tempo dall'ultimo stato certo, aprire la pagina rilegge Stripe.
+# Col webhook configurato lo stato è sempre fresco e Stripe non viene chiamato.
+SYNC_MAX_AGE = timedelta(minutes=5)
 
 WEBHOOK_SUBSCRIPTION_EVENTS = (
   'customer.subscription.created',
@@ -65,8 +79,28 @@ def serialize_subscription(subscription: CompanySubscription | None) -> dict:
   }
 
 
+def has_billing_subscription(company_id: int) -> bool:
+  """Stripe sta (o può ancora) addebitando questa attività: abbonamento in
+  corso e non già disdetto a fine periodo."""
+  subscription = get_subscription(company_id)
+  return bool(subscription and subscription.status in BILLING_STATUSES and not subscription.cancel_at_period_end)
+
+
+def _utcnow() -> datetime:
+  return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def _get_or_create_subscription(company_id: int) -> CompanySubscription:
-  return get_subscription(company_id) or create(CompanySubscription, {'company_id': company_id})
+  # Due richieste insieme (doppio click su "Abbonati") non devono creare due righe:
+  # l'insert ignora il conflitto sull'unico company_id e si rilegge la riga vincente.
+  existing = get_subscription(company_id)
+  if existing:
+    return existing
+
+  with Session() as session:
+    session.execute(insert(CompanySubscription).values(company_id=company_id).on_conflict_do_nothing())
+    session.commit()
+  return get_subscription(company_id)
 
 
 def _get_or_create_customer(company_id: int) -> str:
@@ -82,24 +116,38 @@ def _get_or_create_customer(company_id: int) -> str:
   return customer_id
 
 
-def refresh_from_stripe(company_id: int) -> None:
+def refresh_from_stripe(company_id: int, force: bool = True) -> None:
   """Riallinea lo stato locale a quello di Stripe (se l'attività ha un cliente).
 
   Il webhook fa lo stesso, ma non sempre arriva: in locale non è configurato, e
-  chi paga può non tornare sulla pagina di conferma."""
+  chi paga può non tornare sulla pagina di conferma. Con force=False Stripe si
+  chiama solo se lo stato locale è più vecchio di SYNC_MAX_AGE."""
   subscription = get_subscription(company_id)
   if not subscription or not subscription.stripe_customer_id:
     return
+  if not force and subscription.synced_at and _utcnow() - subscription.synced_at < SYNC_MAX_AGE:
+    return
 
+  # L'istante è preso prima della lettura: un evento nato mentre Stripe risponde
+  # non deve risultare più vecchio dello stato appena scritto.
+  read_at = _utcnow()
   stripe_subscriptions = stripe_client.list_subscriptions(subscription.stripe_customer_id)
   if stripe_subscriptions:
     # Stripe le elenca dalla più recente: conta quella, anche dopo una
     # disdetta seguita da una nuova sottoscrizione.
-    _apply_subscription(company_id, stripe_subscriptions[0])
+    _apply_subscription(company_id, stripe_subscriptions[0], read_at)
+  else:
+    update(subscription, {'synced_at': read_at})
 
 
-def _apply_subscription(company_id: int, stripe_subscription) -> None:
-  update(_get_or_create_subscription(company_id), stripe_client.subscription_fields(stripe_subscription))
+def _apply_subscription(company_id: int, stripe_subscription, state_at: datetime) -> bool:
+  """Scrive lo stato Stripe, a meno che il DB non ne abbia già uno più recente
+  (un `updated` in ritardo non deve riaprire un abbonamento già cancellato)."""
+  subscription = _get_or_create_subscription(company_id)
+  if subscription.synced_at and state_at < subscription.synced_at:
+    return False
+  update(subscription, {**stripe_client.subscription_fields(stripe_subscription), 'synced_at': state_at})
+  return True
 
 
 @subscription_bp.route('', methods=['GET'])
@@ -107,9 +155,9 @@ def _apply_subscription(company_id: int, stripe_subscription) -> None:
 def get_company_subscription(_):
   company_id = current_scope()['company_id']
   # Se Stripe non risponde si mostra l'ultimo stato noto: leggere la pagina non
-  # deve fallire per un problema di rete.
+  # deve fallire per un problema di rete. Stripe si richiama solo a stato scaduto.
   try:
-    refresh_from_stripe(company_id)
+    refresh_from_stripe(company_id, force=False)
   except (stripe_client.StripeNotConfigured, stripe.StripeError):
     pass
   return {
@@ -190,6 +238,20 @@ def get_company_payment_history(_, company_id):
   return {'status': 'ok', **build_history(subscriptions, invoices)}
 
 
+def push_price_to_stripe(company_id: int, price_cents: int) -> None:
+  """Porta su Stripe il nuovo prezzo di un abbonamento ancora vivo (anche past_due:
+  il prossimo tentativo userebbe il vecchio importo). Da chiamare PRIMA di salvare
+  il prezzo: se Stripe rifiuta, resta quello di prima e nessun lato è a metà."""
+  subscription = get_subscription(company_id)
+  if subscription and subscription.stripe_subscription_id and subscription.status in BILLING_STATUSES:
+    stripe_client.update_subscription_price(subscription.stripe_subscription_id, price_cents)
+
+
+def set_company_price(company: Company, price_cents: int) -> None:
+  push_price_to_stripe(company.id, price_cents)
+  update(company, {'subscription_price_cents': price_cents})
+
+
 @subscription_bp.route('company/<company_id>/price', methods=['PUT'])
 @flask_session_authentication([UserRole.SUPER_ADMIN], tenant_required=False)
 @stripe_errors
@@ -210,15 +272,51 @@ def update_company_price(_, company_id):
   if not company:
     return {'status': 'ko', 'message': 'Company non trovata'}
 
-  subscription = get_subscription(company_id)
-  active = serialize_subscription(subscription)['active'] and subscription.stripe_subscription_id
-  # Prima Stripe, poi il DB: se Stripe rifiuta il prezzo resta quello di prima e
-  # nessuno dei due lati è a metà.
-  if active:
-    stripe_client.update_subscription_price(subscription.stripe_subscription_id, price_cents)
-
-  update(company, {'subscription_price_cents': price_cents})
+  set_company_price(company, price_cents)
   return _company_subscription_info(company_id)
+
+
+def _event_seen(event_id: str) -> bool:
+  with Session() as session:
+    return session.query(StripeEvent).filter_by(event_id=event_id).first() is not None
+
+
+def _mark_event_seen(event_id: str) -> None:
+  try:
+    create(StripeEvent, {'event_id': event_id})
+  except IntegrityError:
+    # Lo stesso evento consegnato due volte in parallelo: l'altra richiesta l'ha già registrato.
+    pass
+
+
+def _handle_subscription_event(event) -> None:
+  event_id = stripe_client.get_field(event, 'id')
+  if event_id and _event_seen(event_id):
+    return
+
+  stripe_subscription = event['data']['object']
+  company_id = stripe_client.get_field(stripe_client.get_field(stripe_subscription, 'metadata', {}), 'company_id')
+  if not company_id:
+    return
+
+  # Un evento che non si può applicare (company cancellata, metadata sporchi) va
+  # loggato e confermato: un 500 farebbe ritentare Stripe per giorni, inutilmente.
+  try:
+    company_id = int(company_id)
+  except (TypeError, ValueError):
+    logger.warning('Webhook Stripe %s: company_id non valido %r', event_id, company_id)
+    return
+  with Session() as session:
+    if not session.get(Company, company_id):
+      logger.warning('Webhook Stripe %s: company %s inesistente', event_id, company_id)
+      return
+
+  created = stripe_client.get_field(event, 'created')
+  state_at = datetime.fromtimestamp(created, tz=timezone.utc).replace(tzinfo=None) if created else _utcnow()
+  if not _apply_subscription(company_id, stripe_subscription, state_at):
+    logger.info('Webhook Stripe %s: più vecchio dello stato salvato, ignorato', event_id)
+  if event_id:
+    _mark_event_seen(event_id)
 
 
 # Endpoint pubblico: l'unica autenticazione è la firma Stripe sul body grezzo.
@@ -226,13 +324,13 @@ def update_company_price(_, company_id):
 def webhook():
   try:
     event = stripe_client.construct_event(request.get_data(), request.headers.get('Stripe-Signature', ''))
+  except stripe_client.StripeNotConfigured:
+    logger.error('Webhook Stripe rifiutato: STRIPE_WEBHOOK_SECRET non configurato')
+    return {'status': 'ko', 'message': 'Webhook non configurato'}, 503
   except Exception:
     return {'status': 'ko', 'message': 'Firma non valida'}, 400
 
   if event['type'] in WEBHOOK_SUBSCRIPTION_EVENTS:
-    stripe_subscription = event['data']['object']
-    company_id = stripe_client.get_field(stripe_client.get_field(stripe_subscription, 'metadata', {}), 'company_id')
-    if company_id:
-      _apply_subscription(int(company_id), stripe_subscription)
+    _handle_subscription_event(event)
 
   return {'status': 'ok'}
