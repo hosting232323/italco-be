@@ -21,6 +21,7 @@ from .rae.disposal_place import (
   get_rae_disposal_places,
   update_rae_disposal_place,
 )
+from .subscription import has_billing_subscription, push_price_to_stripe, stripe_errors
 from .subscription.plans import MIN_PRICE_CENTS, is_valid_price
 from .users.session import create_jwt_token
 from database_api import Session, scope, current_scope
@@ -147,6 +148,25 @@ def _price_error(payload: dict) -> str | None:
   return None
 
 
+def _payment_error(company: Company, payload: dict) -> str | None:
+  """Flag e prezzo del pagamento automatico non possono contraddire Stripe.
+
+  Spegnere il flag con un abbonamento che addebita chiuderebbe la pagina (e il
+  portale) a chi sta ancora pagando: prima va disdetto. Il prezzo ha una sola
+  strada anche da qui: con un abbonamento vivo passa da Stripe prima del DB."""
+  if payload.get('automatic_payment') is False and company.automatic_payment and has_billing_subscription(company.id):
+    return 'Abbonamento attivo: va prima disdetto (anche a fine periodo) per spegnere il pagamento automatico'
+
+  if 'subscription_price_cents' in payload and payload['subscription_price_cents'] != company.subscription_price_cents:
+    price = payload['subscription_price_cents']
+    if price is None:
+      if has_billing_subscription(company.id):
+        return 'Con un abbonamento attivo il prezzo non si può togliere: va cambiato con un nuovo importo'
+    else:
+      push_price_to_stripe(company.id, price)
+  return None
+
+
 def _store_logo(company_id: int, uploaded_file, session: SessionWithStorage) -> str:
   filename = f'{company_id}{guess_extension(uploaded_file.mimetype)}'
   stored_path = session.upload(uploaded_file, filename, STATIC_FOLDER, subfolder=LOGO_SUBFOLDER)
@@ -266,6 +286,7 @@ def update_my_company(_):
   return _update_company(current_scope()['company_id'], restricted=True)
 
 
+@stripe_errors
 def _update_company(company_id: int, restricted: bool):
   error = validate_files(request.files.values(), IMAGE_EXTENSIONS)
   if error:
@@ -297,6 +318,10 @@ def _update_company(company_id: int, restricted: bool):
     company: Company = get_by_id(Company, company_id, session=session)
     if not company:
       return {'status': 'ko', 'message': 'Company non trovata'}
+
+    payment_error = _payment_error(company, payload)
+    if payment_error:
+      return {'status': 'ko', 'message': payment_error}
 
     rae = payload['rae'] if 'rae' in payload else company.rae
     legal = _clean_legal(payload, only_present=True)
