@@ -1,7 +1,7 @@
 """company automatic payment and subscription
 
-Revision ID: 066
-Revises: 065
+Revision ID: 067
+Revises: 066
 Create Date: 2026-10-22 12:00:00.000000
 
 Pagamento automatico per attività: il super admin accende il flag sulla company
@@ -17,8 +17,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '066'
-down_revision: Union[str, None] = '065'
+revision: str = '067'
+down_revision: Union[str, None] = '066'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
