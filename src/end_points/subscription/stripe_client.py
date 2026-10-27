@@ -23,7 +23,7 @@ def _configure() -> None:
     raise StripeNotConfigured()
   stripe.api_key = api_key
   stripe.max_network_retries = MAX_NETWORK_RETRIES
-  stripe.default_http_client = stripe.http_client.RequestsClient(timeout=API_TIMEOUT_SECONDS)
+  stripe.default_http_client = stripe.RequestsClient(timeout=API_TIMEOUT_SECONDS)
 
 
 # Prodotto unico dell'abbonamento, con ID fisso così si ritrova senza salvarlo nel DB.
