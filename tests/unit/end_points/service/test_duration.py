@@ -1006,3 +1006,18 @@ def test_preloaded_pickups_weigh_on_the_first_slot_of_the_eve(db):
   assert entry_occupied_duration(second, eve) == 0
   # L'ordine che si sta modificando non si conta contro se' stesso.
   assert entry_occupied_duration(first, eve, exclude_order_id=order.id) == 0
+
+
+def test_entry_occupied_duration_counts_orders_added_by_hand_to_the_schedule(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, collection_point = customer_with_service()
+  transport = create_transport()
+  entry = _entry(transport, day_of_week=target.weekday())
+  # Ordine senza fascia sull'ordine, messo a mano come tappa del veicolo in quella fascia.
+  order = create_order(cap='70051', dpc=target)
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+  schedule = create_schedule(transport, schedule_date=target)
+  link_order_to_schedule(order, schedule, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
+
+  assert entry_occupied_duration(entry, target) == PICKUP_POINT_MINUTES_PER_PRODUCT
+  assert entry_occupied_duration(entry, target, exclude_order_id=order.id) == 0

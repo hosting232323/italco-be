@@ -1647,3 +1647,51 @@ def test_preload_area_not_offered_when_the_eve_first_slot_is_full(db):
   _pickup_order(transport, target - timedelta(days=1), collection_point, service_user)
 
   assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+
+def _planned_order_on(entry, cap='70051'):
+  target = date.today() + timedelta(days=7)
+  while target.weekday() != entry.day_of_week:
+    target += timedelta(days=1)
+  order = create_order(
+    cap=cap,
+    dpc=target,
+    delivery_transport_id=entry.transport_id,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+  )
+  link_order_to_schedule(order, create_schedule(schedule_date=target))
+  return order
+
+
+def test_update_entry_with_planned_orders_cannot_move_slot(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport(), day_of_week=0, start='08:00:00', end='17:00:00')
+  _planned_order_on(entry)
+
+  response = client.put(f'/delivery-coverage/{entry.id}', json={'start_time': '09:00'}, headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
+  assert '1 ordini già pianificati' in response.get_json()['message']
+  assert get_by_id(DeliveryCoverageEntry, entry.id).start_time == time(8, 0)
+
+
+def test_update_entry_with_planned_orders_cannot_drop_their_zone(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport(), day_of_week=0, caps=('70051', '70052'))
+  _planned_order_on(entry, cap='70051')
+
+  response = client.put(f'/delivery-coverage/{entry.id}', json={'caps': ['70052']}, headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
+  assert 'fuori zona' in response.get_json()['message']
+
+
+def test_update_entry_with_planned_orders_can_still_widen_the_zone(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport(), day_of_week=0, caps=('70051',))
+  _planned_order_on(entry, cap='70051')
+
+  response = client.put(f'/delivery-coverage/{entry.id}', json={'caps': ['70051', '70052']}, headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ok'

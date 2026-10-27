@@ -147,6 +147,7 @@ def _run_order_update_endpoint(monkeypatch, fail_commit):
   monkeypatch.setattr(orders_module, 'delay_sms_check', lambda order, item: sent.append((order, item)))
   monkeypatch.setattr(orders_module, 'save_order_status_to_euronics', lambda _order: None)
   monkeypatch.setattr(orders_module, 'mailer_check', lambda *_args: None)
+  monkeypatch.setattr('src.schedulation.auto_planning.optimize_schedules_after_commit', lambda _planned: None)
 
   def queue_sms(_user, order, _data, _session, pending_sms=None):
     pending_sms.append((order, 'schedule-item'))

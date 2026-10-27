@@ -274,6 +274,11 @@ def create_order(user: User, data: dict):
       for sms_order, sms_item in pending_auto_sms:
         schedule_sms_check(sms_order, sms_item)
 
+    if pending_auto_sms:
+      from ...schedulation.auto_planning import optimize_schedules_after_commit
+
+      optimize_schedules_after_commit(pending_auto_sms)
+
   return {'status': 'ok', 'order': order.to_dict()}
 
 

@@ -146,6 +146,10 @@ def update_order_endpoint(user: User, id):
   mailer_check(order, data, motivation)
   for sms_order, sms_item in pending_sms:
     delay_sms_check(sms_order, sms_item)
+  if pending_sms:
+    from ...schedulation.auto_planning import optimize_schedules_after_commit
+
+    optimize_schedules_after_commit(pending_sms)
   return {'status': 'ok', 'order': order.to_dict()}
 
 

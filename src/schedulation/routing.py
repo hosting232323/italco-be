@@ -49,7 +49,7 @@ from ..database.schema import (
 )
 from ..end_points.orders.queries import query_products
 from ..end_points.schedule.preload import preloaded_pickup_ids_for_order
-from ..end_points.schedule.queries import get_schedule_items
+from ..end_points.schedule.queries import get_schedule_items, schedule_has_started
 from ..end_points.service.travel import get_lat_lon_by_cap, trip_order_osrm
 from ..utils.caps import get_lat_lon_by_address
 
@@ -102,7 +102,9 @@ def next_day_preloaded_ids(schedule: Schedule, session: session_type, exclude_or
   return ids
 
 
-def link_preloaded_collection_points(order: Order, transport_id: int, start_time_slot, end_time_slot, session):
+def link_preloaded_collection_points(
+  order: Order, transport_id: int, start_time_slot, end_time_slot, session, optimize: bool = True
+):
   """Porta nel borderò della vigilia i ritiri precaricati di ``order``.
 
   Stesso veicolo, giorno prima della consegna. Se il borderò della vigilia non
@@ -117,6 +119,8 @@ def link_preloaded_collection_points(order: Order, transport_id: int, start_time
   schedule = (
     session.query(Schedule).filter(Schedule.date == eve, Schedule.transport_id == transport_id).first()
   ) or create(Schedule, {'date': eve, 'transport_id': transport_id}, session=session)
+  if schedule_has_started(schedule, session):
+    return []
   first_item = (
     session.query(ScheduleItem).filter(ScheduleItem.schedule_id == schedule.id).order_by(ScheduleItem.index).first()
   )
@@ -137,7 +141,7 @@ def link_preloaded_collection_points(order: Order, transport_id: int, start_time
   created = link_missing_collection_points(
     order, schedule, start_time_slot, end_time_slot, session=session, collection_point_ids=preloaded_ids
   )
-  if created:
+  if created and optimize:
     optimize_schedule_stops(schedule, session=session)
   return created
 
@@ -385,26 +389,43 @@ def _group_by_slot(
   return [groups[key] for key in sorted(groups)]
 
 
-def optimize_schedule_stops(schedule: Schedule, session: session_type) -> None:
-  """Ricalcola e applica l'``index`` di visita ottimale per tutte le tappe del borderò.
+@dataclass
+class StopPlan:
+  """Esito del calcolo del percorso, applicabile in un secondo momento.
+
+  Il calcolo (geocodifica + OSRM) e l'applicazione sono separati perche' il
+  primo e' lento e non deve stare dentro la transazione che tiene il lock del
+  veicolo: ``stop_item_ids`` serve a verificare, prima di applicare, che le
+  tappe del borderò siano ancora quelle su cui si e' calcolato.
+  """
+
+  stop_item_ids: frozenset
+  sequence: list[int]
+  slot_updates: list[tuple[int, object, object]]
+
+
+def plan_schedule_stops(schedule: Schedule, session: session_type) -> StopPlan | None:
+  """Calcola l'ordine di visita ottimale delle tappe del borderò, senza scrivere nulla.
 
   Include sia le tappe ``ORDER`` che ``CollectionPoint``, rispettando la
   precedenza "ritiro prima delle consegne che ne dipendono" (vedi docstring
   del modulo per l'algoritmo trip-per-cluster-e-merge).
 
-  Le attività libere (``ACTIVITY``) non partecipano al riordino: restano nella
-  posizione scelta dall'operatore e le tappe ottimizzate si distribuiscono
-  nei posti rimasti.
+  Le attività libere (``ACTIVITY``) e le tappe già completate non partecipano
+  al riordino: restano nella posizione in cui sono e le tappe da fare si
+  distribuiscono nei posti rimasti.
   """
   rows = get_schedule_items(schedule, session=session)
 
-  order_ids = [sio.order_id for _item, _scp, sio in rows if sio]
-  cp_ids = [scp.collection_point_id for _item, scp, _sio in rows if scp]
+  order_ids = [sio.order_id for item, _scp, sio in rows if sio and not item.completed]
+  cp_ids = [scp.collection_point_id for item, scp, _sio in rows if scp and not item.completed]
   orders_by_id = {o.id: o for o in get_by_ids(Order, order_ids, session=session)} if order_ids else {}
   cps_by_id = {cp.id: cp for cp in get_by_ids(CollectionPoint, cp_ids, session=session)} if cp_ids else {}
 
   raw_stops = []
   for item, scp, sio in rows:
+    if item.completed:
+      continue
     if sio and sio.order_id in orders_by_id:
       order = orders_by_id[sio.order_id]
       stored = (order.address_lat, order.address_lon)
@@ -414,7 +435,7 @@ def optimize_schedule_stops(schedule: Schedule, session: session_type) -> None:
       raw_stops.append(('collection_point', item, cp.address, cp.cap, (cp.lat, cp.lon), cp.id, None))
 
   if len(raw_stops) < 2:
-    return
+    return None
 
   # Risoluzione concorrente delle coordinate delle tappe
   coords = _resolve_stop_coords([(s[2], s[3], s[4]) for s in raw_stops])
@@ -437,23 +458,49 @@ def optimize_schedule_stops(schedule: Schedule, session: session_type) -> None:
   # Un ritiro anticipato alla fascia di un ordine più presto ne prende anche
   # l'orario, così il borderò non mostra in testa un ritiro "11:30-12:30".
   final_sequence = []
+  slot_updates = []
   for slot_orders, slot_cps in _group_by_slot(order_stops, cp_stops, dependencies):
     for stop in slot_cps:
       if slot_orders and _slot_key(stop.item) != _slot_key(slot_orders[0].item):
         slot_item = slot_orders[0].item
-        update(
-          stop.item,
-          {'start_time_slot': slot_item.start_time_slot, 'end_time_slot': slot_item.end_time_slot},
-          session=session,
-        )
+        slot_updates.append((stop.item.id, slot_item.start_time_slot, slot_item.end_time_slot))
     final_sequence += _sequence_stops(slot_orders, slot_cps, dependencies)
 
-  stop_item_ids = {stop.item.id for stop in final_sequence}
+  return StopPlan(
+    stop_item_ids=frozenset(stop.item.id for stop in final_sequence),
+    sequence=[stop.item.id for stop in final_sequence],
+    slot_updates=slot_updates,
+  )
+
+
+def current_stop_item_ids(schedule: Schedule, session: session_type) -> frozenset:
+  """Le tappe che ``plan_schedule_stops`` riordinerebbe ora (per verificare un piano calcolato prima)."""
+  return frozenset(
+    item.id for item, scp, sio in get_schedule_items(schedule, session=session) if (scp or sio) and not item.completed
+  )
+
+
+def apply_stop_plan(schedule: Schedule, plan: StopPlan, session: session_type) -> None:
+  """Scrive nel borderò l'ordine di visita calcolato da ``plan_schedule_stops``."""
+  rows = get_schedule_items(schedule, session=session)
+  items_by_id = {item.id: item for item, _scp, _sio in rows}
+
+  for item_id, start_time_slot, end_time_slot in plan.slot_updates:
+    update(items_by_id[item_id], {'start_time_slot': start_time_slot, 'end_time_slot': end_time_slot}, session=session)
+
   positions = [
     position
-    for position, item in enumerate(sorted((item for item, _scp, _sio in rows), key=lambda item: item.index))
-    if item.id in stop_item_ids
+    for position, item in enumerate(sorted(items_by_id.values(), key=lambda item: item.index))
+    if item.id in plan.stop_item_ids
   ]
-  for new_index, stop in zip(positions, final_sequence):
-    if stop.item.index != new_index:
-      update(stop.item, {'index': new_index}, session=session)
+  for new_index, item_id in zip(positions, plan.sequence):
+    item = items_by_id[item_id]
+    if item.index != new_index:
+      update(item, {'index': new_index}, session=session)
+
+
+def optimize_schedule_stops(schedule: Schedule, session: session_type) -> None:
+  """Ricalcola e applica l'``index`` di visita ottimale per le tappe da fare del borderò."""
+  plan = plan_schedule_stops(schedule, session)
+  if plan:
+    apply_stop_plan(schedule, plan, session)

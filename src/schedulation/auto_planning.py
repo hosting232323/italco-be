@@ -22,6 +22,7 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session as session_type
 
+from database_api import Session
 from database_api.operations import create, delete, update
 from ..database.enum import OrderStatus, ScheduleType
 from ..database.schema import (
@@ -36,12 +37,20 @@ from ..database.schema import (
 from ..end_points.rae.product import emit_rae_products
 from ..end_points.orders.queries import query_products
 from ..end_points.schedule.preload import delivery_address, order_is_preloaded, preloaded_pickup_ids_for_order
-from ..end_points.schedule.queries import get_schedule_by_order, get_schedule_items, lock_transport_assignment
+from ..end_points.schedule.queries import (
+  get_schedule_by_order,
+  get_schedule_items,
+  lock_transport_assignment,
+  schedule_has_started,
+)
 from .routing import (
   link_missing_collection_points,
+  apply_stop_plan,
+  current_stop_item_ids,
   link_preloaded_collection_points,
   next_day_preloaded_ids,
   optimize_schedule_stops,
+  plan_schedule_stops,
   required_collection_point_ids_for_order,
 )
 
@@ -120,7 +129,9 @@ def find_coverage_entry(order: Order, session: session_type) -> DeliveryCoverage
 # ---------------------------------------------------------------------------
 
 
-def find_or_create_schedule(entry: DeliveryCoverageEntry, order: Order, session: session_type) -> tuple[Schedule, bool]:
+def find_or_create_schedule(
+  entry: DeliveryCoverageEntry, order: Order, session: session_type
+) -> tuple[Schedule | None, bool]:
   """Restituisce lo ``Schedule`` per ``(order.dpc, entry.transport_id)``.
 
   Se non esiste ne crea uno nuovo: i corrieri non si assegnano più qui, li
@@ -128,6 +139,7 @@ def find_or_create_schedule(entry: DeliveryCoverageEntry, order: Order, session:
 
   Returns:
     (schedule, created): created=True se appena creato, False se già esistente.
+    (None, False) se il borderò esiste ma è già partito: non si aggiungono tappe.
   """
   # Stesso lock del flusso manuale: due richieste concorrenti non creano due
   # borderò per lo stesso veicolo e giorno.
@@ -141,7 +153,7 @@ def find_or_create_schedule(entry: DeliveryCoverageEntry, order: Order, session:
     .first()
   )
   if existing:
-    return existing, False
+    return (None, False) if schedule_has_started(existing, session) else (existing, False)
 
   schedule: Schedule = create(
     Schedule,
@@ -161,6 +173,7 @@ def insert_order_into_schedule(
   schedule: Schedule,
   entry: DeliveryCoverageEntry,
   session: session_type,
+  optimize: bool = True,
 ) -> tuple[ScheduleItem, list[tuple[Order, ScheduleItem]]]:
   """Inserisce ``order`` nello ``Schedule``.
 
@@ -168,7 +181,9 @@ def insert_order_into_schedule(
   2. Collega i punti di ritiro richiesti dai prodotti dell'ordine, riusando
      quelli già presenti nel borderò per altri ordini.
   3. Ricalcola l'ordine di visita di tutte le tappe (ordini + punti di ritiro)
-     via OSRM Trip Service.
+     via OSRM Trip Service, a meno che ``optimize`` sia False: allora lo fa il
+     chiamante dopo il commit (``optimize_schedules_after_commit``), fuori
+     dalla transazione che tiene il lock del veicolo.
   4. Aggiorna lo stato dell'ordine (SCHEDULED o BOOKING).
 
   Returns:
@@ -195,9 +210,12 @@ def insert_order_into_schedule(
   )
 
   link_missing_collection_points(order, schedule, entry.start_time, entry.end_time, session=session)
-  optimize_schedule_stops(schedule, session=session)
+  if optimize:
+    optimize_schedule_stops(schedule, session=session)
   # I ritiri precaricati stanno nel borderò della vigilia, non in questo.
-  link_preloaded_collection_points(order, entry.transport_id, entry.start_time, entry.end_time, session=session)
+  link_preloaded_collection_points(
+    order, entry.transport_id, entry.start_time, entry.end_time, session=session, optimize=optimize
+  )
 
   # Stato ordine: BOOKING se tutti i prodotti hanno veicolo, altrimenti SCHEDULED
   products = query_products(order, session=session)
@@ -415,6 +433,14 @@ def auto_plan_order(order: Order, session: session_type) -> list[tuple[Order, Sc
     return []
 
   schedule, created = find_or_create_schedule(entry, order, session)
+  if schedule is None:
+    logger.warning(
+      'auto_planning: borderò del veicolo %s del %s già partito, ordine %s non pianificato',
+      entry.transport_id,
+      order.dpc,
+      order.id,
+    )
+    return []
   logger.info(
     'auto_planning: borderò %s=%s per ordine %s (veicolo=%s, data=%s)',
     'creato' if created else 'trovato',
@@ -424,5 +450,51 @@ def auto_plan_order(order: Order, session: session_type) -> list[tuple[Order, Sc
     order.dpc,
   )
 
-  _new_item, pending_sms = insert_order_into_schedule(order, schedule, entry, session)
+  # Il percorso (OSRM) lo calcola il chiamante dopo il commit: qui il lock del
+  # veicolo è ancora tenuto e una chiamata di rete lo bloccherebbe per tutti.
+  _new_item, pending_sms = insert_order_into_schedule(order, schedule, entry, session, optimize=False)
   return pending_sms
+
+
+def optimize_schedules_after_commit(planned: list[tuple[Order, ScheduleItem]]) -> None:
+  """Riordina i borderò toccati da ``auto_plan_order``, a transazione chiusa.
+
+  Il percorso si calcola senza lock (è la parte lenta: geocodifica e OSRM); il
+  lock del veicolo si prende solo per scriverlo, dopo aver verificato che le
+  tappe siano ancora quelle su cui si è calcolato. Se nel frattempo ne è
+  entrata un'altra si ricalcola sotto lock. L'ordine è già committato: un
+  errore qui lascia le tappe in coda, senza far fallire la richiesta.
+  """
+  schedule_ids = {item.schedule_id for _order, item in planned}
+  for order, _item in planned:
+    if order.dpc and order.delivery_transport_id:
+      with Session() as session:
+        eve = (
+          session.query(Schedule.id)
+          .filter(Schedule.date == order.dpc - timedelta(days=1), Schedule.transport_id == order.delivery_transport_id)
+          .first()
+        )
+        if eve:
+          schedule_ids.add(eve[0])
+
+  for schedule_id in sorted(schedule_ids):
+    try:
+      with Session() as session:
+        schedule = session.get(Schedule, schedule_id)
+        if schedule is None or schedule_has_started(schedule, session):
+          continue
+        plan = plan_schedule_stops(schedule, session)
+      if plan is None:
+        continue
+      with Session() as session:
+        schedule = session.get(Schedule, schedule_id)
+        if schedule is None or schedule_has_started(schedule, session):
+          continue
+        lock_transport_assignment(schedule.transport_id, schedule.date, session=session)
+        if current_stop_item_ids(schedule, session) == plan.stop_item_ids:
+          apply_stop_plan(schedule, plan, session)
+        else:
+          optimize_schedule_stops(schedule, session=session)
+        session.commit()
+    except Exception:
+      logger.exception('auto_planning: riordino del borderò %s fallito, tappe lasciate in coda', schedule_id)

@@ -676,15 +676,45 @@ def query_entry_orders(
     if exclude_order_id:
       query = query.filter(Order.id != exclude_order_id)
     rows = query.all()
+    # Le tappe messe a mano nel borderò del veicolo non hanno (o non hanno
+    # quella) fascia sull'ordine: pesano comunque sulla fascia della tappa.
+    manual = _manual_stop_orders(entry, dpc, exclude_order_id, sess)
+    manual_ids = {order.id for order in manual}
+    rows = [order for order in rows if order.id not in manual_ids]
     orders = [order for order in rows if order.delivery_transport_id is not None]
     if len(orders) < len(rows):
       orders += _orders_without_vehicle(entry, dpc, exclude_order_id, sess)
-    return orders
+    return orders + manual
 
   if session is not None:
     return _query(session)
   with Session() as sess:
     return _query(sess)
+
+
+def _manual_stop_orders(
+  entry: DeliveryCoverageEntry, dpc: date, exclude_order_id: int, session: session_type
+) -> list[Order]:
+  """Ordini inseriti a mano come tappa del borderò del veicolo, nella fascia di `entry`."""
+  query = (
+    session.query(Order)
+    .options(
+      joinedload(Order.product).joinedload(Product.service_user).joinedload(ServiceUser.service),
+      joinedload(Order.product).joinedload(Product.collection_point),
+    )
+    .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
+    .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+    .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
+    .filter(
+      Schedule.date == dpc,
+      Schedule.transport_id == entry.transport_id,
+      ScheduleItem.start_time_slot == entry.start_time,
+      ScheduleItem.end_time_slot == entry.end_time,
+    )
+  )
+  if exclude_order_id:
+    query = query.filter(Order.id != exclude_order_id)
+  return query.all()
 
 
 def _orders_without_vehicle(

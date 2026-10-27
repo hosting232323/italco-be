@@ -57,6 +57,32 @@ def _has_overlapping_entry(transport_id: int, day_of_week: int, start_time, end_
     return session.query(query.exists()).scalar()
 
 
+def _planned_orders_on_entry(entry: DeliveryCoverageEntry) -> list[Order]:
+  """Ordini già pianificati (tappe di un borderò), da oggi in poi, su questo blocco."""
+  with Session() as session:
+    orders = (
+      session.query(Order)
+      .join(ScheduleItemOrder, ScheduleItemOrder.order_id == Order.id)
+      .filter(
+        Order.dpc >= date.today(),
+        Order.delivery_transport_id == entry.transport_id,
+        Order.delivery_slot_start == entry.start_time,
+        Order.delivery_slot_end == entry.end_time,
+      )
+      .distinct()
+      .all()
+    )
+  return [order for order in orders if order.dpc.weekday() == entry.day_of_week]
+
+
+def _order_left_out_of_zone(order: Order, caps: set[str], polygon: list | None) -> bool:
+  if str(order.cap or '').strip() in caps:
+    return False
+  if polygon and order.address_lat is not None and order.address_lon is not None:
+    return not point_in_polygon((order.address_lat, order.address_lon), polygon)
+  return True
+
+
 def _clean_caps(raw) -> list[str]:
   # Dedup preservando l'ordine di inserimento: due CAP uguali nello stesso
   # blocco non aggiungerebbero informazione e romperebbero il vincolo sotto.
@@ -163,6 +189,25 @@ def update_delivery_coverage_entry(_, id):
   if _has_overlapping_entry(transport_id, day_of_week, start_time, end_time, exclude_id=entry.id):
     return {'status': 'ko', 'message': 'Il veicolo ha già una fascia sovrapposta in quel giorno'}
 
+  # Un blocco con ordini già pianificati non cambia giorno, veicolo, fascia o
+  # zona sotto di loro: i borderò resterebbero con tappe fuori dal blocco che le
+  # ha generate. Prima si spostano o tolgono gli ordini.
+  moves_slot = (
+    transport_id != entry.transport_id
+    or day_of_week != entry.day_of_week
+    or start_time != entry.start_time
+    or end_time != entry.end_time
+  )
+  touches_zone = 'caps' in request.json or 'polygon' in request.json
+  planned = _planned_orders_on_entry(entry) if moves_slot or touches_zone else []
+  if planned and moves_slot:
+    return {
+      'status': 'ko',
+      'message': (
+        f'Il blocco ha {len(planned)} ordini già pianificati: spostali prima di cambiare giorno, veicolo o fascia'
+      ),
+    }
+
   # Stato finale (caps ed entry.polygon letti PRIMA di qualunque update sotto,
   # per validare senza aver già scritto uno stato parziale non valido).
   polygon_provided = 'polygon' in request.json
@@ -176,6 +221,15 @@ def update_delivery_coverage_entry(_, id):
   final_has_caps = bool(new_caps) if caps_provided else bool(query_caps(entry.id))
   if not final_has_caps and not final_polygon:
     return {'status': 'ko', 'message': 'Seleziona almeno un CAP o disegna una zona sulla mappa'}
+
+  if planned:
+    final_caps = set(new_caps) if caps_provided else {cap.cap for cap in query_caps(entry.id)}
+    left_out = [order for order in planned if _order_left_out_of_zone(order, final_caps, final_polygon)]
+    if left_out:
+      return {
+        'status': 'ko',
+        'message': f'{len(left_out)} ordini già pianificati sul blocco resterebbero fuori zona: spostali prima',
+      }
 
   if polygon_provided:
     data['polygon'] = new_polygon
@@ -867,18 +921,3 @@ def annotate_out_of_zone(orders: list[dict]) -> None:
     lat, lon = order.get('address_lat'), order.get('address_lon')
     in_polygon = lat is not None and lon is not None and any(point_in_polygon((lat, lon), p) for p in polygons)
     order['out_of_zone'] = not in_polygon
-
-
-def count_orders_by_slot(cap: str, dpc: date, slots: list[tuple], exclude_order_id: int = None) -> dict:
-  with Session() as session:
-    query = session.query(Order).filter(Order.cap == cap, Order.dpc == dpc)
-    if exclude_order_id:
-      query = query.filter(Order.id != exclude_order_id)
-    orders = query.all()
-
-  counts = {slot: 0 for slot in slots}
-  for order in orders:
-    key = (order.delivery_slot_start, order.delivery_slot_end)
-    if key in counts:
-      counts[key] += 1
-  return counts

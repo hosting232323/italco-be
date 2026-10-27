@@ -35,6 +35,7 @@ from src.database.schema import (
   ScheduleItemOrder,
 )
 from src.schedulation.auto_planning import (
+  optimize_schedules_after_commit,
   auto_plan_order,
   find_coverage_entry,
   find_or_create_schedule,
@@ -329,16 +330,13 @@ def test_auto_plan_third_order_inserts_optimally(
 
   from database_api import Session
 
-  for order in [order1, order2]:
+  for order in [order1, order2, order3]:
     with Session() as session:
       session.flush()
-      auto_plan_order(order, session)
+      planned = auto_plan_order(order, session)
       session.commit()
-
-  with Session() as session:
-    session.flush()
-    auto_plan_order(order3, session)
-    session.commit()
+    # Il percorso si calcola a transazione chiusa, come fanno gli endpoint.
+    optimize_schedules_after_commit(planned)
 
   schedules = _find(Schedule, date=TARGET, transport_id=entry.transport_id)
   items = sorted(
@@ -835,3 +833,91 @@ def test_sync_order_preload_gives_the_pickup_back_to_the_delivery_day(_optimize,
   assert len(stop) == 1
   day = _find(Schedule, date=TARGET)[0]
   assert _find(ScheduleItem, id=stop[0].schedule_item_id)[0].schedule_id == day.id
+
+
+# ---------------------------------------------------------------------------
+# Borderò già partito e tappe completate
+# ---------------------------------------------------------------------------
+
+
+def test_find_or_create_schedule_skips_a_schedule_that_has_started(db, entry, delivery_user):
+  from database_api import Session
+  from tests.unit.factories import create_schedule_item_user
+
+  order = _make_order_with_slot()
+  with Session() as session:
+    schedule, _ = find_or_create_schedule(entry, order, session)
+    session.commit()
+  create_schedule_item_user(delivery_user, schedule)
+
+  with Session() as session:
+    assert find_or_create_schedule(entry, order, session) == (None, False)
+    assert auto_plan_order(order, session) == []
+
+
+def test_find_or_create_schedule_skips_a_schedule_with_a_completed_stop(db, entry):
+  from database_api import Session
+  from tests.unit.factories import create_schedule_item
+
+  order = _make_order_with_slot()
+  with Session() as session:
+    schedule, _ = find_or_create_schedule(entry, order, session)
+    session.commit()
+  create_schedule_item(schedule, completed=True)
+
+  with Session() as session:
+    assert find_or_create_schedule(entry, order, session) == (None, False)
+
+
+@patch('src.schedulation.routing.trip_order_osrm', side_effect=lambda coords: list(reversed(range(len(coords)))))
+@patch('src.schedulation.routing.get_lat_lon_by_address', return_value=(None, None))
+@patch('src.schedulation.routing.get_lat_lon_by_cap', side_effect=lambda cap: (41.0, 16.0 + int(cap[-1]) / 100))
+def test_optimization_leaves_completed_stops_where_they_are(mock_cap, mock_address, mock_trip, db, entry):
+  from database_api import Session
+  from database_api.operations import update
+  from src.schedulation.routing import optimize_schedule_stops
+  from tests.unit.factories import create_schedule, link_order_to_schedule
+
+  transport_schedule = create_schedule(schedule_date=TARGET)
+  items = []
+  for index, cap in enumerate(['76011', '76012', '76013']):
+    order = _make_order_with_slot(cap=cap)
+    items.append(
+      link_order_to_schedule(order, transport_schedule, index=index, start_time_slot=SLOT_START, end_time_slot=SLOT_END)
+    )
+  update(items[0], {'completed': True})
+
+  with Session() as session:
+    optimize_schedule_stops(session.get(Schedule, transport_schedule.id), session)
+    session.commit()
+
+  assert _find(ScheduleItem, id=items[0].id)[0].index == 0
+  assert sorted(item.index for item in _find(ScheduleItem, schedule_id=transport_schedule.id)) == [0, 1, 2]
+
+
+@patch('src.schedulation.auto_planning.plan_schedule_stops', return_value=None)
+def test_optimize_schedules_after_commit_skips_when_there_is_nothing_to_order(mock_plan, db, entry, delivery_user):
+  from database_api import Session
+
+  order = _make_order_with_slot()
+  with Session() as session:
+    planned = auto_plan_order(order, session)
+    session.commit()
+
+  optimize_schedules_after_commit(planned)
+
+  assert mock_plan.called
+
+
+def test_optimize_schedules_after_commit_survives_a_failure(db, entry, delivery_user):
+  from database_api import Session
+
+  order = _make_order_with_slot()
+  with Session() as session:
+    planned = auto_plan_order(order, session)
+    session.commit()
+
+  with patch('src.schedulation.auto_planning.plan_schedule_stops', side_effect=RuntimeError('osrm down')):
+    optimize_schedules_after_commit(planned)
+
+  assert len(_find(ScheduleItem, schedule_id=planned[0][1].schedule_id)) == 1

@@ -292,6 +292,22 @@ def get_schedule_item_by_order(order: Order, session: session_type = None) -> Sc
   )
 
 
+def schedule_has_started(schedule: Schedule, session: session_type) -> bool:
+  """Se il borderò è già in giro: un corriere ne ha preso la posizione o una tappa è completata.
+
+  Da quel momento il piano non va più toccato dalla pianificazione automatica:
+  aggiungere o riordinare tappe cambierebbe il giro sotto i piedi del corriere.
+  """
+  if session.query(ScheduleItemUser.id).filter(ScheduleItemUser.schedule_id == schedule.id).first():
+    return True
+  return (
+    session.query(ScheduleItem.id)
+    .filter(ScheduleItem.schedule_id == schedule.id, ScheduleItem.completed.is_(True))
+    .first()
+    is not None
+  )
+
+
 @db_session_decorator(commit=False)
 def get_schedule_by_order(order_id: int, session: session_type = None) -> Schedule:
   return (
