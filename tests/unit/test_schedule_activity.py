@@ -7,7 +7,7 @@ from database_api.operations import create
 import src.end_points.schedule as schedule_endpoints
 from src.database.enum import ScheduleItemUserType
 from src.database.schema import Order, Schedule, ScheduleItem, ScheduleItemActivity, ScheduleItemUser, Transport, User
-from src.end_points.schedule.delivery import get_history_for_delivery, get_items_for_delivery, update_schedule_item
+from src.end_points.schedule.delivery import get_items_for_delivery, update_schedule_item
 from src.end_points.schedule.queries import get_latest_schedule_item_user
 from tests.unit.factories import admin_header, assign_delivery_user_to_schedule
 from tests.unit.test_schedule_update_transactions import _create_schedule_with_order, _payload, schedule_client  # noqa: F401
