@@ -1,3 +1,4 @@
+import re
 import secrets
 import string
 from flask import Blueprint, request
@@ -20,6 +21,8 @@ from .queries import (
 
 
 user_bp = Blueprint('user_bp', __name__)
+
+EMAIL_REGEX = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
 def _generate_password(length=12) -> str:
@@ -65,6 +68,8 @@ def create_user(_):
   email = (request.json.get('email') or '').strip() or None
   if is_login_identifier_taken(nickname):
     return {'status': 'ko', 'message': 'Nickname già in uso'}
+  if email and not EMAIL_REGEX.match(email):
+    return {'status': 'ko', 'message': 'Formato email non valido'}
   if email and is_login_identifier_taken(email):
     return {'status': 'ko', 'message': 'Email già in uso'}
 
@@ -132,6 +137,8 @@ def update_user(_, id):
 
   if nickname and nickname != user.nickname and is_login_identifier_taken(nickname, user.id):
     return {'status': 'ko', 'message': 'Nickname già in uso'}
+  if email and not EMAIL_REGEX.match(email):
+    return {'status': 'ko', 'message': 'Formato email non valido'}
   if email and email != user.email and is_login_identifier_taken(email, user.id):
     return {'status': 'ko', 'message': 'Email già in uso'}
 
