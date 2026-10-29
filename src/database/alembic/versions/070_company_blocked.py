@@ -1,7 +1,7 @@
 """company blocked
 
-Revision ID: 068
-Revises: 067
+Revision ID: 070
+Revises: 069
 Create Date: 2026-10-27 12:00:00.000000
 
 Blocco manuale di un'attività da parte del super admin (spento per tutte, nessun backfill).
@@ -13,8 +13,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = '068'
-down_revision: Union[str, None] = '067'
+revision: str = '070'
+down_revision: Union[str, None] = '069'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
