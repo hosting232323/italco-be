@@ -66,7 +66,6 @@ _FILTER_MODELS = {
   'User': User,
   'DeliveryUserInfo': DeliveryUserInfo,
   'Order': Order,
-  'DeliveryUserInfo': DeliveryUserInfo,
   'Transport': Transport,
   'ScheduleItem': ScheduleItem,
   'ScheduleItemCollectionPoint': ScheduleItemCollectionPoint,
