@@ -714,3 +714,19 @@ def test_update_user_sets_email_and_rejects_duplicates(client):
   assert ok.get_json()['status'] == 'ok'
   with Session() as session:
     assert session.get(User, driver.id).email == 'nuova@mail.it'
+
+
+def test_create_and_update_user_reject_malformed_email(client):
+  admin = create_user(UserRole.ADMIN)
+  driver = create_user(UserRole.DELIVERY, nickname='driver-bad-mail')
+  expected = {'status': 'ko', 'message': 'Formato email non valido'}
+
+  created = client.post(
+    '/user',
+    json={'nickname': 'nuovo-bad', 'email': 'non-una-mail', 'password': 'pw', 'role': 'Delivery'},
+    headers=auth_header(admin),
+  )
+  updated = client.put(f'/user/{driver.id}', json={'email': 'manca@punto'}, headers=auth_header(admin))
+
+  assert created.get_json() == expected
+  assert updated.get_json() == expected
