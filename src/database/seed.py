@@ -178,7 +178,6 @@ def seed_company_data():
     create(
       DeliveryUserInfo,
       {
-        'cap': '70020',
         'lat': 41.3 + (index * 0.01),
         'lon': 16.2 + (index * 0.01),
         'user_id': delivery_user.id,
