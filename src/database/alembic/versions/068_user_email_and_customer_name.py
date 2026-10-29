@@ -14,7 +14,6 @@ corrente; i punti vendita senza scheda ne ricevono una.
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
 
 
 revision: str = '068'

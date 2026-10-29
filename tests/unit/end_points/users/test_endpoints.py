@@ -681,11 +681,11 @@ def test_create_user_stores_optional_email(client):
 
 def test_create_user_rejects_email_equal_to_other_nickname(client):
   admin = create_user(UserRole.ADMIN)
-  create_user(UserRole.DELIVERY, nickname='lega')
+  create_user(UserRole.DELIVERY, nickname='lega@mail.it')
 
   response = client.post(
     '/user',
-    json={'nickname': 'nuovo', 'email': 'lega', 'password': 'pw', 'role': 'Delivery'},
+    json={'nickname': 'nuovo', 'email': 'lega@mail.it', 'password': 'pw', 'role': 'Delivery'},
     headers=auth_header(admin),
   )
 
