@@ -12,7 +12,6 @@ from .schema import (
   CustomerGroup,
   CustomerRule,
   CustomerUserInfo,
-  DeliveryGroup,
   DeliveryUserInfo,
   GeographicCode,
   GeographicZone,
@@ -134,17 +133,6 @@ def seed_company_data():
     },
   )
 
-  for index, delivery_user in enumerate(delivery_users):
-    create(
-      DeliveryUserInfo,
-      {
-        'cap': '70020',
-        'lat': 41.3 + (index * 0.01),
-        'lon': 16.2 + (index * 0.01),
-        'user_id': delivery_user.id,
-      },
-    )
-
   for index, customer_user in enumerate(customer_users):
     create(
       CustomerUserInfo,
@@ -178,6 +166,20 @@ def seed_company_data():
           'cap': '70020',
         },
       )
+    )
+
+  # La scheda del corriere nasce già sul suo veicolo: è da lì che i borderò
+  # ricavano chi guida, non c'è più un aggancio diretto utente-borderò.
+  for index, delivery_user in enumerate(delivery_users):
+    create(
+      DeliveryUserInfo,
+      {
+        'cap': '70020',
+        'lat': 41.3 + (index * 0.01),
+        'lon': 16.2 + (index * 0.01),
+        'user_id': delivery_user.id,
+        'transport_id': transports[index].id,
+      },
     )
 
   collection_points = []
@@ -290,13 +292,6 @@ def seed_company_data():
       {
         'schedule_item_id': schedule_items[index].id,
         'collection_point_id': collection_points[index].id,
-      },
-    )
-    create(
-      DeliveryGroup,
-      {
-        'user_id': delivery_users[index].id,
-        'schedule_id': schedules[index].id,
       },
     )
 
@@ -412,7 +407,6 @@ def can_create() -> bool:
     CustomerUserInfo,
     CustomerGroup,
     CustomerRule,
-    DeliveryGroup,
     Transport,
     Order,
     Schedule,

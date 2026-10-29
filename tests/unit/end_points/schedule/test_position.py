@@ -5,7 +5,7 @@ from src.end_points.schedule.position import claim_schedule_position, get_schedu
 
 from tests.unit.factories import (
   auth_header,
-  create_delivery_group,
+  assign_delivery_user_to_schedule,
   create_schedule,
   create_schedule_item_user,
   create_user,
@@ -16,8 +16,8 @@ def _bordero_with_couriers():
   first = create_user(UserRole.DELIVERY)
   second = create_user(UserRole.DELIVERY)
   schedule = create_schedule(schedule_date=date.today())
-  create_delivery_group(first, schedule)
-  create_delivery_group(second, schedule)
+  assign_delivery_user_to_schedule(first, schedule)
+  assign_delivery_user_to_schedule(second, schedule)
   return first, second, schedule
 
 
