@@ -21,7 +21,9 @@ from src import STATIC_FOLDER
 from src.database.schema import Company
 from src.end_points.company import LOGO_SUBFOLDER
 
-from tests.unit.factories import auth_header, create_company, create_super_admin
+from src.database.enum import UserRole
+
+from tests.unit.factories import admin_header, auth_header, create_company, create_super_admin, create_user
 
 
 FAKE_PNG = b'\x89PNG\r\n\x1a\n' + b'0' * 32
@@ -166,3 +168,32 @@ def test_update_company_rejects_clearing_a_required_legal_field(db, client):
 
   assert body['status'] == 'ko'
   assert 'Ragione sociale' in body['message']
+
+
+def test_company_mails_are_replaced_normalized_and_deduplicated(db, client):
+  headers = admin_header()
+
+  body = client.put(
+    '/company/mail', json={'mails': [' A@x.it ', 'a@x.it', 'b@x.it']}, headers=headers
+  ).get_json()
+  assert body == {'status': 'ok', 'mails': ['a@x.it', 'b@x.it']}
+
+  client.put('/company/mail', json={'mails': ['b@x.it', 'c@x.it']}, headers=headers)
+  assert client.get('/company/mail', headers=headers).get_json()['mails'] == ['b@x.it', 'c@x.it']
+
+
+def test_company_mails_reject_invalid_format(db, client):
+  headers = admin_header()
+
+  body = client.put('/company/mail', json={'mails': ['non-una-mail']}, headers=headers).get_json()
+
+  assert body['status'] == 'ko'
+  assert client.get('/company/mail', headers=headers).get_json()['mails'] == []
+
+
+def test_company_mails_are_isolated_per_company(db, client):
+  client.put('/company/mail', json={'mails': ['uno@x.it']}, headers=admin_header())
+
+  other = client.get('/company/mail', headers=auth_header(create_user(UserRole.ADMIN, company_id=create_company().id)))
+
+  assert other.get_json()['mails'] == []

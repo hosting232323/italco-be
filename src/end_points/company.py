@@ -1,4 +1,5 @@
 import os
+import re
 import json
 
 from api.users.security import hash_password
@@ -9,7 +10,7 @@ from sqlalchemy import desc
 from . import flask_session_authentication
 from .. import STATIC_FOLDER
 from ..database.enum import UserRole
-from ..database.schema import Company, User
+from ..database.schema import Company, CompanyMail, User
 from ..database.queries import get_user_by_nickname
 from .rae.disposal_place import (
   count_rae_disposal_places,
@@ -20,7 +21,7 @@ from .rae.disposal_place import (
 )
 from .users.session import create_jwt_token
 from database_api import Session, scope
-from database_api.operations import create, get_by_id, update
+from database_api.operations import create, delete, get_by_id, update
 from api.storage import get_full_path
 from api.storage.files import validate_files, IMAGE_EXTENSIONS
 from api.storage.utils import guess_extension, get_base_file_path
@@ -28,6 +29,8 @@ from api.storage.session import SessionWithStorage
 
 
 company_bp = Blueprint('company_bp', __name__)
+
+EMAIL_REGEX = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
 # Cartella dei loghi aziendali, sotto STATIC_FOLDER come le foto degli ordini.
@@ -220,6 +223,42 @@ def update_company(_, id):
     response_company = get_by_id(Company, int(id), session=session).to_dict()
 
   return {'status': 'ok', 'company': response_company}
+
+
+@company_bp.route('mail', methods=['GET'])
+@flask_session_authentication([UserRole.ADMIN])
+def get_company_mails(_):
+  return {'status': 'ok', 'mails': [mail.email for mail in query_company_mails()]}
+
+
+def query_company_mails() -> list[CompanyMail]:
+  with Session() as session:
+    return session.query(CompanyMail).order_by(CompanyMail.id).all()
+
+
+@company_bp.route('mail', methods=['PUT'])
+@flask_session_authentication([UserRole.ADMIN])
+def update_company_mails(_):
+  """Sostituisce la lista dei destinatari delle email di anomalia dell'attività
+  (il filtro tenant limita alla company dell'utente). Una lista vuota è valida:
+  l'attività non riceve nessuna email finché non ne configura una."""
+  mails = request.json.get('mails')
+  if not isinstance(mails, list) or not all(isinstance(mail, str) for mail in mails):
+    return {'status': 'ko', 'message': 'Lista email non valida'}
+
+  cleaned = list(dict.fromkeys(mail.strip().lower() for mail in mails if mail.strip()))
+  invalid = [mail for mail in cleaned if not EMAIL_REGEX.match(mail)]
+  if invalid:
+    return {'status': 'ko', 'message': f'Formato email non valido: {", ".join(invalid)}'}
+
+  existing = {mail.email: mail for mail in query_company_mails()}
+  for email, mail in existing.items():
+    if email not in cleaned:
+      delete(mail)
+  for email in cleaned:
+    if email not in existing:
+      create(CompanyMail, {'email': email})
+  return {'status': 'ok', 'mails': cleaned}
 
 
 @company_bp.route('logo/<filename>', methods=['GET'])

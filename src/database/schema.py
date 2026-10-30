@@ -78,6 +78,16 @@ class Company(BaseEntity):
   rae_registration = Column(String)
 
 
+class CompanyMail(BaseItalcoEntity):
+  # Destinatari delle email di anomalia dell'attività (ordini non consegnati,
+  # da rischedulare, in ritardo, con anomalia). La lista la configura l'admin
+  # dell'attività; sostituisce gli indirizzi un tempo scritti nel codice.
+  __tablename__ = 'company_mail'
+  __table_args__ = (UniqueConstraint('company_id', 'email', name='company_mail_company_id_email_key'),)
+
+  email = Column(String, nullable=False)
+
+
 class User(BaseItalcoEntity):
   __tablename__ = 'user'
 

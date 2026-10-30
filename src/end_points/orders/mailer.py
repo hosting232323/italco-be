@@ -9,22 +9,18 @@ from database_api import Session
 from .queries import get_order_photos
 from ... import STATIC_FOLDER
 from ...database.enum import OrderStatus
-from ...database.schema import Order, User, CustomerUserInfo, ServiceUser, Product
+from ...database.schema import Order, User, CustomerUserInfo, ServiceUser, Product, CompanyMail
 
 
-MAILS = (
-  ['coppolagabriele973@gmail.com']
-  if not IS_DEV
-  else ['coppolagabriele973@gmail.com', 'colasanto.giovanni.inf@gmail.com']
-)
-
-
-def get_mails(order: Order):
-  if IS_DEV:
-    return MAILS
-  else:
-    user_info = get_user_mail(order)
-    return list(set(MAILS + ([user_info.email] if user_info and user_info.email else [])))
+def get_mails(order: Order) -> list[str]:
+  """Destinatari delle email di anomalia: la lista configurata dall'admin
+  dell'attività dell'ordine più la mail del punto vendita, se c'è."""
+  with Session() as session:
+    company_mails = [
+      mail.email for mail in session.query(CompanyMail).filter(CompanyMail.company_id == order.company_id).all()
+    ]
+  user_info = get_user_mail(order)
+  return list(dict.fromkeys(company_mails + ([user_info.email] if user_info and user_info.email else [])))
 
 
 def mailer_check(order: Order, data: dict, motivation: str | None):
