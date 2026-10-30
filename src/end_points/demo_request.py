@@ -4,7 +4,6 @@ from flask import request, Blueprint
 
 from api.email import send_email
 from database_api.operations import create
-from .orders.mailer import MAILS
 from ..database.schema import Mail
 from ..rate_limit import client_ip, rate_limited
 
@@ -13,11 +12,11 @@ demo_request_bp = Blueprint('demo_request_bp', __name__)
 
 # Destinatari delle richieste. Il destinatario non arriva mai dal client (a
 # differenza di /send-mail di generic-be): l'endpoint e' pubblico e altrimenti
-# sarebbe un relay aperto. Senza variabile valgono gli indirizzi operativi
-# gia' usati per le email degli ordini.
+# sarebbe un relay aperto. La richiesta arriva alla piattaforma, non a una
+# singola attivita': senza variabile vale l'indirizzo operativo di default.
 DEMO_REQUEST_EMAILS = [
   email.strip() for email in os.environ.get('DEMO_REQUEST_EMAILS', '').split(',') if email.strip()
-] or MAILS
+] or ['coppolagabriele973@gmail.com']
 
 RATE_LIMIT_MAX = 5
 

@@ -3,7 +3,7 @@ from database_api.operations import create
 
 import src.end_points.orders.mailer as mailer
 from src.database.enum import OrderStatus
-from src.database.schema import Photo
+from src.database.schema import CompanyMail, Photo
 from src.end_points.orders.mailer import get_mails, get_user_mail, mailer_check
 
 from tests.unit.factories import (
@@ -45,12 +45,13 @@ def test_mailer_check_sends_for_not_delivered(db, monkeypatch, tmp_path):
   )
   monkeypatch.setattr(mailer, 'get_full_path', lambda *_: str(tmp_path))
   (tmp_path / 'foto.jpg').write_bytes(b'contenuto-immagine')
+  create(CompanyMail, {'email': 'titolare@example.com'})
   order = create_order(status=OrderStatus.NOT_DELIVERED, customer_note='citofonare due volte')
   create(Photo, {'order_id': order.id, 'link': 'http://x/foto.jpg'})
 
   mailer_check(order, {'status': OrderStatus.NOT_DELIVERED}, 'Cliente assente')
 
-  assert len(sent) == len(mailer.MAILS)
+  assert [mail for mail, *_ in sent] == ['titolare@example.com']
   _, content, subject, attachments = sent[0]
   assert '❌' in subject
   assert 'non completato' in subject
@@ -100,23 +101,18 @@ def test_mailer_check_without_motivation_uses_placeholder(db, monkeypatch):
   assert 'Nessuna motivazione fornita' in sent[0]['text']
 
 
-def test_get_mails_includes_customer_email_in_prod(db, monkeypatch):
-  monkeypatch.setattr(mailer, 'IS_DEV', False)
+def test_get_mails_includes_company_list_and_customer_email(db):
+  create(CompanyMail, {'email': 'titolare@example.com'})
   customer, _, service_user, _ = customer_with_service()
   create_customer_info(customer, email='negozio@example.com')
   order = create_order()
   create_product(order, service_user)
 
-  mails = get_mails(order)
-
-  assert 'negozio@example.com' in mails
-  assert set(mailer.MAILS) <= set(mails)
+  assert get_mails(order) == ['titolare@example.com', 'negozio@example.com']
 
 
-def test_get_mails_in_dev_returns_static_list(monkeypatch):
-  monkeypatch.setattr(mailer, 'IS_DEV', True)
-
-  assert get_mails(None) == mailer.MAILS
+def test_get_mails_without_configuration_is_empty(db):
+  assert get_mails(create_order()) == []
 
 
 def test_get_user_mail_finds_customer_info(db):
