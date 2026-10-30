@@ -1,4 +1,4 @@
-"""company automatic payment and subscription
+"""company automatic payment, subscription and manual block
 
 Revision ID: 069
 Revises: 068
@@ -8,7 +8,8 @@ Pagamento automatico per attività: il super admin accende il flag sulla company
 (spento per tutte, nessun backfill) e un prezzo mensile (subscription_price_cents), poi
 l'admin sottoscrive l'abbonamento Stripe dalla pagina di configurazione. Lo stato
 dell'abbonamento sta in una tabella a parte, una riga per company; gli eventi webhook
-già elaborati stanno in stripe_event, per non applicarli due volte.
+già elaborati stanno in stripe_event, per non applicarli due volte. La stessa migration
+aggiunge il flag `blocked` usato dal super admin per bloccare manualmente un'attività.
 """
 
 from typing import Sequence, Union
@@ -56,9 +57,11 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('event_id'),
   )
+  op.add_column('company', sa.Column('blocked', sa.Boolean(), nullable=False, server_default='false'))
 
 
 def downgrade() -> None:
+  op.drop_column('company', 'blocked')
   op.drop_table('stripe_event')
   op.drop_table('company_subscription')
   op.drop_column('company', 'subscription_price_cents')
