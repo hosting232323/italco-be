@@ -1,4 +1,4 @@
-"""user.email e customer_user_info.name migrato dal nickname
+"""user.email, customer_user_info.name migrato dal nickname e company_mail
 
 Revision ID: 068
 Revises: 067
@@ -9,11 +9,17 @@ Per i punti vendita il nickname faceva anche da nome in filtri e select: il
 nome diventa un campo della scheda punto vendita, inizializzato col nickname
 corrente; i punti vendita senza scheda ne ricevono una.
 
+company_mail: le email di anomalia andavano a indirizzi scritti nel codice, ora
+ogni attivita' ha la sua lista, configurata dal suo admin. Alla creazione della
+tabella ogni attivita' esistente riceve come lista iniziale l'indirizzo che
+prima era fisso, per non interrompere le notifiche in produzione.
+
 """
 
 from typing import Sequence, Union
 
 from alembic import op
+import sqlalchemy as sa
 
 
 revision: str = '068'
@@ -58,8 +64,29 @@ def upgrade() -> None:
     """
   )
 
+  bind = op.get_bind()
+  if not sa.inspect(bind).has_table('company_mail'):
+    op.create_table(
+      'company_mail',
+      sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+      sa.Column('company_id', sa.Integer(), nullable=False),
+      sa.Column('email', sa.String(), nullable=False),
+      sa.Column('created_at', sa.DateTime(timezone=True), nullable=True),
+      sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+      sa.ForeignKeyConstraint(['company_id'], ['company.id'], name='fk_company_mail_company_id'),
+      sa.PrimaryKeyConstraint('id'),
+      sa.UniqueConstraint('company_id', 'email', name='company_mail_company_id_email_key'),
+    )
+    op.execute(
+      """
+      INSERT INTO company_mail (company_id, email, created_at, updated_at)
+      SELECT id, 'coppolagabriele973@gmail.com', now(), now() FROM company
+      """
+    )
+
 
 def downgrade() -> None:
+  op.drop_table('company_mail')
   op.drop_column('customer_user_info', 'name')
   op.drop_constraint('user_email_key', 'user', type_='unique')
   op.drop_column('user', 'email')
