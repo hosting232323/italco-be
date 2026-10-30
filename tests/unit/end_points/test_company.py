@@ -271,9 +271,7 @@ def test_update_company_checks_the_hour_it_does_not_receive_against_the_saved_on
 def test_company_mails_are_replaced_normalized_and_deduplicated(db, client):
   headers = admin_header()
 
-  body = client.put(
-    '/company/mail', json={'mails': [' A@x.it ', 'a@x.it', 'b@x.it']}, headers=headers
-  ).get_json()
+  body = client.put('/company/mail', json={'mails': [' A@x.it ', 'a@x.it', 'b@x.it']}, headers=headers).get_json()
   assert body == {'status': 'ok', 'mails': ['a@x.it', 'b@x.it']}
 
   client.put('/company/mail', json={'mails': ['b@x.it', 'c@x.it']}, headers=headers)

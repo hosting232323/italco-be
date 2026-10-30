@@ -78,6 +78,7 @@ def test_mailer_check_sends_for_delay_and_anomaly_flags(db, monkeypatch):
   monkeypatch.setattr(
     mailer, 'send_email', lambda mail, content, subject, attachments=None, signature=None: sent.append(subject)
   )
+  create(CompanyMail, {'email': 'titolare@example.com'})
   order = create_order(status=OrderStatus.TO_RESCHEDULE)
 
   mailer_check(order, {'delay': True, 'anomaly': True}, None)
@@ -94,6 +95,7 @@ def test_mailer_check_without_motivation_uses_placeholder(db, monkeypatch):
   monkeypatch.setattr(
     mailer, 'send_email', lambda mail, content, subject, attachments=None, signature=None: sent.append(content)
   )
+  create(CompanyMail, {'email': 'titolare@example.com'})
   order = create_order(status=OrderStatus.NOT_DELIVERED)
 
   mailer_check(order, {'status': OrderStatus.NOT_DELIVERED}, None)
