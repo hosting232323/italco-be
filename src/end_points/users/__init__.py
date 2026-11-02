@@ -97,26 +97,6 @@ def create_user(_):
   return {'status': 'ok', 'message': 'Utente registrato', 'password': password}
 
 
-@user_bp.route('<id>', methods=['PUT'])
-@flask_session_authentication([UserRole.ADMIN])
-def update_user(_, id):
-  user: User = get_by_id(User, int(id))
-  if not user:
-    return {'status': 'ko', 'message': 'Utente non trovato'}
-
-  # Scope minimo: solo il flag di pianificazione automatica, e solo per i
-  # punti vendita di un'attività che ha già acceso il flag gemello su Company
-  # (stessa condizione di create_user, qui riapplicata perché il flag può
-  # essere spento in un secondo momento dopo che il punto vendita esisteva già).
-  if 'automatic_planning' not in request.json:
-    return {'status': 'ko', 'message': 'Nessun campo da aggiornare'}
-  if user.role != UserRole.CUSTOMER or not is_automatic_planning_enabled():
-    return {'status': 'ko', 'message': 'Pianificazione automatica non disponibile per questo utente'}
-
-  user = update(user, {'automatic_planning': bool(request.json['automatic_planning'])})
-  return {'status': 'ok', 'user': user.format_user(UserRole.ADMIN)}
-
-
 @user_bp.route('login', methods=['POST'])
 def login():
   password = request.json['password']
@@ -164,6 +144,13 @@ def update_user(_, id):
   email = (request.json.get('email') or '').strip()
   password = (request.json.get('password') or '').strip()
 
+  # Il flag di pianificazione automatica vale solo per i punti vendita di
+  # un'attività che ha già acceso il flag gemello su Company (stessa condizione
+  # di create_user, qui riapplicata perché il flag può essere spento in un
+  # secondo momento dopo che il punto vendita esisteva già).
+  if 'automatic_planning' in request.json and (user.role != UserRole.CUSTOMER or not is_automatic_planning_enabled()):
+    return {'status': 'ko', 'message': 'Pianificazione automatica non disponibile per questo utente'}
+
   if nickname and nickname != user.nickname and is_login_identifier_taken(nickname, user.id):
     return {'status': 'ko', 'message': 'Nickname già in uso'}
   if email and not EMAIL_REGEX.match(email):
@@ -178,13 +165,16 @@ def update_user(_, id):
       data['nickname'] = nickname
     if email:
       data['email'] = email
+    if 'automatic_planning' in request.json:
+      data['automatic_planning'] = bool(request.json['automatic_planning'])
     if password:
       data['password'] = hash_password(password)
       auth.revoke_user_sessions(user.id, db=session)
     if data:
       update(fresh, data, session=session)
+    updated = fresh.format_user(UserRole.ADMIN)
 
-  return {'status': 'ok', 'message': 'Utente aggiornato'}
+  return {'status': 'ok', 'message': 'Utente aggiornato', 'user': updated}
 
 
 @user_bp.route('<id>/password', methods=['POST'])
