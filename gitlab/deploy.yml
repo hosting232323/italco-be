@@ -164,7 +164,6 @@ deploy_test:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       when: manual
-      allow_failure: true
     - if: '$CI_COMMIT_BRANCH'
       when: manual
   variables:
@@ -172,6 +171,26 @@ deploy_test:
     PUBLIC_HOST_PIPELINE: "test.${PUBLIC_HOST}"
     HOST_PREFIX: "test."
     DATABASE_URL_PIPELINE: "${DATABASE_URL}_test"
+    EURONICS_API_PASSWORD_PIPELINE: 0
+    IS_DEV: 1
+
+# Ambiente dedicato ai lavori lunghi (es. pianificazione automatica): container,
+# host e DB separati da prod, cosi' il branch resta online per giorni. Il DB usa
+# il suffisso _demo.
+deploy_demo:
+  extends: .deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "demo/pianificazione-automatica"'
+      when: manual
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: manual
+    - if: '$CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "trigger"'
+      when: manual
+  variables:
+    SERVICE: "${PROJECT_NAME}-demo"
+    PUBLIC_HOST_PIPELINE: "demo.${PUBLIC_HOST}"
+    HOST_PREFIX: "demo."
+    DATABASE_URL_PIPELINE: "${DATABASE_URL}_demo"
     EURONICS_API_PASSWORD_PIPELINE: 0
     IS_DEV: 1
 

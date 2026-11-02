@@ -4,8 +4,8 @@ from sqlalchemy import desc
 from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
-from ..database.schema import Transport, DeliveryUserInfo, User
-from database_api.operations import create, delete, get_by_id, update
+from ..database.schema import Transport, DeliveryCoverageEntry, DeliveryUserInfo, Order, Product, Schedule, User
+from database_api.operations import create, delete, get_by_id, get_by_params, update
 
 
 transport_bp = Blueprint('transport_bp', __name__)
@@ -17,6 +17,8 @@ def create_transport(_):
   payload = dict(request.json)
   user_ids = payload.pop('user_ids', None)
   payload.pop('delivery_users', None)
+  if user_ids is not None and query_invalid_delivery_user_ids(user_ids):
+    return {'status': 'ko', 'message': 'Uno o più utenti selezionati non sono utenti delivery validi'}
   transport = create(Transport, payload)
   if user_ids is not None:
     sync_transport_users(transport.id, user_ids)
@@ -26,9 +28,44 @@ def create_transport(_):
 @transport_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.ADMIN])
 def delete_transport(_, id):
+  transport_id = int(id)
+  # schedule.transport_id e delivery_coverage_entry.transport_id sono NOT
+  # NULL con FK NO ACTION: senza questo controllo la delete fallirebbe
+  # comunque a livello DB, ma con un errore secco invece che un messaggio
+  # comprensibile (stesso pattern di delete_order).
+  if get_by_params(Schedule, [('transport_id', transport_id)]):
+    return {
+      'status': 'ko',
+      'message': "Il veicolo ha ancora dei borderò associati: rimuovili prima di procedere con l'eliminazione",
+    }
+  if get_by_params(DeliveryCoverageEntry, [('transport_id', transport_id)]):
+    return {
+      'status': 'ko',
+      'message': (
+        'Il veicolo è ancora usato in uno o più blocchi di copertura corrieri: '
+        "rimuovili prima di procedere con l'eliminazione"
+      ),
+    }
+
+  # Ogni ordine pianificato referenzia il veicolo (FK NO ACTION): senza questo
+  # controllo la delete esploderebbe in un errore generico.
+  if get_by_params(Order, [('delivery_transport_id', transport_id)]):
+    return {
+      'status': 'ko',
+      'message': "Il veicolo e' ancora associato a degli ordini pianificati: non si puo' eliminare",
+    }
+
+  if get_by_params(Product, [('transport_id', transport_id)]) or get_by_params(
+    Product, [('release_transport_id', transport_id)]
+  ):
+    return {
+      'status': 'ko',
+      'message': "Il veicolo e' ancora associato a dei prodotti: non si puo' eliminare",
+    }
+
   # Gli utenti restano, tornano solo senza veicolo: stacca prima la FK.
-  sync_transport_users(int(id), [])
-  delete(get_by_id(Transport, int(id)))
+  sync_transport_users(transport_id, [])
+  delete(get_by_id(Transport, transport_id))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
 
@@ -48,6 +85,8 @@ def update_transport(_, id):
   payload = dict(request.json)
   user_ids = payload.pop('user_ids', None)
   payload.pop('delivery_users', None)
+  if user_ids is not None and query_invalid_delivery_user_ids(user_ids):
+    return {'status': 'ko', 'message': 'Uno o più utenti selezionati non sono utenti delivery validi'}
   transport: Transport = get_by_id(Transport, int(id))
   update(transport, payload)
   if user_ids is not None:
@@ -58,6 +97,16 @@ def update_transport(_, id):
 def query_transports() -> list[Transport]:
   with Session() as session:
     return session.query(Transport).order_by(desc(Transport.created_at)).all()
+
+
+def query_invalid_delivery_user_ids(user_ids: list) -> list[int]:
+  """Gli id che non sono utenti DELIVERY della company attiva (la query e' gia' filtrata per tenant)."""
+  wanted = {int(user_id) for user_id in user_ids or []}
+  if not wanted:
+    return []
+  with Session() as session:
+    valid = {row[0] for row in session.query(User.id).filter(User.id.in_(wanted), User.role == UserRole.DELIVERY)}
+  return sorted(wanted - valid)
 
 
 def delivery_users_by_transport() -> dict[int, list[dict]]:

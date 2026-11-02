@@ -53,6 +53,27 @@ Gli SMS ora partono dopo il commit (niente più invii su transazioni poi annulla
 se Vonage fallisce il client riceve 500 con dati già committati. La soluzione completa è una coda
 outbox processata fuori richiesta.
 
+## SPUNTO BE: OSRM (ora self-hosted su osrm.fastsite.it, URL fisso nel codice)
+
+L'ottimizzazione del percorso del borderò (src/schedulation/auto_planning.py) chiama `/trip` di
+OSRM, e src/end_points/service/travel.py usa `/table` per la matrice durate. Di default entrambi
+puntano al demo pubblico `router.project-osrm.org`, che non è pensato per produzione: nessuno SLA,
+rate limit non documentati, dati OSM non aggiornabili a piacere. Decisione del 2026-09-17: usarlo
+comunque per non bloccare la feature su un lavoro di deploy separato.
+
+Fatto: il base URL è fisso in `src/__init__.py` (`https://osrm.fastsite.it`), la variabile `OSRM_BASE_URL`
+è stata tolta (con il valore senza schema in CI il codice cadeva sempre nel fallback).
+Trovato collaudando l'istanza self-hosted: `/trip` con `roundtrip=false&source=any&destination=any`
+non e' supportato da OSRM (`NotImplemented`, anche sul demo pubblico), quindi `trip_order_osrm`
+falliva sempre e il borderò restava nell'ordine originale senza errori visibili. Ora si chiede il
+giro chiuso e lo si apre sul tratto piu' lungo.
+Il fallback Haversine in `sequential_travel_minutes` e l'ordine originale in `trip_order_osrm`
+coprono già i casi di OSRM irraggiungibile.
+
+Resta aperto: hostare l'istanza (stesso discorso di nominatim.fastsite.it, vedi src/utils/caps.py)
+se l'auto planning diventa affidamento primario o compaiono errori/timeout ricorrenti in produzione.
+Servirà un estratto OSM del Sud Italia, lo stesso già usato per Nominatim.
+
 # COSE VISTE
 
 - Admin ha la possibilità di vedere nella pagina log tutte le richieste effettuate al be

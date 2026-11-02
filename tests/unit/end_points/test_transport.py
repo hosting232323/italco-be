@@ -1,16 +1,31 @@
+from datetime import time
+
 from database_api import Session
-from database_api.operations import get_by_id
+from database_api.operations import create, get_by_id
 
 from src.database.enum import UserRole
-from src.database.schema import Transport, DeliveryUserInfo
+from src.database.schema import Transport, DeliveryCoverageEntry, DeliveryUserInfo
 from src.end_points.transport import query_transports, sync_transport_users
 
 from tests.unit.factories import (
   auth_header,
   create_delivery_info,
+  create_schedule,
   create_transport,
   create_user,
 )
+
+
+def _coverage_entry(transport: Transport) -> DeliveryCoverageEntry:
+  return create(
+    DeliveryCoverageEntry,
+    {
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': time.fromisoformat('08:00:00'),
+      'end_time': time.fromisoformat('12:00:00'),
+    },
+  )
 
 
 def _info_for(user):
@@ -65,6 +80,31 @@ def test_delete_transport(client):
 
   assert response.get_json()['status'] == 'ok'
   assert get_by_id(Transport, transport.id) is None
+
+
+def test_delete_transport_rejects_when_schedule_attached(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  create_schedule(transport=transport)
+
+  response = client.delete(f'/transport/{transport.id}', headers=auth_header(admin))
+
+  assert response.get_json() == {
+    'status': 'ko',
+    'message': "Il veicolo ha ancora dei borderò associati: rimuovili prima di procedere con l'eliminazione",
+  }
+  assert get_by_id(Transport, transport.id) is not None
+
+
+def test_delete_transport_rejects_when_coverage_entry_attached(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _coverage_entry(transport)
+
+  response = client.delete(f'/transport/{transport.id}', headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
+  assert get_by_id(Transport, transport.id) is not None
 
 
 def test_transport_endpoints_require_admin(client):
@@ -184,3 +224,56 @@ def test_sync_transport_users_is_idempotent(db):
     rows = session.query(DeliveryUserInfo).filter(DeliveryUserInfo.user_id == user.id).all()
   assert len(rows) == 1
   assert rows[0].transport_id == transport.id
+
+
+def test_create_transport_rejects_users_that_are_not_delivery(client):
+  admin = create_user(UserRole.ADMIN)
+  customer = create_user(UserRole.CUSTOMER)
+
+  response = client.post(
+    '/transport',
+    json={'name': 'Furgone', 'plate': 'AA111BB', 'user_ids': [customer.id]},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ko'
+  assert query_transports() == []
+
+
+def test_update_transport_rejects_users_that_do_not_exist(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+
+  response = client.put(f'/transport/{transport.id}', json={'user_ids': [999999]}, headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
+
+
+def test_delete_transport_rejects_when_products_reference_it(client):
+  from database_api.operations import update
+
+  from tests.unit.factories import create_order, create_product, customer_with_service
+
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _, _, service_user, _ = customer_with_service()
+  product = create_product(create_order(), service_user)
+  update(product, {'transport_id': transport.id})
+
+  response = client.delete(f'/transport/{transport.id}', headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
+  assert get_by_id(Transport, transport.id) is not None
+
+
+def test_delete_transport_rejects_when_orders_are_planned_on_it(client):
+  from tests.unit.factories import create_order
+
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  create_order(delivery_transport_id=transport.id)
+
+  response = client.delete(f'/transport/{transport.id}', headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
+  assert get_by_id(Transport, transport.id) is not None

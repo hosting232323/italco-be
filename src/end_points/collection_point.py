@@ -1,3 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date
+
 from sqlalchemy import and_, desc
 from flask import Blueprint, request
 
@@ -5,25 +8,141 @@ from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
 from database_api.operations import create, delete, get_by_id, update
-from ..database.schema import CollectionPoint, User, ServiceUser, Product
+from ..database.schema import CollectionPoint, CollectionPointPreloadArea, Order, User, ServiceUser, Product
+from .delivery_coverage import _clean_caps, _clean_polygon
+from ..utils.geo import parse_coordinates
+from ..utils.caps import get_lat_lon_by_address
 
 
 collection_point_bp = Blueprint('collection_point_bp', __name__)
 
 
+def format_collection_point(collection_point: CollectionPoint, preload_areas: list | None = None) -> dict:
+  # lat/lon sono salvati sul punto: None se non sono ancora stati risolti (il FE
+  # lo interpreta come "nessun marker per questo punto").
+  return {
+    **collection_point.to_dict(),
+    'lat': collection_point.lat,
+    'lon': collection_point.lon,
+    'preload_areas': [area.to_dict() for area in preload_areas or []],
+  }
+
+
+def query_preload_areas(collection_point_ids: list[int]) -> dict[int, list[CollectionPointPreloadArea]]:
+  by_point: dict[int, list[CollectionPointPreloadArea]] = {}
+  if not collection_point_ids:
+    return by_point
+  with Session() as session:
+    areas = (
+      session.query(CollectionPointPreloadArea)
+      .filter(CollectionPointPreloadArea.collection_point_id.in_(collection_point_ids))
+      .order_by(CollectionPointPreloadArea.id)
+      .all()
+    )
+  for area in areas:
+    by_point.setdefault(area.collection_point_id, []).append(area)
+  return by_point
+
+
+def _coordinates(address: str) -> dict:
+  lat, lon = get_lat_lon_by_address(address) if address else (None, None)
+  return {'lat': lat, 'lon': lon}
+
+
+def _preloaded_orders_count(collection_point_id: int) -> int:
+  """Ordini precaricati con consegna da oggi con prodotti ritirati da questo punto.
+
+  Spegnere il flag con ordini cosi' farebbe tornare normali, senza spostare le tappe
+  gia' pianificate, ritiri che sono nel borderò della vigilia.
+  """
+  with Session() as session:
+    return (
+      session.query(Order.id)
+      .join(Product, Product.order_id == Order.id)
+      .filter(
+        Product.collection_point_id == collection_point_id,
+        Order.preloaded.is_(True),
+        Order.dpc >= date.today(),
+      )
+      .distinct()
+      .count()
+    )
+
+
+def _client_fields(payload: dict, user: User) -> dict:
+  # Le coordinate passano da _client_coordinates, mai così come arrivano.
+  # Il precarico cambia la pianificazione dei veicoli: lo imposta solo l'admin.
+  # preload_areas e' una relationship in sola lettura: il form rimanda il punto intero.
+  reserved = {'lat', 'lon', 'preload_areas'}
+  if user.role != UserRole.ADMIN:
+    reserved.add('preloaded')
+  return {key: value for key, value in payload.items() if key not in reserved}
+
+
+def _client_coordinates(payload: dict, collection_point: CollectionPoint = None) -> dict:
+  """Le coordinate mandate dal client, se sono una posizione nuova e plausibile.
+
+  Arrivano dal menu Google o dalla mappa della correzione indirizzo. Il form
+  però rimanda il punto intero, coordinate salvate comprese: se l'indirizzo
+  cambia e le coordinate sono ancora quelle salvate, sono del vecchio indirizzo
+  e decide il geocoder. Vuoto se non c'è niente da prendere dal client.
+  """
+  lat, lon = parse_coordinates(payload.get('lat'), payload.get('lon'))
+  if lat is None:
+    return {}
+  if collection_point is not None:
+    moved = payload.get('address', collection_point.address) != collection_point.address
+    if moved and (lat, lon) == (collection_point.lat, collection_point.lon):
+      return {}
+  return {'lat': lat, 'lon': lon}
+
+
+def backfill_coordinates(collection_points: list[CollectionPoint]) -> None:
+  """Risolve e salva le coordinate dei punti che non le hanno ancora.
+
+  Succede una volta sola per punto (quelli creati prima che si salvassero, o il
+  cui geocoding era fallito): le letture successive non toccano il geocoder. Se
+  non risponde il punto resta senza coordinate e ci si riprova alla lettura dopo,
+  senza far fallire la lista: serve anche a scegliere il punto di ritiro
+  nella creazione dell'ordine.
+  """
+  missing = [point for point in collection_points if point.lat is None or point.lon is None]
+  if not missing:
+    return
+
+  with ThreadPoolExecutor(max_workers=min(10, len(missing))) as executor:
+    resolved = list(executor.map(lambda point: _coordinates(point.address), missing))
+
+  for point, coordinates in zip(missing, resolved):
+    if coordinates['lat'] is None:
+      continue
+    update(point, coordinates)
+    point.lat, point.lon = coordinates['lat'], coordinates['lon']
+
+
 @collection_point_bp.route('', methods=['POST'])
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
 def create_collection_point(user: User):
-  data = {**request.json}
+  data = {**_client_fields(request.json, user)}
   # Il cliente crea solo per sé; operatore/admin lo creano per il cliente indicato.
   if user.role == UserRole.CUSTOMER or not data.get('user_id'):
     data['user_id'] = user.id
+  coordinates = _client_coordinates(request.json)
+  if coordinates:
+    data.update(coordinates)
+  elif data.get('address'):
+    data.update(_coordinates(data['address']))
   return {'status': 'ok', 'collection_point': create(CollectionPoint, data).to_dict()}
 
 
 @collection_point_bp.route('<id>', methods=['DELETE'])
 @flask_session_authentication([UserRole.CUSTOMER])
 def delete_collection_point(_, id):
+  with Session() as session:
+    session.query(CollectionPointPreloadArea).filter(CollectionPointPreloadArea.collection_point_id == int(id)).delete(
+      synchronize_session=False
+    )
+    session.commit()
   delete(get_by_id(CollectionPoint, int(id)))
   return {'status': 'ok', 'message': 'Operazione completata'}
 
@@ -32,14 +151,83 @@ def delete_collection_point(_, id):
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN, UserRole.DELIVERY])
 def get_collection_points(user: User):
   collection_points = query_collection_points(user, request.args.get('user_id', type=int))
-  return {'status': 'ok', 'collection_points': [collection_point.to_dict() for collection_point in collection_points]}
+  if not collection_points:
+    return {'status': 'ok', 'collection_points': []}
+
+  backfill_coordinates(collection_points)
+  areas = query_preload_areas([point.id for point in collection_points])
+  return {
+    'status': 'ok',
+    'collection_points': [format_collection_point(point, areas.get(point.id)) for point in collection_points],
+  }
 
 
 @collection_point_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.CUSTOMER, UserRole.OPERATOR, UserRole.ADMIN])
-def update_collection_point(_, id):
+def update_collection_point(user: User, id):
   collection_point: CollectionPoint = get_by_id(CollectionPoint, int(id))
-  return {'status': 'ok', 'order': update(collection_point, request.json).to_dict()}
+  data = _client_fields(request.json, user)
+  if collection_point.preloaded and 'preloaded' in data and not data['preloaded']:
+    pending = _preloaded_orders_count(collection_point.id)
+    if pending:
+      return {
+        'status': 'ko',
+        'message': (
+          f'Impossibile disattivare il precarico: {pending} ordini precaricati da oggi in poi ritirano '
+          'prodotti da questo punto. Sposta o ripianifica quegli ordini prima.'
+        ),
+      }
+  coordinates = _client_coordinates(request.json, collection_point)
+  if coordinates:
+    data.update(coordinates)
+  elif 'address' in data and data['address'] != collection_point.address:
+    data.update(_coordinates(data['address']))
+  return {'status': 'ok', 'order': update(collection_point, data).to_dict()}
+
+
+def _preload_area_fields(payload: dict) -> dict | None:
+  """Campi validati di un'area di precarico, o None se non e' ne' per CAP ne' un poligono."""
+  caps = _clean_caps(payload.get('caps'))
+  polygon = _clean_polygon(payload.get('polygon'))
+  if not caps and not polygon:
+    return None
+  name = str(payload.get('name') or '').strip() or None
+  return {'name': name, 'caps': caps, 'polygon': polygon}
+
+
+@collection_point_bp.route('<id>/preload-area', methods=['POST'])
+@flask_session_authentication([UserRole.ADMIN])
+def create_preload_area(_, id):
+  collection_point = get_by_id(CollectionPoint, int(id))
+  if not collection_point:
+    return {'status': 'ko', 'message': 'Punto di ritiro non trovato'}
+  fields = _preload_area_fields(request.json)
+  if fields is None:
+    return {'status': 'ko', 'message': "Seleziona almeno un CAP o disegna un'area sulla mappa"}
+  area = create(CollectionPointPreloadArea, {**fields, 'collection_point_id': collection_point.id})
+  return {'status': 'ok', 'preload_area': area.to_dict()}
+
+
+@collection_point_bp.route('preload-area/<id>', methods=['PUT'])
+@flask_session_authentication([UserRole.ADMIN])
+def update_preload_area(_, id):
+  area = get_by_id(CollectionPointPreloadArea, int(id))
+  if not area:
+    return {'status': 'ko', 'message': 'Area non trovata'}
+  fields = _preload_area_fields(request.json)
+  if fields is None:
+    return {'status': 'ko', 'message': "Seleziona almeno un CAP o disegna un'area sulla mappa"}
+  return {'status': 'ok', 'preload_area': update(area, fields).to_dict()}
+
+
+@collection_point_bp.route('preload-area/<id>', methods=['DELETE'])
+@flask_session_authentication([UserRole.ADMIN])
+def delete_preload_area(_, id):
+  area = get_by_id(CollectionPointPreloadArea, int(id))
+  if not area:
+    return {'status': 'ko', 'message': 'Area non trovata'}
+  delete(area)
+  return {'status': 'ok', 'message': 'Operazione completata'}
 
 
 def query_collection_points(user: User, customer_id: int | None = None) -> list[CollectionPoint]:

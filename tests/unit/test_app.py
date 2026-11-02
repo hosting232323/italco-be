@@ -38,15 +38,56 @@ def test_all_blueprints_are_registered(app):
 
 def test_check_constraints_intersects_rule_sets(client, monkeypatch):
   customer = create_user(UserRole.CUSTOMER)
+  monkeypatch.setattr(main_module, 'IS_DEV', False)
   monkeypatch.setattr(main_module, 'check_customer_rules', lambda user: ['2026-07-15', '2026-07-16', '2026-07-17'])
-  monkeypatch.setattr(main_module, 'check_geographic_zone', lambda: ['2026-07-16', '2026-07-17', '2026-07-18'])
   monkeypatch.setattr(main_module, 'check_services_date', lambda: ['2026-07-16', '2026-07-17'])
+  monkeypatch.setattr(
+    main_module,
+    'check_delivery_coverage_slots',
+    lambda **kwargs: {
+      '2026-07-16': [{'start': '08:00', 'end': '12:00'}],
+      '2026-07-17': [{'start': '08:00', 'end': '12:00'}],
+      '2026-07-18': [{'start': '08:00', 'end': '12:00'}],
+    },
+  )
 
   response = client.post('/check-constraints', json={}, headers=auth_header(customer))
 
   body = response.get_json()
   assert body['status'] == 'ok'
   assert body['dates'] == ['2026-07-16', '2026-07-17']
+  # Senza CAP nel payload non c'e' nessuna copertura da cui dipendere.
+  assert body['covered'] is False
+  # Le fasce viaggiano solo per le date effettivamente ammesse dall'intersezione,
+  # anche se check_delivery_coverage_slots ne restituisce di più (es. 07-18).
+  assert body['slots'] == {
+    '2026-07-16': [{'start': '08:00', 'end': '12:00'}],
+    '2026-07-17': [{'start': '08:00', 'end': '12:00'}],
+  }
+  # Fuori dagli ambienti di test/demo niente diagnostica sui giorni bloccati.
+  assert 'blocked' not in body
+
+
+def test_check_constraints_explains_blocked_days_only_in_dev(client, monkeypatch):
+  customer = create_user(UserRole.CUSTOMER)
+  monkeypatch.setattr(main_module, 'IS_DEV', True)
+  monkeypatch.setattr(main_module, 'check_customer_rules', lambda user: ['2026-07-16'])
+  monkeypatch.setattr(main_module, 'check_services_date', lambda: ['2026-07-16', '2026-07-17'])
+
+  def fake_slots(user=None, blocked_out=None, slot_notes_out=None):
+    blocked_out['2026-07-18'] = 'Fasce complete'
+    slot_notes_out['2026-07-16'] = [{'start': '14:00', 'end': '18:00', 'reason': 'Capienza esaurita'}]
+    return {'2026-07-16': [{'start': '08:00', 'end': '12:00'}], '2026-07-17': [{'start': '08:00', 'end': '12:00'}]}
+
+  monkeypatch.setattr(main_module, 'check_delivery_coverage_slots', fake_slots)
+
+  body = client.post('/check-constraints', json={}, headers=auth_header(customer)).get_json()
+
+  assert body['dates'] == ['2026-07-16']
+  reasons = {group['reason']: group['dates'] for group in body['blocked']}
+  assert reasons['Fasce complete'] == ['2026-07-18']
+  assert reasons['Limite ordini giornalieri del punto vendita raggiunto o giorno escluso'] == ['2026-07-17']
+  assert body['slot_notes'] == {'2026-07-16': [{'start': '14:00', 'end': '18:00', 'reason': 'Capienza esaurita'}]}
 
 
 def test_check_constraints_requires_customer_role(client):

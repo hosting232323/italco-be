@@ -2,7 +2,13 @@ from unittest.mock import patch
 
 import pytest
 
-from src.utils.caps import NOMINATIM_REVERSE_URL, get_cap_by_name, get_lat_lon_by_cap, get_province_by_cap
+from src.utils.caps import (
+  NOMINATIM_REVERSE_URL,
+  get_cap_by_name,
+  get_lat_lon_by_address,
+  get_lat_lon_by_cap,
+  get_province_by_cap,
+)
 
 
 def _nominatim_response(results):
@@ -88,3 +94,77 @@ def test_get_lat_lon_by_cap_returns_none_when_unresolvable(mock_get):
   mock_get.return_value = _nominatim_response([])
 
   assert get_lat_lon_by_cap('99999') == (None, None)
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_returns_coordinates(mock_get):
+  mock_get.return_value = _nominatim_response([{'lat': '41.2016', 'lon': '16.6008', 'address': {}}])
+
+  lat, lon = get_lat_lon_by_address('Via Andrea Doria, 15, Molfetta, BA')
+
+  assert lat == pytest.approx(41.2016)
+  assert lon == pytest.approx(16.6008)
+  assert mock_get.call_args.kwargs['params']['q'] == 'Via Andrea Doria, 15, Molfetta, BA'
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_returns_none_when_unresolvable(mock_get):
+  mock_get.return_value = _nominatim_response([])
+
+  assert get_lat_lon_by_address('Via Inesistente 0, Nessundove') == (None, None)
+
+
+@patch('src.utils.caps.requests.get')
+def test_lat_lon_by_address_degrades_when_the_geocoder_is_down_and_does_not_cache_the_failure(mock_get):
+  import requests
+
+  mock_get.side_effect = requests.ConnectionError('giù')
+  assert get_lat_lon_by_address('Via Roma 1, Bari') == (None, None)
+
+  mock_get.side_effect = None
+  mock_get.return_value = _nominatim_response([_address_result(county='Bari')])
+  assert get_lat_lon_by_address('Via Roma 1, Bari') == (41.1256, 16.8698)
+
+
+@patch('src.utils.caps.requests.get')
+def test_lat_lon_by_cap_degrades_when_the_geocoder_is_down(mock_get):
+  import requests
+
+  mock_get.side_effect = requests.Timeout('lento')
+  assert get_lat_lon_by_cap('70121') == (None, None)
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_falls_back_to_the_street_without_house_number(mock_get):
+  # Google chiama la via "Via Ludovico Ariosto", OpenStreetMap "Via Ariosto":
+  # l'indirizzo intero non si trova, la via senza civico nel comune nemmeno,
+  # il comune sì.
+  mock_get.side_effect = [
+    _nominatim_response([]),
+    _nominatim_response([]),
+    _nominatim_response([{'lat': '40.5597', 'lon': '17.8085', 'address': {}}]),
+  ]
+
+  assert get_lat_lon_by_address('Via Ludovico Ariosto, 14, Mesagne, BR') == (40.5597, 17.8085)
+  searches = [call.kwargs['params'] for call in mock_get.call_args_list]
+  assert (searches[1]['street'], searches[1]['city']) == ('Via Ludovico Ariosto', 'Mesagne')
+  assert searches[2]['city'] == 'Mesagne' and 'street' not in searches[2]
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_strips_a_house_number_attached_to_the_street(mock_get):
+  mock_get.side_effect = [
+    _nominatim_response([]),
+    _nominatim_response([{'lat': '41.1203', 'lon': '16.8722', 'address': {}}]),
+  ]
+
+  assert get_lat_lon_by_address('Corso Italia43/c, BARI, BA') == (41.1203, 16.8722)
+  assert mock_get.call_args.kwargs['params']['street'] == 'Corso Italia'
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_without_town_has_no_fallback(mock_get):
+  mock_get.return_value = _nominatim_response([])
+
+  assert get_lat_lon_by_address('Mesagne') == (None, None)
+  assert mock_get.call_count == 1

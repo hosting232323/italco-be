@@ -1,7 +1,7 @@
 from geopy.distance import geodesic
 
 from ..building import set_schedule_index
-from ...utils.caps import get_lat_lon_by_cap
+from ...utils.caps import get_lat_lon_by_caps
 from . import ClusteringRule, ScheduleItemGroup, ClusteringContext
 
 
@@ -46,8 +46,11 @@ def merge_small_sub_groups(sub_groups, min_size_group, max_size_group):
     return len([item for item in group if item['operation_type'] == 'Order'])
 
   def group_centroid(group):
-    coords = [get_lat_lon_by_cap(item['cap']) for item in group]
-    coords = [(lat, lon) for lat, lon in coords if lat is not None and lon is not None]
+    coords = [
+      (lat, lon)
+      for lat, lon in get_lat_lon_by_caps([item['cap'] for item in group if item.get('cap')])
+      if lat is not None and lon is not None
+    ]
     if not coords:
       return None
     return (sum(c[0] for c in coords) / len(coords), sum(c[1] for c in coords) / len(coords))
@@ -104,16 +107,18 @@ def merge_small_sub_groups(sub_groups, min_size_group, max_size_group):
 
 
 def cluster_orders_by_cap(order_items, collection_point_items, max_size_group, max_distance_km):
-  def get_coord(item):
-    lat, lon = get_lat_lon_by_cap(item['cap'])
-    return (lat, lon) if lat is not None and lon is not None else None
-
+  # Le coordinate si risolvono solo per gli ordini con un CAP e si riagganciano
+  # all'ordine che le ha originate: zippare la lista filtrata con quella intera
+  # sposterebbe di una posizione le coordinate di tutti gli ordini dopo il primo
+  # senza CAP.
+  with_cap = [item for item in order_items if item.get('cap')]
+  coords_by_item = dict(zip(map(id, with_cap), get_lat_lon_by_caps([item['cap'] for item in with_cap])))
   valid_orders = []
   invalid_orders = []
   for item in order_items:
-    coord = get_coord(item)
-    if coord is not None:
-      valid_orders.append((item, coord))
+    lat, lon = coords_by_item.get(id(item), (None, None))
+    if lat is not None and lon is not None:
+      valid_orders.append((item, (lat, lon)))
     else:
       invalid_orders.append(item)
 

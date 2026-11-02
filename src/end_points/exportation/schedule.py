@@ -9,6 +9,7 @@ from .rae import get_rae_export_info_by_order
 from database_api.operations import get_by_id
 from ..users.queries import format_user_with_info
 from ..orders.queries import query_orders, format_query_result as format_order_query_result
+from ..schedule.preload import annotate_preloads
 from ..schedule.queries import query_schedules, format_query_result as format_schedule_query_result
 
 
@@ -101,6 +102,22 @@ def export_schedule(user: User, id):
   if len(schedules) != 1:
     return {'status': 'ko', 'message': 'Numero di borderò trovati non valido'}
 
+  # Precarichi della vigilia: i prodotti degli ordini consegnati domani che
+  # questo borderò ritira oggi ai punti di ritiro (non sono tra gli ordini sotto).
+  annotate_preloads(schedules)
+  preload_pickups = [
+    {
+      'collection_point': item.get('name'),
+      'order_id': product['order_id'],
+      'name': product['name'],
+      'addressee': product.get('addressee'),
+    }
+    for item in schedules[0]['schedule_items']
+    if item['operation_type'] == 'CollectionPoint'
+    for product in item.get('pickup_products', [])
+    if product['preloaded']
+  ]
+
   # Il luogo di smaltimento è quello scelto una volta sola sul borderò (non
   # quello del Disposal, che a questo punto non esiste ancora: lo smaltimento
   # vero e proprio è un passo successivo e separato): lo stesso valore per
@@ -141,6 +158,7 @@ def export_schedule(user: User, id):
       transport=schedules[0]['transport']['name'],
       users=', '.join([user['nickname'] for user in schedules[0]['users']]),
       orders=orders,
+      preload_pickups=preload_pickups,
       order_pages=order_pages,
       schedule_orders_font_size=_fit_orders_font_size(order_pages, company),
       **company,

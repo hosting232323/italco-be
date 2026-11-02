@@ -9,6 +9,7 @@ from api.settings import IS_DEV, TELEGRAM_TOKEN
 from api.telegram import send_telegram_message
 from .checks import trigger_checks
 from .rate_limit import client_ip, rate_limited
+from .error_handling import register_client_error_handlers
 from api.storage import folder_backup
 from database_api.backup import db_backup
 from api import swagger_decorator, register_flask_hooks, PrefixMiddleware
@@ -21,6 +22,9 @@ allowed_origins = [
 DATABASE_URL = os.environ['DATABASE_URL']
 LOCAL_PORT = int(os.environ.get('LOCAL_PORT', 8080))
 EURONICS_API_PASSWORD = os.environ.get('EURONICS_API_PASSWORD', None)
+
+# Istanza OSRM self-hosted per matrice durate (/table) e ottimizzazione borderò (/trip).
+OSRM_BASE_URL = 'https://osrm.fastsite.it'
 
 # Leva manuale: nessuna colonna, nessuna migration. Si alza a mano (commit o
 # variabile d'ambiente) solo quando una build vecchia dell'app corrieri va
@@ -91,6 +95,7 @@ def _register_log_hooks(flask_app):
 
 
 _register_log_hooks(app)
+register_client_error_handlers(app)
 
 
 @app.route('/', methods=['GET'])

@@ -1,0 +1,923 @@
+"""Test per la pianificazione automatica del borderò alla creazione dell'ordine.
+
+Verifica:
+1. Il primo ordine con fascia oraria crea il borderò e lo popola con index 0.
+2. Il secondo ordine si aggiunge al borderò esistente nella posizione ottimale.
+3. Il terzo ordine con CAP uguale al primo si inserisce vicino alla tappa simile
+   invece di intercalarsi con quella di un'altra zona.
+4. Con company.automatic_planning == False non viene creato alcun borderò.
+5. Un ordine senza fascia oraria non genera un borderò.
+
+Il riordino delle tappe (ordini + punti di ritiro) è delegato a
+``src.schedulation.routing.optimize_schedule_stops``, che chiama OSRM Trip
+Service: qui viene mockato con ``_optimal_trip_order``, un risolutore TSP a
+forza bruta (le liste di test sono piccole) usato come sostituto realistico
+di OSRM invece di un fake che impone l'esito. Non testiamo qui la logica di
+clustering/fallback pura di ``routing.py``: vedi ``test_routing.py``.
+"""
+
+from datetime import date, time, timedelta
+from itertools import permutations
+from unittest.mock import patch
+
+import pytest
+from database_api.operations import create, get_by_params
+
+from src.database.enum import OrderStatus, ScheduleType
+from src.database.schema import (
+  DeliveryCoverageCap,
+  DeliveryCoverageEntry,
+  DeliveryUserInfo,
+  Order,
+  Schedule,
+  ScheduleItem,
+  ScheduleItemActivity,
+  ScheduleItemOrder,
+)
+from src.schedulation.auto_planning import (
+  optimize_schedules_after_commit,
+  auto_plan_order,
+  find_coverage_entry,
+  find_or_create_schedule,
+)
+
+from tests.unit.factories import (
+  create_delivery_info,
+  create_order,
+  create_transport,
+  create_user,
+)
+from src.database.enum import UserRole
+
+
+# ---------------------------------------------------------------------------
+# Helpers locali
+# ---------------------------------------------------------------------------
+
+TARGET = date.today() + timedelta(days=4)
+SLOT_START = time(8, 0)
+SLOT_END = time(18, 0)
+
+
+def _find(cls, **kwargs):
+  return get_by_params(cls, list(kwargs.items()))
+
+
+def _optimal_trip_order(coords):
+  """Sostituto di ``trip_order_osrm`` per i test: TSP a percorso aperto per forza bruta.
+
+  Le liste di coordinate nei test sono piccole (2-3 punti), quindi il calcolo
+  esaustivo è a costo trascurabile e ci evita di dover indovinare a mano
+  l'ordine "giusto" che un vero OSRM restituirebbe.
+  """
+
+  def total_distance(order):
+    return sum(
+      ((coords[order[i]][0] - coords[order[i + 1]][0]) ** 2 + (coords[order[i]][1] - coords[order[i + 1]][1]) ** 2)
+      ** 0.5
+      for i in range(len(order) - 1)
+    )
+
+  return list(min(permutations(range(len(coords))), key=total_distance))
+
+
+def _make_entry(transport, cap='76011') -> DeliveryCoverageEntry:
+  """Crea un DeliveryCoverageEntry + DeliveryCoverageCap e restituisce l'entry."""
+  entry = create(
+    DeliveryCoverageEntry,
+    {
+      'day_of_week': TARGET.weekday(),
+      'start_time': SLOT_START,
+      'end_time': SLOT_END,
+      'transport_id': transport.id,
+    },
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': cap})
+  return entry
+
+
+def _make_order_with_slot(cap='76011') -> Order:
+  return create_order(
+    cap=cap,
+    dpc=TARGET,
+    drc=TARGET,
+    delivery_slot_start=SLOT_START,
+    delivery_slot_end=SLOT_END,
+  )
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def transport():
+  return create_transport()
+
+
+@pytest.fixture
+def delivery_user(transport):
+  user = create_user(UserRole.DELIVERY)
+  create_delivery_info(user, transport_id=transport.id)
+  return user
+
+
+@pytest.fixture
+def entry(transport):
+  return _make_entry(transport, cap='76011')
+
+
+# ---------------------------------------------------------------------------
+# Test: find_coverage_entry
+# ---------------------------------------------------------------------------
+
+
+def test_find_coverage_entry_returns_matching_entry(db, entry):
+  order = _make_order_with_slot()
+  from database_api import Session
+
+  with Session() as session:
+    result = find_coverage_entry(order, session)
+  assert result is not None
+  assert result.id == entry.id
+
+
+def test_find_coverage_entry_returns_none_without_slot(db, entry):
+  order = create_order(cap='76011', dpc=TARGET, drc=TARGET)
+  from database_api import Session
+
+  with Session() as session:
+    result = find_coverage_entry(order, session)
+  assert result is None
+
+
+def test_find_coverage_entry_returns_none_for_different_cap(db, entry):
+  order = _make_order_with_slot(cap='70056')  # CAP non coperto dall'entry
+  from database_api import Session
+
+  with Session() as session:
+    result = find_coverage_entry(order, session)
+  assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Test: find_or_create_schedule
+# ---------------------------------------------------------------------------
+
+
+def test_find_or_create_schedule_creates_new_schedule(db, entry, delivery_user):
+  order = _make_order_with_slot()
+  from database_api import Session
+
+  with Session() as session:
+    schedule, created = find_or_create_schedule(entry, order, session)
+    session.commit()
+
+  assert created is True
+  assert schedule.transport_id == entry.transport_id
+  assert schedule.date == TARGET
+
+
+def test_find_or_create_schedule_inherits_the_transport_delivery_users(db, entry, delivery_user):
+  """Il borderò non assegna nessuno: i corrieri sono quelli del suo veicolo."""
+  order = _make_order_with_slot()
+  from database_api import Session
+
+  with Session() as session:
+    schedule, _ = find_or_create_schedule(entry, order, session)
+    session.commit()
+
+  assigned = _find(DeliveryUserInfo, transport_id=schedule.transport_id)
+  assert [info.user_id for info in assigned] == [delivery_user.id]
+
+
+def test_find_or_create_schedule_returns_existing_without_duplicate(db, entry, delivery_user):
+  order = _make_order_with_slot()
+  from database_api import Session
+
+  # Prima chiamata: crea
+  with Session() as session:
+    schedule1, created1 = find_or_create_schedule(entry, order, session)
+    session.commit()
+
+  # Seconda chiamata: deve restituire lo stesso borderò
+  with Session() as session:
+    schedule2, created2 = find_or_create_schedule(entry, order, session)
+    session.commit()
+
+  assert created1 is True
+  assert created2 is False
+  assert schedule1.id == schedule2.id
+
+  # Nessun borderò duplicato per la stessa (data, veicolo)
+  all_schedules = _find(Schedule, date=TARGET, transport_id=entry.transport_id)
+  assert len(all_schedules) == 1
+
+
+# ---------------------------------------------------------------------------
+# Test: auto_plan_order (integrazione completa)
+# ---------------------------------------------------------------------------
+
+
+def test_auto_plan_creates_schedule_and_first_stop(db, entry, delivery_user):
+  # Un solo ordine: optimize_schedule_stops non ha nulla da riordinare e non
+  # chiama né il geocoding né OSRM (vedi routing._osrm_or_original_order).
+  order = _make_order_with_slot()
+  from database_api import Session
+
+  with Session() as session:
+    session.flush()
+    pending = auto_plan_order(order, session)
+    session.commit()
+
+  # Borderò creato
+  schedules = _find(Schedule, date=TARGET, transport_id=entry.transport_id)
+  assert len(schedules) == 1
+
+  # ScheduleItem creato con index=0
+  items = _find(ScheduleItem, schedule_id=schedules[0].id)
+  assert len(items) == 1
+  assert items[0].index == 0
+  assert items[0].operation_type == ScheduleType.ORDER
+
+  # ScheduleItemOrder collegato all'ordine
+  sio = _find(ScheduleItemOrder, order_id=order.id)
+  assert len(sio) == 1
+  assert sio[0].schedule_item_id == items[0].id
+
+  # Stato ordine aggiornato
+  updated_order = _find(Order, id=order.id)[0]
+  assert updated_order.status in (OrderStatus.SCHEDULED, OrderStatus.BOOKING)
+
+  # SMS pending
+  assert len(pending) == 1
+  assert pending[0][0].id == order.id
+
+
+@patch('src.schedulation.routing.trip_order_osrm')
+@patch('src.schedulation.routing.get_lat_lon_by_address')
+@patch('src.schedulation.routing.get_lat_lon_by_cap')
+def test_auto_plan_second_order_reuses_existing_schedule(
+  mock_geocode, mock_geocode_address, mock_trip, db, entry, delivery_user
+):
+  # L'indirizzo (uguale per tutti gli ordini di test) non deve risolvere: il
+  # test guida le coordinate via CAP.
+  mock_geocode_address.return_value = (None, None)
+  mock_geocode.return_value = (41.238, 16.500)
+  mock_trip.side_effect = _optimal_trip_order
+
+  order1 = _make_order_with_slot()
+  order2 = _make_order_with_slot()
+
+  from database_api import Session
+
+  with Session() as session:
+    session.flush()
+    auto_plan_order(order1, session)
+    session.commit()
+
+  with Session() as session:
+    session.flush()
+    auto_plan_order(order2, session)
+    session.commit()
+
+  # Un solo borderò per la (data, veicolo)
+  schedules = _find(Schedule, date=TARGET, transport_id=entry.transport_id)
+  assert len(schedules) == 1
+
+  # Due tappe nel borderò
+  items = _find(ScheduleItem, schedule_id=schedules[0].id)
+  assert len(items) == 2
+
+  # Il corriere resta uno: sta sul veicolo, non sul borderò
+  assigned = _find(DeliveryUserInfo, transport_id=schedules[0].transport_id)
+  assert len(assigned) == 1
+
+
+@patch('src.schedulation.routing.trip_order_osrm')
+@patch('src.schedulation.routing.get_lat_lon_by_address')
+@patch('src.schedulation.routing.get_lat_lon_by_cap')
+def test_auto_plan_third_order_inserts_optimally(
+  mock_geocode, mock_geocode_address, mock_trip, db, entry, delivery_user
+):
+  """Bisceglie→Molfetta già nel borderò: il nuovo Bisceglie si accoda all'altro Bisceglie.
+
+  Con un vero risolutore TSP a percorso libero (nessun vincolo su partenza/arrivo),
+  Bisceglie-Bisceglie-Molfetta e il suo speculare Molfetta-Bisceglie-Bisceglie sono
+  equivalenti in costo: l'unico invariante robusto da verificare è che le due tappe
+  Bisceglie restino adiacenti, non che Molfetta finisca in una posizione specifica.
+  """
+  BISCEGLIE = (41.238, 16.500)
+  MOLFETTA = (41.201, 16.583)
+
+  # Aggiunge il CAP di Molfetta alla stessa entry di copertura
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70056'})
+
+  # L'indirizzo (uguale per tutti gli ordini di test) non deve risolvere: le
+  # coordinate devono venire dal CAP, che qui distingue Bisceglie da Molfetta.
+  mock_geocode_address.return_value = (None, None)
+
+  def fake_geocode(cap):
+    return BISCEGLIE if cap == '76011' else MOLFETTA
+
+  mock_geocode.side_effect = fake_geocode
+  mock_trip.side_effect = _optimal_trip_order
+
+  order1 = _make_order_with_slot(cap='76011')  # Bisceglie
+  order2 = _make_order_with_slot(cap='70056')  # Molfetta
+  order3 = _make_order_with_slot(cap='76011')  # Bisceglie (deve inserirsi vicino a order1)
+
+  from database_api import Session
+
+  for order in [order1, order2, order3]:
+    with Session() as session:
+      session.flush()
+      planned = auto_plan_order(order, session)
+      session.commit()
+    # Il percorso si calcola a transazione chiusa, come fanno gli endpoint.
+    optimize_schedules_after_commit(planned)
+
+  schedules = _find(Schedule, date=TARGET, transport_id=entry.transport_id)
+  items = sorted(
+    _find(ScheduleItem, schedule_id=schedules[0].id),
+    key=lambda i: i.index,
+  )
+  assert len(items) == 3
+
+  # Recupera l'ordine per ogni tappa
+  order_by_index = {}
+  for item in items:
+    sio = _find(ScheduleItemOrder, schedule_item_id=item.id)
+    if sio:
+      order_by_index[item.index] = sio[0].order_id
+
+  caps_in_order = [_find(Order, id=order_by_index[i])[0].cap for i in sorted(order_by_index)]
+
+  # Le due Bisceglie devono essere consecutive (nessun andirivieni via Molfetta in mezzo)
+  bisceglie_indices = [i for i, c in enumerate(caps_in_order) if c == '76011']
+  assert abs(bisceglie_indices[0] - bisceglie_indices[1]) == 1, (
+    f'Le due tappe Bisceglie non sono adiacenti: {caps_in_order}'
+  )
+
+
+# ---------------------------------------------------------------------------
+# Test: auto_plan_order con pianificazione disattivata
+# ---------------------------------------------------------------------------
+
+
+def test_auto_plan_skips_order_without_slot(db, entry, delivery_user):
+  order = create_order(cap='76011', dpc=TARGET)  # nessuna fascia
+
+  from database_api import Session
+
+  with Session() as session:
+    session.flush()
+    pending = auto_plan_order(order, session)
+    session.commit()
+
+  schedules = _find(Schedule, date=TARGET, transport_id=entry.transport_id)
+  assert len(schedules) == 0
+  assert pending == []
+
+
+def test_auto_plan_skips_when_no_coverage_entry_matches(db, transport, delivery_user):
+  """Ordine con fascia oraria ma nessuna DeliveryCoverageEntry corrispondente."""
+  order = _make_order_with_slot(cap='99999')  # CAP non coperto
+
+  from database_api import Session
+
+  with Session() as session:
+    session.flush()
+    pending = auto_plan_order(order, session)
+    session.commit()
+
+  assert pending == []
+
+
+# ---------------------------------------------------------------------------
+# Test: il veicolo scelto alla creazione e' quello che pianifica
+# ---------------------------------------------------------------------------
+
+
+def test_find_coverage_entry_uses_the_vehicle_stored_on_the_order(db):
+  first, second = create_transport(), create_transport()
+  _make_entry(first)
+  second_entry = _make_entry(second)
+  order = create_order(
+    cap='76011',
+    dpc=TARGET,
+    delivery_slot_start=SLOT_START,
+    delivery_slot_end=SLOT_END,
+    delivery_transport_id=second.id,
+  )
+
+  from database_api import Session
+
+  with Session() as session:
+    assert find_coverage_entry(order, session).id == second_entry.id
+
+
+def test_find_coverage_entry_without_vehicle_is_deterministic(db):
+  first, second = create_transport(), create_transport()
+  # Creato prima il blocco del secondo veicolo: l'ordine di inserimento non decide.
+  _make_entry(second)
+  first_entry = _make_entry(first)
+  order = _make_order_with_slot()
+
+  from database_api import Session
+
+  with Session() as session:
+    assert find_coverage_entry(order, session).id == first_entry.id
+
+
+def test_find_coverage_entry_accepts_a_neighbour_slot_covering_other_caps(db, transport):
+  """Fascia adiacente (stesso veicolo) assegnata per traboccamento: copre altri CAP."""
+  _make_entry(transport, cap='76011')
+  neighbour = create(
+    DeliveryCoverageEntry,
+    {
+      'day_of_week': TARGET.weekday(),
+      'start_time': time(18, 0),
+      'end_time': time(20, 0),
+      'transport_id': transport.id,
+    },
+  )
+  create(DeliveryCoverageCap, {'entry_id': neighbour.id, 'cap': '70000'})
+  order = create_order(
+    cap='76011',
+    dpc=TARGET,
+    delivery_slot_start=neighbour.start_time,
+    delivery_slot_end=neighbour.end_time,
+    delivery_transport_id=transport.id,
+  )
+
+  from database_api import Session
+
+  with Session() as session:
+    assert find_coverage_entry(order, session).id == neighbour.id
+
+
+# ---------------------------------------------------------------------------
+# Test: unplan_order
+# ---------------------------------------------------------------------------
+
+
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_unplan_order_removes_the_stop_and_renumbers_the_others(_optimize, db, entry, delivery_user):
+  from database_api import Session
+  from src.schedulation.auto_planning import unplan_order
+
+  first, second = _make_order_with_slot(), _make_order_with_slot()
+  for order in (first, second):
+    create_order_schedule = order
+    with Session() as session:
+      session.flush()
+      auto_plan_order(create_order_schedule, session)
+      session.commit()
+
+  with Session() as session:
+    unplan_order(session.get(Order, first.id), session)
+    session.commit()
+
+  assert _find(ScheduleItemOrder, order_id=first.id) == []
+  remaining = _find(ScheduleItemOrder, order_id=second.id)
+  assert _find(ScheduleItem, id=remaining[0].schedule_item_id)[0].index == 0
+  assert _find(Order, id=first.id)[0].status == OrderStatus.BOOKED
+
+
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_unplan_order_drops_pickups_only_that_order_needed(_optimize, db, entry, delivery_user):
+  from database_api import Session
+  from src.database.schema import ScheduleItemCollectionPoint
+  from src.schedulation.auto_planning import unplan_order
+  from tests.unit.factories import create_product_row, customer_with_service
+
+  _, _, service_user, point = customer_with_service()
+  order = _make_order_with_slot()
+  create_product_row(order, service_user, collection_point_id=point.id)
+  with Session() as session:
+    session.flush()
+    auto_plan_order(order, session)
+    session.commit()
+  assert len(_find(ScheduleItemCollectionPoint, collection_point_id=point.id)) == 1
+
+  with Session() as session:
+    unplan_order(session.get(Order, order.id), session)
+    session.commit()
+
+  assert _find(ScheduleItemCollectionPoint, collection_point_id=point.id) == []
+  # Rimasto senza tappe, il borderò si cancella: vuoto occuperebbe il veicolo in quella data.
+  assert _find(Schedule, date=TARGET) == []
+
+
+@patch('src.schedulation.routing.trip_order_osrm')
+@patch('src.schedulation.routing.get_lat_lon_by_address')
+@patch('src.schedulation.routing.get_lat_lon_by_cap')
+def test_optimize_keeps_activities_in_their_position(mock_geocode, mock_geocode_address, mock_trip, db, entry):
+  """Le attività non si spostano: gli ordini si scambiano i posti rimasti."""
+  from database_api import Session
+
+  from src.schedulation.routing import optimize_schedule_stops
+
+  mock_geocode_address.return_value = (None, None)
+  mock_geocode.side_effect = lambda cap: (41.238, 16.500) if cap == '76011' else (41.201, 16.583)
+  mock_trip.side_effect = lambda coords: list(reversed(range(len(coords))))
+
+  order_a = _make_order_with_slot(cap='76011')
+  order_b = _make_order_with_slot(cap='70056')
+  schedule = create(Schedule, {'date': TARGET, 'transport_id': entry.transport_id})
+  item_a = create(
+    ScheduleItem,
+    {
+      'index': 0,
+      'schedule_id': schedule.id,
+      'operation_type': ScheduleType.ORDER,
+      'start_time_slot': SLOT_START,
+      'end_time_slot': SLOT_END,
+    },
+  )
+  activity_item = create(
+    ScheduleItem,
+    {
+      'index': 1,
+      'schedule_id': schedule.id,
+      'operation_type': ScheduleType.ACTIVITY,
+      'start_time_slot': SLOT_START,
+      'end_time_slot': SLOT_END,
+    },
+  )
+  item_b = create(
+    ScheduleItem,
+    {
+      'index': 2,
+      'schedule_id': schedule.id,
+      'operation_type': ScheduleType.ORDER,
+      'start_time_slot': SLOT_START,
+      'end_time_slot': SLOT_END,
+    },
+  )
+  create(ScheduleItemOrder, {'order_id': order_a.id, 'schedule_item_id': item_a.id})
+  create(ScheduleItemOrder, {'order_id': order_b.id, 'schedule_item_id': item_b.id})
+  create(ScheduleItemActivity, {'title': 'Pausa', 'duration_minutes': 30, 'schedule_item_id': activity_item.id})
+
+  with Session() as session:
+    optimize_schedule_stops(session.get(Schedule, schedule.id), session)
+    session.commit()
+
+  indexes = {item.id: item.index for item in _find(ScheduleItem, schedule_id=schedule.id)}
+  assert indexes[activity_item.id] == 1
+  assert indexes[item_a.id] == 2
+  assert indexes[item_b.id] == 0
+
+
+@patch('src.schedulation.routing.trip_order_osrm')
+@patch('src.schedulation.routing.get_lat_lon_by_address')
+@patch('src.schedulation.routing.get_lat_lon_by_cap')
+def test_optimize_never_visits_an_earlier_slot_after_a_later_one(
+  mock_geocode, mock_geocode_address, mock_trip, db, entry
+):
+  """Il percorso più corto passerebbe prima da Molfetta (fascia 11:30) e poi da
+  Bisceglie (9:40): le fasce restano in ordine cronologico, OSRM ottimizza solo
+  dentro ciascuna."""
+  from database_api import Session
+
+  from src.schedulation.routing import optimize_schedule_stops
+
+  mock_geocode_address.return_value = (None, None)
+  mock_geocode.side_effect = lambda cap: (41.238, 16.500) if cap == '76011' else (41.201, 16.583)
+  mock_trip.side_effect = lambda coords: list(reversed(range(len(coords))))
+
+  morning, noon = (time(9, 40), time(11, 30)), (time(11, 30), time(12, 30))
+  schedule = create(Schedule, {'date': TARGET, 'transport_id': entry.transport_id})
+  items = {}
+  for index, (cap, slot) in enumerate([('70056', noon), ('76011', morning), ('76011', morning)]):
+    order = create_order(cap=cap, dpc=TARGET, drc=TARGET, delivery_slot_start=slot[0], delivery_slot_end=slot[1])
+    item = create(
+      ScheduleItem,
+      {
+        'index': index,
+        'schedule_id': schedule.id,
+        'operation_type': ScheduleType.ORDER,
+        'start_time_slot': slot[0],
+        'end_time_slot': slot[1],
+      },
+    )
+    create(ScheduleItemOrder, {'order_id': order.id, 'schedule_item_id': item.id})
+    items[index] = item
+
+  with Session() as session:
+    optimize_schedule_stops(session.get(Schedule, schedule.id), session)
+    session.commit()
+
+  indexes = {item.id: item.index for item in _find(ScheduleItem, schedule_id=schedule.id)}
+  assert indexes[items[0].id] == 2
+  assert {indexes[items[1].id], indexes[items[2].id]} == {0, 1}
+
+
+@patch('src.schedulation.routing.trip_order_osrm')
+@patch('src.schedulation.routing.get_lat_lon_by_address')
+@patch('src.schedulation.routing.get_lat_lon_by_cap')
+def test_optimize_moves_a_shared_pickup_to_the_earliest_slot_that_needs_it(
+  mock_geocode, mock_geocode_address, mock_trip, db, entry
+):
+  """Il ritiro è nato con l'ordine delle 11:30, poi lo chiede anche uno delle
+  9:40: va fatto per primo e ne prende l'orario."""
+  from database_api import Session
+
+  from src.database.schema import ScheduleItemCollectionPoint
+  from src.schedulation.routing import optimize_schedule_stops
+  from tests.unit.factories import create_product_row, customer_with_service
+
+  mock_geocode_address.return_value = (None, None)
+  mock_geocode.return_value = (41.238, 16.500)
+  mock_trip.side_effect = lambda coords: list(range(len(coords)))
+
+  _, _, service_user, point = customer_with_service()
+  morning, noon = (time(9, 40), time(11, 30)), (time(11, 30), time(12, 30))
+  schedule = create(Schedule, {'date': TARGET, 'transport_id': entry.transport_id})
+
+  def stop(index, slot, operation_type=ScheduleType.ORDER):
+    return create(
+      ScheduleItem,
+      {
+        'index': index,
+        'schedule_id': schedule.id,
+        'operation_type': operation_type,
+        'start_time_slot': slot[0],
+        'end_time_slot': slot[1],
+      },
+    )
+
+  pickup = stop(0, noon, ScheduleType.COLLECTIONPOINT)
+  create(ScheduleItemCollectionPoint, {'schedule_item_id': pickup.id, 'collection_point_id': point.id})
+  order_items = {}
+  for index, slot in [(1, noon), (2, morning)]:
+    order = create_order(dpc=TARGET, drc=TARGET, delivery_slot_start=slot[0], delivery_slot_end=slot[1])
+    create_product_row(order, service_user, collection_point_id=point.id)
+    order_items[slot] = stop(index, slot)
+    create(ScheduleItemOrder, {'order_id': order.id, 'schedule_item_id': order_items[slot].id})
+
+  with Session() as session:
+    optimize_schedule_stops(session.get(Schedule, schedule.id), session)
+    session.commit()
+
+  items = {item.id: item for item in _find(ScheduleItem, schedule_id=schedule.id)}
+  assert [items[i].index for i in (pickup.id, order_items[morning].id, order_items[noon].id)] == [0, 1, 2]
+  assert (items[pickup.id].start_time_slot, items[pickup.id].end_time_slot) == morning
+
+
+# ---------------------------------------------------------------------------
+# Test: precarico (ritiro nel borderò della vigilia)
+# ---------------------------------------------------------------------------
+
+
+def _plan(order):
+  from database_api import Session
+
+  with Session() as session:
+    session.flush()
+    auto_plan_order(order, session)
+    session.commit()
+
+
+def _eve_passage(entry, *points):
+  """Il borderò della vigilia del veicolo passa già dai punti: senza, niente precarico."""
+  from src.database.schema import ScheduleItemCollectionPoint
+
+  eve = TARGET - timedelta(days=1)
+  schedule = (_find(Schedule, date=eve, transport_id=entry.transport_id) or [None])[0] or create(
+    Schedule, {'date': eve, 'transport_id': entry.transport_id}
+  )
+  for point in points:
+    item = create(
+      ScheduleItem,
+      {
+        'index': 0,
+        'schedule_id': schedule.id,
+        'operation_type': ScheduleType.COLLECTIONPOINT,
+        'start_time_slot': entry.start_time,
+        'end_time_slot': entry.end_time,
+      },
+    )
+    create(ScheduleItemCollectionPoint, {'schedule_item_id': item.id, 'collection_point_id': point.id})
+  return schedule
+
+
+def _preloaded_order(entry, *points):
+  """Ordine precaricato con un prodotto per ognuno dei punti di ritiro."""
+  from database_api.operations import update
+  from tests.unit.factories import create_product_row, customer_with_service
+
+  _, _, service_user, _ = customer_with_service()
+  order = update(_make_order_with_slot(), {'preloaded': True, 'delivery_transport_id': entry.transport_id})
+  for index, point in enumerate(points):
+    create_product_row(order, service_user, name=f'prodotto {index}', collection_point_id=point.id)
+  return order
+
+
+@patch('src.schedulation.routing.optimize_schedule_stops')
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_preloaded_pickup_goes_to_the_eve_schedule(_optimize, _optimize_eve, db, entry, delivery_user):
+  from database_api.operations import update
+  from src.database.schema import ScheduleItemCollectionPoint
+  from tests.unit.factories import create_collection_point
+
+  point = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  normal_point = create_collection_point(create_user(UserRole.CUSTOMER))
+  update(entry, {'accepts_preloads': True})
+  _eve_passage(entry, point)
+  order = _preloaded_order(entry, point, normal_point)
+
+  _plan(order)
+
+  eve = _find(Schedule, date=TARGET - timedelta(days=1))[0]
+  assert eve.transport_id == entry.transport_id
+  preloaded_stop = _find(ScheduleItemCollectionPoint, collection_point_id=point.id)[0]
+  assert _find(ScheduleItem, id=preloaded_stop.schedule_item_id)[0].schedule_id == eve.id
+  # Il punto non precaricato dello stesso ordine resta nel borderò della consegna.
+  normal_stop = _find(ScheduleItemCollectionPoint, collection_point_id=normal_point.id)[0]
+  day = _find(Schedule, date=TARGET)[0]
+  assert _find(ScheduleItem, id=normal_stop.schedule_item_id)[0].schedule_id == day.id
+
+
+@patch('src.schedulation.routing.optimize_schedule_stops')
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_preloaded_pickup_reuses_the_eve_stop_and_follows_the_last_order_out(_optimize, _optimize_eve, db, entry):
+  from database_api import Session
+  from database_api.operations import update
+  from src.database.schema import ScheduleItemCollectionPoint
+  from src.schedulation.auto_planning import unplan_order
+  from tests.unit.factories import create_collection_point
+
+  point = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  update(entry, {'accepts_preloads': True})
+  # Il precarico si aggancia al passaggio della vigilia: la tappa c'e' gia' e si riusa.
+  eve = _eve_passage(entry, point)
+  first, second = _preloaded_order(entry, point), _preloaded_order(entry, point)
+  _plan(first)
+  _plan(second)
+  stops = _find(ScheduleItemCollectionPoint, collection_point_id=point.id)
+  assert len(stops) == 1
+  assert _find(ScheduleItem, id=stops[0].schedule_item_id)[0].schedule_id == eve.id
+
+  with Session() as session:
+    unplan_order(session.get(Order, first.id), session)
+    session.commit()
+  assert len(_find(ScheduleItemCollectionPoint, collection_point_id=point.id)) == 1
+
+  with Session() as session:
+    unplan_order(session.get(Order, second.id), session)
+    session.commit()
+  assert _find(ScheduleItemCollectionPoint, collection_point_id=point.id) == []
+
+
+@patch('src.schedulation.routing.optimize_schedule_stops')
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_sync_order_preload_moves_the_eve_stop_when_products_change(_optimize, _optimize_eve, db, entry):
+  from database_api import Session
+  from database_api.operations import delete, update
+  from src.database.schema import Product, ScheduleItemCollectionPoint
+  from src.schedulation.auto_planning import sync_order_preload
+  from tests.unit.factories import create_collection_point, create_product_row, customer_with_service
+
+  update(entry, {'accepts_preloads': True})
+  first = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  second = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  _eve_passage(entry, first)
+  order = _preloaded_order(entry, first)
+  _plan(order)
+  assert len(_find(ScheduleItemCollectionPoint, collection_point_id=first.id)) == 1
+  eve = TARGET - timedelta(days=1)
+
+  # L'operatore sostituisce il prodotto: il punto precaricato e' un altro, da cui
+  # la vigilia il veicolo passa gia' per un altro ordine.
+  _eve_passage(entry, second)
+  _, _, service_user, _ = customer_with_service()
+  create_product_row(order, service_user, name='nuovo', collection_point_id=second.id)
+  delete(_find(Product, order_id=order.id, collection_point_id=first.id)[0])
+  with Session() as session:
+    sync_order_preload(session.get(Order, order.id), {first.id}, eve, session)
+    session.commit()
+
+  assert _find(ScheduleItemCollectionPoint, collection_point_id=first.id) == []
+  eve_schedule = _find(Schedule, date=eve)[0]
+  moved = _find(ScheduleItemCollectionPoint, collection_point_id=second.id)[0]
+  assert _find(ScheduleItem, id=moved.schedule_item_id)[0].schedule_id == eve_schedule.id
+  assert _find(Order, id=order.id)[0].preloaded is True
+
+
+@patch('src.schedulation.routing.optimize_schedule_stops')
+@patch('src.schedulation.auto_planning.optimize_schedule_stops')
+def test_sync_order_preload_gives_the_pickup_back_to_the_delivery_day(_optimize, _optimize_eve, db, entry):
+  from database_api import Session
+  from database_api.operations import update
+  from src.database.schema import ScheduleItemCollectionPoint
+  from src.schedulation.auto_planning import sync_order_preload
+  from tests.unit.factories import create_collection_point
+
+  update(entry, {'accepts_preloads': True})
+  point = update(create_collection_point(create_user(UserRole.CUSTOMER)), {'preloaded': True})
+  order = _preloaded_order(entry, point)
+  _plan(order)
+  eve = TARGET - timedelta(days=1)
+
+  # L'area smette di accettare precarichi: il ritiro torna normale, nel borderò della consegna.
+  update(entry, {'accepts_preloads': False})
+  with Session() as session:
+    sync_order_preload(session.get(Order, order.id), {point.id}, eve, session)
+    session.commit()
+
+  assert _find(Order, id=order.id)[0].preloaded is False
+  stop = _find(ScheduleItemCollectionPoint, collection_point_id=point.id)
+  assert len(stop) == 1
+  day = _find(Schedule, date=TARGET)[0]
+  assert _find(ScheduleItem, id=stop[0].schedule_item_id)[0].schedule_id == day.id
+
+
+# ---------------------------------------------------------------------------
+# Borderò già partito e tappe completate
+# ---------------------------------------------------------------------------
+
+
+def test_find_or_create_schedule_skips_a_schedule_that_has_started(db, entry, delivery_user):
+  from database_api import Session
+  from tests.unit.factories import create_schedule_item_user
+
+  order = _make_order_with_slot()
+  with Session() as session:
+    schedule, _ = find_or_create_schedule(entry, order, session)
+    session.commit()
+  create_schedule_item_user(delivery_user, schedule)
+
+  with Session() as session:
+    assert find_or_create_schedule(entry, order, session) == (None, False)
+    assert auto_plan_order(order, session) == []
+
+
+def test_find_or_create_schedule_skips_a_schedule_with_a_completed_stop(db, entry):
+  from database_api import Session
+  from tests.unit.factories import create_schedule_item
+
+  order = _make_order_with_slot()
+  with Session() as session:
+    schedule, _ = find_or_create_schedule(entry, order, session)
+    session.commit()
+  create_schedule_item(schedule, completed=True)
+
+  with Session() as session:
+    assert find_or_create_schedule(entry, order, session) == (None, False)
+
+
+@patch('src.schedulation.routing.trip_order_osrm', side_effect=lambda coords: list(reversed(range(len(coords)))))
+@patch('src.schedulation.routing.get_lat_lon_by_address', return_value=(None, None))
+@patch('src.schedulation.routing.get_lat_lon_by_cap', side_effect=lambda cap: (41.0, 16.0 + int(cap[-1]) / 100))
+def test_optimization_leaves_completed_stops_where_they_are(mock_cap, mock_address, mock_trip, db, entry):
+  from database_api import Session
+  from database_api.operations import update
+  from src.schedulation.routing import optimize_schedule_stops
+  from tests.unit.factories import create_schedule, link_order_to_schedule
+
+  transport_schedule = create_schedule(schedule_date=TARGET)
+  items = []
+  for index, cap in enumerate(['76011', '76012', '76013']):
+    order = _make_order_with_slot(cap=cap)
+    items.append(
+      link_order_to_schedule(order, transport_schedule, index=index, start_time_slot=SLOT_START, end_time_slot=SLOT_END)
+    )
+  update(items[0], {'completed': True})
+
+  with Session() as session:
+    optimize_schedule_stops(session.get(Schedule, transport_schedule.id), session)
+    session.commit()
+
+  assert _find(ScheduleItem, id=items[0].id)[0].index == 0
+  assert sorted(item.index for item in _find(ScheduleItem, schedule_id=transport_schedule.id)) == [0, 1, 2]
+
+
+@patch('src.schedulation.auto_planning.plan_schedule_stops', return_value=None)
+def test_optimize_schedules_after_commit_skips_when_there_is_nothing_to_order(mock_plan, db, entry, delivery_user):
+  from database_api import Session
+
+  order = _make_order_with_slot()
+  with Session() as session:
+    planned = auto_plan_order(order, session)
+    session.commit()
+
+  optimize_schedules_after_commit(planned)
+
+  assert mock_plan.called
+
+
+def test_optimize_schedules_after_commit_survives_a_failure(db, entry, delivery_user):
+  from database_api import Session
+
+  order = _make_order_with_slot()
+  with Session() as session:
+    planned = auto_plan_order(order, session)
+    session.commit()
+
+  with patch('src.schedulation.auto_planning.plan_schedule_stops', side_effect=RuntimeError('osrm down')):
+    optimize_schedules_after_commit(planned)
+
+  assert len(_find(ScheduleItem, schedule_id=planned[0][1].schedule_id)) == 1
