@@ -77,6 +77,12 @@ class Company(BaseEntity):
   city = Column(String)
   rae_registration = Column(String)
 
+  # Orario di apertura e chiusura dell'attività: la finestra in cui l'attività
+  # lavora, non quella di un singolo veicolo. Nullable come il resto
+  # dell'anagrafica, l'obbligatorietà la impone l'endpoint.
+  activity_start_time = Column(Time)
+  activity_end_time = Column(Time)
+
 
 class User(BaseItalcoEntity):
   __tablename__ = 'user'
@@ -88,6 +94,12 @@ class User(BaseItalcoEntity):
   role = Column(Enum(UserRole), nullable=False)
   nickname = Column(String, unique=True, nullable=False)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
+
+  # Pianificazione automatica del punto vendita: significativa solo per
+  # role == Customer, impostabile solo se l'attività ha già il flag gemello
+  # su Company acceso. Nasce true, come chiesto: quando un'attività accende
+  # la pianificazione automatica, i suoi punti vendita partono tutti abilitati.
+  automatic_planning = Column(Boolean, nullable=False, default=True, server_default='true')
 
   rae_product = relationship('RaeProduct', back_populates='user')
   customer_group = relationship('CustomerGroup', back_populates='user')
@@ -133,7 +145,6 @@ class DeliveryUserInfo(BaseItalcoEntity):
   # l'app mostrerebbe a caso quella vuota (vedi migrazione 059).
   __table_args__ = (UniqueConstraint('user_id', name='uq_delivery_user_info_user_id'),)
 
-  cap = Column(String)
   lat = Column(Numeric(11, 8))
   lon = Column(Numeric(11, 8))
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
@@ -143,6 +154,51 @@ class DeliveryUserInfo(BaseItalcoEntity):
 
   user = relationship('User', back_populates='delivery_user_info')
   transport = relationship('Transport', back_populates='delivery_user_info')
+
+
+class DeliveryCoverageEntry(BaseItalcoEntity):
+  """Schedulazione settimanale della copertura corrieri: non più legata a un
+  utente delivery, ma a un giorno della settimana con un veicolo, una fascia
+  oraria e i CAP coperti in quel blocco. Più blocchi sullo stesso giorno sono
+  normali, anche con la stessa fascia oraria, purché su veicoli diversi: lo
+  stesso veicolo non può avere due fasce sovrapposte nello stesso giorno
+  (vincolo applicato in end_points/delivery_coverage._has_overlapping_entry,
+  non a livello di DB). La pagina a calendario proietta questi blocchi sulla
+  settimana corrente (e su quella successiva).
+  """
+
+  __tablename__ = 'delivery_coverage_entry'
+
+  # Lunedì = 0 ... Domenica = 6, la stessa convenzione di Constraint e
+  # CustomerRule (date.weekday()).
+  day_of_week = Column(Integer, nullable=False)
+  start_time = Column(Time, nullable=False)
+  end_time = Column(Time, nullable=False)
+  transport_id = Column(Integer, ForeignKey('transport.id'), nullable=False, index=True)
+  # Modalità alternativa al CAP: zona disegnata sulla mappa, lista di [lat, lon].
+  # Un blocco ha o dei caps o un polygon (validato in end_points/delivery_coverage.py).
+  polygon = Column(JSON, nullable=True)
+  # Area che accetta precarichi: un ordine di quest'area ha come fasce solo
+  # quelle dei giorni in cui il borderò dello stesso veicolo passa già dagli
+  # stessi punti di ritiro, quel giorno (ordine normale) o, per i punti
+  # precaricati, il giorno prima (precarico) (vedi
+  # _passes_same_pickup_points in end_points/delivery_coverage.py).
+  accepts_preloads = Column(Boolean, nullable=False, default=False, server_default='false')
+
+  transport = relationship('Transport')
+  caps = relationship('DeliveryCoverageCap', back_populates='entry', cascade='all, delete-orphan')
+
+
+class DeliveryCoverageCap(BaseItalcoEntity):
+  __tablename__ = 'delivery_coverage_cap'
+  # Un CAP può comparire una sola volta nello stesso blocco: due righe uguali
+  # non aggiungerebbero informazione.
+  __table_args__ = (UniqueConstraint('entry_id', 'cap', name='uq_delivery_coverage_cap'),)
+
+  entry_id = Column(Integer, ForeignKey('delivery_coverage_entry.id'), nullable=False, index=True)
+  cap = Column(String, nullable=False)
+
+  entry = relationship('DeliveryCoverageEntry', back_populates='caps')
 
 
 class CustomerUserInfo(BaseItalcoEntity):
@@ -173,6 +229,10 @@ class CustomerGroup(BaseItalcoEntity):
 class Transport(BaseItalcoEntity):
   __tablename__ = 'transport'
 
+  # Indirizzo di partenza del veicolo, scelto con lo stesso autocomplete degli
+  # altri indirizzi: il cap non è più la località scelta a mano da una lista
+  # chiusa, lo ricava l'autocomplete dall'indirizzo.
+  address = Column(String)
   cap = Column(String)
   name = Column(String, nullable=False)
   plate = Column(String, nullable=False)
@@ -195,6 +255,23 @@ class Order(BaseItalcoEntity):
   cap = Column(String, nullable=False)
   dpc = Column(Date, nullable=False)
   drc = Column(Date, nullable=False)
+  # Fascia oraria assegnata automaticamente dalla copertura corrieri quando
+  # il cliente sceglie la dpc: vedi assign_delivery_slot in delivery_coverage.py.
+  delivery_slot_start = Column(Time)
+  delivery_slot_end = Column(Time)
+  # Il veicolo che ha preso l'ordine: scelto con la fascia (resolve_delivery_entry)
+  # e usato dalla pianificazione, cosi' capienza e borderò parlano dello stesso
+  # veicolo. NULL per gli ordini senza fascia.
+  delivery_transport_id = Column(Integer, ForeignKey('transport.id'), nullable=True, index=True)
+  # Ordine precaricato: i prodotti si ritirano il giorno prima della consegna,
+  # quindi nelle aree che accettano precarichi conta anche il passaggio dai
+  # punti di ritiro del giorno precedente.
+  preloaded = Column(Boolean, nullable=False, default=False, server_default='false')
+  # Posizione esatta dell'indirizzo scelto dal menu Google (o indicata sulla
+  # mappa): chi ce l'ha non passa dal geocoding. NULL per import e indirizzi
+  # scritti a mano. Non lat/lon: in GET /order/<id> sono la posizione del corriere.
+  address_lat = Column(Float)
+  address_lon = Column(Float)
   anomaly = Column(Boolean, default=False)
   delay = Column(Boolean, default=False)
   confirmed = Column(Boolean, default=False)
@@ -363,6 +440,16 @@ class CollectionPoint(BaseItalcoEntity):
   cap = Column(String, nullable=False)
   name = Column(String, nullable=False)
   address = Column(String, nullable=False)
+  # Coordinate dell'indirizzo, salvate quando il punto viene creato/modificato
+  # (o alla prima lettura, per i punti che non le hanno): la lista dei punti
+  # non deve geocodificare a ogni richiesta.
+  lat = Column(Float)
+  lon = Column(Float)
+  # Punto che ammette il precarico: nelle aree che accettano precarichi i suoi
+  # prodotti si ritirano il giorno prima della consegna (vedi
+  # end_points/schedule/preload.py). Un prodotto con un altro punto di ritiro
+  # non precaricato si ritira normalmente.
+  preloaded = Column(Boolean, nullable=False, default=False, server_default='false')
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='collection_point')
@@ -371,6 +458,30 @@ class CollectionPoint(BaseItalcoEntity):
   release_product = relationship(
     'Product', foreign_keys='Product.release_collection_point_id', back_populates='release_collection_point'
   )
+  preload_areas = relationship(
+    'CollectionPointPreloadArea', back_populates='collection_point', cascade='all, delete-orphan'
+  )
+
+
+class CollectionPointPreloadArea(BaseItalcoEntity):
+  """Area in cui un punto di ritiro viene precaricato.
+
+  Per punto di ritiro, non per zona di copertura: la stessa zona puo' essere da
+  precaricare per un punto e non per un altro. L'area e' un insieme di CAP, un
+  poligono disegnato sulla mappa, o entrambi (basta che l'indirizzo cada in
+  uno). Un punto senza aree usa `accepts_preloads` della zona di copertura
+  (vedi end_points/schedule/preload.py).
+  """
+
+  __tablename__ = 'collection_point_preload_area'
+
+  collection_point_id = Column(Integer, ForeignKey('collection_point.id'), nullable=False, index=True)
+  name = Column(String)
+  # Lista di CAP (stringhe) e/o poligono [[lat, lon], ...], come DeliveryCoverageEntry.
+  caps = Column(JSON, nullable=False, default=list)
+  polygon = Column(JSON, nullable=True)
+
+  collection_point = relationship('CollectionPoint', back_populates='preload_areas')
 
 
 class Service(BaseItalcoEntity):

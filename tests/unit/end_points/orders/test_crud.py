@@ -1,10 +1,20 @@
+from datetime import date, time
+
 import pytest
 
 from database_api import Session, scope
-from database_api.operations import get_by_id
+from database_api.operations import create, get_by_id, update
 
 from src.database.enum import OrderStatus, OrderType, ScheduleItemUserType, UserRole
-from src.database.schema import Order, Product
+from src.database.schema import (
+  DeliveryCoverageCap,
+  DeliveryCoverageEntry,
+  Order,
+  Product,
+  Schedule,
+  ScheduleItem,
+  ScheduleItemOrder,
+)
 from src.end_points.orders.crud import (
   create_order as crud_create_order,
   delete_order,
@@ -19,6 +29,7 @@ from src.end_points.orders.sms_sender import create_order_tracking_token
 
 from tests.unit.factories import (
   assign_delivery_user_to_schedule,
+  create_collection_point,
   create_delivery_info,
   create_company,
   create_order,
@@ -27,6 +38,7 @@ from tests.unit.factories import (
   create_schedule_item_user,
   create_service,
   create_service_user,
+  create_transport,
   create_user,
   customer_with_service,
   link_order_to_schedule,
@@ -99,6 +111,156 @@ def test_create_cloned_order_updates_original(db):
   assert refreshed.status == OrderStatus.RESCHEDULED
   assert refreshed.completion_date is not None
   assert "Rischedulato con l'ordine" in refreshed.operator_note
+
+
+def test_create_order_assigns_delivery_slot_from_coverage(db):
+  # _payload usa cap='70121' e dpc='2026-07-20' (lunedì).
+  customer, service, service_user, collection_point = customer_with_service()
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70121'})
+
+  result = crud_create_order(customer, _payload(service, collection_point))
+
+  order = get_by_id(Order, result['order']['id'])
+  assert (order.delivery_slot_start, order.delivery_slot_end) == (time(8, 0), time(12, 0))
+
+
+def test_create_order_leaves_slot_empty_without_matching_coverage(db):
+  customer, service, service_user, collection_point = customer_with_service()
+
+  result = crud_create_order(customer, _payload(service, collection_point))
+
+  order = get_by_id(Order, result['order']['id'])
+  assert (order.delivery_slot_start, order.delivery_slot_end) == (None, None)
+
+
+def test_create_order_does_not_assign_slot_when_created_by_admin(db):
+  # Solo il cliente passa dal check-constraints/calendario vincolato: l'ordine
+  # creato da un operatore/admin non ha un automatismo di fascia.
+  admin = create_user(UserRole.ADMIN)
+  customer, service, service_user, collection_point = customer_with_service()
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70121'})
+
+  result = crud_create_order(admin, _payload(service, collection_point, user_id=customer.id))
+
+  order = get_by_id(Order, result['order']['id'])
+  assert (order.delivery_slot_start, order.delivery_slot_end) == (None, None)
+
+
+def test_create_order_uses_customer_chosen_slot_when_valid(db):
+  # _payload usa cap='70121' e dpc='2026-07-20' (lunedì): due fasce coperte,
+  # il cliente sceglie quella pomeridiana dal calendario invece di lasciare
+  # decidere il bilanciamento automatico.
+  customer, service, service_user, collection_point = customer_with_service()
+  transport = create_transport()
+  morning = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': morning.id, 'cap': '70121'})
+  afternoon = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(13, 0), 'end_time': time(18, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': afternoon.id, 'cap': '70121'})
+
+  result = crud_create_order(
+    customer,
+    _payload(service, collection_point, delivery_slot_start='13:00', delivery_slot_end='18:00'),
+  )
+
+  order = get_by_id(Order, result['order']['id'])
+  assert (order.delivery_slot_start, order.delivery_slot_end) == (time(13, 0), time(18, 0))
+
+
+def test_create_order_ignores_customer_chosen_slot_when_not_covered(db):
+  # Una fascia inventata (non corrisponde a nessun blocco) non va presa per
+  # buona: si ricade sull'automatismo storico invece di salvare un valore
+  # arbitrario mandato dal client.
+  customer, service, service_user, collection_point = customer_with_service()
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70121'})
+
+  result = crud_create_order(
+    customer,
+    _payload(service, collection_point, delivery_slot_start='20:00', delivery_slot_end='22:00'),
+  )
+
+  order = get_by_id(Order, result['order']['id'])
+  assert (order.delivery_slot_start, order.delivery_slot_end) == (time(8, 0), time(12, 0))
+
+
+def test_create_order_leaves_slot_empty_when_customer_automatic_planning_is_off(db):
+  # Punto vendita con pianificazione automatica spenta: la dpc resta manuale
+  # anche se la copertura coprirebbe la data, come su main.
+  customer = create_user(UserRole.CUSTOMER, automatic_planning=False)
+  service = create_service()
+  create_service_user(customer, service)
+  collection_point = create_collection_point(customer, cap='70121')
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70121'})
+
+  result = crud_create_order(customer, _payload(service, collection_point))
+
+  order = get_by_id(Order, result['order']['id'])
+  assert (order.delivery_slot_start, order.delivery_slot_end) == (None, None)
+  assert order.dpc == date(2026, 7, 20)
+
+
+def test_create_order_ignores_client_sent_slot_when_customer_automatic_planning_is_off(db):
+  # Enforcement lato server: anche se il client manda comunque uno slot
+  # (client vecchio o manomesso), il punto vendita disabilitato lo ignora.
+  customer = create_user(UserRole.CUSTOMER, automatic_planning=False)
+  service = create_service()
+  create_service_user(customer, service)
+  collection_point = create_collection_point(customer, cap='70121')
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70121'})
+
+  result = crud_create_order(
+    customer,
+    _payload(service, collection_point, delivery_slot_start='08:00', delivery_slot_end='12:00'),
+  )
+
+  order = get_by_id(Order, result['order']['id'])
+  assert (order.delivery_slot_start, order.delivery_slot_end) == (None, None)
+
+
+def test_create_order_leaves_slot_empty_when_company_automatic_planning_is_off(db):
+  update(db, {'automatic_planning': False})
+  customer, service, service_user, collection_point = customer_with_service()
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70121'})
+
+  result = crud_create_order(customer, _payload(service, collection_point))
+
+  order = get_by_id(Order, result['order']['id'])
+  assert (order.delivery_slot_start, order.delivery_slot_end) == (None, None)
 
 
 def test_filter_orders_formats_results(db):
@@ -289,6 +451,118 @@ def test_update_order_booking_date_moves_to_booked(db):
   assert get_by_id(Order, order.id).status == OrderStatus.BOOKED
 
 
+def test_update_order_assigns_delivery_slot_when_customer_changes_dpc(db):
+  customer = create_user(UserRole.CUSTOMER)
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70121'})
+  # 14/07/2026 è martedì: non coperto, lo slot nasce vuoto.
+  order = create_order(cap='70121', dpc=date(2026, 7, 14))
+
+  with Session() as session:
+    order_in_session = session.get(Order, order.id)
+    update_order(customer, order_in_session, {'id': order.id, 'dpc': '2026-07-20'}, session)  # lunedì, coperto
+    session.commit()
+
+  refreshed = get_by_id(Order, order.id)
+  assert (refreshed.delivery_slot_start, refreshed.delivery_slot_end) == (time(8, 0), time(12, 0))
+
+
+def test_update_order_clears_slot_when_customer_moves_outside_coverage(db):
+  customer = create_user(UserRole.CUSTOMER)
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': '70121'})
+  order = create_order(
+    cap='70121', dpc=date(2026, 7, 20), delivery_slot_start=time(8, 0), delivery_slot_end=time(12, 0)
+  )
+
+  with Session() as session:
+    order_in_session = session.get(Order, order.id)
+    update_order(customer, order_in_session, {'id': order.id, 'dpc': '2026-07-14'}, session)  # martedì, non coperto
+    session.commit()
+
+  refreshed = get_by_id(Order, order.id)
+  assert (refreshed.delivery_slot_start, refreshed.delivery_slot_end) == (None, None)
+
+
+def test_update_order_uses_customer_chosen_slot_when_valid(db):
+  customer = create_user(UserRole.CUSTOMER)
+  transport = create_transport()
+  morning = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': morning.id, 'cap': '70121'})
+  afternoon = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(13, 0), 'end_time': time(18, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': afternoon.id, 'cap': '70121'})
+  order = create_order(cap='70121', dpc=date(2026, 7, 20))
+
+  with Session() as session:
+    order_in_session = session.get(Order, order.id)
+    update_order(
+      customer,
+      order_in_session,
+      {'id': order.id, 'dpc': '2026-07-20', 'delivery_slot_start': '13:00', 'delivery_slot_end': '18:00'},
+      session,
+    )
+    session.commit()
+
+  refreshed = get_by_id(Order, order.id)
+  assert (refreshed.delivery_slot_start, refreshed.delivery_slot_end) == (time(13, 0), time(18, 0))
+
+
+def test_update_order_does_not_touch_slot_when_edited_by_operator(db):
+  admin = create_user(UserRole.ADMIN)
+  order = create_order(dpc=date(2026, 7, 13), delivery_slot_start=time(9, 0), delivery_slot_end=time(11, 0))
+
+  with Session() as session:
+    order_in_session = session.get(Order, order.id)
+    update_order(admin, order_in_session, {'id': order.id, 'dpc': '2026-07-20'}, session)
+    session.commit()
+
+  refreshed = get_by_id(Order, order.id)
+  assert (refreshed.delivery_slot_start, refreshed.delivery_slot_end) == (time(9, 0), time(11, 0))
+
+
+def test_update_order_recomputes_slot_excluding_itself_from_the_count(db):
+  # Il cliente riconferma la stessa dpc (es. tocca un altro campo del form
+  # date): il ricalcolo scatta comunque perché 'dpc' è nel payload, ma lo
+  # slot già assegnato all'ordine non deve contare contro se stesso nel
+  # confronto tra le fasce, altrimenti lo spingerebbe via da quella corretta.
+  customer = create_user(UserRole.CUSTOMER)
+  transport = create_transport()
+  busy = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': busy.id, 'cap': '70121'})
+  create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(13, 0), 'end_time': time(18, 0)},
+  )
+  order = create_order(
+    cap='70121', dpc=date(2026, 7, 20), delivery_slot_start=time(8, 0), delivery_slot_end=time(12, 0)
+  )
+
+  with Session() as session:
+    order_in_session = session.get(Order, order.id)
+    update_order(customer, order_in_session, {'id': order.id, 'dpc': '2026-07-20'}, session)
+    session.commit()
+
+  refreshed = get_by_id(Order, order.id)
+  assert (refreshed.delivery_slot_start, refreshed.delivery_slot_end) == (time(8, 0), time(12, 0))
+
+
 def test_update_order_completes_schedule_item(db):
   admin = create_user(UserRole.ADMIN)
   order = create_order(status=OrderStatus.BOOKING)
@@ -394,3 +668,120 @@ def test_update_order_customer_requires_same_services(db):
   result = update_order_customer(admin, new_customer.id, order.id)
 
   assert result['status'] == 'ko'
+
+
+def _monday_entries(transport, cap='70121'):
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': cap})
+  return entry
+
+
+def test_create_order_stores_the_vehicle_that_takes_it(db):
+  customer, service, service_user, collection_point = customer_with_service()
+  transport = create_transport()
+  _monday_entries(transport)
+
+  result = crud_create_order(customer, _payload(service, collection_point))
+
+  assert get_by_id(Order, result['order']['id']).delivery_transport_id == transport.id
+
+
+def test_create_order_ignores_a_vehicle_sent_by_the_client(db):
+  admin = create_user(UserRole.ADMIN)
+  customer, service, service_user, collection_point = customer_with_service()
+  transport = create_transport()
+
+  result = crud_create_order(
+    admin, _payload(service, collection_point, user_id=customer.id, delivery_transport_id=transport.id)
+  )
+
+  assert get_by_id(Order, result['order']['id']).delivery_transport_id is None
+
+
+def test_create_order_refuses_a_day_with_no_capacity_left(db):
+  customer, service, service_user, collection_point = customer_with_service(duration=240)
+  transport = create_transport()
+  entry = _monday_entries(transport)
+  full = create_order(
+    cap='70121',
+    dpc=date(2026, 7, 20),
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+    delivery_transport_id=transport.id,
+  )
+  create_product(full, service_user)
+
+  result = crud_create_order(customer, _payload(service, collection_point))
+
+  assert result['status'] == 'ko'
+  with Session() as session:
+    assert session.query(Order).count() == 1
+
+
+def test_update_order_moves_the_stop_to_the_schedule_of_the_new_date(db):
+  customer = create_user(UserRole.CUSTOMER)
+  transport = create_transport()
+  entry = _monday_entries(transport)
+  order = create_order(
+    cap='70121',
+    dpc=date(2026, 7, 20),
+    status=OrderStatus.SCHEDULED,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+    delivery_transport_id=transport.id,
+  )
+  old_schedule = create_schedule(transport, date(2026, 7, 20))
+  link_order_to_schedule(order, old_schedule, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
+
+  with Session() as session:
+    pending = []
+    update_order(
+      customer, session.get(Order, order.id), {'id': order.id, 'dpc': '2026-07-27'}, session, pending_sms=pending
+    )
+    session.commit()
+
+  with Session() as session:
+    dates = [
+      row.date
+      for row in session.query(Schedule)
+      .join(ScheduleItem, ScheduleItem.schedule_id == Schedule.id)
+      .join(ScheduleItemOrder, ScheduleItemOrder.schedule_item_id == ScheduleItem.id)
+      .filter(ScheduleItemOrder.order_id == order.id)
+    ]
+  assert dates == [date(2026, 7, 27)]
+  assert len(pending) == 1
+  refreshed = get_by_id(Order, order.id)
+  assert refreshed.status in (OrderStatus.SCHEDULED, OrderStatus.BOOKING)
+  assert refreshed.delivery_transport_id == transport.id
+
+
+def test_update_order_leaves_the_stop_alone_when_nothing_moves(db):
+  customer = create_user(UserRole.CUSTOMER)
+  transport = create_transport()
+  entry = _monday_entries(transport)
+  order = create_order(
+    cap='70121',
+    dpc=date(2026, 7, 20),
+    status=OrderStatus.SCHEDULED,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+    delivery_transport_id=transport.id,
+  )
+  schedule = create_schedule(transport, date(2026, 7, 20))
+  link_order_to_schedule(order, schedule, start_time_slot=entry.start_time, end_time_slot=entry.end_time)
+
+  with Session() as session:
+    update_order(
+      customer,
+      session.get(Order, order.id),
+      {'id': order.id, 'dpc': '2026-07-20', 'cap': '70121', 'addressee': 'Nuovo Nome'},
+      session,
+    )
+    session.commit()
+
+  with Session() as session:
+    assert session.query(ScheduleItemOrder).filter(ScheduleItemOrder.order_id == order.id).count() == 1
+  assert get_by_id(Order, order.id).status == OrderStatus.SCHEDULED

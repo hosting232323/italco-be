@@ -32,6 +32,7 @@ def export_order(id, customer_id: int = None):
       products=orders[0]['products'],
       note=orders[0].get('customer_note', '/'),
       motivation=orders[0].get('motivation'),
+      preloaded=bool(orders[0].get('preloaded')),
       delivery_signature=delivery_signature,
       anomaly_signature=anomaly_signature,
       **company_context(),

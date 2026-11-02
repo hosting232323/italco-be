@@ -54,7 +54,10 @@
             {% endfor %}
           </td>
           <td>{{ order.user.company_name or order.user.nickname }}</td>
-          <td>{{ [order.customer_note, order.operator_note] | select | join(', ') or '/' }}</td>
+          <td>
+            {% if order.preloaded %}<strong>PRECARICATO</strong>: ritirato il giorno prima<br>{% endif %}
+            {{ [order.customer_note, order.operator_note] | select | join(', ') or ('' if order.preloaded else '/') }}
+          </td>
         </tr>
         {% endfor %}
       </tbody>

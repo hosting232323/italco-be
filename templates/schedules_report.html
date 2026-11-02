@@ -33,6 +33,33 @@
   </table>
 </div>
 
+{% if preload_pickups %}
+<div class="section" style="margin-bottom: 16px;">
+  <h2 style="margin-top: 0; margin-bottom: 5px; border-bottom: none; padding-bottom: 0;">Precarichi: ritiri per domani</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="padding: 5px 8px 3px;">Punto di ritiro</th>
+        <th style="padding: 5px 8px 3px;">Ordine</th>
+        <th style="padding: 5px 8px 3px;">Prodotto</th>
+        <th style="padding: 5px 8px 3px;">Destinatario</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in preload_pickups %}
+      <tr>
+        <td style="padding: 5px 8px 3px;">{{ row.collection_point }}</td>
+        <td style="padding: 5px 8px 3px;">{{ row.order_id }}</td>
+        <td style="padding: 5px 8px 3px;">{{ row.name }}</td>
+        <td style="padding: 5px 8px 3px;">{{ row.addressee }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="margin-top: 4px; font-size: 11px;">Prodotti da ritirare oggi per ordini che vengono consegnati il giorno dopo.</p>
+</div>
+{% endif %}
+
 <div class="section" style="margin-top: 30px">
   <table class="info-table">
     <tr>

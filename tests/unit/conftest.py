@@ -1,8 +1,10 @@
 import os
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
+import requests
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 
@@ -91,6 +93,24 @@ TEST_DISPOSAL_PLACE = {
 
 
 @pytest.fixture(autouse=True)
+def _no_real_network(monkeypatch):
+  """Nessuna chiamata vera a Nominatim/OSRM dai test.
+
+  Geocoding e percorsi cadono in fallback (CAP, Haversine) come quando il
+  servizio non risponde. Prima i test chiamavano i server veri: dal runner CI
+  lenti o irraggiungibili, la suite sforava l'ora di timeout del job. I test che
+  vogliono una risposta la mockano da soli (patch di requests.get o delle
+  funzioni di geocoding), e quella patch vince su questa.
+  """
+  import requests
+
+  def _unreachable(url, *args, **kwargs):
+    raise requests.ConnectionError(f'rete disabilitata nei test: {url}')
+
+  monkeypatch.setattr(requests, 'get', _unreachable)
+
+
+@pytest.fixture(autouse=True)
 def _clear_caps_cache():
   """Isola i test dalla cache di src.utils.caps.
 
@@ -99,11 +119,14 @@ def _clear_caps_cache():
   che chiama la funzione reale (rete vera o mockata) inquina la cache per
   tutti i test successivi che si aspettano di controllare la chiamata.
   """
+  from src.end_points.service import travel as travel_module
   from src.utils import caps as caps_module
 
   caps_module.get_province_by_cap.cache_clear()
   caps_module.get_cap_by_name.cache_clear()
   caps_module.get_lat_lon_by_cap.cache_clear()
+  caps_module.get_lat_lon_by_address.cache_clear()
+  travel_module.travel_time_matrix_osrm.cache_clear()
   yield
 
 
@@ -147,3 +170,59 @@ def app():
 @pytest.fixture
 def client(app, db):
   return app.test_client()
+
+
+class OfflineGeo:
+  """Geocoding e OSRM finti, con i percorsi che il codice ha chiesto.
+
+  I test della capienza delle fasce passano dal geocoder (veicolo, ritiri,
+  ordini) e da OSRM (minuti di strada): senza questa fixture chiamerebbero il
+  vero Nominatim e passerebbero solo con la rete su. Qui i luoghi si dichiarano
+  (``places``: sottostringa dell'indirizzo -> coordinata, ``caps``: CAP ->
+  coordinata), i minuti di ogni percorso li decide il test (``minutes``, un
+  numero o una funzione del percorso) e ``paths`` registra i percorsi chiesti,
+  per verificare l'ordine in cui il veicolo tocca le tappe.
+  """
+
+  def __init__(self):
+    self.places: dict[str, tuple] = {}
+    self.caps: dict[str, tuple] = {}
+    self.minutes = 0
+    self.paths: list[list[tuple]] = []
+    self.unreachable = False
+
+  def by_address(self, address):
+    if self.unreachable:
+      raise requests.ConnectionError('geocoder non raggiungibile')
+    for fragment, coord in self.places.items():
+      if fragment in (address or ''):
+        return coord
+    return None, None
+
+  def by_cap(self, cap):
+    if self.unreachable:
+      raise requests.ConnectionError('geocoder non raggiungibile')
+    return self.caps.get(cap, (None, None))
+
+  def sequential(self, coords):
+    self.paths.append(list(coords))
+    return self.minutes(coords) if callable(self.minutes) else self.minutes
+
+
+@pytest.fixture
+def offline_geo():
+  geo = OfflineGeo()
+  targets = {
+    'src.end_points.service.travel.get_lat_lon_by_address': geo.by_address,
+    'src.end_points.service.travel.get_lat_lon_by_cap': geo.by_cap,
+    'src.end_points.service.duration.get_lat_lon_by_address': geo.by_address,
+    'src.end_points.service.duration.get_lat_lon_by_cap': geo.by_cap,
+    'src.end_points.schedule.preload.get_lat_lon_by_address': geo.by_address,
+    'src.end_points.service.travel.sequential_travel_minutes': geo.sequential,
+  }
+  patches = [patch(target, replacement) for target, replacement in targets.items()]
+  for active in patches:
+    active.start()
+  yield geo
+  for active in patches:
+    active.stop()

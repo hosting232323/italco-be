@@ -132,6 +132,7 @@ def test_order_import_by_pdf_creates_order_and_products(client, monkeypatch):
   header = ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']
   tables = [[header, ['A1', 'M', 'Frigo', '1', 'S1']]]
   monkeypatch.setattr(pdf_module.pdfplumber, 'open', lambda file: _FakePdf([_FakePage(text, tables)]))
+  monkeypatch.setattr(pdf_module, 'get_cap_by_name', lambda city: '70056')
 
   response = client.post(
     '/import/pdf',
@@ -186,6 +187,7 @@ def test_pdf_import_endpoint_reads_customer_id_from_data_envelope(client, monkey
   header = ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']
   tables = [[header, ['A1', 'M', 'Frigo', '1', 'S1']]]
   monkeypatch.setattr(pdf_module.pdfplumber, 'open', lambda file: _FakePdf([_FakePage(text, tables)]))
+  monkeypatch.setattr(pdf_module, 'get_cap_by_name', lambda city: '70056')
 
   response = client.post(
     '/import/pdf',
@@ -255,6 +257,7 @@ def test_pdf_import_endpoint_returns_ko_when_service_code_not_found(client, monk
   header = ['Articolo', 'Modello', 'Tipologia - Descrizione', 'Quantità - Peso Jg', 'Servizio']
   tables = [[header, ['A1', 'M', 'Frigo', '1', 'MISSING_SERVICE']]]
   monkeypatch.setattr(pdf_module.pdfplumber, 'open', lambda file: _FakePdf([_FakePage(text, tables)]))
+  monkeypatch.setattr(pdf_module, 'get_cap_by_name', lambda city: '70056')
 
   response = client.post(
     '/import/pdf',

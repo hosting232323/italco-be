@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 
 from ...order_integrity import assert_order_service_types, lock_order_service_integrity
@@ -11,6 +11,12 @@ from api.storage.session import SessionWithStorage
 from .api import save_order_status_to_euronics
 from ..service.queries import get_service_users
 from .services import create_products, update_products
+from ..delivery_coverage import SlotUnavailableError, annotate_out_of_zone, resolve_delivery_entry
+from ..schedule.preload import delivery_address, order_is_preloaded, preloaded_pickup_ids_for_order
+from ..service.duration import payload_pickup_collection_point_ids
+from ..service.duration import order_products_payload
+from ...utils.geo import parse_coordinates
+from ...utils.caps import get_lat_lon_by_address, remember_address_coordinates
 from database_api.operations import create, update, get_by_id, delete
 from .queries import query_orders, format_query_result, get_order_by_tracking_token
 from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus, ScheduleItemUserType
@@ -22,11 +28,14 @@ from ..schedule.queries import (
   close_schedule_position_if_done,
   get_latest_schedule_item_user,
 )
+from ...database.queries import is_automatic_planning_enabled
 
 
 NON_UPDATABLE_ORDER_FIELDS = frozenset(
   {
     'products',
+    'delivery_transport_id',
+    'preloaded',
     'user_id',
     'company_id',
     'start_time_slot',
@@ -71,12 +80,48 @@ ROLE_UPDATABLE_ORDER_FIELDS = {
 }
 
 
+# Campi di data e fascia che il cliente puo' cambiare solo con la pianificazione automatica attiva.
+CUSTOMER_PLANNING_FIELDS = ('dpc', 'delivery_slot_start', 'delivery_slot_end')
+
+# Campi che un cliente non deve poter impostare creando un ordine: li governano operatori, corrieri e
+# integrazioni (conferma, esito della consegna, note interne, ordini esterni, veicolo assegnato).
+CUSTOMER_FORBIDDEN_CREATE_FIELDS = frozenset(
+  {
+    'id',
+    'company_id',
+    'created_at',
+    'updated_at',
+    'status',
+    'confirmed',
+    'confirmation_date',
+    'completion_date',
+    'booking_date',
+    'mark',
+    'signature',
+    'operator_note',
+    'motivation',
+    'anomaly',
+    'delay',
+    'version',
+    'external_id',
+    'external_link',
+    'external_status',
+    'delivery_transport_id',
+  }
+)
+
+
 def restrict_order_update(user: User, data: dict, session) -> dict:
   allowed = ROLE_UPDATABLE_ORDER_FIELDS.get(user.role)
   if allowed is None:
     return data
 
   restricted = {key: value for key, value in data.items() if key in allowed}
+  # Data e fascia le sceglie il cliente dal calendario vincolato alla copertura, quindi solo se
+  # attivita' e punto vendita hanno la pianificazione automatica: update_order le ricalcola e
+  # le valida. Senza, la dpc resta quella di quando e' stato creato l'ordine.
+  if user.role == UserRole.CUSTOMER and is_automatic_planning_enabled() and user.automatic_planning:
+    restricted.update({key: data[key] for key in CUSTOMER_PLANNING_FIELDS if key in data})
   if user.role == UserRole.DELIVERY and isinstance(restricted.get('products'), dict):
     safe_products = {}
     for name, details in restricted['products'].items():
@@ -94,10 +139,41 @@ def restrict_order_update(user: User, data: dict, session) -> dict:
   return restricted
 
 
+def address_coordinates(data: dict, order: Order = None) -> dict:
+  """Le coordinate dell'indirizzo da salvare sull'ordine, prese dal payload.
+
+  Arrivano dal form quando l'indirizzo e' scelto dal menu Google (o indicato
+  sulla mappa) e valgono solo se plausibili. In modifica il form rimanda
+  l'ordine intero: se l'indirizzo non cambia e non arriva una posizione nuova
+  resta quella salvata; se cambia ma le coordinate sono ancora quelle salvate,
+  sono del vecchio indirizzo e si azzerano (torna il geocoding).
+  """
+  lat, lon = parse_coordinates(data.get('address_lat'), data.get('address_lon'))
+  if order is None:
+    return {'address_lat': lat, 'address_lon': lon}
+
+  moved = data.get('address', order.address) != order.address
+  if not moved and lat is None:
+    return {}
+  if moved and (lat, lon) == (order.address_lat, order.address_lon):
+    lat, lon = None, None
+  return {'address_lat': lat, 'address_lon': lon}
+
+
 def create_order(user: User, data: dict):
   clean_data = {key: value for key, value in data.items() if key not in ['products', 'user_id', 'cloned_order_id']}
+  if user.role == UserRole.CUSTOMER:
+    clean_data = {key: value for key, value in clean_data.items() if key not in CUSTOMER_FORBIDDEN_CREATE_FIELDS}
   if not clean_data.get('address'):
     return {'status': 'ko', 'message': "L'indirizzo è obbligatorio"}
+  clean_data.update(address_coordinates(clean_data))
+  if clean_data['address_lat'] is not None:
+    remember_address_coordinates(clean_data['address'], clean_data['address_lat'], clean_data['address_lon'])
+  elif user.role == UserRole.CUSTOMER and user.automatic_planning:
+    # Il geocoding dell'indirizzo puo' costare secondi: lo si fa prima di
+    # prendere il lock degli ordini, cosi' la cache e' calda quando la scelta
+    # della fascia (dentro il lock) ne ha bisogno e non tiene fermi gli altri.
+    get_lat_lon_by_address(clean_data['address'])
   clean_data['type'] = OrderType(clean_data['type'])
   if 'external_status' in clean_data:
     clean_data['external_status'] = EuronicsStatus(clean_data['external_status'])
@@ -121,6 +197,50 @@ def create_order(user: User, data: dict):
     if missing:
       return {'status': 'ko', 'message': f'Campi obbligatori mancanti: {", ".join(missing)}'}
 
+    # Solo il cliente sceglie la dpc dal calendario vincolato alla copertura
+    # corrieri: operatori/admin non hanno questo automatismo (come oggi non
+    # avevano il check-constraints). Se il cliente ha scelto anche la fascia
+    # sul calendario, resolve_delivery_slot la valida e la usa al posto del
+    # bilanciamento automatico. Vale solo se sia l'attività sia il punto
+    # vendita hanno il flag acceso: altrimenti la dpc resta quella inviata dal
+    # client, senza slot, esattamente come su main prima della copertura
+    # corrieri (enforcement lato server: un client che manda comunque uno
+    # slot viene ignorato, non solo la UI che lo nasconde).
+    if user.role == UserRole.CUSTOMER and is_automatic_planning_enabled() and user.automatic_planning:
+      try:
+        entry = resolve_delivery_entry(
+          clean_data.get('cap'),
+          clean_data.get('dpc'),
+          requested_start=clean_data.get('delivery_slot_start'),
+          requested_end=clean_data.get('delivery_slot_end'),
+          products=data.get('products'),
+          user_id=user.id,
+          address=clean_data.get('address'),
+        )
+      except SlotUnavailableError as error:
+        return {'status': 'ko', 'message': str(error)}
+      cap, lat, lon = delivery_address(
+        clean_data.get('cap'), clean_data.get('address'), clean_data.get('address_lat'), clean_data.get('address_lon')
+      )
+      clean_data['preloaded'] = order_is_preloaded(
+        entry,
+        payload_pickup_collection_point_ids(data.get('products')),
+        session,
+        dpc=clean_data.get('dpc'),
+        cap=cap,
+        lat=lat,
+        lon=lon,
+      )
+      clean_data['delivery_slot_start'] = entry.start_time if entry else None
+      clean_data['delivery_slot_end'] = entry.end_time if entry else None
+      clean_data['delivery_transport_id'] = entry.transport_id if entry else None
+    else:
+      clean_data.pop('delivery_slot_start', None)
+      clean_data.pop('delivery_slot_end', None)
+      clean_data.pop('delivery_transport_id', None)
+      # Il precarico lo decide il server (area + punti di ritiro), mai il client.
+      clean_data.pop('preloaded', None)
+
     order: Order = create(Order, clean_data, session=session)
     create_products(
       order,
@@ -133,8 +253,32 @@ def create_order(user: User, data: dict):
     if cloned_order:
       update_cloned_order(order, data['cloned_order_id'], session=session)
 
+    # Pianificazione automatica del borderò: se la company ha il flag attivo
+    # e l'ordine ha una fascia oraria assegnata, crea o aggiorna il borderò
+    # nella stessa transazione. Il flush rende disponibile l'id dell'ordine
+    # senza ancora committare, così un'eventuale eccezione fa rollback di tutto.
+    pending_auto_sms = []
+    if is_automatic_planning_enabled() and order.delivery_slot_start:
+      from ...schedulation.auto_planning import auto_plan_order
+
+      session.flush()
+      pending_auto_sms = auto_plan_order(order, session)
+
     session.commit()
     save_order_status_to_euronics(order)
+
+    # SMS post-commit per le tappe aggiunte automaticamente al borderò
+    if pending_auto_sms:
+      from ..schedule.sms_sender import schedule_sms_check
+
+      for sms_order, sms_item in pending_auto_sms:
+        schedule_sms_check(sms_order, sms_item)
+
+    if pending_auto_sms:
+      from ...schedulation.auto_planning import optimize_schedules_after_commit
+
+      optimize_schedules_after_commit(pending_auto_sms)
+
   return {'status': 'ok', 'order': order.to_dict()}
 
 
@@ -142,6 +286,7 @@ def filter_orders(filters: dict, customer_id: int = None):
   orders = []
   for tupla in query_orders(filters, 500, customer_id):
     orders = format_query_result(tupla, orders)
+  annotate_out_of_zone(orders)
   return {'status': 'ok', 'orders': orders}
 
 
@@ -210,7 +355,7 @@ def delete_order(user: User, order_id: int):
     if not order or item or order.status not in [OrderStatus.ACQUIRED, OrderStatus.BOOKED]:
       return {
         'status': 'ko',
-        'message': "Si necessità un ordine in stato di attesa senza borderò per procedere con l'eliminazione",
+        'message': 'Si può eliminare solo un ordine in attesa e senza borderò',
       }
 
     for photo in order.photo:
@@ -223,7 +368,15 @@ def delete_order(user: User, order_id: int):
 def update_order(user: User, order: Order, data: dict, session, pending_sms: list = None):
   lock_order_service_integrity(session)
   motivation = data.get('motivation')
+  if any(key in data for key in ('address', 'address_lat', 'address_lon')):
+    data.update(address_coordinates(data, order))
+    # La fascia (sotto) va ricalcolata sulla posizione nuova, non su una stima.
+    remember_address_coordinates(data.get('address', order.address), data.get('address_lat'), data.get('address_lon'))
   schedule_item = get_schedule_item_by_order(order, session=session)
+  # Il precarico di prima, per riallineare le tappe della vigilia se questa
+  # modifica lo cambia senza passare dal replan del cliente (vedi sync_order_preload).
+  previous_preload_ids = preloaded_pickup_ids_for_order(order, session)
+  previous_eve = order.dpc - timedelta(days=1) if previous_preload_ids and order.dpc else None
 
   if 'status' in data:
     data['status'] = OrderStatus(data['status'])
@@ -235,6 +388,68 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
         close_schedule_position_if_done(schedule_item, session=session)
   if order.status == OrderStatus.ACQUIRED and 'booking_date' in data and order.booking_date != data['booking_date']:
     data['status'] = OrderStatus.BOOKED
+
+  # Il cliente può riaprire il form date su un ordine esistente (il campo non
+  # è disabilitato per lui come per l'operatore): se tocca dpc o cap, la
+  # fascia va ricalcolata sulla copertura corrieri, escludendo l'ordine
+  # stesso dal conteggio per non farlo competere con sé stesso. Stessa
+  # condizione di create_order: senza il flag di attività+punto vendita la
+  # dpc resta manuale, niente slot, anche se il client ne manda uno.
+  planning_fields = {}
+  replan = False
+  if (
+    user.role == UserRole.CUSTOMER
+    and is_automatic_planning_enabled()
+    and user.automatic_planning
+    and order.status != OrderStatus.DELIVERED
+  ):
+    location_moved = _moves_the_order(order, data)
+    if location_moved or _products_change_the_load(order, data, session):
+      # Cambiando solo prodotti o servizi la fascia resta quella dell'ordine,
+      # ma la capienza si ricontrolla: puo' non starci piu'.
+      keep_slot = not location_moved
+      entry = resolve_delivery_entry(
+        data.get('cap', order.cap),
+        data.get('dpc', order.dpc),
+        requested_start=data.get('delivery_slot_start') or (order.delivery_slot_start if keep_slot else None),
+        requested_end=data.get('delivery_slot_end') or (order.delivery_slot_end if keep_slot else None),
+        exclude_order_id=order.id,
+        products=data.get('products') or order_products_payload(order, session),
+        user_id=user.id,
+        address=data.get('address', order.address),
+      )
+      products_payload = data.get('products') or order_products_payload(order, session)
+      moved_address = data.get('address', order.address) != order.address
+      cap, lat, lon = delivery_address(
+        data.get('cap', order.cap),
+        data.get('address', order.address),
+        data.get('address_lat', None if moved_address else order.address_lat),
+        data.get('address_lon', None if moved_address else order.address_lon),
+      )
+      planning_fields = {
+        'delivery_slot_start': entry.start_time if entry else None,
+        'delivery_slot_end': entry.end_time if entry else None,
+        'delivery_transport_id': entry.transport_id if entry else None,
+        'preloaded': order_is_preloaded(
+          entry,
+          payload_pickup_collection_point_ids(products_payload),
+          session,
+          dpc=data.get('dpc', order.dpc),
+          cap=cap,
+          lat=lat,
+          lon=lon,
+          exclude_order_id=order.id,
+        ),
+      }
+      replan = True
+      # La tappa vecchia esce: auto_plan_order ne crea una nuova e l'ordine
+      # finirebbe in due borderò.
+      from ...schedulation.auto_planning import unplan_order
+
+      unplan_order(order, session)
+  if user.role == UserRole.CUSTOMER:
+    data.pop('delivery_slot_start', None)
+    data.pop('delivery_slot_end', None)
 
   if 'type' in data:
     data['type'] = OrderType(data['type'])
@@ -273,11 +488,76 @@ def update_order(user: User, order: Order, data: dict, session, pending_sms: lis
 
   order = update(
     order,
-    {key: value for key, value in data.items() if key not in NON_UPDATABLE_ORDER_FIELDS},
+    {key: value for key, value in data.items() if key not in NON_UPDATABLE_ORDER_FIELDS} | planning_fields,
     session=session,
   )
   assert_order_service_types(order, session)
+
+  # Prodotti o data cambiati fuori dal replan: il precarico e le tappe della
+  # vigilia si riallineano qui (il replan li rifa gia' da zero).
+  if not replan and ('products' in data or 'dpc' in data):
+    from ...schedulation.auto_planning import sync_order_preload
+
+    sync_order_preload(order, previous_preload_ids, previous_eve, session)
+
+  # Data o zona cambiate dal cliente: la tappa vecchia e' gia' uscita dal
+  # borderò (unplan_order), quella nuova entra in quello della nuova fascia,
+  # nella stessa transazione.
+  if replan and order.delivery_slot_start:
+    from ...schedulation.auto_planning import auto_plan_order
+
+    session.flush()
+    planned = auto_plan_order(order, session)
+    if pending_sms is not None:
+      pending_sms.extend(planned)
   return motivation
+
+
+def _moves_the_order(order: Order, data: dict) -> bool:
+  """Se la modifica cambia dove/quando l'ordine va consegnato (data, CAP, indirizzo, fascia).
+
+  Il form del cliente rimanda tutti i campi anche quando non li ha toccati:
+  ricalcolare la fascia a ogni salvataggio sposterebbe ordini che nessuno ha
+  mosso.
+  """
+  for field in ('dpc', 'cap', 'address'):
+    if field not in data:
+      continue
+    new, current = data[field], getattr(order, field)
+    if field == 'dpc':
+      new = str(new)[:10]
+      current = str(current)[:10]
+    if new != current:
+      return True
+  # Il cliente puo' anche solo scegliere un'altra fascia nello stesso giorno.
+  for field in ('delivery_slot_start', 'delivery_slot_end'):
+    requested = data.get(field)
+    if requested and str(requested)[:5] != str(getattr(order, field) or '')[:5]:
+      return True
+  return False
+
+
+def _products_change_the_load(order: Order, data: dict, session) -> bool:
+  """Se i prodotti mandati cambiano servizi o punti di ritiro rispetto a quelli salvati.
+
+  Come per _moves_the_order, il form rimanda i prodotti anche quando non sono
+  stati toccati: si confronta, non si ricalcola a ogni salvataggio.
+  """
+  products = data.get('products')
+  if not isinstance(products, dict):
+    return False
+
+  def _signature(payload: dict) -> dict:
+    signature = {}
+    for name, details in payload.items():
+      details = details if isinstance(details, dict) else {}
+      services = sorted(service.get('id') for service in details.get('services') or [] if isinstance(service, dict))
+      collection_point = details.get('collection_point')
+      cp_id = collection_point.get('id') if isinstance(collection_point, dict) else None
+      signature[name] = (services, cp_id)
+    return signature
+
+  return _signature(products) != _signature(order_products_payload(order, session))
 
 
 def update_order_customer(user: User, user_id: int, order_id: int):

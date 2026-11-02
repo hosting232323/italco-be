@@ -123,3 +123,18 @@ def test_split_large_groups_merges_undersized_subgroups():
 
   assert sum(count_orders(sub) for sub in result) == 6
   assert all(count_orders(sub) <= 2 for sub in result)
+
+
+def test_cluster_orders_by_cap_keeps_coordinates_aligned_when_an_order_has_no_cap():
+  # Un ordine senza CAP non ha coordinate: non deve spostare quelle degli altri.
+  order_items = [
+    {'operation_type': 'Order', 'order_id': 1, 'cap': '', 'products': {}},
+    {'operation_type': 'Order', 'order_id': 2, 'cap': '70121', 'products': {}},
+    {'operation_type': 'Order', 'order_id': 3, 'cap': FAR_CAP, 'products': {}},
+  ]
+
+  sub_groups = cluster_orders_by_cap(order_items, [], max_size_group=3, max_distance_km=50)
+
+  by_order = {item['order_id']: index for index, group in enumerate(sub_groups) for item in group}
+  assert by_order[2] != by_order[3]
+  assert set(by_order) == {1, 2, 3}

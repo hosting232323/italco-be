@@ -29,6 +29,10 @@ def _fake_get_lat_lon_by_cap(cap):
   return _CAP_COORDINATES.get(cap, (None, None))
 
 
+def _fake_get_lat_lon_by_caps(caps):
+  return [_fake_get_lat_lon_by_cap(cap) for cap in caps]
+
+
 @pytest.fixture(autouse=True)
 def stub_cap_geocoding(monkeypatch):
   import src.schedulation.assigning as assigning_module
@@ -36,8 +40,9 @@ def stub_cap_geocoding(monkeypatch):
   import src.schedulation.clustering_rules.split_large_group as split_module
 
   monkeypatch.setattr(assigning_module, 'get_lat_lon_by_cap', _fake_get_lat_lon_by_cap)
-  monkeypatch.setattr(merge_module, 'get_lat_lon_by_cap', _fake_get_lat_lon_by_cap)
-  monkeypatch.setattr(split_module, 'get_lat_lon_by_cap', _fake_get_lat_lon_by_cap)
+  monkeypatch.setattr(assigning_module, 'get_lat_lon_by_caps', _fake_get_lat_lon_by_caps)
+  monkeypatch.setattr(merge_module, 'get_lat_lon_by_caps', _fake_get_lat_lon_by_caps)
+  monkeypatch.setattr(split_module, 'get_lat_lon_by_caps', _fake_get_lat_lon_by_caps)
 
 
 def make_order(order_id, cap, collection_point_id=None, services=None, address=None):

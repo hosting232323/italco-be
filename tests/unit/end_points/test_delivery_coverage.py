@@ -1,0 +1,1697 @@
+import pytest
+from datetime import date, time, timedelta
+from unittest.mock import patch
+
+from database_api.operations import create, get_by_id, get_by_params, update
+
+from src.database.enum import UserRole
+from database_api import Session
+
+from src.database.enum import ScheduleType
+from src.database.schema import (
+  CollectionPointPreloadArea,
+  DeliveryCoverageCap,
+  DeliveryCoverageEntry,
+  Schedule,
+  ScheduleItemCollectionPoint,
+)
+from src.end_points.service.duration import PICKUP_POINT_MINUTES_PER_PRODUCT
+from src.end_points.delivery_coverage import (
+  SlotUnavailableError,
+  annotate_out_of_zone,
+  resolve_delivery_entry,
+  available_slots,
+  available_slots_by_date,
+  check_delivery_coverage,
+  check_delivery_coverage_slots,
+  resolve_delivery_slot,
+)
+
+from tests.unit.factories import (
+  auth_header,
+  create_collection_point,
+  create_order,
+  create_product_row,
+  create_service,
+  create_service_user,
+  create_transport,
+  create_schedule,
+  create_schedule_item,
+  create_user,
+  customer_with_service,
+  link_order_to_schedule,
+)
+
+
+@pytest.fixture(autouse=True)
+def no_route_baseline(request):
+  """Questi test misurano il lavoro in testa alla giornata, con sequential_travel_minutes
+  mockato a un valore fisso: il percorso tra gli ordini della fascia (che usa la
+  stessa funzione) lo falserebbe. E' coperto a parte, in test_travel.py."""
+  if request.node.get_closest_marker('real_route'):
+    yield
+    return
+  with patch('src.end_points.service.duration._route_minutes', return_value=0):
+    yield
+
+
+# Capienza delle fasce da un'ora usate nei test sulla saturazione (08:00-09:00).
+SLOT_CAPACITY = 60
+
+
+def _entry(transport, day_of_week=0, start='08:00:00', end='17:00:00', caps=('70051',)):
+  entry = create(
+    DeliveryCoverageEntry,
+    {
+      'day_of_week': day_of_week,
+      'transport_id': transport.id,
+      'start_time': time.fromisoformat(start),
+      'end_time': time.fromisoformat(end),
+    },
+  )
+  for cap in caps:
+    create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': cap})
+  return entry
+
+
+def test_create_entry(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': '08:00',
+      'end_time': '18:00',
+      'caps': ['70051', '70052'],
+    },
+    headers=auth_header(admin),
+  )
+
+  body = response.get_json()
+  assert body['status'] == 'ok'
+  assert body['entry']['day_of_week'] == 0
+  assert body['entry']['transport_id'] == transport.id
+  assert body['entry']['start_time'] == '08:00:00'
+  assert body['entry']['caps'] == ['70051', '70052']
+  assert get_by_id(DeliveryCoverageEntry, body['entry']['id']) is not None
+
+
+def test_create_entry_dedupes_caps(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 1,
+      'transport_id': transport.id,
+      'start_time': '08:00',
+      'end_time': '18:00',
+      'caps': ['70051', '70051', ' 70052 '],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert sorted(response.get_json()['entry']['caps']) == ['70051', '70052']
+
+
+def test_create_entry_rejects_invalid_day(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 9,
+      'transport_id': transport.id,
+      'start_time': '08:00',
+      'end_time': '18:00',
+      'caps': ['70051'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Errore generico'}
+
+
+def test_create_entry_rejects_missing_transport(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.post(
+    '/delivery-coverage',
+    json={'day_of_week': 0, 'transport_id': 999, 'start_time': '08:00', 'end_time': '18:00', 'caps': ['70051']},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Veicolo non trovato'}
+
+
+def test_create_entry_rejects_reversed_times(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': '18:00',
+      'end_time': '08:00',
+      'caps': ['70051'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ko'
+
+
+def test_create_entry_rejects_unparsable_time(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': 'mezzogiorno',
+      'end_time': '18:00',
+      'caps': ['70051'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Errore generico'}
+
+
+def test_create_entry_rejects_empty_caps(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+
+  response = client.post(
+    '/delivery-coverage',
+    json={'day_of_week': 0, 'transport_id': transport.id, 'start_time': '08:00', 'end_time': '18:00', 'caps': []},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Seleziona almeno un CAP o disegna una zona sulla mappa'}
+
+
+def test_get_delivery_coverage_lists_entries_sorted(client):
+  operator = create_user(UserRole.OPERATOR)
+  transport = create_transport()
+  _entry(transport, day_of_week=2, start='09:00:00', end='12:00:00')
+  _entry(transport, day_of_week=0, start='14:00:00', end='16:00:00')
+  _entry(transport, day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.get('/delivery-coverage', headers=auth_header(operator))
+
+  body = response.get_json()
+  assert body['status'] == 'ok'
+  assert len(body['entries']) == 3
+  assert [(entry['day_of_week'], entry['start_time']) for entry in body['entries']] == [
+    (0, '08:00:00'),
+    (0, '14:00:00'),
+    (2, '09:00:00'),
+  ]
+
+
+def test_multiple_entries_same_day_allowed(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _entry(transport, day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': '13:00',
+      'end_time': '18:00',
+      'caps': ['70053'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+
+
+def test_create_entry_rejects_overlap_same_vehicle(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _entry(transport, day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': '11:00',
+      'end_time': '14:00',
+      'caps': ['70053'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Il veicolo ha già una fascia sovrapposta in quel giorno'}
+
+
+def test_create_entry_allows_back_to_back_same_vehicle(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _entry(transport, day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': '12:00',
+      'end_time': '16:00',
+      'caps': ['70053'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+
+
+def test_create_entry_allows_overlap_different_vehicle(client):
+  admin = create_user(UserRole.ADMIN)
+  _entry(create_transport(), day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 0,
+      'transport_id': create_transport().id,
+      'start_time': '08:00',
+      'end_time': '12:00',
+      'caps': ['70053'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+
+
+def test_create_entry_allows_overlap_same_vehicle_different_day(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _entry(transport, day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.post(
+    '/delivery-coverage',
+    json={
+      'day_of_week': 1,
+      'transport_id': transport.id,
+      'start_time': '08:00',
+      'end_time': '12:00',
+      'caps': ['70053'],
+    },
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+
+
+def test_update_entry_rejects_overlap_same_vehicle(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  _entry(transport, day_of_week=0, start='08:00:00', end='12:00:00')
+  entry = _entry(transport, day_of_week=0, start='13:00:00', end='16:00:00')
+
+  response = client.put(
+    f'/delivery-coverage/{entry.id}',
+    json={'start_time': '11:00'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Il veicolo ha già una fascia sovrapposta in quel giorno'}
+
+
+def test_update_entry_allows_overlap_with_itself(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport(), day_of_week=0, start='08:00:00', end='12:00:00')
+
+  response = client.put(
+    f'/delivery-coverage/{entry.id}',
+    json={'start_time': '09:00'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+
+
+def test_update_entry(client):
+  admin = create_user(UserRole.ADMIN)
+  other_transport = create_transport()
+  entry = _entry(create_transport(), day_of_week=0, start='08:00:00', end='17:00:00', caps=('70051',))
+
+  response = client.put(
+    f'/delivery-coverage/{entry.id}',
+    json={
+      'day_of_week': 3,
+      'transport_id': other_transport.id,
+      'start_time': '07:30',
+      'end_time': '16:00',
+      'caps': ['70099'],
+    },
+    headers=auth_header(admin),
+  )
+
+  body = response.get_json()
+  assert body['status'] == 'ok'
+  assert body['entry']['day_of_week'] == 3
+  assert body['entry']['transport_id'] == other_transport.id
+  assert body['entry']['start_time'] == '07:30:00'
+  assert body['entry']['caps'] == ['70099']
+  updated = get_by_id(DeliveryCoverageEntry, entry.id)
+  assert updated.day_of_week == 3
+
+
+def test_update_entry_not_found(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.put('/delivery-coverage/999', json={'start_time': '09:00'}, headers=auth_header(admin))
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Blocco non trovato'}
+
+
+def test_update_entry_rejects_missing_transport(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport())
+
+  response = client.put(
+    f'/delivery-coverage/{entry.id}',
+    json={'transport_id': 999},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Veicolo non trovato'}
+
+
+def test_update_entry_rejects_reversed_times(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport(), start='08:00:00', end='17:00:00')
+
+  response = client.put(
+    f'/delivery-coverage/{entry.id}',
+    json={'start_time': '18:00'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ko'
+
+
+def test_update_entry_rejects_empty_caps(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport())
+
+  response = client.put(
+    f'/delivery-coverage/{entry.id}',
+    json={'caps': []},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Seleziona almeno un CAP o disegna una zona sulla mappa'}
+
+
+def test_delete_entry_cascades_caps(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport(), caps=('70051', '70052'))
+  cap_ids = [cap.id for cap in get_by_params(DeliveryCoverageCap, [('entry_id', entry.id)])]
+  assert len(cap_ids) == 2
+
+  response = client.delete(f'/delivery-coverage/{entry.id}', headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ok'
+  assert get_by_id(DeliveryCoverageEntry, entry.id) is None
+  for cap_id in cap_ids:
+    assert get_by_id(DeliveryCoverageCap, cap_id) is None
+
+
+def test_delete_entry_not_found(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.delete('/delivery-coverage/999', headers=auth_header(admin))
+
+  assert response.get_json() == {'status': 'ko', 'message': 'Blocco non trovato'}
+
+
+def test_coverage_endpoints_forbid_delivery_role(client):
+  delivery = create_user(UserRole.DELIVERY)
+
+  response = client.get('/delivery-coverage', headers=auth_header(delivery))
+
+  assert response.status_code == 403
+  assert response.get_json()['status'] == 'forbidden'
+
+
+def test_check_delivery_coverage_without_entries_returns_no_dates(app, db):
+  with app.test_request_context(json={'cap': '70051'}):
+    allowed = check_delivery_coverage()
+
+  assert allowed == []
+
+
+def test_check_delivery_coverage_allows_covered_weekday(app, db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), caps=('70051',))
+
+  with app.test_request_context(json={'cap': '70051'}):
+    allowed = check_delivery_coverage()
+
+  assert target.strftime('%Y-%m-%d') in allowed
+  # Solo i giorni coperti sono ammessi
+  assert all(date.fromisoformat(day).weekday() == target.weekday() for day in allowed)
+
+
+def test_check_delivery_coverage_ignores_entries_for_other_caps(app, db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), caps=('70099',))
+
+  with app.test_request_context(json={'cap': '70051'}):
+    allowed = check_delivery_coverage()
+
+  assert allowed == []
+
+
+def test_check_delivery_coverage_has_no_order_count_limit(app, db):
+  # A differenza del vecchio vincolo geografico (Constraint.max_orders), la
+  # copertura non satura: tanti ordini quanti arrivano nello stesso giorno
+  # per lo stesso CAP restano ammessi.
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), caps=('70051',))
+  create_order(cap='70051', dpc=target)
+  create_order(cap='70051', dpc=target)
+
+  with app.test_request_context(json={'cap': '70051'}):
+    allowed = check_delivery_coverage()
+
+  assert target.strftime('%Y-%m-%d') in allowed
+
+
+def test_available_slots_lists_distinct_slots_sorted(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _entry(transport, day_of_week=target.weekday(), start='13:00:00', end='18:00:00', caps=('70051',))
+  _entry(transport, day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  assert available_slots('70051', target) == [
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051']},
+    {'start': '13:00', 'end': '18:00', 'caps': ['70051']},
+  ]
+
+
+def test_available_slots_dedupes_same_slot_from_different_vehicles(db):
+  # Blocchi di veicoli diversi con la stessa fascia compaiono una volta sola: la scelta
+  # del veicolo è di resolve_delivery_slot, non del cliente.
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  assert available_slots('70051', target) == [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]
+
+
+def test_available_slots_merges_caps_of_overlapping_entries(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051', '70056'))
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051', '76011'))
+
+  assert available_slots('70051', target) == [{'start': '08:00', 'end': '12:00', 'caps': ['70051', '70056', '76011']}]
+
+
+def test_available_slots_keeps_partially_overlapping_slots_separate(db):
+  # Solo le fasce con start/end identici si fondono: 08-12 e 10-14 restano due opzioni.
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='10:00:00', end='14:00:00', caps=('70051',))
+
+  assert available_slots('70051', target) == [
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051']},
+    {'start': '10:00', 'end': '14:00', 'caps': ['70051']},
+  ]
+
+
+def test_available_slots_keeps_slot_while_any_overlapping_vehicle_has_room(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=40)
+  full = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=full.start_time, delivery_slot_end=full.end_time)
+  create_product_row(order, service_user)
+
+  # Il primo veicolo ha già 40 min su 60: una richiesta da 30 min va sul secondo, fascia ancora libera.
+  assert available_slots('70051', target, required_duration=30) == [
+    {'start': '08:00', 'end': '09:00', 'caps': ['70051']}
+  ]
+
+
+def test_available_slots_empty_without_coverage(db):
+  assert available_slots('70051', date.today()) == []
+  assert available_slots(None, date.today()) == []
+  assert available_slots('70051', None) == []
+
+
+def test_available_slots_by_date_only_lists_covered_dates(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  result = available_slots_by_date('70051')
+
+  assert result[target.strftime('%Y-%m-%d')] == [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]
+  assert all(date.fromisoformat(day).weekday() == target.weekday() for day in result)
+
+
+def test_check_delivery_coverage_slots_matches_check_delivery_coverage_dates(app, db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  with app.test_request_context(json={'cap': '70051'}):
+    dates = check_delivery_coverage()
+    slots = check_delivery_coverage_slots()
+
+  assert sorted(slots.keys()) == sorted(dates)
+  assert slots[target.strftime('%Y-%m-%d')] == [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]
+
+
+def test_available_slots_by_date_explains_blocked_days(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  blocked = {}
+
+  result = available_slots_by_date('70051', blocked_out=blocked)
+
+  assert target.strftime('%Y-%m-%d') in result
+  other_day = (target + timedelta(days=1)).strftime('%Y-%m-%d')
+  assert blocked[other_day].startswith('Nessun corriere in copertura di ')
+  assert target.strftime('%Y-%m-%d') not in blocked
+
+
+def test_available_slots_by_date_reports_full_slots_as_blocked(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  blocked = {}
+
+  with patch('src.end_points.delivery_coverage._entry_with_residual_capacity', return_value=None):
+    result = available_slots_by_date('70051', blocked_out=blocked)
+
+  assert result == {}
+  assert 'Capienza esaurita' in blocked[target.strftime('%Y-%m-%d')]
+
+
+def test_available_slots_by_date_explains_blocked_slots_of_available_days(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  blocked_entry = _entry(
+    create_transport(), day_of_week=target.weekday(), start='14:00:00', end='18:00:00', caps=('70051',)
+  )
+  notes = {}
+
+  def residual(entry, *args, **kwargs):
+    return None if entry.id == blocked_entry.id else entry
+
+  with patch('src.end_points.delivery_coverage._entry_with_residual_capacity', side_effect=residual):
+    result = available_slots_by_date('70051', slot_notes_out=notes)
+
+  day = target.strftime('%Y-%m-%d')
+  assert [slot['start'] for slot in result[day]] == ['08:00']
+  assert notes[day] == [{'start': '14:00', 'end': '18:00', 'reason': "Capienza esaurita per i servizi dell'ordine"}]
+
+
+def test_annotate_out_of_zone_flags_orders_outside_every_block(db):
+  target = date.today() + timedelta(days=3)
+  _entry(create_transport(), day_of_week=target.weekday(), caps=('70051',))
+  orders = [
+    {'id': 1, 'cap': '70051'},
+    {'id': 2, 'cap': '99999'},
+    {'id': 3, 'cap': '99999', 'delivery_transport_id': 7},
+  ]
+
+  annotate_out_of_zone(orders)
+
+  assert [order['out_of_zone'] for order in orders] == [False, True, False]
+  annotate_out_of_zone([])
+
+
+def test_annotate_out_of_zone_ignores_orders_when_no_coverage_exists(db):
+  orders = [{'id': 1, 'cap': '99999'}]
+
+  annotate_out_of_zone(orders)
+
+  assert orders[0]['out_of_zone'] is False
+
+
+def test_resolve_delivery_slot_returns_none_without_coverage(db):
+  assert resolve_delivery_slot('70051', date.today()) == (None, None)
+
+
+def test_resolve_delivery_slot_returns_none_for_missing_cap_or_date(db):
+  assert resolve_delivery_slot(None, date.today()) == (None, None)
+  assert resolve_delivery_slot('70051', None) == (None, None)
+
+
+def test_resolve_delivery_slot_returns_none_for_unparsable_string_date(db):
+  assert resolve_delivery_slot('70051', 'non-una-data') == (None, None)
+
+
+def test_resolve_delivery_slot_single_entry(db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  assert resolve_delivery_slot('70051', target) == (entry.start_time, entry.end_time)
+
+
+def test_resolve_delivery_slot_accepts_iso_string_date(db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  assert resolve_delivery_slot('70051', target.strftime('%Y-%m-%d')) == (entry.start_time, entry.end_time)
+
+
+def test_resolve_delivery_slot_fills_first_vehicle_day_before_next_vehicle(db):
+  # Senza scelta del cliente si riempie prima la giornata del primo veicolo, anche se
+  # ha già ordini e l'altro è vuoto: niente bilanciamento del carico tra i corrieri.
+  target = date.today() + timedelta(days=3)
+  busy = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='18:00:00', caps=('70051',))
+  create_order(cap='70051', dpc=target, delivery_slot_start=busy.start_time, delivery_slot_end=busy.end_time)
+
+  assert resolve_delivery_slot('70051', target) == (busy.start_time, busy.end_time)
+
+
+def test_resolve_delivery_slot_moves_to_next_vehicle_only_when_first_is_full(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=60)
+  first = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  second = _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='14:00:00', caps=('70051',))
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=first.start_time, delivery_slot_end=first.end_time)
+  create_product_row(order, service_user)
+
+  # Il primo veicolo ha 60 min su 60: una richiesta da 30 min passa al secondo.
+  assert resolve_delivery_slot('70051', target, required_duration=30) == (second.start_time, second.end_time)
+
+
+def test_resolve_delivery_slot_fills_same_vehicle_adjacent_slot_before_other_vehicle_same_slot(db):
+  # Il cliente sceglie 08-09, coperta da due veicoli. Il primo è pieno in quella fascia ma
+  # ha 10-11 libera: si riempie la sua giornata prima di toccare l'8-9 del secondo veicolo.
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=40)
+  first_vehicle = create_transport()
+  first_morning = _entry(first_vehicle, day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  first_later = _entry(first_vehicle, day_of_week=target.weekday(), start='10:00:00', end='11:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=first_morning.start_time, delivery_slot_end=first_morning.end_time
+  )
+  create_product_row(order, service_user)
+
+  result = resolve_delivery_slot('70051', target, requested_start='08:00', requested_end='09:00', required_duration=30)
+
+  assert result == (first_later.start_time, first_later.end_time)
+
+
+def test_resolve_delivery_slot_uses_second_vehicle_when_first_vehicle_day_is_full(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=40)
+  first_vehicle = create_transport()
+  first_morning = _entry(first_vehicle, day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  first_later = _entry(first_vehicle, day_of_week=target.weekday(), start='10:00:00', end='11:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  for slot in (first_morning, first_later):
+    order = create_order(cap='70051', dpc=target, delivery_slot_start=slot.start_time, delivery_slot_end=slot.end_time)
+    create_product_row(order, service_user)
+
+  # Giornata del primo veicolo piena (40 su 60 in entrambe le fasce): la richiesta da 30 min
+  # torna sulla fascia scelta, ora sul secondo veicolo.
+  result = resolve_delivery_slot('70051', target, requested_start='08:00', requested_end='09:00', required_duration=30)
+
+  assert result == (first_morning.start_time, first_morning.end_time)
+
+
+def test_resolve_delivery_slot_uses_requested_slot_when_it_matches_coverage(db):
+  target = date.today() + timedelta(days=3)
+  busy = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  # La fascia più scarica (13-18) esiste ma il cliente ha scelto busy sul
+  # calendario: senza scelta esplicita vincerebbe l'altra (meno carico).
+  _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='18:00:00', caps=('70051',))
+  create_order(cap='70051', dpc=target, delivery_slot_start=busy.start_time, delivery_slot_end=busy.end_time)
+
+  result = resolve_delivery_slot('70051', target, requested_start=busy.start_time, requested_end=busy.end_time)
+
+  assert result == (busy.start_time, busy.end_time)
+
+
+def test_resolve_delivery_slot_accepts_requested_slot_as_string(db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  result = resolve_delivery_slot('70051', target, requested_start='08:00', requested_end='12:00')
+
+  assert result == (entry.start_time, entry.end_time)
+
+
+def test_resolve_delivery_slot_falls_back_when_requested_slot_not_covered(db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+
+  result = resolve_delivery_slot('70051', target, requested_start='20:00', requested_end='22:00')
+
+  assert result == (entry.start_time, entry.end_time)
+
+
+def test_resolve_delivery_slot_excludes_given_order_from_count(db):
+  # Con lo slot del proprio ordine escluso dal conteggio, busy torna in
+  # parità con quiet (0 a 0): a parità vince lo start_time più basso.
+  target = date.today() + timedelta(days=3)
+  busy = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='12:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='18:00:00', caps=('70051',))
+  own_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=busy.start_time, delivery_slot_end=busy.end_time
+  )
+
+  result = resolve_delivery_slot('70051', target, exclude_order_id=own_order.id)
+
+  assert result == (busy.start_time, busy.end_time)
+
+
+def test_available_slots_filters_saturated_slot_based_on_service_duration(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=40)
+  # Fascia da 1 ora (60 minuti)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+
+  # Ordine esistente di 40 minuti nella fascia
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time
+  )
+  create_product_row(existing_order, service_user)
+
+  # Richiesta con 30 minuti di servizio -> 40 + 30 = 70 > 60: slot saturo
+  assert available_slots('70051', target, required_duration=30) == []
+
+  # Richiesta con 15 minuti di servizio -> 40 + 15 = 55 <= 60: slot disponibile
+  assert available_slots('70051', target, required_duration=15) == [
+    {'start': '08:00', 'end': '09:00', 'caps': ['70051']}
+  ]
+
+
+def test_available_slots_sums_multiple_products_durations(db):
+  target = date.today() + timedelta(days=3)
+  customer = create_user(UserRole.CUSTOMER)
+  service1 = create_service(duration=20)
+  service2 = create_service(duration=30)
+  su1 = create_service_user(customer, service1)
+  su2 = create_service_user(customer, service2)
+
+  # Fascia da 60 minuti
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time
+  )
+  # Ordine ha 2 prodotti: 20 + 30 = 50 min occupati
+  create_product_row(existing_order, su1, name='P1')
+  create_product_row(existing_order, su2, name='P2')
+
+  # Con 50 min occupati su 60 min, una richiesta da 20 min sfora (50 + 20 = 70 > 60)
+  assert available_slots('70051', target, required_duration=20) == []
+  # Una richiesta da 10 min ci sta (50 + 10 = 60 <= 60)
+  assert available_slots('70051', target, required_duration=10) == [
+    {'start': '08:00', 'end': '09:00', 'caps': ['70051']}
+  ]
+
+
+def test_resolve_delivery_slot_prefers_unsaturated_slot_and_balances_minutes(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=60)
+  # Due fasce: Mattina (08-10 = 120 min) e Pomeriggio (14-16 = 120 min)
+  morning = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='10:00:00', caps=('70051',))
+  afternoon = _entry(
+    create_transport(), day_of_week=target.weekday(), start='14:00:00', end='16:00:00', caps=('70051',)
+  )
+
+  # Mattina ha già un ordine da 60 min (rimangono 60 min)
+  order_morning = create_order(
+    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+  )
+  create_product_row(order_morning, service_user)
+
+  # Nuovo ordine da 90 min: Mattina non ha spazio (60 + 90 = 150 > 120), Pomeriggio sì (0 + 90 = 90 <= 120)
+  chosen_start, chosen_end = resolve_delivery_slot('70051', target, required_duration=90)
+  assert (chosen_start, chosen_end) == (afternoon.start_time, afternoon.end_time)
+
+
+@pytest.mark.real_route
+@patch('src.end_points.service.travel.sequential_travel_minutes')
+@patch('src.end_points.service.travel.get_lat_lon_by_address')
+@patch('src.end_points.service.travel.get_lat_lon_by_cap')
+def test_available_slots_filters_saturated_slot_based_on_travel_overhead(
+  mock_geocode, mock_geocode_address, mock_sequential, db
+):
+  target = date.today() + timedelta(days=3)
+  # Fascia da 1 ora (60 minuti), nessuna durata di servizio: satura solo per via del percorso.
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
+
+  # L'indirizzo dell'ordine esistente non deve risolvere: il test guida le
+  # coordinate via CAP.
+  mock_geocode_address.return_value = (None, None)
+  mock_geocode.return_value = (41.0, 16.0)
+  # Percorso esistente + nuovo ordine: 90 minuti, oltre la fascia da 60.
+  mock_sequential.return_value = 90
+
+  assert available_slots('70051', target, new_cap='70051') == []
+
+
+@patch('src.end_points.service.travel.get_lat_lon_by_cap')
+def test_available_slots_ignores_travel_overhead_when_new_cap_unresolvable(mock_geocode, db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
+
+  mock_geocode.return_value = (None, None)
+
+  assert available_slots('70051', target, new_cap='70051') == [{'start': '08:00', 'end': '09:00', 'caps': ['70051']}]
+
+
+def test_available_slots_without_new_cap_skips_travel_overhead(db):
+  target = date.today() + timedelta(days=3)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
+
+  assert available_slots('70051', target) == [{'start': '08:00', 'end': '09:00', 'caps': ['70051']}]
+
+
+def test_available_slots_keeps_saturated_entry_when_same_vehicle_adjacent_slot_is_free(db):
+  # 09:00-11:30 satura (stesso veicolo), 12:00-14:30 dello stesso veicolo libera ma per
+  # un CAP diverso: la fascia satura resta comunque disponibile perché il veicolo passa
+  # comunque nella fascia successiva e può assorbire l'ordine lì.
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  customer, service, service_user, _ = customer_with_service(duration=150)
+  morning = _entry(transport, day_of_week=target.weekday(), start='09:00:00', end='11:30:00', caps=('70051',))
+  _entry(transport, day_of_week=target.weekday(), start='12:00:00', end='14:30:00', caps=('70052',))
+
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+  )
+  create_product_row(existing_order, service_user)
+
+  assert available_slots('70051', target, required_duration=30) == [
+    {'start': '09:00', 'end': '11:30', 'caps': ['70051']}
+  ]
+
+
+def test_available_slots_drops_saturated_entry_when_no_adjacent_vehicle_slot_is_free(db):
+  # Come sopra ma la fascia successiva dello stesso veicolo è satura anche lei: nessuno
+  # spillover possibile, la fascia satura sparisce dalla lista.
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  customer, service, service_user, _ = customer_with_service(duration=150)
+  morning = _entry(transport, day_of_week=target.weekday(), start='09:00:00', end='11:30:00', caps=('70051',))
+  afternoon = _entry(transport, day_of_week=target.weekday(), start='12:00:00', end='14:30:00', caps=('70052',))
+
+  existing_morning = create_order(
+    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+  )
+  create_product_row(existing_morning, service_user)
+  existing_afternoon = create_order(
+    cap='70052', dpc=target, delivery_slot_start=afternoon.start_time, delivery_slot_end=afternoon.end_time
+  )
+  create_product_row(existing_afternoon, service_user)
+
+  assert available_slots('70051', target, required_duration=30) == []
+
+
+def test_available_slots_ignores_full_slot_of_a_different_vehicle(db):
+  # La fascia adiacente libera appartiene a un veicolo diverso: non conta come spillover
+  # ("sempre fasce relative allo stesso corriere").
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, _ = customer_with_service(duration=150)
+  morning = _entry(create_transport(), day_of_week=target.weekday(), start='09:00:00', end='11:30:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='12:00:00', end='14:30:00', caps=('70051',))
+
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+  )
+  create_product_row(existing_order, service_user)
+
+  # La fascia satura sparisce (nessuno spillover cross-veicolo); resta comunque visibile
+  # la fascia 12:00-14:30 perché copre 70051 per conto proprio, indipendentemente dallo
+  # spillover.
+  assert available_slots('70051', target, required_duration=30) == [
+    {'start': '12:00', 'end': '14:30', 'caps': ['70051']}
+  ]
+
+
+def test_resolve_delivery_slot_spills_over_to_adjacent_slot_of_same_vehicle(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  customer, service, service_user, _ = customer_with_service(duration=150)
+  morning = _entry(transport, day_of_week=target.weekday(), start='09:00:00', end='11:30:00', caps=('70051',))
+  afternoon = _entry(transport, day_of_week=target.weekday(), start='12:00:00', end='14:30:00', caps=('70052',))
+
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=morning.start_time, delivery_slot_end=morning.end_time
+  )
+  create_product_row(existing_order, service_user)
+
+  result = resolve_delivery_slot(
+    '70051', target, requested_start=morning.start_time, requested_end=morning.end_time, required_duration=30
+  )
+
+  assert result == (afternoon.start_time, afternoon.end_time)
+
+
+def test_resolve_delivery_slot_refuses_a_saturated_day_with_no_spillover_available(db):
+  # Fascia satura, nessuna adiacente sullo stesso veicolo libera: l'ordine non si
+  # carica oltre la capienza, il cliente sceglie un altro giorno.
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  customer, service, service_user, _ = customer_with_service(duration=150)
+  morning = _entry(transport, day_of_week=target.weekday(), start='09:00:00', end='11:30:00', caps=('70051',))
+
+  existing_order = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=morning.start_time,
+    delivery_slot_end=morning.end_time,
+    delivery_transport_id=transport.id,
+  )
+  create_product_row(existing_order, service_user)
+
+  with pytest.raises(SlotUnavailableError):
+    resolve_delivery_slot(
+      '70051', target, requested_start=morning.start_time, requested_end=morning.end_time, required_duration=30
+    )
+
+
+def test_resolve_delivery_entry_returns_the_vehicle_that_takes_the_order(db, offline_geo):
+  target = date.today() + timedelta(days=3)
+  first, second = create_transport(), create_transport()
+  entry_first = _entry(first, day_of_week=target.weekday(), start='09:00:00', end='10:00:00', caps=('70051',))
+  entry_second = _entry(second, day_of_week=target.weekday(), start='09:00:00', end='10:00:00', caps=('70051',))
+  _, _, service_user, _ = customer_with_service(duration=50)
+  existing = create_order(
+    cap='70051',
+    dpc=target,
+    delivery_slot_start=entry_first.start_time,
+    delivery_slot_end=entry_first.end_time,
+    delivery_transport_id=first.id,
+  )
+  create_product_row(existing, service_user)
+
+  assert resolve_delivery_entry('70051', target, required_duration=5).id == entry_first.id
+  assert resolve_delivery_entry('70051', target, required_duration=30).id == entry_second.id
+
+
+def test_resolve_delivery_entry_without_coverage_returns_none(db):
+  assert resolve_delivery_entry('70051', date.today() + timedelta(days=3)) is None
+
+
+def test_available_slots_filters_saturated_slot_based_on_new_order_pickup_point_time(db):
+  target = date.today() + timedelta(days=3)
+  # Servizio tarato sulla costante dei ritiri, non su un numero fisso: la costante è
+  # temporanea e va calibrata, e il test deve reggere a qualunque valore.
+  existing_duration = SLOT_CAPACITY - PICKUP_POINT_MINUTES_PER_PRODUCT + 1
+  customer, service, service_user, collection_point = customer_with_service(duration=existing_duration)
+  # Fascia da 1 ora: i servizi già dentro ci stanno, nessun ritiro sull'ordine già presente.
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  existing_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time
+  )
+  create_product_row(existing_order, service_user)
+
+  # Il nuovo ordine (non ancora salvato) porta un punto di ritiro non ancora presente
+  # nella fascia: i minuti del ritiro sforano la capienza.
+  new_products = {'Frigo': {'collection_point': {'id': collection_point.id}}}
+  assert available_slots('70051', target, new_products=new_products) == []
+  # Senza quel punto di ritiro nel payload, lo stesso ordine (solo 50 min di servizio) ci sta.
+  assert available_slots('70051', target) == [{'start': '08:00', 'end': '09:00', 'caps': ['70051']}]
+
+
+def test_available_slots_skips_pickup_point_time_already_present_in_slot(db):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user_heavy, _ = customer_with_service(
+    duration=SLOT_CAPACITY - PICKUP_POINT_MINUTES_PER_PRODUCT
+  )
+  _, _, service_user_zero, collection_point = customer_with_service()
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+
+  heavy_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time
+  )
+  create_product_row(heavy_order, service_user_heavy)
+  pickup_order = create_order(
+    cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time
+  )
+  create_product_row(pickup_order, service_user_zero, collection_point_id=collection_point.id)
+
+  # Occupato: servizi + minuti del punto di ritiro = capienza piena, fascia già al limite.
+  same_point_payload = {'Frigo': {'collection_point': {'id': collection_point.id}}}
+  # Stesso punto di ritiro già presente nella fascia: costo marginale zero, ci sta comunque.
+  assert available_slots('70051', target, new_products=same_point_payload) == [
+    {'start': '08:00', 'end': '09:00', 'caps': ['70051']}
+  ]
+
+  other_point = create_collection_point(customer)
+  other_point_payload = {'Frigo': {'collection_point': {'id': other_point.id}}}
+  # Punto di ritiro diverso, mai visto nella fascia: altri minuti sopra il limite, satura.
+  assert available_slots('70051', target, new_products=other_point_payload) == []
+
+
+def test_resolve_delivery_slot_moves_to_next_vehicle_when_new_pickup_point_saturates_first(db):
+  target = date.today() + timedelta(days=3)
+  # Quel che basta perché, aggiunti i minuti del ritiro e i 10 del nuovo ordine, si sfori.
+  existing_duration = SLOT_CAPACITY - PICKUP_POINT_MINUTES_PER_PRODUCT - 10 + 1
+  customer, service, service_user, collection_point = customer_with_service(duration=existing_duration)
+  first = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  second = _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='14:00:00', caps=('70051',))
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=first.start_time, delivery_slot_end=first.end_time)
+  create_product_row(order, service_user)  # solo servizio, nessun punto di ritiro
+
+  # Il nuovo ordine porta un punto di ritiro non presente sul primo veicolo: coi suoi
+  # 10 min di servizio si sfora -> passa al secondo veicolo (vuoto).
+  products = {'Frigo': {'collection_point': {'id': collection_point.id}}}
+  result = resolve_delivery_slot('70051', target, required_duration=10, products=products)
+
+  assert result == (second.start_time, second.end_time)
+
+
+def test_resolve_delivery_slot_stays_on_busy_vehicle_when_pickup_point_already_present(db, offline_geo):
+  target = date.today() + timedelta(days=3)
+  customer, service, service_user, collection_point = customer_with_service(duration=35)
+  first = _entry(create_transport(), day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  _entry(create_transport(), day_of_week=target.weekday(), start='13:00:00', end='14:00:00', caps=('70051',))
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=first.start_time, delivery_slot_end=first.end_time)
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+
+  # Il nuovo ordine riusa lo stesso punto di ritiro già presente sul primo veicolo (35 min
+  # servizio + 15 min ritiro = 50, + 10 min del nuovo ordine = 60/60): resta lì invece di
+  # passare al secondo veicolo, perché il punto non va ricontato.
+  products = {'Frigo': {'collection_point': {'id': collection_point.id}}}
+  result = resolve_delivery_slot('70051', target, required_duration=10, products=products)
+
+  assert result == (first.start_time, first.end_time)
+
+
+# ---------------------------------------------------------------------------
+# Collaudo: strada in testa e margine dell'apertura, dal punto di vista del cliente
+# ---------------------------------------------------------------------------
+
+_BISCEGLIE = (41.2428, 16.5053)
+_MOLFETTA = (41.2007, 16.5992)
+_BARI = (41.1171, 16.8719)
+
+
+def _geo(geo, minutes=25):
+  """Deposito a Bisceglie, ritiri a Molfetta, consegne a Bari; ogni percorso dura `minutes`."""
+  geo.places.update({'Deposito': _BISCEGLIE, 'Magazzino': _MOLFETTA, 'Consegna': _BARI})
+  geo.minutes = minutes
+
+
+def _vehicle_with_address():
+  return create_transport(address='Via Deposito 1, Bisceglie', cap='76011')
+
+
+def _saturated_first_slot(target, service_minutes=40):
+  """Prima fascia del veicolo 10-11 (60 min) con un ordine di `service_minutes` e un ritiro."""
+  _, _, service_user, collection_point = customer_with_service(duration=service_minutes)
+  entry = _entry(
+    _vehicle_with_address(), day_of_week=target.weekday(), start='10:00:00', end='11:00:00', caps=('70051',)
+  )
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+  return entry
+
+
+def test_available_slots_excludes_a_first_slot_that_the_drive_would_saturate(offline_geo, db):
+  _geo(offline_geo)
+  target = date.today() + timedelta(days=3)
+  _saturated_first_slot(target)
+
+  # 40 di servizio + 25 di strada + il ritiro = oltre i 60 della fascia.
+  assert available_slots('70051', target) == []
+
+
+def test_available_slots_includes_it_when_the_drive_fits_before_the_slot_starts(offline_geo, db):
+  from database_api.operations import update
+
+  _geo(offline_geo)
+  target = date.today() + timedelta(days=3)
+  _saturated_first_slot(target)
+  # L'attività apre alle 9, la fascia parte alle 10: strada e ritiro stanno nel margine.
+  update(db, {'activity_start_time': time(9, 0)})
+
+  assert available_slots('70051', target, required_duration=10) == [
+    {'start': '10:00', 'end': '11:00', 'caps': ['70051']}
+  ]
+
+
+def test_available_slots_still_excludes_it_when_the_lead_window_is_too_short(offline_geo, db):
+  from database_api.operations import update
+
+  _geo(offline_geo)
+  target = date.today() + timedelta(days=3)
+  _saturated_first_slot(target)
+  # Solo 10 minuti di margine: dei 29 di lavoro in testa ne sforano 19 e la fascia non regge.
+  update(db, {'activity_start_time': time(9, 50)})
+
+  assert available_slots('70051', target, required_duration=10) == []
+
+
+def test_available_slots_does_not_charge_the_drive_to_a_later_slot_of_the_same_vehicle(offline_geo, db):
+  _geo(offline_geo)
+  target = date.today() + timedelta(days=3)
+  vehicle = _vehicle_with_address()
+  _entry(vehicle, day_of_week=target.weekday(), start='08:00:00', end='09:00:00', caps=('70051',))
+  later = _entry(vehicle, day_of_week=target.weekday(), start='10:00:00', end='11:00:00', caps=('70051',))
+  _, _, service_user, collection_point = customer_with_service(duration=50)
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=later.start_time, delivery_slot_end=later.end_time)
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+
+  # La seconda fascia parte da dove il veicolo già si trova: 50 + ritiro + 1 sta nei 60.
+  starts = [slot['start'] for slot in available_slots('70051', target, required_duration=1)]
+  assert '10:00' in starts
+
+
+def test_resolve_delivery_slot_moves_to_the_next_vehicle_when_the_drive_saturates_the_first(offline_geo, db):
+  _geo(offline_geo)
+  target = date.today() + timedelta(days=3)
+  customer, _, service_user, collection_point = customer_with_service(duration=30)
+  other_point = create_collection_point(customer)
+  first = _entry(
+    _vehicle_with_address(), day_of_week=target.weekday(), start='10:00:00', end='11:00:00', caps=('70051',)
+  )
+  second = _entry(
+    _vehicle_with_address(), day_of_week=target.weekday(), start='14:00:00', end='15:00:00', caps=('70051',)
+  )
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=first.start_time, delivery_slot_end=first.end_time)
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+
+  # Il nuovo ordine porta un ritiro diverso: 30 di servizio + 25 di strada + due ritiri + 10 sfora i 60.
+  products = {'Frigo': {'collection_point': {'id': other_point.id}}}
+  result = resolve_delivery_slot('70051', target, required_duration=10, products=products)
+
+  assert result == (second.start_time, second.end_time)
+
+
+def test_resolve_delivery_slot_stays_on_the_first_vehicle_when_the_lead_window_absorbs_the_drive(offline_geo, db):
+  from database_api.operations import update
+
+  _geo(offline_geo)
+  target = date.today() + timedelta(days=3)
+  update(db, {'activity_start_time': time(9, 0)})
+  customer, _, service_user, collection_point = customer_with_service(duration=30)
+  other_point = create_collection_point(customer)
+  first = _entry(
+    _vehicle_with_address(), day_of_week=target.weekday(), start='10:00:00', end='11:00:00', caps=('70051',)
+  )
+  _entry(_vehicle_with_address(), day_of_week=target.weekday(), start='14:00:00', end='15:00:00', caps=('70051',))
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=first.start_time, delivery_slot_end=first.end_time)
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+
+  # Stesso ordine di prima: con il margine strada e ritiri si fanno prima delle 10 e il primo veicolo regge.
+  products = {'Frigo': {'collection_point': {'id': other_point.id}}}
+  result = resolve_delivery_slot('70051', target, required_duration=10, products=products)
+
+  assert result == (first.start_time, first.end_time)
+
+
+def test_a_vehicle_without_a_location_leaves_the_capacity_as_it_was(offline_geo, db):
+  """Senza indirizzo né CAP sul veicolo non c'è strada da contare: la fascia resta libera com'era."""
+  _geo(offline_geo)
+  target = date.today() + timedelta(days=3)
+  _, _, service_user, collection_point = customer_with_service(duration=40)
+  entry = _entry(create_transport(), day_of_week=target.weekday(), start='10:00:00', end='11:00:00', caps=('70051',))
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+
+  # 40 di servizio + il ritiro (senza strada) + 10 richiesti stanno nei 60.
+  assert available_slots('70051', target, required_duration=10) == [
+    {'start': '10:00', 'end': '11:00', 'caps': ['70051']}
+  ]
+
+
+def test_check_delivery_coverage_slots_carries_the_request_down_to_the_lead_window(app, offline_geo, db):
+  """Il payload di /check-constraints (cap, indirizzo, prodotti) arriva fino al calcolo:
+  il ritiro del nuovo ordine e la sua consegna pesano sulla fascia, e il margine li assorbe."""
+  from database_api.operations import update
+
+  _geo(offline_geo)
+  target = date.today() + timedelta(days=3)
+  _, _, service_user, collection_point = customer_with_service(duration=40)
+  entry = _entry(
+    _vehicle_with_address(), day_of_week=target.weekday(), start='10:00:00', end='11:00:00', caps=('70051',)
+  )
+  order = create_order(cap='70051', dpc=target, delivery_slot_start=entry.start_time, delivery_slot_end=entry.end_time)
+  create_product_row(order, service_user)
+  payload = {
+    'cap': '70051',
+    'address': 'Via Consegna 9, Bari',
+    'service_duration': 10,
+    'products': {'Frigo': {'collection_point': {'id': collection_point.id}}},
+  }
+  key = target.strftime('%Y-%m-%d')
+
+  # Senza margine: 40 di servizio + strada e ritiro del nuovo ordine (25 + ritiro) + i suoi 10 sforano i 60.
+  with app.test_request_context(json=payload):
+    without_margin = check_delivery_coverage_slots()
+  assert key not in without_margin
+
+  # Con l'apertura alle 9 quel lavoro si fa prima delle 10: 40 + 10 = 50, la data è prenotabile.
+  update(db, {'activity_start_time': time(9, 0)})
+  with app.test_request_context(json=payload):
+    with_margin = check_delivery_coverage_slots()
+  assert with_margin[key] == [{'start': '10:00', 'end': '11:00', 'caps': ['70051']}]
+
+
+def test_available_slots_by_date_resolves_the_covering_entries_once(db):
+  from unittest.mock import patch
+
+  from src.end_points import delivery_coverage
+  from src.end_points.delivery_coverage import available_slots_by_date
+
+  transport = create_transport()
+  for day in range(7):
+    _entry(transport, day_of_week=day)
+
+  with patch.object(delivery_coverage, 'query_entries_for_cap', wraps=delivery_coverage.query_entries_for_cap) as spy:
+    result = available_slots_by_date('70051')
+
+  assert len(result) > 30
+  assert spy.call_count == 1
+
+
+# Zona disegnata attorno a Mesagne, senza CAP: come la configura il cliente in demo.
+MESAGNE_POLYGON = [[40.50, 17.75], [40.62, 17.75], [40.62, 17.87], [40.50, 17.87]]
+
+
+def _polygon_entry(transport, polygon=MESAGNE_POLYGON):
+  return create(
+    DeliveryCoverageEntry,
+    {
+      'day_of_week': 0,
+      'transport_id': transport.id,
+      'start_time': time(12, 30),
+      'end_time': time(13, 40),
+      'polygon': polygon,
+    },
+  )
+
+
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_cap')
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_address')
+def test_query_entries_for_cap_finds_the_polygon_containing_the_address(mock_address, mock_cap):
+  from src.end_points.delivery_coverage import query_entries_for_cap
+
+  entry = _polygon_entry(create_transport())
+  mock_address.return_value = (40.556, 17.803)
+
+  assert [e.id for e in query_entries_for_cap('72023', address='Via Ariosto, 14, Mesagne, BR')] == [entry.id]
+  mock_cap.assert_not_called()
+
+
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_cap')
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_address')
+def test_query_entries_for_cap_falls_back_to_the_cap_when_the_address_is_unknown(mock_address, mock_cap):
+  # Senza posizione una copertura fatta solo di zone su mappa darebbe l'ordine
+  # sempre fuori zona: si ripiega sul centroide del CAP.
+  from src.end_points.delivery_coverage import query_entries_for_cap
+
+  entry = _polygon_entry(create_transport())
+  mock_address.return_value = (None, None)
+  mock_cap.return_value = (40.553, 17.839)
+
+  assert [e.id for e in query_entries_for_cap('72023', address='Indirizzo sconosciuto')] == [entry.id]
+
+
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_cap')
+@patch('src.end_points.delivery_coverage.get_lat_lon_by_address')
+def test_query_entries_for_cap_outside_every_polygon(mock_address, mock_cap):
+  from src.end_points.delivery_coverage import query_entries_for_cap
+
+  _polygon_entry(create_transport())
+  mock_address.return_value = (41.117, 16.871)  # Bari
+
+  assert query_entries_for_cap('70121', address='Via Sparano, 10, Bari, BA') == []
+
+
+def _preload_entry(transport, day_of_week, accepts_preloads=True):
+  entry = _entry(transport, day_of_week=day_of_week, start='08:00:00', end='12:00:00', caps=('70051',))
+  return update(entry, {'accepts_preloads': accepts_preloads})
+
+
+def _pickup_order(transport, dpc, collection_point, service_user, schedule_date=None, delivery_transport_id=True):
+  # Pianificato: il vincolo conta solo gli ordini che sono davvero in un borderò.
+  # `schedule_date` mette l'ordine in un borderò con una data diversa dalla dpc e
+  # `delivery_transport_id=False` simula l'ordine messo a mano dall'operatore.
+  order = create_order(cap='70051', dpc=dpc, delivery_transport_id=transport.id if delivery_transport_id else None)
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+  day = schedule_date or dpc
+  with Session() as session:
+    schedule = session.query(Schedule).filter(Schedule.date == day, Schedule.transport_id == transport.id).first()
+  link_order_to_schedule(order, schedule or create_schedule(transport, day), index=order.id)
+  return order
+
+
+def _eve_entry(transport, target, start='08:00:00', end='12:00:00'):
+  """Il veicolo lavora anche la vigilia: senza, il ritiro precaricato non e' eseguibile."""
+  return _entry(transport, day_of_week=(target - timedelta(days=1)).weekday(), start=start, end=end, caps=('70051',))
+
+
+def _products(collection_point):
+  return {'frigo': {'collection_point': {'id': collection_point.id}}}
+
+
+def test_create_and_update_entry_accepts_preloads(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  body = {'day_of_week': 0, 'transport_id': transport.id, 'start_time': '08:00', 'end_time': '12:00', 'caps': ['70051']}
+
+  created = client.post(
+    '/delivery-coverage', json={**body, 'accepts_preloads': True}, headers=auth_header(admin)
+  ).get_json()
+  assert created['entry']['accepts_preloads'] is True
+
+  updated = client.put(
+    f'/delivery-coverage/{created["entry"]["id"]}', json={'accepts_preloads': False}, headers=auth_header(admin)
+  ).get_json()
+  assert updated['entry']['accepts_preloads'] is False
+
+
+def test_preload_area_offers_only_days_with_same_pickup_point(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+  _pickup_order(transport, target, collection_point, service_user)
+  assert available_slots('70051', target, new_products=_products(collection_point)) == [
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051']}
+  ]
+
+
+def test_preload_area_ignores_other_pickup_points(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  _, _, other_service_user, other_point = customer_with_service()
+
+  _pickup_order(transport, target, other_point, other_service_user)
+
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+
+def test_preload_area_ignores_the_pickup_of_another_vehicle(db):
+  # Il passaggio conta solo se lo fa il veicolo della fascia: il precarico e il
+  # ritiro li fa chi consegna.
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+
+  _pickup_order(create_transport(), target, collection_point, service_user)
+
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+
+def test_preload_area_offers_the_pickup_day_and_the_next_one(db):
+  # Il caso di Idea Bari sulla demo: un ordine messo a mano (senza veicolo) nel
+  # borderò del veicolo il giorno del ritiro. Si offre quel giorno e, per il
+  # punto precaricato, il giorno dopo, solo sulle fasce dello stesso veicolo.
+  pickup_day = date.today() + timedelta(days=3)
+  next_day = pickup_day + timedelta(days=1)
+  _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  transport = create_transport()
+  _preload_entry(transport, pickup_day.weekday())
+  _preload_entry(transport, next_day.weekday())
+  _preload_entry(transport, (next_day + timedelta(days=1)).weekday())
+  other = create_transport()
+  update(
+    _entry(other, day_of_week=next_day.weekday(), start='13:00:00', end='17:00:00', caps=('70051',)),
+    {'accepts_preloads': True},
+  )
+
+  _pickup_order(transport, pickup_day, collection_point, service_user, delivery_transport_id=False)
+
+  products = _products(collection_point)
+  slot = [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]
+  assert available_slots('70051', pickup_day, new_products=products) == slot
+  assert available_slots('70051', next_day, new_products=products) == slot
+  assert available_slots('70051', next_day + timedelta(days=1), new_products=products) == []
+
+
+def test_preload_area_uses_the_schedule_date_not_the_order_dpc(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  later = target + timedelta(days=7)
+
+  # dpc il giorno target ma borderò di un'altra settimana: il target non ha passaggi.
+  _pickup_order(transport, target, collection_point, service_user, schedule_date=later)
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+  # dpc di un'altra settimana ma borderò del target: il passaggio c'è.
+  _pickup_order(transport, later, collection_point, service_user, schedule_date=target)
+  assert len(available_slots('70051', target, new_products=_products(collection_point))) == 1
+
+
+def test_preload_area_counts_pickup_stops_of_the_schedule(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, _, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+  item = create_schedule_item(create_schedule(create_transport(), target), ScheduleType.COLLECTIONPOINT)
+  create(ScheduleItemCollectionPoint, {'schedule_item_id': item.id, 'collection_point_id': collection_point.id})
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+  item = create_schedule_item(create_schedule(transport, target), ScheduleType.COLLECTIONPOINT)
+  create(ScheduleItemCollectionPoint, {'schedule_item_id': item.id, 'collection_point_id': collection_point.id})
+  assert len(available_slots('70051', target, new_products=_products(collection_point))) == 1
+
+
+def test_preload_area_constrains_only_preloaded_pickup_points(db):
+  # Un punto senza precarico segue le regole normali: nessun passaggio richiesto,
+  # il ritiro si aggiunge al borderò del giorno della consegna. Il punto
+  # precaricato invece si aggancia a un passaggio che c'e' gia'.
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _eve_entry(transport, target)
+  _, _, service_user, collection_point = customer_with_service()
+  slot = [{'start': '08:00', 'end': '12:00', 'caps': ['70051']}]
+
+  assert available_slots('70051', target, new_products=_products(collection_point)) == slot
+
+  update(collection_point, {'preloaded': True})
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+  _pickup_order(transport, target - timedelta(days=1), collection_point, service_user)
+  assert available_slots('70051', target, new_products=_products(collection_point)) == slot
+
+
+def test_preload_area_ignores_preloaded_point_outside_its_preload_areas(db):
+  # MW Bari 2 sulla demo: punto precaricato con area solo sul 70124, destinatario
+  # a Casamassima (70010). Per quell'ordine il punto non e' un precarico: regole
+  # normali, la fascia si offre anche senza nessun borderò.
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, _, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  create(CollectionPointPreloadArea, {'collection_point_id': collection_point.id, 'caps': ['70124'], 'polygon': None})
+
+  assert available_slots('70051', target, new_products=_products(collection_point)) == [
+    {'start': '08:00', 'end': '12:00', 'caps': ['70051']}
+  ]
+
+
+def test_preload_applies_per_pickup_point_of_the_same_order(db):
+  # Due punti di ritiro: il precaricato deve avere il suo passaggio (vigilia o
+  # giorno della consegna), quello normale segue le regole normali e non chiede
+  # nessun passaggio.
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _eve_entry(transport, target)
+  _, _, service_user, preloaded_point = customer_with_service()
+  _, _, _, normal_point = customer_with_service()
+  update(preloaded_point, {'preloaded': True})
+  products = {
+    'frigo': {'collection_point': {'id': preloaded_point.id}},
+    'lavatrice': {'collection_point': {'id': normal_point.id}},
+  }
+
+  assert available_slots('70051', target, new_products=products) == []
+
+  _pickup_order(transport, target - timedelta(days=1), preloaded_point, service_user)
+  assert len(available_slots('70051', target, new_products=products)) == 1
+
+
+def test_preload_area_excludes_the_order_being_edited(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  order = _pickup_order(transport, target, collection_point, service_user)
+
+  assert available_slots('70051', target, new_products=_products(collection_point), exclude_order_id=order.id) == []
+
+
+def test_preload_flag_off_or_no_pickup_points_keeps_all_slots(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday(), accepts_preloads=False)
+  _, _, _, collection_point = customer_with_service()
+
+  assert len(available_slots('70051', target, new_products=_products(collection_point))) == 1
+
+  other_day = target + timedelta(days=1)
+  _preload_entry(create_transport(), other_day.weekday())
+  assert len(available_slots('70051', other_day)) == 1
+
+
+def test_resolve_delivery_entry_rejects_day_without_same_pickup_point(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  entry = _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+
+  with pytest.raises(SlotUnavailableError):
+    resolve_delivery_entry('70051', target, products=_products(collection_point))
+
+  _pickup_order(transport, target, collection_point, service_user)
+  assert resolve_delivery_entry('70051', target, products=_products(collection_point)).id == entry.id
+
+
+def test_check_constraints_slots_use_preloaded_pickup_point(app, db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _eve_entry(transport, target)
+  _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  payload = {'cap': '70051', 'products': _products(collection_point)}
+
+  # Punto precaricato senza passaggi: il giorno di consegna non si offre.
+  with app.test_request_context(json=payload):
+    assert target.strftime('%Y-%m-%d') not in check_delivery_coverage_slots()
+
+  _pickup_order(transport, target - timedelta(days=1), collection_point, service_user)
+  with app.test_request_context(json=payload):
+    assert target.strftime('%Y-%m-%d') in check_delivery_coverage_slots()
+
+
+def test_preload_area_ignores_orders_not_in_any_schedule(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  # Stesso veicolo e giorno, ma l'ordine non e' in nessun borderò: nessun passaggio.
+  order = create_order(cap='70051', dpc=target, delivery_transport_id=transport.id)
+  create_product_row(order, service_user, collection_point_id=collection_point.id)
+
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+
+def test_preload_needs_the_same_vehicle_passing_on_the_eve(db):
+  # Il passaggio del giorno prima conta solo se è dello stesso veicolo: il
+  # precarico si aggancia a un giro che c'è già, altrimenti la fascia non si offre.
+  target = date.today() + timedelta(days=3)
+  eve = target - timedelta(days=1)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+
+  other = create_transport()
+  _eve_entry(other, target)
+  _pickup_order(other, eve, collection_point, service_user)
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+  _eve_entry(transport, target)
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+  _pickup_order(transport, eve, collection_point, service_user)
+  assert len(available_slots('70051', target, new_products=_products(collection_point))) == 1
+
+
+def test_preload_area_not_offered_when_the_eve_first_slot_is_full(db):
+  target = date.today() + timedelta(days=3)
+  transport = create_transport()
+  _preload_entry(transport, target.weekday())
+  # Capienza della prima fascia della vigilia: 3 minuti, un ritiro ne vale di piu'.
+  _eve_entry(transport, target, start='08:00:00', end='08:03:00')
+  _, _, service_user, collection_point = customer_with_service()
+  update(collection_point, {'preloaded': True})
+  _pickup_order(transport, target - timedelta(days=1), collection_point, service_user)
+
+  assert available_slots('70051', target, new_products=_products(collection_point)) == []
+
+
+def _planned_order_on(entry, cap='70051'):
+  target = date.today() + timedelta(days=7)
+  while target.weekday() != entry.day_of_week:
+    target += timedelta(days=1)
+  order = create_order(
+    cap=cap,
+    dpc=target,
+    delivery_transport_id=entry.transport_id,
+    delivery_slot_start=entry.start_time,
+    delivery_slot_end=entry.end_time,
+  )
+  link_order_to_schedule(order, create_schedule(schedule_date=target))
+  return order
+
+
+def test_update_entry_with_planned_orders_cannot_move_slot(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport(), day_of_week=0, start='08:00:00', end='17:00:00')
+  _planned_order_on(entry)
+
+  response = client.put(f'/delivery-coverage/{entry.id}', json={'start_time': '09:00'}, headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
+  assert '1 ordini già pianificati' in response.get_json()['message']
+  assert get_by_id(DeliveryCoverageEntry, entry.id).start_time == time(8, 0)
+
+
+def test_update_entry_with_planned_orders_cannot_drop_their_zone(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport(), day_of_week=0, caps=('70051', '70052'))
+  _planned_order_on(entry, cap='70051')
+
+  response = client.put(f'/delivery-coverage/{entry.id}', json={'caps': ['70052']}, headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
+  assert 'fuori zona' in response.get_json()['message']
+
+
+def test_update_entry_with_planned_orders_can_still_widen_the_zone(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport(), day_of_week=0, caps=('70051',))
+  _planned_order_on(entry, cap='70051')
+
+  response = client.put(f'/delivery-coverage/{entry.id}', json={'caps': ['70051', '70052']}, headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ok'

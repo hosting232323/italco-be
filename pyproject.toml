@@ -53,6 +53,7 @@ markers = [
   # i servizi attivi e non entrano nella misura di coverage.
   # Suite veloce con: pytest -m "not e2e"
   "e2e: end-to-end test con Playwright (deseleziona con '-m \"not e2e\"')",
+  "real_route: lascia attivo il calcolo del percorso tra gli ordini della fascia (negli altri test e' azzerato)",
 ]
 
 [tool.coverage.run]

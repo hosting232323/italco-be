@@ -1,9 +1,11 @@
+from datetime import time
+
 import pytest
 from database_api import Session
 from database_api.operations import create, get_by_id
 
 from src.database.enum import OrderStatus, OrderType, UserRole
-from src.database.schema import Order, Photo, Product
+from src.database.schema import DeliveryCoverageCap, DeliveryCoverageEntry, Order, Photo, Product
 
 from tests.unit.factories import (
   auth_header,
@@ -13,6 +15,7 @@ from tests.unit.factories import (
   create_service,
   create_service_user,
   create_super_admin,
+  create_transport,
   create_user,
   customer_with_service,
 )
@@ -433,3 +436,75 @@ def test_serve_photo_returns_404_for_missing_file(client, role):
   response = client.get(f'/order/photos/non-esiste.jpg?token={_query_token(role)}')
 
   assert response.status_code == 404
+
+
+def test_customer_cannot_set_reserved_fields_when_creating_an_order(client):
+  customer, service, _, collection_point = customer_with_service()
+  payload = _order_payload(
+    service,
+    collection_point,
+    confirmed=True,
+    status='Delivered',
+    mark=5.0,
+    operator_note='INIETTATA',
+    anomaly=True,
+    external_id='X1',
+    booking_date='2026-07-19',
+  )
+
+  body = client.post('/order', json=payload, headers=auth_header(customer)).get_json()
+
+  assert body['status'] == 'ok'
+  with Session() as session:
+    order = session.query(Order).one()
+    assert not order.confirmed
+    assert order.status == OrderStatus.ACQUIRED
+    assert order.mark is None
+    assert order.operator_note is None
+    assert not order.anomaly
+    assert order.external_id is None
+    assert order.booking_date is None
+
+
+def _monday_coverage(cap='70121'):
+  transport = create_transport()
+  entry = create(
+    DeliveryCoverageEntry,
+    {'day_of_week': 0, 'transport_id': transport.id, 'start_time': time(8, 0), 'end_time': time(12, 0)},
+  )
+  create(DeliveryCoverageCap, {'entry_id': entry.id, 'cap': cap})
+
+
+def test_customer_moves_the_order_date_with_automatic_planning(client):
+  customer, service, _, collection_point = customer_with_service()
+  _monday_coverage()
+  created = client.post('/order', json=_order_payload(service, collection_point), headers=auth_header(customer))
+  order = created.get_json()['order']
+
+  response = client.put(
+    f'/order/{order["id"]}',
+    json={'id': order['id'], 'version': order['version'], 'dpc': '2026-07-27'},
+    headers=auth_header(customer),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+  moved = get_by_id(Order, order['id'])
+  assert str(moved.dpc) == '2026-07-27'
+  assert (moved.delivery_slot_start, moved.delivery_slot_end) == (time(8, 0), time(12, 0))
+
+
+def test_customer_date_change_is_ignored_without_automatic_planning(client):
+  customer, service, _, collection_point = customer_with_service()
+  created = client.post('/order', json=_order_payload(service, collection_point), headers=auth_header(customer))
+  order = created.get_json()['order']
+  from database_api.operations import update
+
+  update(customer, {'automatic_planning': False})
+
+  client.put(
+    f'/order/{order["id"]}',
+    json={'id': order['id'], 'version': order['version'], 'dpc': '2026-07-27'},
+    headers=auth_header(customer),
+  )
+
+  assert str(get_by_id(Order, order['id']).dpc) == '2026-07-20'

@@ -119,6 +119,10 @@ def seed_company_data():
           'password': _seed_password('1234customer'),
           'role': UserRole.CUSTOMER,
           'customer_group_id': customer_groups[index].id,
+          # customer_1 con pianificazione automatica spenta: comodo per testare
+          # a mano il fallback alla dpc vecchio stile senza toccare il flag
+          # dell'intera attività.
+          'automatic_planning': index != 1,
         },
       )
     )
@@ -174,7 +178,6 @@ def seed_company_data():
     create(
       DeliveryUserInfo,
       {
-        'cap': '70020',
         'lat': 41.3 + (index * 0.01),
         'lon': 16.2 + (index * 0.01),
         'user_id': delivery_user.id,

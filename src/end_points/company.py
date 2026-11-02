@@ -1,6 +1,8 @@
 import os
 import json
 
+from datetime import datetime
+
 from api.users.security import hash_password
 from flask import Blueprint, request, send_from_directory
 
@@ -43,6 +45,11 @@ ALWAYS_REQUIRED_LEGAL = ('legal_name', 'vat_number', 'address', 'city')
 RAE_REQUIRED_LEGAL = ('rae_registration',)
 LEGAL_FIELDS = ALWAYS_REQUIRED_LEGAL + RAE_REQUIRED_LEGAL + ('tax_code',)
 
+# Orario di apertura e chiusura dell'attività. Come i dati legali sta tutto
+# sulla company; a differenza loro è facoltativo, ma se si compila un estremo
+# va compilato anche l'altro, altrimenti la finestra non è una finestra.
+ACTIVITY_TIME_FIELDS = ('activity_start_time', 'activity_end_time')
+
 LEGAL_LABELS = {
   'legal_name': 'Ragione sociale',
   'vat_number': 'Partita IVA',
@@ -55,6 +62,9 @@ RAE_WITHOUT_REGISTRATION_ERROR = (
   "Inserisci gli estremi di iscrizione all'Albo Gestori Ambientali prima di attivare il modulo"
 )
 RAE_WITHOUT_PLACE_ERROR = 'Configura almeno un luogo di smaltimento RAEE prima di attivare il modulo'
+ACTIVITY_TIME_INCOMPLETE_ERROR = "Inserisci sia l'orario di inizio sia quello di fine attività"
+ACTIVITY_TIME_INVALID_ERROR = 'Orario di inizio o fine attività non valido (formato HH:MM)'
+ACTIVITY_TIME_ORDER_ERROR = "L'orario di fine attività deve essere successivo a quello di inizio"
 
 
 def _payload() -> dict:
@@ -69,6 +79,41 @@ def _payload() -> dict:
 def _clean_legal(payload: dict, *, only_present: bool) -> dict:
   fields = [field for field in LEGAL_FIELDS if field in payload] if only_present else LEGAL_FIELDS
   return {field: ((payload.get(field) or '').strip() or None) for field in fields}
+
+
+def _clean_activity_times(payload: dict, *, only_present: bool) -> dict:
+  fields = [field for field in ACTIVITY_TIME_FIELDS if field in payload] if only_present else ACTIVITY_TIME_FIELDS
+  return {field: ((payload.get(field) or '').strip() or None) for field in fields}
+
+
+def _parse_activity_times(times: dict) -> tuple[dict, str | None]:
+  """Converte gli orari in oggetti time, o dice cosa non va.
+
+  Il client manda 'HH:MM' da un input type=time; qui diventano time() perché
+  la colonna è Time. Chi non manda il campo lo lascia com'è a DB.
+  """
+  parsed = {}
+  for field, value in times.items():
+    if value is None:
+      parsed[field] = None
+      continue
+    try:
+      parsed[field] = datetime.strptime(value[:5], '%H:%M').time()
+    except ValueError:
+      return {}, ACTIVITY_TIME_INVALID_ERROR
+  return parsed, None
+
+
+def _activity_times_error(parsed: dict, company: Company = None) -> str | None:
+  def resolve(field):
+    return parsed[field] if field in parsed else getattr(company, field, None)
+
+  start, end = resolve('activity_start_time'), resolve('activity_end_time')
+  if bool(start) != bool(end):
+    return ACTIVITY_TIME_INCOMPLETE_ERROR
+  if start and end and end <= start:
+    return ACTIVITY_TIME_ORDER_ERROR
+  return None
 
 
 def _legal_error(legal: dict, rae: bool) -> str | None:
@@ -135,13 +180,20 @@ def create_company(_):
   legal_error = _legal_error(legal, rae)
   if legal_error:
     return {'status': 'ko', 'message': legal_error}
+
+  activity_times, time_error = _parse_activity_times(_clean_activity_times(payload, only_present=False))
+  time_error = time_error or _activity_times_error(activity_times)
+  if time_error:
+    return {'status': 'ko', 'message': time_error}
   # Una company appena creata non può ancora avere un luogo di smaltimento
   # (ci vuole il suo id): con rae=true in creazione il modulo si accenderebbe
   # senza che nessun luogo esista.
   if rae:
     return {'status': 'ko', 'message': RAE_WITHOUT_PLACE_ERROR}
 
-  company = create(Company, {'name': name, 'rae': rae, 'automatic_planning': automatic_planning, **legal})
+  company = create(
+    Company, {'name': name, 'rae': rae, 'automatic_planning': automatic_planning, **legal, **activity_times}
+  )
 
   # Crea l'admin nella company appena nata usando lo scope tenant
   # così il listener set_company_on_insert timbra automaticamente la company_id.
@@ -196,6 +248,11 @@ def update_company(_, id):
     legal_error = _legal_error(legal, rae)
     if legal_error:
       return {'status': 'ko', 'message': legal_error}
+
+    activity_times, time_error = _parse_activity_times(_clean_activity_times(payload, only_present=True))
+    time_error = time_error or _activity_times_error(activity_times, company)
+    if time_error:
+      return {'status': 'ko', 'message': time_error}
     if rae:
       # Il modulo si accende solo con l'iscrizione all'Albo compilata (payload
       # o valore già su company) e almeno un luogo di raggruppamento: in
@@ -207,7 +264,7 @@ def update_company(_, id):
       if count_rae_disposal_places(int(id)) == 0:
         return {'status': 'ko', 'message': RAE_WITHOUT_PLACE_ERROR}
 
-    changes = {'name': name, **legal}
+    changes = {'name': name, **legal, **activity_times}
     if 'rae' in payload:
       changes['rae'] = payload['rae']
     if 'automatic_planning' in payload:

@@ -64,8 +64,8 @@ _FILTER_MODEL_JOINS = {
 _FILTER_MODELS = {
   'Schedule': Schedule,
   'User': User,
-  'Order': Order,
   'DeliveryUserInfo': DeliveryUserInfo,
+  'Order': Order,
   'Transport': Transport,
   'ScheduleItem': ScheduleItem,
   'ScheduleItemCollectionPoint': ScheduleItemCollectionPoint,
@@ -288,6 +288,22 @@ def get_schedule_item_by_order(order: Order, session: session_type = None) -> Sc
     )
     .order_by(desc(Schedule.date), desc(Schedule.id), desc(ScheduleItem.id))
     .first()
+  )
+
+
+def schedule_has_started(schedule: Schedule, session: session_type) -> bool:
+  """Se il borderò è già in giro: un corriere ne ha preso la posizione o una tappa è completata.
+
+  Da quel momento il piano non va più toccato dalla pianificazione automatica:
+  aggiungere o riordinare tappe cambierebbe il giro sotto i piedi del corriere.
+  """
+  if session.query(ScheduleItemUser.id).filter(ScheduleItemUser.schedule_id == schedule.id).first():
+    return True
+  return (
+    session.query(ScheduleItem.id)
+    .filter(ScheduleItem.schedule_id == schedule.id, ScheduleItem.completed.is_(True))
+    .first()
+    is not None
   )
 
 

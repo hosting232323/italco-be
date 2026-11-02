@@ -1,9 +1,9 @@
 """
-E2E (Playwright): la Pianificazione Automatica rispetta MAX_PROFESSIONAL_ORDERS=2.
+E2E (Playwright): le Proposte Borderò rispettano MAX_PROFESSIONAL_ORDERS=2.
 
 Flusso completamente browser-based:
 1. Login come admin (fixture pw_page).
-2. Va sulla pagina Ordini e apre "Pianificazione Automatica".
+2. Va sulla pagina Ordini e apre "Proposte Borderò".
 3. Imposta la data odierna e min_size_group = 1.
 4. Invia e attende le proposte di borderò.
 5. Legge le proposte dalla risposta API e verifica il limite di ordini
@@ -65,10 +65,10 @@ def test_schedule_proposals_professional_services_limit(pw_page: Page, pw_base_u
   page.on('pageerror', lambda error: browser_errors.append(str(error)))
   page.on('console', lambda message: browser_errors.append(message.text) if message.type == 'error' else None)
 
-  # Il bottone "Pianificazione Automatica" sta in OrderTable, quindi nella
+  # Il bottone "Proposte Borderò" sta in OrderTable, quindi nella
   # pagina Ordini: dopo il login si atterra sulla dashboard, che non lo ha.
   page.goto(f'{pw_base_url}/orders')
-  schedule_button = page.get_by_role('button', name='Pianificazione Automatica')
+  schedule_button = page.get_by_role('button', name='Proposte Borderò')
   expect(schedule_button).to_be_visible(timeout=15_000)
 
   schedule_button.click()
