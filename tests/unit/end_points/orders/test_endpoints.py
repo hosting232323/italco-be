@@ -198,6 +198,40 @@ def test_update_order_by_unassigned_delivery_returns_json_404(client):
   assert 'non sei più assegnato' in body['message'].lower()
 
 
+def test_update_order_by_delivery_requires_position_holder(client):
+  from datetime import date
+
+  from src.database.enum import OrderStatus, ScheduleItemUserType
+  from tests.unit.factories import (
+    assign_delivery_user_to_schedule,
+    create_schedule,
+    create_schedule_item_user,
+    link_order_to_schedule,
+  )
+
+  holder = create_user(UserRole.DELIVERY)
+  viewer = create_user(UserRole.DELIVERY)
+  schedule = create_schedule(schedule_date=date.today())
+  assign_delivery_user_to_schedule(holder, schedule)
+  assign_delivery_user_to_schedule(viewer, schedule)
+  _, _, service_user, _ = customer_with_service()
+  order = create_order(status=OrderStatus.SCHEDULED)
+  create_product(order, service_user)
+  link_order_to_schedule(order, schedule)
+  payload = {'id': order.id, 'delay': True}
+
+  refused = client.put(f'/order/{order.id}', json=payload, headers=auth_header(viewer))
+  assert refused.status_code == 403
+  assert refused.get_json()['code'] == 'position_not_held'
+
+  create_schedule_item_user(holder, schedule, ScheduleItemUserType.OPENING)
+
+  still_refused = client.put(f'/order/{order.id}', json=payload, headers=auth_header(viewer))
+  assert still_refused.status_code == 403
+  allowed = client.put(f'/order/{order.id}', json=payload, headers=auth_header(holder))
+  assert allowed.get_json()['status'] == 'ok'
+
+
 def test_update_order_endpoint_updates_fields(client):
   admin = create_user(UserRole.ADMIN)
   _, _, service_user, _ = customer_with_service()

@@ -21,6 +21,8 @@ from api import swagger_decorator
 from ..collection_point import query_collection_points_available
 from ..delivery_coverage import SlotUnavailableError
 from .queries import get_order_photos, user_can_access_order
+from ..schedule.position import holder_required_error
+from ..schedule.queries import get_schedule_by_order
 from .move_company import list_move_targets, move_order, preview_order_move
 from .crud import (
   create_order,
@@ -125,6 +127,12 @@ def update_order_endpoint(user: User, id):
           'message': "Non sei più assegnato a questo borderò, avvisa l'ufficio.",
         }, 404
       abort(404)
+    if user.role == UserRole.DELIVERY:
+      # Con più corrieri sullo stesso borderò modifica solo chi tiene la posizione.
+      order_schedule = get_schedule_by_order(order.id, session=session)
+      error = holder_required_error(user, order_schedule.id) if order_schedule else None
+      if error:
+        return error, 403
     if isinstance(request.form.get('data'), str):
       data = handle_photos(json.loads(request.form.get('data')), order, session=session)
     else:

@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from ...database.enum import OrderStatus
 from database_api.operations import get_by_id, update
 from ...database.schema import User, ScheduleItem, Order
+from .position import holder_required_error
 from .preload import annotate_preloads
 from .queries import query_schedules, format_query_result, close_schedule_position_if_done
 
@@ -53,6 +54,11 @@ def get_history_for_delivery(delivery_user: User):
 
 def update_schedule_item(delivery_user: User, schedule_item_id: int, completed: bool):
   schedule_item: ScheduleItem = get_by_id(ScheduleItem, schedule_item_id)
+  if not schedule_item:
+    return {'status': 'ko', 'message': 'Elemento del borderò non trovato'}
+  error = holder_required_error(delivery_user, schedule_item.schedule_id)
+  if error:
+    return error
   schedule_item = update(schedule_item, {'completed': completed})
   if completed:
     close_schedule_position_if_done(schedule_item)

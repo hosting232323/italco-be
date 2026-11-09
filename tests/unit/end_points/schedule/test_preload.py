@@ -3,7 +3,7 @@ from datetime import date, time, timedelta
 from database_api import Session
 from database_api.operations import create, get_by_id, update
 
-from src.database.enum import OrderStatus, ScheduleType, UserRole
+from src.database.enum import OrderStatus, ScheduleItemUserType, ScheduleType, UserRole
 from src.database.schema import (
   CollectionPointPreloadArea,
   DeliveryCoverageEntry,
@@ -27,6 +27,7 @@ from tests.unit.factories import (
   create_product_row,
   create_schedule,
   create_schedule_item,
+  create_schedule_item_user,
   create_transport,
   create_user,
   customer_with_service,
@@ -181,6 +182,7 @@ def test_order_stop_marks_preloaded_products_and_does_not_wait_for_their_pickup(
   assert 'preloaded' not in products['Forno']
 
   # Il ritiro del punto normale basta a sbloccare l'ordine: quello precaricato e' di ieri.
+  create_schedule_item_user(delivery, today, ScheduleItemUserType.OPENING)
   update_schedule_item(delivery, normal_stop.id, True)
 
   assert get_by_id(Order, order.id).status == OrderStatus.BOOKING
