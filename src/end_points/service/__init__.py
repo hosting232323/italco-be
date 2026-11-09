@@ -29,6 +29,15 @@ def get_services(user: User):
   return {'status': 'ok', 'services': services}
 
 
+@service_bp.route('filter', methods=['POST'])
+@flask_session_authentication([UserRole.CUSTOMER, UserRole.ADMIN, UserRole.DELIVERY, UserRole.OPERATOR])
+def filter_services(user: User):
+  services = []
+  for tupla in query_services(user, request.json.get('filters', [])):
+    services = format_query_result(tupla, services)
+  return {'status': 'ok', 'services': services}
+
+
 @service_bp.route('<id>', methods=['PUT'])
 @flask_session_authentication([UserRole.ADMIN])
 def update_service(_, id):
