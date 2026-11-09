@@ -1,4 +1,5 @@
 from sqlalchemy import desc, exists
+from sqlalchemy.orm import aliased
 from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
@@ -26,8 +27,10 @@ def query_services(user: User = None, filters: list[dict] = None) -> list[tuple[
       elif filter['model'] == 'User' and filter['field'] == 'id':
         # Il punto vendita seleziona il servizio, ma ne restano visibili tutti gli utenti associati.
         values = value if isinstance(value, list) else [value]
+        # Alias: ServiceUser è già nella query esterna e la subquery verrebbe correlata del tutto.
+        selected = aliased(ServiceUser)
         query = query.filter(
-          exists().where(ServiceUser.service_id == Service.id, ServiceUser.user_id.in_([int(v) for v in values]))
+          exists().where(selected.service_id == Service.id, selected.user_id.in_([int(v) for v in values]))
         )
     return query.order_by(desc(Service.created_at)).all()
 
