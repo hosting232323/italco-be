@@ -124,9 +124,7 @@ def test_query_services_filters_by_name_like_and_type(db):
   create_service(name='Ritiro usato')
 
   by_name = query_services(admin, [{'model': 'Service', 'field': 'name', 'value': 'ontagg'}])
-  by_type = query_services(
-    admin, [{'model': 'Service', 'field': 'type', 'value': montaggio.type.value}]
-  )
+  by_type = query_services(admin, [{'model': 'Service', 'field': 'type', 'value': montaggio.type.value}])
 
   assert [tupla[0].id for tupla in by_name] == [montaggio.id]
   assert montaggio.id in {tupla[0].id for tupla in by_type}

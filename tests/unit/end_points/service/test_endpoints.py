@@ -175,10 +175,12 @@ def test_filter_services(client):
 
   response = client.post(
     '/service/filter',
-    json={'filters': [
-      {'model': 'Service', 'field': 'name', 'value': 'montagg'},
-      {'model': 'User', 'field': 'id', 'value': customer.id},
-    ]},
+    json={
+      'filters': [
+        {'model': 'Service', 'field': 'name', 'value': 'montagg'},
+        {'model': 'User', 'field': 'id', 'value': customer.id},
+      ]
+    },
     headers=auth_header(admin),
   )
 
