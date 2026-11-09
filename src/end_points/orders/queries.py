@@ -150,6 +150,35 @@ def format_query_result(
   return list
 
 
+def annotate_schedule_times(orders: list[dict]) -> None:
+  """Aggiunge `schedule_start_time` / `schedule_end_time` (HH:MM) agli ordini nel borderò.
+
+  Gli orari sono quelli della tappa dell'ordine; con più borderò vale l'ultimo. Una sola
+  query per l'intera lista.
+  """
+  if not orders:
+    return
+
+  with Session() as session:
+    rows = (
+      session.query(ScheduleItemOrder.order_id, ScheduleItem.start_time_slot, ScheduleItem.end_time_slot)
+      .join(ScheduleItem, ScheduleItem.id == ScheduleItemOrder.schedule_item_id)
+      .join(Schedule, Schedule.id == ScheduleItem.schedule_id)
+      .filter(ScheduleItemOrder.order_id.in_([order['id'] for order in orders]))
+      .filter(ScheduleItem.operation_type == ScheduleType.ORDER)
+      .order_by(desc(Schedule.date), desc(Schedule.id), desc(ScheduleItem.id))
+      .all()
+    )
+
+  times = {}
+  for order_id, start, end in rows:
+    times.setdefault(order_id, (start, end))
+  for order in orders:
+    start, end = times.get(order['id'], (None, None))
+    order['schedule_start_time'] = start.strftime('%H:%M') if start else None
+    order['schedule_end_time'] = end.strftime('%H:%M') if end else None
+
+
 def add_service(
   object: dict,
   service: Service,
