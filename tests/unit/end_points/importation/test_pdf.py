@@ -26,6 +26,8 @@ Data consegna: 20/07/2026
 
 def test_normalize_city_applies_fixes():
   assert normalize_city('BARI-CARBONARA Bari') == 'Carbonara'
+  assert normalize_city('BITRITTO Bari') == 'Bitritto'
+  assert normalize_city('BARI Bari') == 'Bari'
   assert normalize_city('Bari') == 'Bari'
 
 

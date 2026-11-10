@@ -72,6 +72,16 @@ def test_get_cap_by_name_raises_when_reverse_geocoding_has_no_postcode(mock_get)
 
 
 @patch('src.utils.caps.requests.get')
+def test_get_cap_by_name_falls_back_to_known_city_caps(mock_get):
+  mock_get.side_effect = [
+    _nominatim_response([_address_result(city='Cassano delle Murge', county='Bari')]),
+    _nominatim_response({'address': {'town': 'Cassano delle Murge'}}),
+  ]
+
+  assert get_cap_by_name('CASSANO DELLE MURGE') == '70020'
+
+
+@patch('src.utils.caps.requests.get')
 def test_get_cap_by_name_raises_for_unknown_city(mock_get):
   mock_get.return_value = _nominatim_response([])
 

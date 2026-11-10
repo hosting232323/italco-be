@@ -48,6 +48,14 @@ def get_province_by_cap(cap: str) -> str:
   return province
 
 
+# Comuni a CAP unico per cui i dati OpenStreetMap di Nominatim non riportano
+# alcun postcode (ne' sul comune ne' sulle sue vie): senza questo ripiego
+# l'import dei PDF fallisce.
+KNOWN_CITY_CAPS = {
+  'cassano delle murge': '70020',
+}
+
+
 @lru_cache(maxsize=None)
 def get_cap_by_name(city_name: str) -> str:
   results = _search(city=city_name)
@@ -56,6 +64,7 @@ def get_cap_by_name(city_name: str) -> str:
     # Le città con più CAP (es. Bari) tornano come confine amministrativo senza postcode:
     # il CAP si ricava dal punto centrale restituito da Nominatim.
     postcode = results[0].get('address', {}).get('postcode') or _reverse_postcode(results[0]['lat'], results[0]['lon'])
+  postcode = postcode or KNOWN_CITY_CAPS.get(city_name.strip().lower())
   if not postcode:
     raise ValueError(f'City name {city_name} not found in any CAP')
   return postcode
