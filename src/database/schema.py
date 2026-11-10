@@ -61,6 +61,20 @@ class Company(BaseEntity):
   # semplice interruttore per attività.
   automatic_planning = Column(Boolean, nullable=False, default=False, server_default='false')
 
+  # Pagamento automatico (abbonamento Stripe): lo abilita il super admin per
+  # l'attività, poi è l'admin a sottoscrivere e gestire il piano dalla pagina
+  # di configurazione. Il flag dice solo "può farlo"; lo stato dell'abbonamento
+  # vive su CompanySubscription.
+  automatic_payment = Column(Boolean, nullable=False, default=False, server_default='false')
+  # Prezzo mensile dell'abbonamento di questa attività, in centesimi: lo decide
+  # il super admin insieme al flag. NULL = non ancora definito, e senza prezzo
+  # l'admin non può sottoscrivere.
+  subscription_price_cents = Column(Integer)
+  # Blocco manuale deciso dal super admin: gli utenti dell'attività non possono più
+  # usare il gestionale. Un admin con pagamento automatico e senza abbonamento in
+  # corso può sbloccarsi pagando (vedi _apply_subscription).
+  blocked = Column(Boolean, nullable=False, default=False, server_default='false')
+
   # Dati legali dell'attività, stampati nei PDF al posto dei valori un tempo
   # scritti a mano nei template. A DB restano tutti nullable: l'unico vincolo
   # NOT NULL di company è name, e l'obbligatorietà (legal_name/address/city
@@ -82,6 +96,35 @@ class Company(BaseEntity):
   # dell'anagrafica, l'obbligatorietà la impone l'endpoint.
   activity_start_time = Column(Time)
   activity_end_time = Column(Time)
+
+
+class CompanySubscription(BaseEntity):
+  # Abbonamento Stripe dell'attività, una riga per company. Tabella a parte e
+  # fuori dal filtro tenant (BaseEntity, come Mail): il webhook di Stripe non
+  # ha una sessione utente, ritrova la company da customer/subscription id. Gli
+  # id Stripe non passano da Company.to_dict(), che finisce nel login di tutti.
+  __tablename__ = 'company_subscription'
+
+  company_id = Column(Integer, ForeignKey('company.id'), nullable=False, unique=True)
+  stripe_customer_id = Column(String, unique=True)
+  stripe_subscription_id = Column(String, unique=True)
+  # Stato così com'è su Stripe (active, trialing, past_due, canceled, ...);
+  # 'none' finché l'attività non ha mai sottoscritto.
+  status = Column(String, nullable=False, default='none', server_default='none')
+  current_period_end = Column(DateTime)
+  cancel_at_period_end = Column(Boolean, nullable=False, default=False, server_default='false')
+  # Istante (UTC) a cui lo stato sopra era certamente vero su Stripe: la creazione
+  # dell'ultimo evento applicato o l'inizio dell'ultima lettura diretta. Un evento
+  # più vecchio non lo sovrascrive; una lettura recente evita di richiamare Stripe.
+  synced_at = Column(DateTime)
+
+
+class StripeEvent(BaseEntity):
+  # Eventi webhook già elaborati: Stripe consegna "almeno una volta", lo stesso
+  # evento può arrivare due volte (o rientrare dopo un timeout).
+  __tablename__ = 'stripe_event'
+
+  event_id = Column(String, nullable=False, unique=True)
 
 
 class User(BaseItalcoEntity):
