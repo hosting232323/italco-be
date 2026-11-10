@@ -16,6 +16,8 @@ from ..service.queries import get_service_user_by_user_and_code
 CITY_FIXES = {
   'noic?ttaro': 'Noicattaro',
   'bari-carbonara bari': 'Carbonara',
+  'bitritto bari': 'Bitritto',
+  'bari bari': 'Bari',
 }
 
 
