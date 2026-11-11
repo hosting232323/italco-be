@@ -34,6 +34,17 @@ def delay_sms_check(order: Order, schedule_item: ScheduleItem):
     )
 
 
+TRACKING_LINK_DAYS_AFTER_DELIVERY = 7
+
+
+def tracking_token_expiry(order: Order) -> datetime:
+  """Il link vale fino a 7 giorni dopo la consegna prevista (se manca la data, 7 giorni da adesso)."""
+  start = datetime.now(timezone.utc)
+  if order.booking_date:
+    start = max(start, datetime.combine(order.booking_date, datetime.min.time(), tzinfo=timezone.utc))
+  return start + timedelta(days=TRACKING_LINK_DAYS_AFTER_DELIVERY)
+
+
 def create_order_tracking_token(order: Order) -> str:
   token = secrets.token_urlsafe(32)
   token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
@@ -43,7 +54,7 @@ def create_order_tracking_token(order: Order) -> str:
         company_id=order.company_id,
         order_id=order.id,
         token_hash=token_hash,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=90),
+        expires_at=tracking_token_expiry(order),
       )
     )
     session.commit()

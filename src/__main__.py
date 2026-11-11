@@ -1,3 +1,4 @@
+import os
 from flask import request
 from .database.schema import User
 from .database.enum import UserRole
@@ -11,7 +12,6 @@ from .end_points.log import log_bp
 from .end_points.rae import rae_bp
 from .end_points.users import user_bp
 from .end_points.orders import order_bp
-from .end_points.chatty import chatty_bp
 from .end_points.demo_request import demo_request_bp
 from .end_points.company import company_bp
 from .end_points.subscription import subscription_bp
@@ -90,7 +90,6 @@ app.register_blueprint(log_bp, url_prefix='/log')
 app.register_blueprint(rae_bp, url_prefix='/rae')
 app.register_blueprint(user_bp, url_prefix='/user')
 app.register_blueprint(order_bp, url_prefix='/order')
-app.register_blueprint(chatty_bp, url_prefix='/chatty')
 app.register_blueprint(demo_request_bp, url_prefix='/demo-request')
 app.register_blueprint(import_bp, url_prefix='/import')
 app.register_blueprint(export_bp, url_prefix='/export')
@@ -105,6 +104,14 @@ app.register_blueprint(customer_rules_bp, url_prefix='/customer-rule')
 app.register_blueprint(customer_group_bp, url_prefix='/customer-group')
 app.register_blueprint(geographic_zone_bp, url_prefix='/geographic-zone')
 app.register_blueprint(collection_point_bp, url_prefix='/collection-point')
+
+# L'assistente Chatty manda gli ordini a OpenAI e non e' piu' in uso: non si collega
+# all'app (e il modulo non viene nemmeno importato, quindi OPENAI_KEY non serve) se non con
+# CHATTY_ENABLED=1. Il codice resta in end_points/chatty.py.
+if os.environ.get('CHATTY_ENABLED') == '1':
+  from .end_points.chatty import chatty_bp
+
+  app.register_blueprint(chatty_bp, url_prefix='/chatty')
 
 
 set_database(DATABASE_URL)
