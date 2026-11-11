@@ -18,7 +18,7 @@ from ..service.duration import order_products_payload
 from ...utils.geo import parse_coordinates
 from ...utils.caps import get_lat_lon_by_address, remember_address_coordinates
 from database_api.operations import create, update, get_by_id, delete
-from .queries import query_orders, format_query_result, get_order_by_tracking_token
+from .queries import query_orders, format_query_result, get_order_by_tracking_token, annotate_schedule_times
 from ...database.enum import OrderStatus, UserRole, OrderType, EuronicsStatus, ScheduleItemUserType
 from ...database.schema import User, Order, DeliveryUserInfo, ServiceUser, CollectionPoint
 from .clone import format_data_cloning_order, update_cloned_order, query_products, reschedule_products
@@ -287,6 +287,7 @@ def filter_orders(filters: dict, customer_id: int = None):
   for tupla in query_orders(filters, 500, customer_id):
     orders = format_query_result(tupla, orders)
   annotate_out_of_zone(orders)
+  annotate_schedule_times(orders)
   return {'status': 'ok', 'orders': orders}
 
 

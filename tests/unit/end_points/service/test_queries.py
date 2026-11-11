@@ -116,3 +116,30 @@ def test_get_service_user_by_user_and_code(db):
 
   assert get_service_user_by_user_and_code(customer.id, 'SVC-1').id == service_user.id
   assert get_service_user_by_user_and_code(customer.id, 'SVC-MISSING') is None
+
+
+def test_query_services_filters_by_name_like_and_type(db):
+  admin = create_user(UserRole.ADMIN)
+  montaggio = create_service(name='Montaggio cucina')
+  create_service(name='Ritiro usato')
+
+  by_name = query_services(admin, [{'model': 'Service', 'field': 'name', 'value': 'ontagg'}])
+  by_type = query_services(admin, [{'model': 'Service', 'field': 'type', 'value': montaggio.type.value}])
+
+  assert [tupla[0].id for tupla in by_name] == [montaggio.id]
+  assert montaggio.id in {tupla[0].id for tupla in by_type}
+
+
+def test_query_services_filters_by_sales_point_keeps_all_users(db):
+  admin = create_user(UserRole.ADMIN)
+  first = create_user(UserRole.CUSTOMER)
+  second = create_user(UserRole.CUSTOMER)
+  service = create_service()
+  create_service_user(first, service)
+  create_service_user(second, service)
+  create_service()
+
+  results = query_services(admin, [{'model': 'User', 'field': 'id', 'value': first.id}])
+
+  assert {tupla[0].id for tupla in results} == {service.id}
+  assert len(results) == 2

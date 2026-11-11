@@ -1,13 +1,14 @@
-from sqlalchemy import desc
+from sqlalchemy import desc, exists
+from sqlalchemy.orm import aliased
 from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
-from ...database.enum import UserRole
+from ...database.enum import UserRole, OrderType
 from database_api.operations import db_session_decorator
 from ...database.schema import Service, ServiceUser, User, Order, Product
 
 
-def query_services(user: User = None) -> list[tuple[Service, ServiceUser, User]]:
+def query_services(user: User = None, filters: list[dict] = None) -> list[tuple[Service, ServiceUser, User]]:
   with Session() as session:
     query = (
       session.query(Service, ServiceUser, User)
@@ -16,6 +17,21 @@ def query_services(user: User = None) -> list[tuple[Service, ServiceUser, User]]
     )
     if user.role == UserRole.CUSTOMER:
       query = query.filter(ServiceUser.user_id == user.id)
+
+    for filter in filters or []:
+      value = filter['value']
+      if filter['model'] == 'Service' and filter['field'] == 'name':
+        query = query.filter(Service.name.ilike(f'%{value}%'))
+      elif filter['model'] == 'Service' and filter['field'] == 'type':
+        query = query.filter(Service.type == OrderType(value))
+      elif filter['model'] == 'User' and filter['field'] == 'id':
+        # Il punto vendita seleziona il servizio, ma ne restano visibili tutti gli utenti associati.
+        values = value if isinstance(value, list) else [value]
+        # Alias: ServiceUser è già nella query esterna e la subquery verrebbe correlata del tutto.
+        selected = aliased(ServiceUser)
+        query = query.filter(
+          exists().where(selected.service_id == Service.id, selected.user_id.in_([int(v) for v in values]))
+        )
     return query.order_by(desc(Service.created_at)).all()
 
 
