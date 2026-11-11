@@ -275,6 +275,20 @@ def test_filter_orders_formats_results(db):
   assert 'TV' in result['orders'][0]['products']
 
 
+def test_filter_orders_adds_schedule_times(db):
+  _, _, service_user, _ = customer_with_service()
+  scheduled = create_order()
+  create_product(scheduled, service_user, name='TV')
+  link_order_to_schedule(scheduled, create_schedule(), start_time_slot=time(9, 30), end_time_slot=time(11, 0))
+  free = create_order()
+  create_product(free, service_user, name='Frigo')
+
+  orders = {order['id']: order for order in filter_orders([])['orders']}
+
+  assert (orders[scheduled.id]['schedule_start_time'], orders[scheduled.id]['schedule_end_time']) == ('09:30', '11:00')
+  assert orders[free.id]['schedule_start_time'] is None
+
+
 def test_get_order_raises_for_unknown_id(db):
   with pytest.raises(Exception, match='Numero di ordini trovati non valido'):
     get_order(424242)

@@ -164,3 +164,26 @@ def test_set_all_users_skips_already_associated_customers(client):
     already_links = session.query(ServiceUser).filter_by(service_id=service.id, user_id=already.id).all()
     assert len(already_links) == 1
     assert already_links[0].price == 5.0
+
+
+def test_filter_services(client):
+  admin = create_user(UserRole.ADMIN)
+  service = create_service(name='Montaggio cucina')
+  create_service(name='Ritiro usato')
+  customer = create_user(UserRole.CUSTOMER)
+  create_service_user(customer, service)
+
+  response = client.post(
+    '/service/filter',
+    json={
+      'filters': [
+        {'model': 'Service', 'field': 'name', 'value': 'montagg'},
+        {'model': 'User', 'field': 'id', 'value': customer.id},
+      ]
+    },
+    headers=auth_header(admin),
+  )
+
+  body = response.get_json()
+  assert body['status'] == 'ok'
+  assert [item['id'] for item in body['services']] == [service.id]
