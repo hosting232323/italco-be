@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import and_, desc, or_, cast, text, Date
+from sqlalchemy import and_, desc, func, or_, cast, text, Date
 from sqlalchemy.orm import Session as session_type
 
 from database_api import Session
@@ -537,6 +537,19 @@ def _close_schedule_position_if_done(schedule_id: int, session: session_type = N
     ScheduleItemUser,
     {'schedule_id': schedule_id, 'user_id': latest.user_id, 'type': ScheduleItemUserType.CLOSING},
     session=session,
+  )
+  clear_delivery_position(latest.user_id, session)
+
+
+def clear_delivery_position(user_id: int, session: session_type):
+  """Azzera l'ultima posizione salvata del corriere.
+
+  La scheda tiene una sola posizione, sovrascritta a ogni invio: a fine giornata
+  non serve più a nessuno (il tracciamento pubblico la legge solo con la
+  posizione attiva) e non va conservata fino al prossimo invio.
+  """
+  session.query(DeliveryUserInfo).filter(DeliveryUserInfo.user_id == user_id).update(
+    {'lat': None, 'lon': None, 'updated_at': func.now()}, synchronize_session=False
   )
 
 
