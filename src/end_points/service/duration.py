@@ -791,7 +791,7 @@ def _new_order_coord(new_cap: str, new_address: str = None) -> tuple | None:
   strada in testa alla giornata, non deve poter bloccare la prenotazione.
   """
   try:
-    lat, lon = get_lat_lon_by_address(new_address) if new_address else (None, None)
+    lat, lon = get_lat_lon_by_address(new_address, new_cap) if new_address else (None, None)
     if lat is None:
       lat, lon = get_lat_lon_by_cap(new_cap)
   except requests.RequestException as error:
