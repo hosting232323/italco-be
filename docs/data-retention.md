@@ -9,11 +9,17 @@ non obblighi di legge: si possono cambiare con le variabili d'ambiente sotto.
 | Eventi di posizione (`schedule_item_user`: chi ha attivato/chiuso e quando) | 365 giorni | `retention_cleanup` |
 | Richieste demo salvate (`mail`) | 365 giorni | `retention_cleanup` |
 | Log di audit (`static/<prod\|test>/logs/AAAA-MM/AAAA-MM-GG.jsonl` e `.idx`) | 90 giorni | `retention_cleanup` |
+| Foto di consegna (`photo` e file in `photos/`) | 24 mesi dalla chiusura dell'ordine | `retention_cleanup` (file e riga, tramite `SessionWithStorage`) |
+| Firma di consegna (`order.signature`) | 24 mesi dalla chiusura dell'ordine | `retention_cleanup` (azzera il campo, l'ordine resta) |
 | Rapporti di errore dell'app (log del servizio) | 30 giorni | **a mano**: rotazione dei log Docker (sotto) |
 | Avvisi Telegram | 1 mese | **a mano**: timer della chat (sotto) |
 
-Foto e firme di consegna, e i dati degli ordini, **non** sono toccati da questo
-lavoro: le durate vanno ancora decise con il cliente.
+I dati degli ordini, i documenti RAEE (DTR/FIR) e le altre tabelle **non** sono
+toccati da questo lavoro: le durate vanno ancora decise con il cliente.
+
+Le durate valgono sul sistema attivo. I **backup** (database e cartella dei file,
+server separato, `BACKUP_DAYS` = 20) conservano ancora i dati cancellati: spariscono
+dalle copie entro altri 20 giorni.
 
 ## Ultima posizione a fine giornata
 
@@ -41,9 +47,31 @@ default; `0` o negativo disattiva quella pulizia.
 | `RETENTION_POSITION_EVENTS_DAYS` | `365` | eventi di attivazione/chiusura della posizione |
 | `RETENTION_DEMO_REQUEST_DAYS` | `365` | richieste demo in archivio (tabella `mail`) |
 | `RETENTION_LOG_DAYS` | `90` | log di audit |
+| `RETENTION_DELIVERY_PROOF_MONTHS` | `24` | foto e firma di consegna (mesi) |
 
 Degli eventi di posizione resta sempre l'ultimo di un borderò ancora aperto,
 perché dice chi tiene la posizione. Se l'ultimo è una chiusura si cancella tutto.
+
+## Foto e firma di consegna (24 mesi)
+
+Si applicano solo a ordini **chiusi**: stato `DELIVERED` o `NOT_DELIVERED`. Le foto e la
+firma di un ordine ancora aperto (in consegna, da riprogrammare, pianificato) non si
+toccano mai, qualunque sia la data.
+
+- **Data di riferimento**: `completion_date` dell'ordine (la imposta il backend alla
+  chiusura). Se manca, per le **foto** si usa la data in cui la foto è stata caricata
+  (`photo.created_at`, la foto nasce alla chiusura della consegna); per la **firma**
+  l'ultima modifica dell'ordine (`updated_at`, sempre successiva alla chiusura: nel
+  dubbio la firma resta di più, mai di meno).
+- **Foto**: si cancellano file e riga del database passando da `SessionWithStorage`, come
+  `delete_order`: il file sparisce solo dopo il commit del database, un file già
+  mancante non è un errore, e si lavora a lotti da 500 per non tenere una transazione
+  enorme.
+- **Firma**: vive solo in `order.signature` (un unico campo binario, l'immagine disegnata
+  sullo schermo). Si azzera (`NULL`) senza cancellare l'ordine. I PDF del singolo ordine
+  e del borderò (`get_signature_slots`) e le esportazioni già gestiscono la firma assente
+  (riquadro vuoto); il tracciamento pubblico non la espone.
+- Con `RETENTION_DELIVERY_PROOF_MONTHS=0` (o negativo) foto e firma restano per sempre.
 
 ## Il job
 
