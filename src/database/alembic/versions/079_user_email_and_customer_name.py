@@ -1,7 +1,7 @@
 """user.email e customer_user_info.name migrato dal nickname
 
-Revision ID: 068
-Revises: 067
+Revision ID: 079
+Revises: 078
 Create Date: 2026-10-15 10:00:00.000000
 
 Il nickname resta l'identificativo di login, l'email è facoltativa e unica.
@@ -16,8 +16,8 @@ from typing import Sequence, Union
 from alembic import op
 
 
-revision: str = '068'
-down_revision: Union[str, None] = '067'
+revision: str = '079'
+down_revision: Union[str, None] = '078'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
