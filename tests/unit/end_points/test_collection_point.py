@@ -133,7 +133,7 @@ def test_get_collection_points_survives_an_unreachable_geocoder(_get, client):
 @patch('src.end_points.collection_point.get_lat_lon_by_address')
 def test_get_collection_points_geocodes_each_point_independently(mock_geocode, client):
   """Un punto non geocodificabile non toglie le coordinate agli altri."""
-  mock_geocode.side_effect = lambda address: (41.1, 16.8) if 'Trovato' in address else (None, None)
+  mock_geocode.side_effect = lambda address, cap=None: (41.1, 16.8) if 'Trovato' in address else (None, None)
   customer = create_user(UserRole.CUSTOMER)
   create_collection_point(customer, address='Via Trovato 1, Bari')
   create_collection_point(customer, address='Via Perduta 1, Bari')

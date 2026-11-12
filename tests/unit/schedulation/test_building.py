@@ -30,6 +30,24 @@ def test_build_schedule_items_deduplicates_collection_points():
   assert len(cp_items) == 1
 
 
+def test_build_schedule_items_keeps_stored_coordinates():
+  order = make_order(1, '70122', collection_point_id=10)
+  order['address_lat'], order['address_lon'] = 41.1276667, 16.8639301
+  order['products']['product-1']['collection_point'].update({'lat': 41.098, 'lon': 16.93})
+
+  collection_point, order_item = build_schedule_items([order])
+
+  assert (order_item['address_lat'], order_item['address_lon']) == (41.1276667, 16.8639301)
+  assert (collection_point['lat'], collection_point['lon']) == (41.098, 16.93)
+
+
+def test_build_schedule_items_without_coordinates_omits_them():
+  collection_point, order_item = build_schedule_items([make_order(1, '70122', collection_point_id=10)])
+
+  assert 'address_lat' not in order_item and 'address_lon' not in order_item
+  assert 'lat' not in collection_point and 'lon' not in collection_point
+
+
 def test_get_order_caps_reads_collection_point_caps():
   order = make_order(1, '70121', collection_point_id=5)
 

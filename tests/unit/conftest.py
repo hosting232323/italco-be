@@ -191,7 +191,7 @@ class OfflineGeo:
     self.paths: list[list[tuple]] = []
     self.unreachable = False
 
-  def by_address(self, address):
+  def by_address(self, address, cap=None):
     if self.unreachable:
       raise requests.ConnectionError('geocoder non raggiungibile')
     for fragment, coord in self.places.items():

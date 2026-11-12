@@ -275,7 +275,7 @@ def test_is_first_entry_of_day_ignores_other_days_of_the_week(db):
 @patch('src.end_points.service.travel.sequential_travel_minutes', return_value=25)
 @patch('src.end_points.service.travel.get_lat_lon_by_address')
 def test_entry_occupied_duration_counts_the_drive_from_the_vehicle(mock_geocode, _mock_travel, db):
-  mock_geocode.side_effect = lambda address: BISCEGLIE if 'Deposito' in address else MOLFETTA
+  mock_geocode.side_effect = lambda address, cap=None: BISCEGLIE if 'Deposito' in address else MOLFETTA
   target = date.today() + timedelta(days=3)
   transport = create_transport(address='Via Deposito 1, Bisceglie', cap='76011')
   entry = _entry_with_orders(transport, target)
@@ -288,7 +288,7 @@ def test_entry_occupied_duration_counts_the_drive_from_the_vehicle(mock_geocode,
 @patch('src.end_points.service.travel.get_lat_lon_by_address')
 def test_entry_occupied_duration_skips_the_drive_for_later_slots(mock_geocode, _mock_travel, db):
   """Nelle fasce successive il veicolo e' gia' in giro: non riparte dal deposito."""
-  mock_geocode.side_effect = lambda address: BISCEGLIE if 'Deposito' in address else MOLFETTA
+  mock_geocode.side_effect = lambda address, cap=None: BISCEGLIE if 'Deposito' in address else MOLFETTA
   target = date.today() + timedelta(days=3)
   transport = create_transport(address='Via Deposito 1, Bisceglie', cap='76011')
   _entry(transport, day_of_week=target.weekday(), start='06:00:00', end='07:00:00')
@@ -310,7 +310,7 @@ def test_entry_occupied_duration_without_a_vehicle_location_is_unchanged(_mock_t
 @patch('src.end_points.service.travel.get_lat_lon_by_address')
 def test_entry_occupied_duration_drive_is_counted_once_not_per_order(mock_geocode, _mock_travel, db):
   """La tratta di avvicinamento e' una sola: il veicolo parte una volta al giorno."""
-  mock_geocode.side_effect = lambda address: BISCEGLIE if 'Deposito' in address else MOLFETTA
+  mock_geocode.side_effect = lambda address, cap=None: BISCEGLIE if 'Deposito' in address else MOLFETTA
   target = date.today() + timedelta(days=3)
   transport = create_transport(address='Via Deposito 1, Bisceglie', cap='76011')
   customer, service, service_user, collection_point = customer_with_service()
@@ -397,7 +397,7 @@ def test_entry_lead_minutes_is_zero_when_the_slot_starts_before_opening(db):
 def test_entry_occupied_duration_does_not_charge_the_slot_for_work_done_before_it_starts(mock_geocode, _travel, db):
   from database_api.operations import update
 
-  mock_geocode.side_effect = lambda address: BISCEGLIE if 'Deposito' in address else MOLFETTA
+  mock_geocode.side_effect = lambda address, cap=None: BISCEGLIE if 'Deposito' in address else MOLFETTA
   target = date.today() + timedelta(days=3)
   update(db, {'activity_start_time': time(9, 0)})
   transport = create_transport(address='Via Deposito 1, Bisceglie', cap='76011')
@@ -412,7 +412,7 @@ def test_entry_occupied_duration_does_not_charge_the_slot_for_work_done_before_i
 def test_entry_occupied_duration_charges_the_part_that_does_not_fit_before_the_slot(mock_geocode, _travel, db):
   from database_api.operations import update
 
-  mock_geocode.side_effect = lambda address: BISCEGLIE if 'Deposito' in address else MOLFETTA
+  mock_geocode.side_effect = lambda address, cap=None: BISCEGLIE if 'Deposito' in address else MOLFETTA
   target = date.today() + timedelta(days=3)
   # Apre alle 9:45, la fascia parte alle 10: solo 15 minuti di margine per 29 di lavoro in testa.
   update(db, {'activity_start_time': time(9, 45)})
