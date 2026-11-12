@@ -93,6 +93,31 @@ def get_lat_lon_by_cap(cap: str) -> tuple[float, float] | tuple[None, None]:
     return None, None
 
 
+def _address_parts(address: str) -> list[str]:
+  """Le parti dell'indirizzo ("via, civico, comune"), senza la sigla di provincia finale."""
+  parts = [part.strip() for part in address.split(',') if part.strip()]
+  if len(parts) > 1 and re.fullmatch(r'[A-Za-z]{2}', parts[-1]):
+    parts = parts[:-1]
+  return parts
+
+
+def _street_name(street: str) -> str:
+  return re.sub(r'\s*\d+\s*(/\s*\w+|bis|[A-Za-z])?$', '', street, flags=re.IGNORECASE).strip()
+
+
+def _postcode_matches(result: dict, cap: str) -> bool:
+  """Se il risultato è nel CAP dato. Senza postcode nel risultato non si può dire: vale."""
+  postcode = (result.get('address') or {}).get('postcode')
+  return not postcode or postcode.strip() == cap.strip()
+
+
+def _cap_search(address: str, cap: str) -> dict | None:
+  """Ricerca della via nel CAP dell'indirizzo, o None se l'indirizzo non ha una via."""
+  parts = _address_parts(address)
+  street = _street_name(parts[0]) if len(parts) > 1 else ''
+  return {'street': street, 'postalcode': cap.strip()} if street else None
+
+
 def _address_fallback_searches(address: str) -> list[dict]:
   """Ricerche via via più larghe per un indirizzo che Nominatim non trova così com'è.
 
@@ -103,14 +128,12 @@ def _address_fallback_searches(address: str) -> list[dict]:
   libero: "Via Appia, Mesagne" in testo libero trova "Porta Mesagne, Via
   Appia" a Brindisi, con `city` il comune deve essere quello.
   """
-  parts = [part.strip() for part in address.split(',') if part.strip()]
-  if len(parts) > 1 and re.fullmatch(r'[A-Za-z]{2}', parts[-1]):
-    parts = parts[:-1]
+  parts = _address_parts(address)
   if len(parts) < 2:
     return []
 
   town = parts[-1]
-  street = re.sub(r'\s*\d+\s*(/\s*\w+|bis|[A-Za-z])?$', '', parts[0], flags=re.IGNORECASE).strip()
+  street = _street_name(parts[0])
   searches = []
   if street and street.lower() != town.lower():
     searches.append({'street': street, 'city': town})
@@ -119,15 +142,23 @@ def _address_fallback_searches(address: str) -> list[dict]:
 
 
 @lru_cache(maxsize=2048)
-def _lookup_address(address: str) -> tuple[float, float] | tuple[None, None]:
-  for params in [{'q': address}, *_address_fallback_searches(address)]:
+def _lookup_address(address: str, cap: str | None = None) -> tuple[float, float] | tuple[None, None]:
+  cap_search = _cap_search(address, cap) if cap else None
+  for params in [*([cap_search] if cap_search else []), {'q': address}, *_address_fallback_searches(address)]:
     results = _search(**params)
+    # La ricerca libera trova la prima via con quel nome nella provincia
+    # ("Via Cesare Battisti, 742, Taranto, TA" -> Ginosa): con il CAP si scarta
+    # chi cade in un altro CAP e si passa alla ricerca successiva. Solo per la
+    # ricerca libera: i ripieghi sulla via o sul comune sono stime larghe, e un
+    # comune con più CAP (Bari) non deve essere scartato perché ha un altro CAP.
+    if cap and 'q' in params:
+      results = [result for result in results if _postcode_matches(result, cap)]
     if results:
       return float(results[0]['lat']), float(results[0]['lon'])
   return None, None
 
 
-def get_lat_lon_by_address(address: str) -> tuple[float, float] | tuple[None, None]:
+def get_lat_lon_by_address(address: str, cap: str | None = None) -> tuple[float, float] | tuple[None, None]:
   """Geocodifica un indirizzo completo (via, civico, città), non il solo CAP.
 
   Il centroide del CAP (get_lat_lon_by_cap) è una stima grossolana: due
@@ -143,6 +174,11 @@ def get_lat_lon_by_address(address: str) -> tuple[float, float] | tuple[None, No
   controllo su un processo long-running. Come per il CAP, se il geocoder non
   risponde torna (None, None) e il guasto non entra in cache.
 
+  Il CAP, quando c'è, orienta la ricerca: la stessa via esiste in molti comuni
+  della provincia e senza CAP Nominatim sceglie la prima (vedi _lookup_address).
+  Chi geocodifica lo stesso indirizzo deve passare lo stesso CAP, altrimenti la
+  cache non viene riusata.
+
   Le coordinate registrate con remember_address_coordinates hanno la
   precedenza: sono la posizione vera, non una stima.
   """
@@ -150,7 +186,7 @@ def get_lat_lon_by_address(address: str) -> tuple[float, float] | tuple[None, No
   if known:
     return known
   try:
-    return _lookup_address(address)
+    return _lookup_address(address, (cap or '').strip() or None)
   except requests.RequestException as error:
     logger.warning("Geocoding dell'indirizzo non riuscito: %s", error)
     return None, None

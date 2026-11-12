@@ -20,14 +20,17 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 from sqlalchemy import create_engine, text
 
-from src.utils.caps import _search
+from src.utils.caps import _postcode_matches, _search
 
 
-def exact_coordinates(address: str) -> tuple[float, float] | tuple[None, None]:
+def exact_coordinates(address: str, cap: str | None = None) -> tuple[float, float] | tuple[None, None]:
   try:
     results = _search(q=address)
   except requests.RequestException:
     return None, None
+  # La ricerca libera trova la prima via con quel nome nella provincia: se cade
+  # in un altro CAP e' un altro comune, e non va congelata come posizione vera.
+  results = [result for result in results if not cap or _postcode_matches(result, cap)]
   if not results:
     return None, None
   return float(results[0]['lat']), float(results[0]['lon'])
@@ -39,15 +42,15 @@ def main(argv=None):
   parser.add_argument('--dry-run', action='store_true', help='geocodifica e conta, non scrive')
   args = parser.parse_args(argv)
 
-  query = 'SELECT DISTINCT address FROM "order" WHERE address_lat IS NULL'
+  query = 'SELECT DISTINCT address, cap FROM "order" WHERE address_lat IS NULL'
   if not args.all:
     query += ' AND dpc >= CURRENT_DATE'
 
   with create_engine(os.environ['DATABASE_URL']).begin() as connection:
-    addresses = [row.address for row in connection.execute(text(query))]
+    addresses = [(row.address, row.cap) for row in connection.execute(text(query))]
     print(f'{len(addresses)} indirizzi senza coordinate')
     with ThreadPoolExecutor(max_workers=8) as executor:
-      resolved = dict(zip(addresses, executor.map(exact_coordinates, addresses)))
+      resolved = dict(zip(addresses, executor.map(lambda item: exact_coordinates(*item), addresses)))
 
     found = {address: coords for address, coords in resolved.items() if coords[0] is not None}
     print(f"{len(found)} trovati con l'indirizzo completo, {len(addresses) - len(found)} lasciati al ripiego")
@@ -55,10 +58,11 @@ def main(argv=None):
       return
 
     update = text(
-      'UPDATE "order" SET address_lat = :lat, address_lon = :lon WHERE address = :address AND address_lat IS NULL'
+      'UPDATE "order" SET address_lat = :lat, address_lon = :lon '
+      'WHERE address = :address AND cap = :cap AND address_lat IS NULL'
     )
-    for address, (lat, lon) in found.items():
-      connection.execute(update, {'address': address, 'lat': lat, 'lon': lon})
+    for (address, cap), (lat, lon) in found.items():
+      connection.execute(update, {'address': address, 'cap': cap, 'lat': lat, 'lon': lon})
     print('fatto')
 
 

@@ -49,7 +49,7 @@ def delivery_address(cap, address: str = None, lat=None, lon=None) -> tuple:
   del borderò guardano lo stesso punto.
   """
   if (lat is None or lon is None) and address:
-    lat, lon = get_lat_lon_by_address(address)
+    lat, lon = get_lat_lon_by_address(address, cap)
   return (cap, lat, lon)
 
 

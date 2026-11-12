@@ -173,7 +173,7 @@ def create_order(user: User, data: dict):
     # Il geocoding dell'indirizzo puo' costare secondi: lo si fa prima di
     # prendere il lock degli ordini, cosi' la cache e' calda quando la scelta
     # della fascia (dentro il lock) ne ha bisogno e non tiene fermi gli altri.
-    get_lat_lon_by_address(clean_data['address'])
+    get_lat_lon_by_address(clean_data['address'], clean_data.get('cap'))
   clean_data['type'] = OrderType(clean_data['type'])
   if 'external_status' in clean_data:
     clean_data['external_status'] = EuronicsStatus(clean_data['external_status'])

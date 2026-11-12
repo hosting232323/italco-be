@@ -871,7 +871,7 @@ def query_entries_for_cap(cap: str, address: str = None) -> list[DeliveryCoverag
   if not address:
     return by_cap
 
-  lat, lon = get_lat_lon_by_address(address)
+  lat, lon = get_lat_lon_by_address(address, cap)
   if lat is None and cap:
     lat, lon = get_lat_lon_by_cap(cap)
   if lat is None:

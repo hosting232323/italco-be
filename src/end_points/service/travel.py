@@ -194,11 +194,12 @@ def get_lat_lon_for_order(order: Order) -> tuple[float, float] | tuple[None, Non
   if lat is not None and lon is not None:
     return lat, lon
   address = getattr(order, 'address', None)
+  cap = getattr(order, 'cap', '') or ''
   if address:
-    lat, lon = get_lat_lon_by_address(address)
+    lat, lon = get_lat_lon_by_address(address, cap)
     if lat is not None:
       return lat, lon
-  return get_lat_lon_by_cap(getattr(order, 'cap', '') or '')
+  return get_lat_lon_by_cap(cap)
 
 
 def _address_or_cap_coords(entity) -> tuple[float, float] | tuple[None, None]:
@@ -211,11 +212,11 @@ def _address_or_cap_coords(entity) -> tuple[float, float] | tuple[None, None]:
   if entity is None:
     return None, None
   address = getattr(entity, 'address', None)
+  cap = getattr(entity, 'cap', None)
   if address:
-    lat, lon = get_lat_lon_by_address(address)
+    lat, lon = get_lat_lon_by_address(address, cap)
     if lat is not None:
       return lat, lon
-  cap = getattr(entity, 'cap', None)
   if not cap:
     return None, None
   return get_lat_lon_by_cap(cap)
@@ -326,7 +327,7 @@ def calculate_travel_overhead_minutes(
 
   new_lat, new_lon = (None, None)
   if new_address:
-    new_lat, new_lon = get_lat_lon_by_address(new_address)
+    new_lat, new_lon = get_lat_lon_by_address(new_address, new_cap)
   if new_lat is None:
     new_lat, new_lon = get_lat_lon_by_cap(new_cap)
   if new_lat is None:
@@ -368,7 +369,7 @@ def calculate_route_minutes(
     (lat, lon) for lat, lon in get_lat_lon_for_orders(sorted(existing_orders, key=lambda o: o.id)) if lat is not None
   ]
   if new_cap:
-    new_lat, new_lon = get_lat_lon_by_address(new_address) if new_address else (None, None)
+    new_lat, new_lon = get_lat_lon_by_address(new_address, new_cap) if new_address else (None, None)
     if new_lat is None:
       new_lat, new_lon = get_lat_lon_by_cap(new_cap)
     if new_lat is not None:
