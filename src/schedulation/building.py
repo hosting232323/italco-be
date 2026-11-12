@@ -74,6 +74,13 @@ def build_schedule_item(item, type):
     'address': item['address'],
     ('order_id' if type == 'Order' else 'collection_point_id'): item['id'],
   }
+  # La posizione salvata (scelta da Google o indicata sulla mappa) viaggia con
+  # la tappa: senza, la mappa del borderò rigeocodifica l'indirizzo a testo
+  # libero e la stessa via in un altro comune vince (Via Murat, Bari -> Putignano).
+  # to_dict omette i None, da qui il get.
+  for key in ('address_lat', 'address_lon') if type == 'Order' else ('lat', 'lon'):
+    if item.get(key) is not None:
+      schedule_item[key] = item[key]
   if type == 'Order':
     schedule_item['status'] = item['status']
     schedule_item['products'] = item['products']
