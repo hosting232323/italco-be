@@ -240,7 +240,7 @@ def _coord_for(address: str | None, cap: str | None, stored: tuple = (None, None
   if stored[0] is not None and stored[1] is not None:
     return stored
   if address:
-    lat, lon = get_lat_lon_by_address(address)
+    lat, lon = get_lat_lon_by_address(address, cap)
     if lat is not None:
       return (lat, lon)
   lat, lon = get_lat_lon_by_cap(cap or '')

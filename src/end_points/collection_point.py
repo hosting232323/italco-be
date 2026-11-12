@@ -44,8 +44,8 @@ def query_preload_areas(collection_point_ids: list[int]) -> dict[int, list[Colle
   return by_point
 
 
-def _coordinates(address: str) -> dict:
-  lat, lon = get_lat_lon_by_address(address) if address else (None, None)
+def _coordinates(address: str, cap: str = None) -> dict:
+  lat, lon = get_lat_lon_by_address(address, cap) if address else (None, None)
   return {'lat': lat, 'lon': lon}
 
 
@@ -111,7 +111,7 @@ def backfill_coordinates(collection_points: list[CollectionPoint]) -> None:
     return
 
   with ThreadPoolExecutor(max_workers=min(10, len(missing))) as executor:
-    resolved = list(executor.map(lambda point: _coordinates(point.address), missing))
+    resolved = list(executor.map(lambda point: _coordinates(point.address, point.cap), missing))
 
   for point, coordinates in zip(missing, resolved):
     if coordinates['lat'] is None:
@@ -131,7 +131,7 @@ def create_collection_point(user: User):
   if coordinates:
     data.update(coordinates)
   elif data.get('address'):
-    data.update(_coordinates(data['address']))
+    data.update(_coordinates(data['address'], data.get('cap')))
   return {'status': 'ok', 'collection_point': create(CollectionPoint, data).to_dict()}
 
 
@@ -181,7 +181,7 @@ def update_collection_point(user: User, id):
   if coordinates:
     data.update(coordinates)
   elif 'address' in data and data['address'] != collection_point.address:
-    data.update(_coordinates(data['address']))
+    data.update(_coordinates(data['address'], data.get('cap', collection_point.cap)))
   return {'status': 'ok', 'order': update(collection_point, data).to_dict()}
 
 

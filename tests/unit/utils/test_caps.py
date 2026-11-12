@@ -178,3 +178,49 @@ def test_get_lat_lon_by_address_without_town_has_no_fallback(mock_get):
 
   assert get_lat_lon_by_address('Mesagne') == (None, None)
   assert mock_get.call_count == 1
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_searches_the_street_in_the_cap_first(mock_get):
+  # "Via Cesare Battisti" esiste in molti comuni della provincia di Taranto: la
+  # ricerca libera trova Ginosa, quella nel CAP trova Taranto.
+  mock_get.return_value = _nominatim_response([{'lat': '40.4665', 'lon': '17.2561', 'address': {}}])
+
+  assert get_lat_lon_by_address('Via Cesare Battisti, 742, Taranto, TA', '74121') == (40.4665, 17.2561)
+  assert mock_get.call_count == 1
+  params = mock_get.call_args.kwargs['params']
+  assert (params['street'], params['postalcode']) == ('Via Cesare Battisti', '74121')
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_discards_a_free_text_match_in_another_cap(mock_get):
+  ginosa = {'lat': '40.5781', 'lon': '16.7582', 'address': {'postcode': '74013'}}
+  taranto = {'lat': '40.4600', 'lon': '17.2500', 'address': {'postcode': '74121'}}
+  mock_get.side_effect = [
+    _nominatim_response([]),  # via nel CAP: non trovata
+    _nominatim_response([ginosa, taranto]),  # ricerca libera
+  ]
+
+  assert get_lat_lon_by_address('Via Cesare Battisti, 742, Taranto, TA', '74121') == (40.46, 17.25)
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_keeps_the_town_fallback_whatever_its_cap(mock_get):
+  # Bari ha molti CAP: il ripiego sul comune non si scarta perche' ne ha un altro.
+  bari = {'lat': '41.1256', 'lon': '16.8698', 'address': {'postcode': '70121'}}
+  mock_get.side_effect = [
+    _nominatim_response([]),
+    _nominatim_response([]),
+    _nominatim_response([]),
+    _nominatim_response([bari]),
+  ]
+
+  assert get_lat_lon_by_address('Via Inesistente, 3, Bari, BA', '70125') == (41.1256, 16.8698)
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_without_cap_keeps_the_free_text_search_first(mock_get):
+  mock_get.return_value = _nominatim_response([{'lat': '41.2016', 'lon': '16.6008', 'address': {'postcode': '70056'}}])
+
+  assert get_lat_lon_by_address('Via Andrea Doria, 15, Molfetta, BA') == (41.2016, 16.6008)
+  assert 'q' in mock_get.call_args.kwargs['params']
