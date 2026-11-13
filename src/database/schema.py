@@ -256,6 +256,11 @@ class CustomerUserInfo(BaseItalcoEntity):
   rae_code = Column(String)
   import_code = Column(String)
   company_name = Column(String)
+  # Nome con cui il punto vendita si riconosce in filtri e select (migrato dal
+  # nickname). Le esportazioni usano company_name, la Ragione Sociale.
+  name = Column(String)
+  # Mail dedicata alle notifiche degli ordini, in aggiunta a email.
+  notification_email = Column(String)
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
   user = relationship('User', back_populates='customer_user_info')

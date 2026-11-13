@@ -337,7 +337,10 @@ def get_public_order(token: str):
     )
     if key in full_order
   }
-  public_order['user'] = {'nickname': full_order.get('user', {}).get('nickname')}
+  public_order['user'] = {
+    'nickname': full_order.get('user', {}).get('nickname'),
+    'name': full_order.get('user', {}).get('name'),
+  }
   public_order['products'] = {
     name: {
       'services': [
