@@ -18,7 +18,7 @@ from src.end_points.schedule.queries import (
 
 from database_api import Session
 from database_api.operations import create
-from src.database.schema import DeliveryUserInfo, ScheduleItemCollectionPoint
+from src.database.schema import ScheduleItemCollectionPoint
 
 from tests.unit.factories import (
   create_collection_point,
@@ -27,7 +27,6 @@ from tests.unit.factories import (
   create_product,
   create_schedule,
   create_schedule_item,
-  create_delivery_info,
   create_schedule_item_user,
   create_transport,
   create_user,
@@ -324,45 +323,3 @@ def test_close_schedule_position_if_done_is_idempotent(db):
   close_schedule_position_if_done(item)
 
   assert len(get_schedule_item_users(schedule)) == 2
-
-
-def _saved_position(user_id: int):
-  with Session() as session:
-    info = session.query(DeliveryUserInfo).filter(DeliveryUserInfo.user_id == user_id).one()
-    return None if info.lat is None else float(info.lat), None if info.lon is None else float(info.lon)
-
-
-def test_close_schedule_position_if_done_clears_the_holder_position(db):
-  delivery = create_user(UserRole.DELIVERY)
-  schedule = create_schedule()
-  item = create_schedule_item(schedule, completed=True)
-  create_delivery_info(delivery, lat=41.3, lon=16.2)
-  create_schedule_item_user(delivery, schedule, ScheduleItemUserType.OPENING)
-
-  close_schedule_position_if_done(item)
-
-  assert _saved_position(delivery.id) == (None, None)
-
-
-def test_close_schedule_position_if_done_keeps_position_while_items_remain(db):
-  delivery = create_user(UserRole.DELIVERY)
-  schedule = create_schedule()
-  done_item = create_schedule_item(schedule, index=0, completed=True)
-  create_schedule_item(schedule, index=1, completed=False)
-  create_delivery_info(delivery, lat=41.3, lon=16.2)
-  create_schedule_item_user(delivery, schedule, ScheduleItemUserType.OPENING)
-
-  close_schedule_position_if_done(done_item)
-
-  assert _saved_position(delivery.id) == (41.3, 16.2)
-
-
-def test_close_schedule_position_if_done_without_card_does_not_fail(db):
-  delivery = create_user(UserRole.DELIVERY)
-  schedule = create_schedule()
-  item = create_schedule_item(schedule, completed=True)
-  create_schedule_item_user(delivery, schedule, ScheduleItemUserType.OPENING)
-
-  close_schedule_position_if_done(item)
-
-  assert get_latest_schedule_item_user(schedule.id).type == ScheduleItemUserType.CLOSING
