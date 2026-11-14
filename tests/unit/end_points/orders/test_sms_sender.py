@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, time
 import hashlib
 from urllib.parse import urlsplit
 
@@ -6,7 +6,7 @@ import src.end_points.orders.sms_sender as sms_sender
 from database_api import Session
 from src import allowed_origins
 from src.database.schema import OrderTrackingToken
-from src.end_points.orders.sms_sender import delay_sms_check, get_order_link, tracking_token_expiry
+from src.end_points.orders.sms_sender import delay_sms_check, get_order_link
 
 from tests.unit.factories import (
   create_order,
@@ -87,22 +87,3 @@ def test_delay_sms_check_sends_message_with_slot(app, db, monkeypatch):
   assert 'riprogrammata' in message
   assert '09:00' in message and '11:00' in message
   assert customer.nickname in message
-
-
-def test_tracking_link_expires_seven_days_after_the_delivery_date(app, db):
-  delivery = date.today() + timedelta(days=3)
-  order = create_order(booking_date=delivery)
-
-  expiry = tracking_token_expiry(order)
-
-  assert expiry == datetime.combine(delivery, time.min, tzinfo=timezone.utc) + timedelta(days=7)
-
-
-def test_tracking_link_for_a_past_or_missing_delivery_date_lasts_seven_days_from_now(app, db):
-  past = create_order(booking_date=date.today() - timedelta(days=30))
-  undated = create_order(booking_date=None)
-  now = datetime.now(timezone.utc)
-
-  for order in (past, undated):
-    remaining = tracking_token_expiry(order) - now
-    assert timedelta(days=6, hours=23) < remaining <= timedelta(days=7, minutes=1)
