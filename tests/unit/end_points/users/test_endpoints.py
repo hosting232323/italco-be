@@ -91,6 +91,22 @@ def test_create_user_succeeds_with_valid_payload(client):
     assert created.role == UserRole.DELIVERY
 
 
+def test_create_customer_user_seeds_selling_point_name_from_nickname(client):
+  admin = create_user(UserRole.ADMIN)
+
+  response = client.post(
+    '/user',
+    json={'nickname': 'negozio-bari', 'password': 'pw', 'role': 'Customer'},
+    headers=auth_header(admin),
+  )
+
+  assert response.get_json()['status'] == 'ok'
+  with Session() as session:
+    created = session.query(User).filter(User.nickname == 'negozio-bari').one()
+    info = session.query(CustomerUserInfo).filter_by(user_id=created.id).one()
+    assert info.name == 'negozio-bari'
+
+
 def test_create_user_rejects_admin_role(client):
   admin = create_user(UserRole.ADMIN)
 
