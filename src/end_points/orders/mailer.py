@@ -24,7 +24,8 @@ def get_mails(order: Order):
     return MAILS
   else:
     user_info = get_user_mail(order)
-    return list(set(MAILS + ([user_info.email] if user_info and user_info.email else [])))
+    customer_mails = [user_info.email, user_info.notification_email] if user_info else []
+    return list(set(MAILS + [mail for mail in customer_mails if mail]))
 
 
 def mailer_check(order: Order, data: dict, motivation: str | None):

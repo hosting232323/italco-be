@@ -113,6 +113,31 @@ def test_get_mails_includes_customer_email_in_prod(db, monkeypatch):
   assert set(mailer.MAILS) <= set(mails)
 
 
+def test_get_mails_includes_customer_notification_email_in_prod(db, monkeypatch):
+  monkeypatch.setattr(mailer, 'IS_DEV', False)
+  customer, _, service_user, _ = customer_with_service()
+  create_customer_info(customer, email='negozio@example.com', notification_email='notifiche@example.com')
+  order = create_order()
+  create_product(order, service_user)
+
+  mails = get_mails(order)
+
+  assert {'negozio@example.com', 'notifiche@example.com'} <= set(mails)
+
+
+def test_get_mails_skips_missing_customer_emails_in_prod(db, monkeypatch):
+  monkeypatch.setattr(mailer, 'IS_DEV', False)
+  customer, _, service_user, _ = customer_with_service()
+  create_customer_info(customer, notification_email='notifiche@example.com')
+  order = create_order()
+  create_product(order, service_user)
+
+  mails = get_mails(order)
+
+  assert None not in mails
+  assert 'notifiche@example.com' in mails
+
+
 def test_get_mails_in_dev_returns_static_list(monkeypatch):
   monkeypatch.setattr(mailer, 'IS_DEV', True)
 

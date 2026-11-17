@@ -76,7 +76,10 @@ def create_user(_):
   # per nessuno, e il campo va ignorato invece di lasciarlo scegliere al client.
   if role == UserRole.CUSTOMER and 'automatic_planning' in request.json and is_automatic_planning_enabled():
     user_data['automatic_planning'] = bool(request.json['automatic_planning'])
-  create(User, user_data)
+  user = create(User, user_data)
+  if role == UserRole.CUSTOMER:
+    # Il nome del punto vendita parte uguale al nickname, poi si modifica dalla scheda.
+    save_user_info(user.id, {'name': nickname}, CustomerUserInfo)
   return {'status': 'ok', 'message': 'Utente registrato', 'password': password}
 
 
