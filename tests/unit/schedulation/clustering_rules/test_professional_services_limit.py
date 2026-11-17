@@ -83,3 +83,30 @@ def test_rule_moves_overflow_pro_orders_to_extra_groups():
 
   assert sum(count_professional(sub) for sub in result) == 5
   assert all(count_professional(sub) <= MAX_PROFESSIONAL_ORDERS for sub in result)
+
+
+def test_rule_keeps_orders_of_the_same_cap_together_when_rebalancing():
+  # Due zone da 6 ordini con min=7: il ribilanciamento serve, ma ogni proposta
+  # deve restare fatta di ordini consecutivi per CAP, non mescolati alla rinfusa.
+  bari = [make_order(i, '70121', collection_point_id=1, services=NON_PRO) for i in range(1, 7)]
+  foggia = [make_order(i, '71010', collection_point_id=2, services=NON_PRO) for i in range(7, 13)]
+  groups = [build_schedule_items(bari), build_schedule_items(foggia)]
+
+  result = _apply(groups, min_size=7, max_size=12)
+
+  caps_per_group = [{item['cap'] for item in group if item['operation_type'] == 'Order'} for group in result]
+  assert caps_per_group == [{'70121'}, {'71010'}]
+
+
+def test_rule_moves_a_pro_order_to_the_next_proposal_instead_of_a_random_one():
+  # Tre professionali nella prima zona: il terzo passa alla proposta successiva.
+  first = [make_order(i, '70121', collection_point_id=1, services=PRO) for i in range(1, 4)] + [
+    make_order(i, '70121', collection_point_id=1, services=NON_PRO) for i in range(4, 7)
+  ]
+  second = [make_order(i, '71010', collection_point_id=2, services=NON_PRO) for i in range(7, 13)]
+
+  result = _apply([build_schedule_items(first), build_schedule_items(second)], min_size=1, max_size=12)
+
+  assert [count_orders(group) for group in result] == [6, 6]
+  assert all(count_professional(group) <= MAX_PROFESSIONAL_ORDERS for group in result)
+  assert sum(count_professional(group) for group in result) == 3

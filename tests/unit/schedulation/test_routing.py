@@ -1,15 +1,12 @@
 from datetime import time
 from types import SimpleNamespace
-from unittest.mock import patch
 
 from src.schedulation.routing import (
   StopContext,
-  _build_clusters,
-  _first_coord,
   _group_by_slot,
-  _order_cluster,
-  _osrm_or_original_order,
+  _sequence_slot,
 )
+from src.schedulation.sequencing import duration_matrix
 
 MORNING = (time(9, 40), time(11, 30))
 NOON = (time(11, 30), time(12, 30))
@@ -25,126 +22,6 @@ def _order_stop(id, coord=(41.0, 16.0), slot=MORNING):
 
 def _cp_stop(id, coord=(41.0, 16.0), slot=MORNING):
   return StopContext(item=_item(id, slot), kind='collection_point', coord=coord, entity_id=id)
-
-
-# ---------------------------------------------------------------------------
-# _osrm_or_original_order
-# ---------------------------------------------------------------------------
-
-
-def test_osrm_or_original_order_returns_identity_for_zero_or_one_stop():
-  assert _osrm_or_original_order(0, []) == []
-  assert _osrm_or_original_order(1, [(1.0, 2.0)]) == [0]
-
-
-@patch('src.schedulation.routing.trip_order_osrm')
-def test_osrm_or_original_order_uses_trip_result(mock_trip):
-  mock_trip.return_value = [2, 0, 1]
-  coords = [(1.0, 1.0), (2.0, 2.0), (3.0, 3.0)]
-
-  assert _osrm_or_original_order(3, coords) == [2, 0, 1]
-  mock_trip.assert_called_once_with(coords)
-
-
-@patch('src.schedulation.routing.trip_order_osrm')
-def test_osrm_or_original_order_falls_back_when_osrm_unavailable(mock_trip):
-  mock_trip.return_value = None
-
-  assert _osrm_or_original_order(3, [(1.0, 1.0), (2.0, 2.0), (3.0, 3.0)]) == [0, 1, 2]
-
-
-def test_osrm_or_original_order_falls_back_with_less_than_two_valid_coords():
-  assert _osrm_or_original_order(3, [(1.0, 1.0), None, None]) == [0, 1, 2]
-
-
-@patch('src.schedulation.routing.trip_order_osrm')
-def test_osrm_or_original_order_appends_unresolvable_coords_at_the_end(mock_trip):
-  # coords[1] non geocodificabile: OSRM vede solo indici 0 e 2, in quest'ordine
-  mock_trip.return_value = [1, 0]  # visita prima il secondo valido (indice originale 2), poi il primo (0)
-  coords = [(1.0, 1.0), None, (3.0, 3.0)]
-
-  assert _osrm_or_original_order(3, coords) == [2, 0, 1]
-  mock_trip.assert_called_once_with([(1.0, 1.0), (3.0, 3.0)])
-
-
-# ---------------------------------------------------------------------------
-# _build_clusters
-# ---------------------------------------------------------------------------
-
-
-def test_build_clusters_keeps_independent_orders_separate():
-  order_a, order_b = _order_stop(1), _order_stop(2)
-
-  clusters = _build_clusters([order_a, order_b], [], dependencies={})
-
-  assert len(clusters) == 2
-  assert all(cps == [] for cps, _orders in clusters)
-  assert {orders[0].entity_id for _cps, orders in clusters} == {1, 2}
-
-
-def test_build_clusters_groups_order_with_its_required_collection_point():
-  order = _order_stop(1)
-  cp = _cp_stop(10)
-
-  clusters = _build_clusters([order], [cp], dependencies={order.item.id: {10}})
-
-  assert len(clusters) == 1
-  cps, orders = clusters[0]
-  assert cps == [cp]
-  assert orders == [order]
-
-
-def test_build_clusters_merges_orders_sharing_the_same_collection_point():
-  order_a, order_b = _order_stop(1), _order_stop(2)
-  cp = _cp_stop(10)
-  dependencies = {order_a.item.id: {10}, order_b.item.id: {10}}
-
-  clusters = _build_clusters([order_a, order_b], [cp], dependencies)
-
-  assert len(clusters) == 1
-  cps, orders = clusters[0]
-  assert cps == [cp]
-  assert {o.entity_id for o in orders} == {1, 2}
-
-
-def test_build_clusters_ignores_dependency_on_collection_point_not_in_schedule():
-  order = _order_stop(1)
-
-  clusters = _build_clusters([order], [], dependencies={order.item.id: {999}})
-
-  assert len(clusters) == 1
-  cps, orders = clusters[0]
-  assert cps == []
-  assert orders == [order]
-
-
-# ---------------------------------------------------------------------------
-# _order_cluster / _first_coord
-# ---------------------------------------------------------------------------
-
-
-def test_order_cluster_puts_collection_points_before_orders():
-  # Un solo punto di ritiro e un solo ordine: nessuna chiamata OSRM necessaria
-  # (_osrm_or_original_order va in identity per liste di lunghezza <= 1), quindi
-  # l'unico comportamento da verificare è la precedenza cps-poi-orders.
-  order = _order_stop(1)
-  cp = _cp_stop(10)
-
-  sequence = _order_cluster([cp], [order])
-
-  assert sequence == [cp, order]
-
-
-def test_first_coord_returns_first_non_none_coordinate():
-  stops = [_order_stop(1, coord=None), _order_stop(2, coord=(41.0, 16.0)), _order_stop(3, coord=(42.0, 17.0))]
-
-  assert _first_coord(stops) == (41.0, 16.0)
-
-
-def test_first_coord_returns_none_when_all_unresolvable():
-  stops = [_order_stop(1, coord=None), _order_stop(2, coord=None)]
-
-  assert _first_coord(stops) is None
 
 
 # ---------------------------------------------------------------------------
@@ -178,3 +55,62 @@ def test_group_by_slot_keeps_a_pickup_without_dependent_orders_in_its_slot():
   groups = _group_by_slot([order], [cp], dependencies={})
 
   assert groups == [([order], []), ([], [cp])]
+
+
+# ---------------------------------------------------------------------------
+# _sequence_slot
+# ---------------------------------------------------------------------------
+
+DEPOT = (41.10, 16.80)
+NEAR = (41.11, 16.80)
+FAR = (41.40, 16.80)
+
+
+def _slot_matrix(stops, start=None):
+  located = [stop for stop in stops if stop.coord is not None]
+  offset = 1 if start else 0
+  matrix = duration_matrix(([start] if start else []) + [stop.coord for stop in located])
+  return matrix, {stop.item.id: offset + position for position, stop in enumerate(located)}
+
+
+def test_sequence_slot_starts_from_the_vehicle_position():
+  far, near = _order_stop(1, coord=FAR), _order_stop(2, coord=NEAR)
+  matrix, index = _slot_matrix([far, near], start=DEPOT)
+
+  assert _sequence_slot([far, near], [], {}, matrix, index, start=0) == [near, far]
+
+
+def test_sequence_slot_visits_an_independent_order_on_the_way_to_the_pickup_deliveries():
+  # Il ritiro e' vicino al deposito, la sua consegna lontana; l'ordine senza
+  # ritiri sta a meta' strada: si fa andando, non dopo essere tornati indietro.
+  pickup = _cp_stop(10, coord=(41.11, 16.80))
+  independent = _order_stop(1, coord=(41.25, 16.80))
+  delivery = _order_stop(2, coord=FAR)
+  stops = [pickup, independent, delivery]
+  matrix, index = _slot_matrix(stops, start=DEPOT)
+
+  sequence = _sequence_slot([independent, delivery], [pickup], {delivery.item.id: {10}}, matrix, index, start=0)
+
+  assert sequence == [pickup, independent, delivery]
+
+
+def test_sequence_slot_never_delivers_before_the_pickup():
+  # La consegna e' accanto al deposito, il ritiro lontano: tocca andare al ritiro e tornare.
+  pickup = _cp_stop(10, coord=FAR)
+  delivery = _order_stop(1, coord=NEAR)
+  matrix, index = _slot_matrix([pickup, delivery], start=DEPOT)
+
+  sequence = _sequence_slot([delivery], [pickup], {delivery.item.id: {10}}, matrix, index, start=0)
+
+  assert sequence == [pickup, delivery]
+
+
+def test_sequence_slot_keeps_unlocated_pickups_first_and_unlocated_deliveries_last():
+  pickup = _cp_stop(10, coord=None)
+  located = _order_stop(1, coord=NEAR)
+  unlocated = _order_stop(2, coord=None)
+  matrix, index = _slot_matrix([pickup, located, unlocated], start=DEPOT)
+
+  sequence = _sequence_slot([unlocated, located], [pickup], {located.item.id: {10}}, matrix, index, start=0)
+
+  assert sequence == [pickup, located, unlocated]

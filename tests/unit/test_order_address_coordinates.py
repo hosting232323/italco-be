@@ -112,13 +112,12 @@ def test_a_collection_point_with_stored_coordinates_is_not_geocoded(mock_geocode
   mock_geocode.assert_not_called()
 
 
-@patch('src.schedulation.routing.trip_order_osrm')
-@patch('src.schedulation.routing.get_lat_lon_by_cap', side_effect=AssertionError('niente geocoding'))
-@patch('src.schedulation.routing.get_lat_lon_by_address', side_effect=AssertionError('niente geocoding'))
-def test_the_schedule_is_ordered_on_the_stored_coordinates(_address, _cap, mock_trip):
+@patch('src.schedulation.sequencing.travel_time_matrix_osrm', return_value=None)
+@patch('src.schedulation.sequencing.get_lat_lon_by_cap', side_effect=AssertionError('niente geocoding'))
+@patch('src.schedulation.sequencing.get_lat_lon_by_address', side_effect=AssertionError('niente geocoding'))
+def test_the_schedule_is_ordered_on_the_stored_coordinates(_address, _cap, mock_matrix):
   from src.schedulation.routing import optimize_schedule_stops
 
-  mock_trip.side_effect = lambda coords: list(range(len(coords)))
   target = date.today() + timedelta(days=4)
   schedule = create(Schedule, {'date': target, 'transport_id': create_transport().id})
   for index, coords in enumerate([MESAGNE, BRINDISI]):
@@ -139,7 +138,7 @@ def test_the_schedule_is_ordered_on_the_stored_coordinates(_address, _cap, mock_
     optimize_schedule_stops(session.get(Schedule, schedule.id), session)
     session.commit()
 
-  assert mock_trip.call_args.args[0] == [MESAGNE, BRINDISI]
+  assert mock_matrix.call_args.args[0] == [MESAGNE, BRINDISI]
 
 
 # ---------------------------------------------------------------------------

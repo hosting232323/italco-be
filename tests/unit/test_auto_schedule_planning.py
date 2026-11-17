@@ -9,15 +9,12 @@ Verifica:
 5. Un ordine senza fascia oraria non genera un borderò.
 
 Il riordino delle tappe (ordini + punti di ritiro) è delegato a
-``src.schedulation.routing.optimize_schedule_stops``, che chiama OSRM Trip
-Service: qui viene mockato con ``_optimal_trip_order``, un risolutore TSP a
-forza bruta (le liste di test sono piccole) usato come sostituto realistico
-di OSRM invece di un fake che impone l'esito. Non testiamo qui la logica di
-clustering/fallback pura di ``routing.py``: vedi ``test_routing.py``.
+``src.schedulation.routing.optimize_schedule_stops``: nei test OSRM non è
+raggiungibile e le durate si stimano in linea d'aria, con le coordinate
+guidate dal CAP. Il giro vero e proprio è testato in ``test_sequencing.py``.
 """
 
 from datetime import date, time, timedelta
-from itertools import permutations
 from unittest.mock import patch
 
 import pytest
@@ -61,24 +58,6 @@ SLOT_END = time(18, 0)
 
 def _find(cls, **kwargs):
   return get_by_params(cls, list(kwargs.items()))
-
-
-def _optimal_trip_order(coords):
-  """Sostituto di ``trip_order_osrm`` per i test: TSP a percorso aperto per forza bruta.
-
-  Le liste di coordinate nei test sono piccole (2-3 punti), quindi il calcolo
-  esaustivo è a costo trascurabile e ci evita di dover indovinare a mano
-  l'ordine "giusto" che un vero OSRM restituirebbe.
-  """
-
-  def total_distance(order):
-    return sum(
-      ((coords[order[i]][0] - coords[order[i + 1]][0]) ** 2 + (coords[order[i]][1] - coords[order[i + 1]][1]) ** 2)
-      ** 0.5
-      for i in range(len(order) - 1)
-    )
-
-  return list(min(permutations(range(len(coords))), key=total_distance))
 
 
 def _make_entry(transport, cap='76011') -> DeliveryCoverageEntry:
@@ -222,7 +201,7 @@ def test_find_or_create_schedule_returns_existing_without_duplicate(db, entry, d
 
 def test_auto_plan_creates_schedule_and_first_stop(db, entry, delivery_user):
   # Un solo ordine: optimize_schedule_stops non ha nulla da riordinare e non
-  # chiama né il geocoding né OSRM (vedi routing._osrm_or_original_order).
+  # chiama né il geocoding né OSRM (plan_schedule_stops esce con meno di due tappe).
   order = _make_order_with_slot()
   from database_api import Session
 
@@ -255,17 +234,13 @@ def test_auto_plan_creates_schedule_and_first_stop(db, entry, delivery_user):
   assert pending[0][0].id == order.id
 
 
-@patch('src.schedulation.routing.trip_order_osrm')
-@patch('src.schedulation.routing.get_lat_lon_by_address')
-@patch('src.schedulation.routing.get_lat_lon_by_cap')
-def test_auto_plan_second_order_reuses_existing_schedule(
-  mock_geocode, mock_geocode_address, mock_trip, db, entry, delivery_user
-):
+@patch('src.schedulation.sequencing.get_lat_lon_by_address')
+@patch('src.schedulation.sequencing.get_lat_lon_by_cap')
+def test_auto_plan_second_order_reuses_existing_schedule(mock_geocode, mock_geocode_address, db, entry, delivery_user):
   # L'indirizzo (uguale per tutti gli ordini di test) non deve risolvere: il
   # test guida le coordinate via CAP.
   mock_geocode_address.return_value = (None, None)
   mock_geocode.return_value = (41.238, 16.500)
-  mock_trip.side_effect = _optimal_trip_order
 
   order1 = _make_order_with_slot()
   order2 = _make_order_with_slot()
@@ -295,12 +270,9 @@ def test_auto_plan_second_order_reuses_existing_schedule(
   assert len(assigned) == 1
 
 
-@patch('src.schedulation.routing.trip_order_osrm')
-@patch('src.schedulation.routing.get_lat_lon_by_address')
-@patch('src.schedulation.routing.get_lat_lon_by_cap')
-def test_auto_plan_third_order_inserts_optimally(
-  mock_geocode, mock_geocode_address, mock_trip, db, entry, delivery_user
-):
+@patch('src.schedulation.sequencing.get_lat_lon_by_address')
+@patch('src.schedulation.sequencing.get_lat_lon_by_cap')
+def test_auto_plan_third_order_inserts_optimally(mock_geocode, mock_geocode_address, db, entry, delivery_user):
   """Bisceglie→Molfetta già nel borderò: il nuovo Bisceglie si accoda all'altro Bisceglie.
 
   Con un vero risolutore TSP a percorso libero (nessun vincolo su partenza/arrivo),
@@ -322,7 +294,6 @@ def test_auto_plan_third_order_inserts_optimally(
     return BISCEGLIE if cap == '76011' else MOLFETTA
 
   mock_geocode.side_effect = fake_geocode
-  mock_trip.side_effect = _optimal_trip_order
 
   order1 = _make_order_with_slot(cap='76011')  # Bisceglie
   order2 = _make_order_with_slot(cap='70056')  # Molfetta
@@ -511,18 +482,22 @@ def test_unplan_order_drops_pickups_only_that_order_needed(_optimize, db, entry,
   assert _find(Schedule, date=TARGET) == []
 
 
-@patch('src.schedulation.routing.trip_order_osrm')
-@patch('src.schedulation.routing.get_lat_lon_by_address')
-@patch('src.schedulation.routing.get_lat_lon_by_cap')
-def test_optimize_keeps_activities_in_their_position(mock_geocode, mock_geocode_address, mock_trip, db, entry):
-  """Le attività non si spostano: gli ordini si scambiano i posti rimasti."""
-  from database_api import Session
+@patch('src.schedulation.sequencing.get_lat_lon_by_address')
+@patch('src.schedulation.sequencing.get_lat_lon_by_cap')
+def test_optimize_keeps_activities_in_their_position(mock_geocode, mock_geocode_address, db, entry):
+  """Le attività non si spostano: gli ordini si scambiano i posti rimasti.
 
+  Il veicolo parte da Molfetta: l'ordine di Molfetta (b) va prima di quello di Bisceglie (a).
+  """
+  from database_api import Session
+  from database_api.operations import update
+
+  from src.database.schema import Transport
   from src.schedulation.routing import optimize_schedule_stops
 
   mock_geocode_address.return_value = (None, None)
   mock_geocode.side_effect = lambda cap: (41.238, 16.500) if cap == '76011' else (41.201, 16.583)
-  mock_trip.side_effect = lambda coords: list(reversed(range(len(coords))))
+  update(get_by_params(Transport, [('id', entry.transport_id)])[0], {'cap': '70056'})
 
   order_a = _make_order_with_slot(cap='76011')
   order_b = _make_order_with_slot(cap='70056')
@@ -571,12 +546,9 @@ def test_optimize_keeps_activities_in_their_position(mock_geocode, mock_geocode_
   assert indexes[item_b.id] == 0
 
 
-@patch('src.schedulation.routing.trip_order_osrm')
-@patch('src.schedulation.routing.get_lat_lon_by_address')
-@patch('src.schedulation.routing.get_lat_lon_by_cap')
-def test_optimize_never_visits_an_earlier_slot_after_a_later_one(
-  mock_geocode, mock_geocode_address, mock_trip, db, entry
-):
+@patch('src.schedulation.sequencing.get_lat_lon_by_address')
+@patch('src.schedulation.sequencing.get_lat_lon_by_cap')
+def test_optimize_never_visits_an_earlier_slot_after_a_later_one(mock_geocode, mock_geocode_address, db, entry):
   """Il percorso più corto passerebbe prima da Molfetta (fascia 11:30) e poi da
   Bisceglie (9:40): le fasce restano in ordine cronologico, OSRM ottimizza solo
   dentro ciascuna."""
@@ -586,7 +558,6 @@ def test_optimize_never_visits_an_earlier_slot_after_a_later_one(
 
   mock_geocode_address.return_value = (None, None)
   mock_geocode.side_effect = lambda cap: (41.238, 16.500) if cap == '76011' else (41.201, 16.583)
-  mock_trip.side_effect = lambda coords: list(reversed(range(len(coords))))
 
   morning, noon = (time(9, 40), time(11, 30)), (time(11, 30), time(12, 30))
   schedule = create(Schedule, {'date': TARGET, 'transport_id': entry.transport_id})
@@ -615,11 +586,10 @@ def test_optimize_never_visits_an_earlier_slot_after_a_later_one(
   assert {indexes[items[1].id], indexes[items[2].id]} == {0, 1}
 
 
-@patch('src.schedulation.routing.trip_order_osrm')
-@patch('src.schedulation.routing.get_lat_lon_by_address')
-@patch('src.schedulation.routing.get_lat_lon_by_cap')
+@patch('src.schedulation.sequencing.get_lat_lon_by_address')
+@patch('src.schedulation.sequencing.get_lat_lon_by_cap')
 def test_optimize_moves_a_shared_pickup_to_the_earliest_slot_that_needs_it(
-  mock_geocode, mock_geocode_address, mock_trip, db, entry
+  mock_geocode, mock_geocode_address, db, entry
 ):
   """Il ritiro è nato con l'ordine delle 11:30, poi lo chiede anche uno delle
   9:40: va fatto per primo e ne prende l'orario."""
@@ -631,7 +601,6 @@ def test_optimize_moves_a_shared_pickup_to_the_earliest_slot_that_needs_it(
 
   mock_geocode_address.return_value = (None, None)
   mock_geocode.return_value = (41.238, 16.500)
-  mock_trip.side_effect = lambda coords: list(range(len(coords)))
 
   _, _, service_user, point = customer_with_service()
   morning, noon = (time(9, 40), time(11, 30)), (time(11, 30), time(12, 30))
@@ -869,10 +838,9 @@ def test_find_or_create_schedule_skips_a_schedule_with_a_completed_stop(db, entr
     assert find_or_create_schedule(entry, order, session) == (None, False)
 
 
-@patch('src.schedulation.routing.trip_order_osrm', side_effect=lambda coords: list(reversed(range(len(coords)))))
-@patch('src.schedulation.routing.get_lat_lon_by_address', return_value=(None, None))
-@patch('src.schedulation.routing.get_lat_lon_by_cap', side_effect=lambda cap: (41.0, 16.0 + int(cap[-1]) / 100))
-def test_optimization_leaves_completed_stops_where_they_are(mock_cap, mock_address, mock_trip, db, entry):
+@patch('src.schedulation.sequencing.get_lat_lon_by_address', return_value=(None, None))
+@patch('src.schedulation.sequencing.get_lat_lon_by_cap', side_effect=lambda cap: (41.0, 16.0 + int(cap[-1]) / 100))
+def test_optimization_leaves_completed_stops_where_they_are(mock_cap, mock_address, db, entry):
   from database_api import Session
   from database_api.operations import update
   from src.schedulation.routing import optimize_schedule_stops

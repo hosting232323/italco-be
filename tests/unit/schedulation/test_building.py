@@ -105,3 +105,22 @@ def test_builder_places_orders_without_caps_in_unmatched_group():
 
   assert len(groups) == 1
   assert any(item['operation_type'] == 'Order' for item in groups[0])
+
+
+def test_builder_groups_orders_without_pickups_by_their_own_cap():
+  def without_pickup(order_id, cap):
+    return {
+      'id': order_id,
+      'cap': cap,
+      'address': f'Order {order_id}',
+      'status': 'Booked',
+      'dpc': None,
+      'drc': None,
+      'products': {'p': {'services': []}},
+    }
+
+  groups = ScheduleItemGroupBuilder().build(
+    [without_pickup(1, '70121'), without_pickup(2, '71010'), without_pickup(3, '70121')]
+  )
+
+  assert sorted(sorted(item['order_id'] for item in group) for group in groups) == [[1, 3], [2]]

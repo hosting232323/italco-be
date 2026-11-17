@@ -7,6 +7,7 @@ from ...database.enum import UserRole
 from ...schedulation import execute_schedulation
 from .. import flask_session_authentication
 from ...schedulation.building import build_schedule_items
+from ...schedulation.sequencing import sequence_schedule_items
 from ...database.schema import Schedule, User, Order, ScheduleItem, ScheduleItemOrder
 from .delivery import get_items_for_delivery, get_history_for_delivery, update_schedule_item
 from .position import get_schedule_position, claim_schedule_position
@@ -203,7 +204,8 @@ def pianification(_):
     if order['status'] != 'Booked':
       return {'status': 'ko', 'message': 'Hai selezionato degli ordini che non sono in stato Booked'}
 
-  return {'status': 'ok', 'schedule_items': build_schedule_items(orders)}
+  # Il veicolo non è ancora scelto: il giro parte dalla tappa che lo rende più corto.
+  return {'status': 'ok', 'schedule_items': sequence_schedule_items(build_schedule_items(orders))}
 
 
 @schedule_bp.route('item/<id>', methods=['PUT'])

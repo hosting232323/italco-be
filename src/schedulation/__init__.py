@@ -7,6 +7,7 @@ from ..end_points.transport import delivery_users_by_transport, serialize_transp
 
 from .clustering import build_clustered_schedule_item_groups
 from .assigning import assign_transports_to_schedule_items
+from .sequencing import sequence_schedule_items, transport_start_coord
 
 
 def execute_schedulation(work_date: datetime, min_size_group: int, max_size_group: int, max_distance_km: int):
@@ -35,7 +36,7 @@ def execute_schedulation(work_date: datetime, min_size_group: int, max_size_grou
 
 
 def assign_orders_to_groups(orders, transports, min_size_group, max_size_group, max_distance_km):
-  return assign_transports_to_schedule_items(
+  groups = assign_transports_to_schedule_items(
     build_clustered_schedule_item_groups(
       orders,
       min_size_group,
@@ -44,3 +45,14 @@ def assign_orders_to_groups(orders, transports, min_size_group, max_size_group, 
     ),
     transports,
   )
+  # Le tappe escono dal clustering nell'ordine in cui sono arrivati gli ordini:
+  # si mettono nell'ordine di visita, partendo dal deposito del veicolo assegnato.
+  return [
+    {
+      **group,
+      'schedule_items': sequence_schedule_items(
+        group['schedule_items'], transport_start_coord(group['transports'][0] if group['transports'] else None)
+      ),
+    }
+    for group in groups
+  ]

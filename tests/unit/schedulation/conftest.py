@@ -38,11 +38,15 @@ def stub_cap_geocoding(monkeypatch):
   import src.schedulation.assigning as assigning_module
   import src.schedulation.clustering_rules.merge_small_group as merge_module
   import src.schedulation.clustering_rules.split_large_group as split_module
+  import src.schedulation.sequencing as sequencing_module
 
   monkeypatch.setattr(assigning_module, 'get_lat_lon_by_cap', _fake_get_lat_lon_by_cap)
   monkeypatch.setattr(assigning_module, 'get_lat_lon_by_caps', _fake_get_lat_lon_by_caps)
   monkeypatch.setattr(merge_module, 'get_lat_lon_by_caps', _fake_get_lat_lon_by_caps)
   monkeypatch.setattr(split_module, 'get_lat_lon_by_caps', _fake_get_lat_lon_by_caps)
+  # L'ordine di visita delle proposte: indirizzi di test non geocodificabili, conta il CAP.
+  monkeypatch.setattr(sequencing_module, 'get_lat_lon_by_cap', _fake_get_lat_lon_by_cap)
+  monkeypatch.setattr(sequencing_module, 'get_lat_lon_by_address', lambda address, cap=None: (None, None))
 
 
 def make_order(order_id, cap, collection_point_id=None, services=None, address=None):

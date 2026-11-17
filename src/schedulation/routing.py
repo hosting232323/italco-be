@@ -5,30 +5,21 @@ Ogni prodotto di un ordine può richiedere il ritiro presso un ``CollectionPoint
 ritiro, e più ordini possono condividere lo stesso punto di ritiro: in quel caso la
 tappa ``CollectionPoint`` nel borderò va creata una sola volta e riusata.
 
-Per ordinare le tappe del borderò (``ScheduleItem``) si usa OSRM Trip Service
-(TSP su percorso aperto). OSRM non supporta vincoli di precedenza nativi, quindi
-non possiamo semplicemente chiedergli l'ordine ottimale su tutte le tappe insieme:
-un ordine potrebbe uscire prima del punto di ritiro da cui dipende. La soluzione è
-"trip per cluster + merge":
+Le tappe del borderò (``ScheduleItem``) si ordinano fascia oraria per fascia
+oraria, in ordine cronologico: le consegne sono promesse al cliente in una fascia
+e un ordine delle 9:40 non può finire dopo uno delle 11:30 solo perché è più
+comodo come strada. Il giro di ogni fascia (vedi ``sequencing.py``) parte da dove
+il veicolo si trova davvero: il deposito per la prima fascia, l'ultima tappa della
+fascia prima per le successive, l'ultima tappa già fatta se il giro è iniziato.
+Dentro la fascia l'unico vincolo è che un ritiro preceda le consegne che ne
+dipendono: ordini della stessa zona finiscono uno dopo l'altro anche quando non
+condividono un punto di ritiro.
 
-1. Si raggruppano le tappe in cluster per componente connessa del grafo di
-   dipendenza (ordine <-> punto di ritiro richiesto). Ordini senza dipendenze
-   formano cluster singoli.
-2. Dentro ogni cluster si ottimizzano separatamente i punti di ritiro e gli
-   ordini (via OSRM), poi si concatenano ritiri-prima-di-ordini: la precedenza è
-   garantita per costruzione, non da un aggiustamento a posteriori.
-3. I cluster vengono a loro volta ordinati tra loro via OSRM (usando come ancora
-   la prima tappa geocodificabile di ciascuno) e concatenati.
-
-Tutto questo avviene fascia oraria per fascia oraria, in ordine cronologico: le
-consegne sono promesse al cliente in una fascia e OSRM non conosce gli orari,
-quindi il percorso si ottimizza dentro ogni fascia e le fasce si concatenano.
-
-Se OSRM non è raggiungibile o una tappa non è geocodificabile, si degrada
-mantenendo l'ordine relativo originale invece di far fallire la richiesta.
+Se OSRM non è raggiungibile si stima in linea d'aria; una tappa non
+geocodificabile resta ai bordi della sua fascia (ritiri in testa, consegne in
+coda) invece di far fallire la richiesta.
 """
 
-from concurrent.futures import ThreadPoolExecutor
 import logging
 from datetime import time, timedelta
 from dataclasses import dataclass
@@ -46,12 +37,12 @@ from ..database.schema import (
   ScheduleItem,
   ScheduleItemCollectionPoint,
   ScheduleItemOrder,
+  Transport,
 )
 from ..end_points.orders.queries import query_products
 from ..end_points.schedule.preload import preloaded_pickup_ids_for_order
 from ..end_points.schedule.queries import get_schedule_items, schedule_has_started
-from ..end_points.service.travel import get_lat_lon_by_cap, trip_order_osrm
-from ..utils.caps import get_lat_lon_by_address
+from .sequencing import duration_matrix, resolve_stop_coords, sequence_stops
 
 logger = logging.getLogger(__name__)
 
@@ -225,137 +216,8 @@ def link_missing_collection_points(
 
 
 # ---------------------------------------------------------------------------
-# Riordino del borderò (trip per cluster + merge)
+# Riordino del borderò (giro per fascia, dal punto in cui si trova il veicolo)
 # ---------------------------------------------------------------------------
-
-
-def _coord_for(address: str | None, cap: str | None, stored: tuple = (None, None)) -> Coord | None:
-  """Coordinata di una tappa: quella salvata se c'e', poi l'indirizzo completo se
-  geocodificabile, altrimenti il centroide del CAP.
-
-  Il CAP da solo tratterebbe come "vicini" ordini/punti di ritiro distanti
-  chilometri ma nello stesso CAP (frequente nei CAP che coprono più comuni o
-  zone rurali), falsando l'ordine di visita calcolato da OSRM.
-  """
-  if stored[0] is not None and stored[1] is not None:
-    return stored
-  if address:
-    lat, lon = get_lat_lon_by_address(address, cap)
-    if lat is not None:
-      return (lat, lon)
-  lat, lon = get_lat_lon_by_cap(cap or '')
-  return (lat, lon) if lat is not None else None
-
-
-def _osrm_or_original_order(n: int, coords: list[Coord | None]) -> list[int]:
-  """Indici 0..n-1 nell'ordine ottimale OSRM, o nell'ordine originale come fallback.
-
-  Le tappe senza coordinate (geocoding fallito) vengono accodate in fondo,
-  nel loro ordine relativo originale, invece di far fallire il riordino.
-  """
-  if n <= 1:
-    return list(range(n))
-
-  valid = [(i, c) for i, c in enumerate(coords) if c is not None]
-  if len(valid) < 2:
-    return list(range(n))
-
-  valid_indices = [i for i, _ in valid]
-  valid_coords = [c for _, c in valid]
-  trip_order = trip_order_osrm(valid_coords)
-  if trip_order is None:
-    return list(range(n))
-
-  ordered = [valid_indices[i] for i in trip_order]
-  missing = [i for i in range(n) if coords[i] is None]
-  return ordered + missing
-
-
-def _build_clusters(
-  order_stops: list[StopContext],
-  cp_stops: list[StopContext],
-  dependencies: dict[int, set[int]],
-) -> list[tuple[list[StopContext], list[StopContext]]]:
-  """Raggruppa le tappe per componente connessa del grafo ordine<->punto di ritiro.
-
-  ``dependencies`` mappa ``ScheduleItem.id`` di una tappa ordine ai
-  ``collection_point_id`` da cui dipende. Ordini senza dipendenze restano soli
-  nel proprio cluster.
-  """
-  cp_by_id = {s.entity_id: s for s in cp_stops}
-  parent = {s.item.id: s.item.id for s in order_stops + cp_stops}
-
-  def find(x):
-    while parent[x] != x:
-      parent[x] = parent[parent[x]]
-      x = parent[x]
-    return x
-
-  def union(a, b):
-    ra, rb = find(a), find(b)
-    if ra != rb:
-      parent[ra] = rb
-
-  for order_stop in order_stops:
-    for cp_id in dependencies.get(order_stop.item.id, set()):
-      cp_stop = cp_by_id.get(cp_id)
-      if cp_stop:
-        union(order_stop.item.id, cp_stop.item.id)
-
-  groups: dict[int, list[StopContext]] = defaultdict(list)
-  for stop in order_stops + cp_stops:
-    groups[find(stop.item.id)].append(stop)
-
-  return [
-    ([s for s in group if s.kind == 'collection_point'], [s for s in group if s.kind == 'order'])
-    for group in groups.values()
-  ]
-
-
-def _resolve_stop_coords(
-  stops: list[tuple[str | None, str | None, tuple]], max_workers: int = 10
-) -> list[Coord | None]:
-  if not stops:
-    return []
-  workers = min(max_workers, len(stops))
-  with ThreadPoolExecutor(max_workers=workers) as executor:
-    return list(executor.map(lambda stop: _coord_for(*stop), stops))
-
-
-def _order_cluster(cps: list[StopContext], orders: list[StopContext]) -> list[StopContext]:
-  """Ordina un cluster: punti di ritiro (ottimizzati tra loro) poi ordini (ottimizzati tra loro)."""
-  if len(cps) > 1 and len(orders) > 1:
-    with ThreadPoolExecutor(max_workers=2) as executor:
-      fut_cp = executor.submit(_osrm_or_original_order, len(cps), [s.coord for s in cps])
-      fut_order = executor.submit(_osrm_or_original_order, len(orders), [s.coord for s in orders])
-      cp_order = fut_cp.result()
-      order_order = fut_order.result()
-  else:
-    cp_order = _osrm_or_original_order(len(cps), [s.coord for s in cps])
-    order_order = _osrm_or_original_order(len(orders), [s.coord for s in orders])
-  return [cps[i] for i in cp_order] + [orders[i] for i in order_order]
-
-
-def _first_coord(stops: list[StopContext]) -> Coord | None:
-  return next((s.coord for s in stops if s.coord is not None), None)
-
-
-def _sequence_stops(
-  order_stops: list[StopContext],
-  cp_stops: list[StopContext],
-  dependencies: dict[int, set[int]],
-) -> list[StopContext]:
-  """Ordine di visita di un gruppo di tappe: trip per cluster + merge (vedi docstring del modulo)."""
-  clusters = _build_clusters(order_stops, cp_stops, dependencies)
-  if len(clusters) > 1:
-    with ThreadPoolExecutor(max_workers=min(10, len(clusters))) as executor:
-      cluster_sequences = list(executor.map(lambda c: _order_cluster(c[0], c[1]), clusters))
-  else:
-    cluster_sequences = [_order_cluster(cps, orders) for cps, orders in clusters]
-
-  anchors = [_first_coord(sequence) for sequence in cluster_sequences]
-  cluster_order = _osrm_or_original_order(len(cluster_sequences), anchors)
-  return [stop for ci in cluster_order for stop in cluster_sequences[ci]]
 
 
 def _slot_key(item: ScheduleItem) -> tuple:
@@ -409,36 +271,41 @@ def plan_schedule_stops(schedule: Schedule, session: session_type) -> StopPlan |
 
   Include sia le tappe ``ORDER`` che ``CollectionPoint``, rispettando la
   precedenza "ritiro prima delle consegne che ne dipendono" (vedi docstring
-  del modulo per l'algoritmo trip-per-cluster-e-merge).
+  del modulo e ``sequencing.py``).
 
   Le attività libere (``ACTIVITY``) e le tappe già completate non partecipano
   al riordino: restano nella posizione in cui sono e le tappe da fare si
   distribuiscono nei posti rimasti.
   """
-  rows = get_schedule_items(schedule, session=session)
+  rows = sorted(get_schedule_items(schedule, session=session), key=lambda row: row[0].index)
 
-  order_ids = [sio.order_id for item, _scp, sio in rows if sio and not item.completed]
-  cp_ids = [scp.collection_point_id for item, scp, _sio in rows if scp and not item.completed]
+  # Anche le tappe completate: l'ultima fatta e' il punto da cui riparte il giro.
+  order_ids = [sio.order_id for _item, _scp, sio in rows if sio]
+  cp_ids = [scp.collection_point_id for _item, scp, _sio in rows if scp]
   orders_by_id = {o.id: o for o in get_by_ids(Order, order_ids, session=session)} if order_ids else {}
   cps_by_id = {cp.id: cp for cp in get_by_ids(CollectionPoint, cp_ids, session=session)} if cp_ids else {}
 
   raw_stops = []
+  done_stops = []
   for item, scp, sio in rows:
-    if item.completed:
-      continue
     if sio and sio.order_id in orders_by_id:
       order = orders_by_id[sio.order_id]
       stored = (order.address_lat, order.address_lon)
-      raw_stops.append(('order', item, order.address, order.cap, stored, order.id, order))
+      stop = ('order', item, order.address, order.cap, stored, order.id, order)
     elif scp and scp.collection_point_id in cps_by_id:
       cp = cps_by_id[scp.collection_point_id]
-      raw_stops.append(('collection_point', item, cp.address, cp.cap, (cp.lat, cp.lon), cp.id, None))
+      stop = ('collection_point', item, cp.address, cp.cap, (cp.lat, cp.lon), cp.id, None)
+    else:
+      continue
+    (done_stops if item.completed else raw_stops).append(stop)
 
   if len(raw_stops) < 2:
     return None
 
-  # Risoluzione concorrente delle coordinate delle tappe
-  coords = _resolve_stop_coords([(s[2], s[3], s[4]) for s in raw_stops])
+  # Risoluzione concorrente delle coordinate delle tappe e del punto di partenza
+  start_stop = _start_stop(schedule, done_stops, session)
+  coords = resolve_stop_coords([(s[2], s[3], s[4]) for s in raw_stops] + ([start_stop] if start_stop else []))
+  start_coord = coords.pop() if start_stop else None
 
   order_stops: list[StopContext] = []
   cp_stops: list[StopContext] = []
@@ -452,9 +319,16 @@ def plan_schedule_stops(schedule: Schedule, session: session_type) -> StopPlan |
     else:
       cp_stops.append(stop)
 
-  # Le fasce si visitano in ordine cronologico: OSRM ottimizza il percorso
-  # dentro ciascuna, mai a cavallo tra due (un ordine delle 9:40 non può
-  # finire dopo uno delle 11:30 solo perché è più comodo come strada).
+  # Una sola matrice di durate per tutto il borderò (una chiamata OSRM): il
+  # primo punto e' quello da cui parte il veicolo, se si sa.
+  located = [stop for stop in cp_stops + order_stops if stop.coord is not None]
+  offset = 1 if start_coord else 0
+  matrix = duration_matrix(([start_coord] if start_coord else []) + [stop.coord for stop in located])
+  matrix_index = {stop.item.id: offset + position for position, stop in enumerate(located)}
+  current = 0 if start_coord else None
+
+  # Le fasce si visitano in ordine cronologico e il giro di una riparte da
+  # dove e' finito quello della fascia prima.
   # Un ritiro anticipato alla fascia di un ordine più presto ne prende anche
   # l'orario, così il borderò non mostra in testa un ritiro "11:30-12:30".
   final_sequence = []
@@ -464,12 +338,61 @@ def plan_schedule_stops(schedule: Schedule, session: session_type) -> StopPlan |
       if slot_orders and _slot_key(stop.item) != _slot_key(slot_orders[0].item):
         slot_item = slot_orders[0].item
         slot_updates.append((stop.item.id, slot_item.start_time_slot, slot_item.end_time_slot))
-    final_sequence += _sequence_stops(slot_orders, slot_cps, dependencies)
+    slot_sequence = _sequence_slot(slot_orders, slot_cps, dependencies, matrix, matrix_index, current)
+    final_sequence += slot_sequence
+    reached = [matrix_index[stop.item.id] for stop in slot_sequence if stop.item.id in matrix_index]
+    if reached:
+      current = reached[-1]
 
   return StopPlan(
     stop_item_ids=frozenset(stop.item.id for stop in final_sequence),
     sequence=[stop.item.id for stop in final_sequence],
     slot_updates=slot_updates,
+  )
+
+
+def _start_stop(schedule: Schedule, done_stops: list[tuple], session: session_type) -> tuple | None:
+  """Da dove parte il giro, come ``(indirizzo, cap, coordinate salvate)``.
+
+  L'ultima tappa gia' fatta se il giro e' iniziato, altrimenti il deposito del
+  veicolo. None se il veicolo non ha ne' indirizzo ne' CAP: il giro parte allora
+  dalla tappa che lo rende più corto.
+  """
+  if done_stops:
+    _kind, _item, address, cap, stored, _entity_id, _order = done_stops[-1]
+    return (address, cap, stored)
+  transport = session.get(Transport, schedule.transport_id)
+  if transport and (transport.address or transport.cap):
+    return (transport.address, transport.cap, (None, None))
+  return None
+
+
+def _sequence_slot(
+  orders: list[StopContext],
+  cps: list[StopContext],
+  dependencies: dict[int, set[int]],
+  matrix: list[list[float]],
+  matrix_index: dict[int, int],
+  start: int | None,
+) -> list[StopContext]:
+  """Giro di una fascia da ``start``: ogni ritiro prima delle consegne che ne dipendono.
+
+  I ritiri di cui ha bisogno un ordine ma che stanno in una fascia prima sono
+  già fatti e non vincolano nulla. Le tappe senza coordinate restano ai bordi:
+  ritiri in testa (la precedenza resta vera), consegne in coda.
+  """
+  cp_index = {stop.entity_id: matrix_index[stop.item.id] for stop in cps if stop.item.id in matrix_index}
+  predecessors = {
+    matrix_index[stop.item.id]: {cp_index[cp_id] for cp_id in dependencies.get(stop.item.id, set()) & cp_index.keys()}
+    for stop in orders
+    if stop.item.id in matrix_index
+  }
+  stop_by_index = {matrix_index[stop.item.id]: stop for stop in cps + orders if stop.item.id in matrix_index}
+  route = sequence_stops(matrix, list(stop_by_index), start, predecessors)
+  return (
+    [stop for stop in cps if stop.item.id not in matrix_index]
+    + [stop_by_index[index] for index in route]
+    + [stop for stop in orders if stop.item.id not in matrix_index]
   )
 
 

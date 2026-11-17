@@ -27,6 +27,10 @@ def merge_small_groups(schedule_item_groups, min_size_group, max_size_group, max
       lat, lon = get_group_centroid(group)
       if lat is not None and lon is not None:
         small_groups.append({'group': group, 'centroid': (lat, lon), 'merged': False, 'length': length})
+      else:
+        # Senza coordinate non si sa a chi avvicinarlo, ma resta una proposta:
+        # scartarlo farebbe sparire i suoi ordini dalla pianificazione.
+        large_groups.append(group)
     else:
       large_groups.append(group)
 

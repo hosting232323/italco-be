@@ -27,8 +27,14 @@ class ScheduleItemGroupBuilder:
       group_orders = [order for order in orders_with_caps if get_order_caps(order) & group or order['cap'] in group]
       schedule_item_groups.append(build_schedule_items(group_orders))
 
-    if unmatched_orders:
-      schedule_item_groups.append(build_schedule_items(unmatched_orders))
+    # Gli ordini senza punti di ritiro si raggruppano per il proprio CAP: tutti
+    # insieme farebbero un'unica proposta con consegne sparse per la regione.
+    # I gruppi piccoli e vicini li riunisce poi MergeSmallGroupsRule.
+    unmatched_by_cap = defaultdict(list)
+    for order in unmatched_orders:
+      unmatched_by_cap[order.get('cap') or ''].append(order)
+    for cap_orders in unmatched_by_cap.values():
+      schedule_item_groups.append(build_schedule_items(cap_orders))
     return schedule_item_groups
 
 

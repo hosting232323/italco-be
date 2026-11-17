@@ -9,9 +9,10 @@ questo modulo si occupa di:
 2. Trovare o creare lo ``Schedule`` (borderò) per quella data e quel veicolo.
 3. Inserire l'ordine come nuova tappa dello ``Schedule``, collegando anche gli
    eventuali punti di ritiro richiesti dai suoi prodotti (vedi ``routing.py``).
-4. Riordinare tutte le tappe del borderò con il motore di routing OSRM (Trip
-   Service), rispettando la precedenza "ritiro prima delle consegne che ne
-   dipendono" (vedi ``routing.optimize_schedule_stops``).
+4. Riordinare tutte le tappe del borderò sulle durate di guida OSRM, fascia per
+   fascia e partendo dal deposito del veicolo, rispettando la precedenza
+   "ritiro prima delle consegne che ne dipendono" (vedi
+   ``routing.optimize_schedule_stops``).
 
 La funzione di ingresso è ``auto_plan_order``, da chiamare dentro la sessione
 di ``create_order`` dopo il commit iniziale dell'ordine.
@@ -181,7 +182,7 @@ def insert_order_into_schedule(
   2. Collega i punti di ritiro richiesti dai prodotti dell'ordine, riusando
      quelli già presenti nel borderò per altri ordini.
   3. Ricalcola l'ordine di visita di tutte le tappe (ordini + punti di ritiro)
-     via OSRM Trip Service, a meno che ``optimize`` sia False: allora lo fa il
+     sulle durate di guida OSRM, a meno che ``optimize`` sia False: allora lo fa il
      chiamante dopo il commit (``optimize_schedules_after_commit``), fuori
      dalla transazione che tiene il lock del veicolo.
   4. Aggiorna lo stato dell'ordine (SCHEDULED o BOOKING).

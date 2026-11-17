@@ -67,3 +67,11 @@ def test_rule_delegates_to_merge_small_groups():
   result = rule.apply([_group([1], '70121'), _group([2], '70122')], context)
 
   assert len(result) == 1
+
+
+def test_merge_small_groups_keeps_a_small_group_without_coordinates():
+  unlocated = _group([1], cap='99999')
+
+  result = merge_small_groups([unlocated], min_size_group=5, max_size_group=10, max_distance_km=50)
+
+  assert result == [unlocated]
