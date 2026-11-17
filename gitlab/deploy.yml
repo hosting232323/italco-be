@@ -15,6 +15,9 @@
     # backend stanno sullo stesso sito (stesso host, path /api).
     REFRESH_COOKIE_PATH: /api
     REFRESH_COOKIE_SAMESITE: Strict
+    # Se l'ambiente ha il container ${SERVICE}-backup (backup.sh): solo
+    # deploy_prod lo mette a "1", test e demo non fanno backup.
+    BACKUP_CONTAINER: "0"
   script:
     - |
       set -eu
@@ -48,6 +51,7 @@
         STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
         STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
         FRONTEND_URL=${FRONTEND_URL:-}
+        BACKUP_TIMES=${BACKUP_TIMES:-05:00 11:00 17:00 23:00}
       EOF
 
       # L'immagine si costruisce qui, sullo stesso runner che la avvia: niente
@@ -151,6 +155,40 @@
         echo "Rimuovo il container legacy '${LEGACY}'."
         docker rm -f "${LEGACY}" || true
       fi
+
+      # Backup di database e cartella prod (python -m src.backup) in un
+      # container a parte, ${SERVICE}-backup, agli orari di BACKUP_TIMES UTC
+      # (backup.sh). Stessa immagine, env, rete e volumi dell'API, ma niente
+      # porte ne' router di Traefik. Gli endpoint /internal-backup e
+      # /folder-backup restano finche' i backup del container non sono
+      # verificati.
+      #
+      # Un backup in corso non si tronca: prima di togliere il container si
+      # aspetta che il lock di backup.sh sia libero, al massimo due ore.
+      if docker ps -q -f "name=^/${SERVICE}-backup$" | grep -q .; then
+        echo "Aspetto che il backup in corso, se c'e', finisca..."
+        timeout 7200 docker exec "${SERVICE}-backup" flock /tmp/italco-backup.lock true \
+          || echo "⚠️ Il lock del backup non si e' liberato: tolgo il container comunque"
+      fi
+      docker rm -f "${SERVICE}-backup" 2>/dev/null || true
+      if [ "${BACKUP_CONTAINER:-0}" != "1" ]; then
+        echo "Nessun container di backup per ${SERVICE}: solo la produzione fa backup"
+      elif [ -z "${BACKUP_FOLDER:-}" ]; then
+        echo "⚠️ BACKUP_FOLDER vuota: nessun container di backup per ${SERVICE}"
+      else
+        docker run -d --restart unless-stopped \
+          --name "${SERVICE}-backup" \
+          --env-file env_file \
+          --network web \
+          --add-host=host.docker.internal:host-gateway \
+          -v "$STATIC_FOLDER:$STATIC_FOLDER" \
+          -v "$BACKUP_FOLDER:$BACKUP_FOLDER" \
+          -v /opt/db-backup-fallback:/opt/db-backup-fallback \
+          -v /opt/docker-ssh:/root/.ssh:ro \
+          --label "traefik.enable=false" \
+          "$IMAGE" sh backup.sh
+        echo "Container di backup ${SERVICE}-backup avviato (BACKUP_TIMES: ${BACKUP_TIMES:-05:00 11:00 17:00 23:00} UTC)"
+      fi
       echo "✅ Deploy completato su ${SERVICE}-${NEXT} (Host: ${PUBLIC_HOST_PIPELINE})"
 
   after_script:
@@ -209,3 +247,4 @@ deploy_prod:
     DATABASE_URL_PIPELINE: "$DATABASE_URL"
     EURONICS_API_PASSWORD_PIPELINE: "$EURONICS_API_PASSWORD"
     IS_DEV: 0
+    BACKUP_CONTAINER: "1"

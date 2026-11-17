@@ -109,3 +109,17 @@ Comportamento da sapere:
 - Il prezzo si cambia da `PUT /subscription/company/<id>/price` o dal form company; con un abbonamento vivo (anche `past_due`) passa sempre prima da Stripe.
 - La pagina abbonamento rilegge Stripe solo se lo stato locale ha più di 5 minuti; `POST /subscription/sync` rilegge sempre. Timeout 10 s e 2 retry di rete.
 - `/subscription` è escluso dal log dei body (webhook e URL di checkout/portale).
+
+
+## Backup di produzione (container `<SERVICE>-backup`)
+
+`deploy_prod` (solo lui: `BACKUP_CONTAINER: "1"`) avvia accanto all'API il container `${SERVICE}-backup`, dalla stessa immagine, con gli stessi `env_file`, rete e volumi, senza router Traefik. Il suo comando è `backup.sh`: dorme fino al prossimo orario di `BACKUP_TIMES` e lancia `python -m src.backup` (`src/backup.py`), che fa il dump del database e il backup di `STATIC_FOLDER/prod` verso la macchina di backup (`db_backup` e `folder_backup` di generic-lib, `server=True`) e aspetta che finiscano. Un errore lo segnala generic-lib su Telegram; nel log del container resta una riga per giro.
+
+| Variabile | Default | Note |
+| --- | --- | --- |
+| `BACKUP_TIMES` | `05:00 11:00 17:00 23:00` | orari `HH:MM` UTC separati da spazi; quelli non validi vengono ignorati |
+| `BACKUP_FOLDER` | — | senza, il deploy non avvia il container |
+
+- Il backup gira sotto il lock `/tmp/italco-backup.lock`. Lancio a mano, senza sovrapporsi a quello programmato: `docker exec <SERVICE>-backup flock /tmp/italco-backup.lock python -m src.backup` (sul server di produzione).
+- A ogni deploy il job aspetta (al massimo 2 ore) che il lock sia libero prima di ricreare il container.
+- Gli endpoint `/internal-backup` e `/folder-backup` restano finché i backup del container non sono verificati: fino ad allora, se cron-job.org li chiama agli stessi orari, i backup sono doppi.
