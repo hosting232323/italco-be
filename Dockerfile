@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
   postgresql-client \
   rsync \
   restic \
+  tzdata \
   pkg-config \
   libcairo2-dev \
   openssh-client \

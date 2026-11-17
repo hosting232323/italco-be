@@ -117,7 +117,8 @@ Comportamento da sapere:
 
 | Variabile | Default | Note |
 | --- | --- | --- |
-| `BACKUP_TIMES` | `05:00 11:00 17:00 23:00` | orari `HH:MM` UTC separati da spazi; quelli non validi vengono ignorati |
+| `BACKUP_TIMES` | `00:00 06:00 12:00 18:00` | orari `HH:MM` separati da spazi, in ora italiana; quelli non validi vengono ignorati |
+| `BACKUP_TZ` | `Europe/Rome` | fuso degli orari: restano gli stessi anche con l'ora legale |
 | `BACKUP_FOLDER` | — | senza, il deploy non avvia il container |
 
 - Il backup gira sotto il lock `/tmp/italco-backup.lock`. Lancio a mano, senza sovrapporsi a quello programmato: `docker exec <SERVICE>-backup flock /tmp/italco-backup.lock python -m src.backup` (sul server di produzione).

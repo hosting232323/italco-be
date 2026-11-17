@@ -1,7 +1,7 @@
 #!/bin/sh
 # Comando del container di backup (${SERVICE}-backup in gitlab/deploy.yml,
 # solo in produzione): per sempre, dorme fino al prossimo orario di
-# BACKUP_TIMES (HH:MM separati da spazi, UTC, l'orologio del container) e
+# BACKUP_TIMES (HH:MM separati da spazi, ora italiana: vedi BACKUP_TZ) e
 # lancia `python -m src.backup` (src/backup.py: dump del database e cartella
 # prod verso la macchina di backup).
 #
@@ -12,11 +12,21 @@
 # segnala gia' su Telegram) non ferma il ciclo: si riprova all'orario dopo.
 set -eu
 
-BACKUP_TIMES="${BACKUP_TIMES:-05:00 11:00 17:00 23:00}"
+BACKUP_TIMES="${BACKUP_TIMES:-00:00 06:00 12:00 18:00}"
 LOCK_FILE=/tmp/italco-backup.lock
 
+# Gli orari sono in ora italiana (BACKUP_TZ, default Europe/Rome), non in UTC:
+# restano gli stessi anche col cambio dell'ora legale. Senza il file del fuso
+# (pacchetto tzdata nell'immagine) date userebbe UTC in silenzio e i backup
+# slitterebbero di una o due ore: meglio fermarsi subito e farlo vedere nel log.
+export TZ="${BACKUP_TZ:-Europe/Rome}"
+if [ ! -e "/usr/share/zoneinfo/${TZ}" ]; then
+  echo "backup: fuso orario '${TZ}' sconosciuto (manca tzdata nell'immagine?)" >&2
+  exit 1
+fi
+
 while :; do
-  now=$(date -u +%s)
+  now=$(date +%s)
   next=""
   for at in $BACKUP_TIMES; do
     case "$at" in
@@ -26,9 +36,9 @@ while :; do
         continue
         ;;
     esac
-    candidate=$(date -u -d "today ${at}" +%s)
+    candidate=$(date -d "today ${at}" +%s)
     if [ "$candidate" -le "$now" ]; then
-      candidate=$(date -u -d "tomorrow ${at}" +%s)
+      candidate=$(date -d "tomorrow ${at}" +%s)
     fi
     if [ -z "$next" ] || [ "$candidate" -lt "$next" ]; then
       next=$candidate
@@ -40,7 +50,7 @@ while :; do
     exit 1
   fi
 
-  echo "backup: prossimo alle $(date -u -d "@${next}" '+%Y-%m-%d %H:%M') UTC"
+  echo "backup: prossimo alle $(date -d "@${next}" '+%Y-%m-%d %H:%M %Z')"
   sleep $((next - now))
   flock "$LOCK_FILE" python -m src.backup || echo "backup: fallito, si riprova al prossimo orario" >&2
 done

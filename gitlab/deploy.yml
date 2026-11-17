@@ -51,7 +51,7 @@
         STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
         STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
         FRONTEND_URL=${FRONTEND_URL:-}
-        BACKUP_TIMES=${BACKUP_TIMES:-05:00 11:00 17:00 23:00}
+        BACKUP_TIMES=${BACKUP_TIMES:-00:00 06:00 12:00 18:00}
       EOF
 
       # L'immagine si costruisce qui, sullo stesso runner che la avvia: niente
@@ -157,8 +157,8 @@
       fi
 
       # Backup di database e cartella prod (python -m src.backup) in un
-      # container a parte, ${SERVICE}-backup, agli orari di BACKUP_TIMES UTC
-      # (backup.sh). Stessa immagine, env, rete e volumi dell'API, ma niente
+      # container a parte, ${SERVICE}-backup, agli orari di BACKUP_TIMES
+      # (ora italiana, backup.sh). Stessa immagine, env, rete e volumi dell'API, ma niente
       # porte ne' router di Traefik. Gli endpoint /internal-backup e
       # /folder-backup restano finche' i backup del container non sono
       # verificati.
@@ -187,7 +187,7 @@
           -v /opt/docker-ssh:/root/.ssh:ro \
           --label "traefik.enable=false" \
           "$IMAGE" sh backup.sh
-        echo "Container di backup ${SERVICE}-backup avviato (BACKUP_TIMES: ${BACKUP_TIMES:-05:00 11:00 17:00 23:00} UTC)"
+        echo "Container di backup ${SERVICE}-backup avviato (BACKUP_TIMES: ${BACKUP_TIMES:-00:00 06:00 12:00 18:00}, ora italiana)"
       fi
       echo "✅ Deploy completato su ${SERVICE}-${NEXT} (Host: ${PUBLIC_HOST_PIPELINE})"
 
