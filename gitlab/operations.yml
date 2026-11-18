@@ -66,31 +66,26 @@ setup_database_prod:
         exit 1
       fi
       CONTAINER="${SERVICE}-${ACTIVE}"
-      echo "⏹ Stopping ${CONTAINER}..."
-      docker stop "${CONTAINER}"
 
-      REMOTE_BACKUP_DIR="${BACKUP_FOLDER}postgres-backup"
-      LATEST_REMOTE=$(ssh \
-        -o StrictHostKeyChecking=no \
-        -o BatchMode=yes \
-        -o ConnectTimeout=10 \
-        "$BACKUP_SSH_CONFIG" \
-        "find \"$REMOTE_BACKUP_DIR\" -maxdepth 2 -type f -name '*.dump' | sort | tail -n 1")
-      if [ -z "$LATEST_REMOTE" ]; then
-        echo "❌ Nessun backup trovato in $REMOTE_BACKUP_DIR"
-        docker start "${CONTAINER}" || true
+      # I dump stanno nel repository restic cifrato <BACKUP_FOLDER>/db-backup
+      # (generic-lib): li estrae il container, che ha restic, RESTIC_PASSWORD e la
+      # chiave ssh della macchina di backup. Va fatto prima di fermarlo.
+      # BACKUP_SNAPSHOT (variabile del job manuale) sceglie uno snapshot preciso.
+      SNAPSHOT="${BACKUP_SNAPSHOT:-latest}"
+      LOCAL_DUMP="/tmp/restore_$(date +%s).dump"
+      trap 'rm -f "$LOCAL_DUMP"' EXIT
+      echo "📦 Estrazione dello snapshot ${SNAPSHOT} da ${CONTAINER}..."
+      docker exec "${CONTAINER}" db_fetch_backup "$LOCAL_DUMP" "$SNAPSHOT"
+      docker cp "${CONTAINER}:${LOCAL_DUMP}" "$LOCAL_DUMP"
+      docker exec "${CONTAINER}" rm -f "$LOCAL_DUMP"
+      if [ ! -s "$LOCAL_DUMP" ]; then
+        echo "❌ Dump vuoto o mancante: restore annullato."
         exit 1
       fi
-      echo "📦 Ultimo backup: $LATEST_REMOTE"
+      echo "✅ Dump estratto in $LOCAL_DUMP"
 
-      LOCAL_DUMP="/tmp/restore_$(date +%s).dump"
-      scp \
-        -o StrictHostKeyChecking=no \
-        -o BatchMode=yes \
-        -o ConnectTimeout=10 \
-        "${BACKUP_SSH_CONFIG}:${LATEST_REMOTE}" \
-        "$LOCAL_DUMP"
-      echo "✅ Dump scaricato in $LOCAL_DUMP"
+      echo "⏹ Stopping ${CONTAINER}..."
+      docker stop "${CONTAINER}"
 
       psql "$BASE_URL" -c \
         "SELECT pg_terminate_backend(pid)
