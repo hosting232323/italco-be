@@ -48,23 +48,105 @@ def get_province_by_cap(cap: str) -> str:
   return province
 
 
-# Comuni a CAP unico per cui i dati OpenStreetMap di Nominatim non riportano
-# alcun postcode (ne' sul comune ne' sulle sue vie): senza questo ripiego
-# l'import dei PDF fallisce.
+# Comuni a CAP unico per cui Nominatim non da' il CAP giusto: i piccoli comuni
+# hanno spesso il CAP plurimo della provincia (70010, 73020, ...) che
+# OpenStreetMap non riporta, e il ripiego sul reverse geocoding restituisce il
+# CAP di una via del comune vicino (Capurso -> 70019 di Triggiano, Valenzano ->
+# 70129 di Bari) o nessun CAP (Casamassima, Lecce); la ricerca per nome puo'
+# anche finire fuori regione (Castro -> 24063, provincia di Bergamo). Elenco
+# ricavato confrontando Nominatim con i comuni pugliesi del vecchio caps.json:
+# ha la precedenza su Nominatim, che altrimenti salverebbe un CAP sbagliato.
 KNOWN_CITY_CAPS = {
+  'acquaviva delle fonti': '70021',
+  'adelfia': '70010',
+  'alliste': '73040',
+  'aradeo': '73040',
+  'arnesano': '73010',
+  'ascoli satriano': '71022',
+  'bagnolo del salento': '73020',
+  'binetto': '70020',
+  'bitritto': '70020',
+  'borgo mezzanone': '71040',
+  'botrugno': '73020',
+  'cannole': '73020',
+  'caprarica di lecce': '73010',
+  'capurso': '70010',
+  'carbonara': '70131',
+  'casamassima': '70010',
   'cassano delle murge': '70020',
+  'castellana grotte': '70013',
+  'castri di lecce': '73020',
+  'castrignano del capo': '73040',
+  'castro': '73030',
+  'cavallino': '73020',
+  'cellamare': '70010',
+  'cursi': '73020',
+  'cutrofiano': '73020',
+  'diso': '73030',
+  'erchie': '72020',
+  'faggiano': '74020',
+  'guagnano': '73010',
+  'isole tremiti': '71040',
+  'lecce': '73100',
+  'leporano': '74020',
+  'lizzano': '74020',
+  'locorotondo': '70010',
+  'lucera': '71036',
+  'manfredonia': '71043',
+  'martignano': '73020',
+  'maruggio': '74020',
+  'melissano': '73040',
+  'melpignano': '73020',
+  'monopoli': '70043',
+  'monteiasi': '74020',
+  'montemesola': '74020',
+  'monteparano': '74020',
+  'montesano salentino': '73030',
+  'morciano di leuca': '73040',
+  'neviano': '73040',
+  'nociglia': '73020',
+  'ortelle': '73030',
+  'palmariggi': '73020',
+  'poggiorsini': '70020',
+  'porto cesareo': '73010',
+  'roccaforzata': '74020',
+  'salve': '73050',
+  'san cassiano': '73020',
+  'san donato di lecce': '73010',
+  'san pietro in lama': '73010',
+  'sannicola': '73017',
+  'santa cesarea terme': '73020',
+  'scorrano': '73020',
+  'seclì': '73050',
+  'sogliano cavour': '73010',
+  'specchia': '73040',
+  'statte': '74010',
+  'sternatia': '73010',
+  'supersano': '73040',
+  'surano': '73030',
+  'surbo': '73010',
+  'torchiarolo': '72020',
+  'toritto': '70020',
+  'torricella': '74020',
+  'uggiano la chiesa': '73020',
+  'valenzano': '70010',
+  'villa castelli': '72029',
+  'zollino': '73010',
 }
 
 
 @lru_cache(maxsize=None)
 def get_cap_by_name(city_name: str) -> str:
+  known_cap = KNOWN_CITY_CAPS.get(city_name.strip().lower())
+  if known_cap:
+    return known_cap
+
   results = _search(city=city_name)
   postcode = None
   if results:
     # Le città con più CAP (es. Bari) tornano come confine amministrativo senza postcode:
     # il CAP si ricava dal punto centrale restituito da Nominatim.
     postcode = results[0].get('address', {}).get('postcode') or _reverse_postcode(results[0]['lat'], results[0]['lon'])
-  postcode = postcode or KNOWN_CITY_CAPS.get(city_name.strip().lower())
   if not postcode:
     raise ValueError(f'City name {city_name} not found in any CAP')
   return postcode

@@ -115,6 +115,32 @@ def test_conflict_import_reports_invalid_date(seeded_db):
   assert _order_count('rif-bad-date') == 0
 
 
+def test_conflict_import_uses_dpc_when_booking_is_empty_date(seeded_db):
+  service_user_id, collection_point_id = _seed_refs()
+
+  order_data = _order_data(service_user_id, collection_point_id, 'rif-booking-vuoto')
+  order_data['Booking'] = '0000-00-00'
+  order_data['DPC'] = '2026-11-12'
+  response = excel_module.handle_excel_conflict([order_data])
+
+  assert response['failed_orders'] == []
+  with Session() as session:
+    dpcs = {order.dpc for order in session.query(Order).filter(Order.external_id == 'rif-booking-vuoto').all()}
+  assert dpcs == {date(2026, 11, 12)}
+
+
+def test_conflict_import_reports_empty_dates_without_500(seeded_db):
+  service_user_id, collection_point_id = _seed_refs()
+
+  order_data = _order_data(service_user_id, collection_point_id, 'rif-data-zero')
+  order_data['Booking'] = '0000-00-00'
+  response = excel_module.handle_excel_conflict([order_data])
+
+  assert response['imported_orders_count'] == 0
+  assert response['failed_orders'] == [{'external_id': 'rif-data-zero', 'error': 'Data "Booking" non valida'}]
+  assert _order_count('rif-data-zero') == 0
+
+
 def test_conflict_import_reports_null_collection_point(seeded_db):
   service_user_id, collection_point_id = _seed_refs()
 

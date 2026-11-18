@@ -1,6 +1,7 @@
 from ...order_integrity import split_order_by_service_type, lock_order_service_integrity
 
 import re
+from datetime import datetime
 
 import pandas as pd
 from sqlalchemy import func
@@ -49,6 +50,26 @@ BUILD_ORDER_FIELDS = [
 DATE_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}')
 
 
+def parse_date(value) -> str | None:
+  """Ritorna la data (YYYY-MM-DD) se la cella ne contiene una vera, altrimenti None.
+
+  Il file del cliente riporta le date non ancora fissate come '0000-00-00'
+  (es. Booking prima dell'appuntamento): il formato e' giusto ma la data non
+  esiste, e Postgres rifiuta l'INSERT.
+  """
+  if not isinstance(value, str) or not DATE_PATTERN.match(value):
+    return None
+  try:
+    return datetime.strptime(value[:10], '%Y-%m-%d').date().isoformat()
+  except ValueError:
+    return None
+
+
+def get_dpc(order: dict) -> str | None:
+  """La dpc e' la data di Booking; senza Booking si ripiega sulla colonna DPC."""
+  return parse_date(order['Booking']) or parse_date(order.get('DPC'))
+
+
 def validate_conflict_order(order_data, session, customer_id=None) -> str:
   """Valida struttura, campi e riferimenti di un ordine del conflict prima di
   toccare il DB. Ritorna il messaggio d'errore per failed_orders, o None."""
@@ -59,9 +80,11 @@ def validate_conflict_order(order_data, session, customer_id=None) -> str:
   if missing_fields:
     return 'Campi ordine mancanti: ' + ', '.join(missing_fields)
 
-  for field in ('Booking', 'DRC'):
-    if not isinstance(order_data[field], str) or not DATE_PATTERN.match(order_data[field]):
-      return f'Data "{field}" non valida'
+  if not get_dpc(order_data):
+    return 'Data "Booking" non valida'
+
+  if not parse_date(order_data['DRC']):
+    return 'Data "DRC" non valida'
 
   products = order_data.get('products')
   if not isinstance(products, dict) or len(products) == 0:
@@ -112,6 +135,8 @@ def order_import_by_excel(file, customer_id):
       len(order_data['products']) != 1
       or len(order_data['services']) == 0
       or any(not product['collection_point'] for product in order_data['products'])
+      or not get_dpc(order_data['rows'][0])
+      or not parse_date(order_data['rows'][0]['DRC'])
     ):
       conflicted_orders.append(
         {
@@ -234,8 +259,8 @@ def build_order(order: dict):
     'addressee': order['Destinatario'],
     'address': f'{order["Indirizzo Dest."]}, {order["Localita"]}, {order["Provincia"]}',
     'cap': order['CAP'],
-    'dpc': order['Booking'],
-    'drc': order['DRC'],
+    'dpc': get_dpc(order),
+    'drc': parse_date(order['DRC']),
     'floor': parse_floor(order['Piano']),
     'operator_note': 'Ordine importato da file',
     'customer_note': order['Note MW + Note'],
