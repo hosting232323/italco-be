@@ -71,14 +71,16 @@ def test_get_cap_by_name_raises_when_reverse_geocoding_has_no_postcode(mock_get)
     get_cap_by_name('Napoli')
 
 
+@pytest.mark.parametrize(
+  'city, cap',
+  [('CASSANO DELLE MURGE', '70020'), ('CASAMASSIMA', '70010'), (' Capurso ', '70010'), ('Castro', '73030')],
+)
 @patch('src.utils.caps.requests.get')
-def test_get_cap_by_name_falls_back_to_known_city_caps(mock_get):
-  mock_get.side_effect = [
-    _nominatim_response([_address_result(city='Cassano delle Murge', county='Bari')]),
-    _nominatim_response({'address': {'town': 'Cassano delle Murge'}}),
-  ]
-
-  assert get_cap_by_name('CASSANO DELLE MURGE') == '70020'
+def test_get_cap_by_name_uses_known_city_caps_before_nominatim(mock_get, city, cap):
+  # Nominatim per questi comuni non ha il CAP o ne da' uno sbagliato (Capurso -> 70019,
+  # Castro -> 24063 in provincia di Bergamo): la tabella vince e Nominatim non si chiama.
+  assert get_cap_by_name(city) == cap
+  mock_get.assert_not_called()
 
 
 @patch('src.utils.caps.requests.get')

@@ -8,7 +8,7 @@ from database_api import Session
 
 from src.database.enum import OrderType, UserRole
 from src.database.schema import Order, Product
-from src.end_points.importation.excel import build_order, get_collection_point, parse_orders
+from src.end_points.importation.excel import build_order, get_collection_point, parse_date, parse_orders
 
 from tests.unit.factories import (
   auth_header,
@@ -81,6 +81,19 @@ def test_build_order_maps_fields():
   assert order['cap'] == '70121'
   assert order['floor'] == 2
   assert order['external_id'] == 'ORD-1'
+
+
+def test_build_order_uses_dpc_column_when_booking_is_empty_date():
+  # Il file riporta '0000-00-00' quando il Booking non e' ancora fissato: Postgres lo rifiuta.
+  order = build_order(_base_row(Booking='0000-00-00', DPC='2026-11-12', DRC='2026-11-03 00:00:00'))
+
+  assert order['dpc'] == '2026-11-12'
+  assert order['drc'] == '2026-11-03'
+
+
+@pytest.mark.parametrize('value', ['0000-00-00', '', '2026-02-30', 'non-una-data', None])
+def test_parse_date_rejects_non_existing_dates(value):
+  assert parse_date(value) is None
 
 
 def test_build_order_handles_empty_floor():
@@ -179,6 +192,32 @@ def test_excel_import_endpoint_reports_conflicts(client):
   assert body['status'] == 'ok'
   assert body['imported_orders_count'] == 0
   assert len(body['conflicted_orders']) == 1
+
+
+def test_excel_import_endpoint_moves_orders_without_valid_dates_to_conflicts(client):
+  admin = create_user(UserRole.ADMIN)
+  customer = _customer_with_named_cp()
+  # Ordine altrimenti valido, ma con Booking '0000-00-00' e nessuna colonna DPC di ripiego
+  rows = [
+    _base_row(**{'Cod.  Serv': 'PRODOTTO', 'Descr. Serv': 'Lavatrice', 'Booking': '0000-00-00'}),
+    _base_row(**{'Cod.  Serv': 'SVC-1', 'Descr. Serv': 'Montaggio', 'Booking': '0000-00-00'}),
+  ]
+
+  response = client.post(
+    '/import/excel',
+    data={
+      'customer_id': str(customer.id),
+      'file': (_excel_bytes(rows), 'orders.xlsx'),
+    },
+    headers=auth_header(admin),
+  )
+
+  body = response.get_json()
+  assert body['status'] == 'ok'
+  assert body['imported_orders_count'] == 0
+  assert len(body['conflicted_orders']) == 1
+  with Session() as session:
+    assert session.query(Order).filter_by(external_id='ORD-1').count() == 0
 
 
 def test_excel_import_endpoint_reports_missing_columns(client):
