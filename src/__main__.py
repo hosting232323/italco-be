@@ -23,6 +23,7 @@ from .end_points.transport import transport_bp
 from .end_points.dashboard import dashboard_bp
 from .end_points.customer_group import customer_group_bp
 from .end_points.collection_point import collection_point_bp
+from .end_points.pickup_point import pickup_point_bp
 from .end_points.service.constraint import check_services_date
 from .end_points.customer_rule import customer_rules_bp, check_customer_rules
 from .end_points.geographic_zone import geographic_zone_bp
@@ -104,6 +105,7 @@ app.register_blueprint(customer_rules_bp, url_prefix='/customer-rule')
 app.register_blueprint(customer_group_bp, url_prefix='/customer-group')
 app.register_blueprint(geographic_zone_bp, url_prefix='/geographic-zone')
 app.register_blueprint(collection_point_bp, url_prefix='/collection-point')
+app.register_blueprint(pickup_point_bp, url_prefix='/pickup-point')
 
 # L'assistente Chatty manda gli ordini a OpenAI e non e' piu' in uso: non si collega
 # all'app (e il modulo non viene nemmeno importato, quindi OPENAI_KEY non serve) se non con

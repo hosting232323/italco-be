@@ -8,10 +8,19 @@ from database_api import Session
 from ..database.enum import UserRole
 from . import flask_session_authentication
 from database_api.operations import create, delete, get_by_id, update
-from ..database.schema import CollectionPoint, CollectionPointPreloadArea, Order, User, ServiceUser, Product
+from ..database.schema import (
+  CollectionPoint,
+  CollectionPointPreloadArea,
+  Order,
+  PickupPoint,
+  User,
+  ServiceUser,
+  Product,
+)
 from .delivery_coverage import _clean_caps, _clean_polygon
 from ..utils.geo import parse_coordinates
 from ..utils.caps import get_lat_lon_by_address
+from .pickup_point import get_or_create_pickup_point
 
 
 collection_point_bp = Blueprint('collection_point_bp', __name__)
@@ -73,7 +82,7 @@ def _client_fields(payload: dict, user: User) -> dict:
   # Le coordinate passano da _client_coordinates, mai così come arrivano.
   # Il precarico cambia la pianificazione dei veicoli: lo imposta solo l'admin.
   # preload_areas e' una relationship in sola lettura: il form rimanda il punto intero.
-  reserved = {'lat', 'lon', 'preload_areas'}
+  reserved = {'lat', 'lon', 'preload_areas', 'pickup_point_id'}
   if user.role != UserRole.ADMIN:
     reserved.add('preloaded')
   return {key: value for key, value in payload.items() if key not in reserved}
@@ -95,6 +104,39 @@ def _client_coordinates(payload: dict, collection_point: CollectionPoint = None)
     if moved and (lat, lon) == (collection_point.lat, collection_point.lon):
       return {}
   return {'lat': lat, 'lon': lon}
+
+
+def _link_pickup_point(payload: dict, data: dict, collection_point: CollectionPoint = None) -> dict | None:
+  """Collega il punto a una voce del catalogo: scelta dal client o trovata/creata dall'indirizzo.
+
+  Ritorna l'errore da mandare al client, None se va bene. `data` riceve
+  pickup_point_id e, scegliendo una voce esistente, i suoi indirizzo/CAP/coordinate.
+  """
+  chosen_id = payload.get('pickup_point_id')
+  # Il form rimanda anche la voce gia' collegata: e' una scelta solo se cambia.
+  if chosen_id and (collection_point is None or int(chosen_id) != collection_point.pickup_point_id):
+    pickup_point = get_by_id(PickupPoint, int(chosen_id))
+    if not pickup_point:
+      return {'status': 'ko', 'message': 'Punto di ritiro non trovato'}
+    data.update(
+      {
+        'address': pickup_point.address,
+        'cap': pickup_point.cap,
+        'lat': pickup_point.lat,
+        'lon': pickup_point.lon,
+        'pickup_point_id': pickup_point.id,
+      }
+    )
+    return None
+
+  address = data.get('address', collection_point.address if collection_point else None)
+  cap = data.get('cap', collection_point.cap if collection_point else None)
+  moved = collection_point is not None and (address, cap) != (collection_point.address, collection_point.cap)
+  if address and cap and (collection_point is None or moved or collection_point.pickup_point_id is None):
+    name = data.get('name', collection_point.name if collection_point else '')
+    pickup_point = get_or_create_pickup_point(name, address, cap, data.get('lat'), data.get('lon'))
+    data['pickup_point_id'] = pickup_point.id
+  return None
 
 
 def backfill_coordinates(collection_points: list[CollectionPoint]) -> None:
@@ -132,6 +174,8 @@ def create_collection_point(user: User):
     data.update(coordinates)
   elif data.get('address'):
     data.update(_coordinates(data['address'], data.get('cap')))
+  if error := _link_pickup_point(request.json, data):
+    return error
   return {'status': 'ok', 'collection_point': create(CollectionPoint, data).to_dict()}
 
 
@@ -182,6 +226,8 @@ def update_collection_point(user: User, id):
     data.update(coordinates)
   elif 'address' in data and data['address'] != collection_point.address:
     data.update(_coordinates(data['address'], data.get('cap', collection_point.cap)))
+  if error := _link_pickup_point(request.json, data, collection_point):
+    return error
   return {'status': 'ok', 'order': update(collection_point, data).to_dict()}
 
 

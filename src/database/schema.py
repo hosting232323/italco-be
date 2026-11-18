@@ -499,8 +499,12 @@ class CollectionPoint(BaseItalcoEntity):
   # non precaricato si ritira normalmente.
   preloaded = Column(Boolean, nullable=False, default=False, server_default='false')
   user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+  # Voce del catalogo "Punti di Ritiro" (indirizzo condiviso fra i clienti). Il punto
+  # resta del cliente (nome, orari, precarico); indirizzo/CAP/coordinate seguono il catalogo.
+  pickup_point_id = Column(Integer, ForeignKey('pickup_point.id'), nullable=True, index=True)
 
   user = relationship('User', back_populates='collection_point')
+  pickup_point = relationship('PickupPoint', back_populates='collection_point')
   schedule_item_collection_point = relationship('ScheduleItemCollectionPoint', back_populates='collection_point')
   product = relationship('Product', foreign_keys='Product.collection_point_id', back_populates='collection_point')
   release_product = relationship(
@@ -509,6 +513,24 @@ class CollectionPoint(BaseItalcoEntity):
   preload_areas = relationship(
     'CollectionPointPreloadArea', back_populates='collection_point', cascade='all, delete-orphan'
   )
+
+
+class PickupPoint(BaseItalcoEntity):
+  """Catalogo unificato dei punti di ritiro.
+
+  Piu' clienti ritirano allo stesso indirizzo: invece di duplicarlo, i loro
+  CollectionPoint puntano alla stessa voce del catalogo.
+  """
+
+  __tablename__ = 'pickup_point'
+
+  name = Column(String, nullable=False)
+  address = Column(String, nullable=False)
+  cap = Column(String, nullable=False)
+  lat = Column(Float)
+  lon = Column(Float)
+
+  collection_point = relationship('CollectionPoint', back_populates='pickup_point')
 
 
 class CollectionPointPreloadArea(BaseItalcoEntity):
