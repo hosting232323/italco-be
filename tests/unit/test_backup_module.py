@@ -2,8 +2,12 @@
 
 import logging
 import os
+import subprocess
 import threading
 import time
+
+import database_api.backup
+import pytest
 
 import src
 from src import backup
@@ -69,3 +73,60 @@ def test_wait_for_threads_ignores_threads_started_before():
   finally:
     release.set()
     older.join()
+
+
+def test_check_dump_reads_the_whole_file(monkeypatch):
+  calls = []
+  monkeypatch.setattr(backup.subprocess, 'run', lambda args, **kwargs: calls.append((args, kwargs)))
+
+  backup.check_dump('260101000000.dump')
+
+  assert calls[0][0] == ['pg_restore', f'--file={os.devnull}', '260101000000.dump']
+  assert calls[0][1]['check'] is True
+
+
+def test_check_dump_raises_on_a_truncated_dump(monkeypatch):
+  def fail(args, **kwargs):
+    raise subprocess.CalledProcessError(1, args, stderr='could not read from input file')
+
+  monkeypatch.setattr(backup.subprocess, 'run', fail)
+
+  with pytest.raises(subprocess.CalledProcessError):
+    backup.check_dump('260101000000.dump')
+
+
+def test_run_backup_checks_the_dump_before_uploading_it(monkeypatch):
+  steps = []
+  original = database_api.backup.upload_backup
+  monkeypatch.setattr(backup, 'check_dump', lambda path: steps.append(('check', path)))
+  monkeypatch.setattr(backup, 'upload_backup', lambda path, server=None: steps.append(('upload', path, server)))
+  # Come db_backup: carica il dump con la upload_backup del modulo della lib.
+  monkeypatch.setattr(
+    backup, 'db_backup', lambda url, server=False: database_api.backup.upload_backup('260101000000.dump', server)
+  )
+  monkeypatch.setattr(backup, 'folder_backup', lambda folder, server=False: None)
+
+  backup.run_backup()
+
+  assert steps == [('check', '260101000000.dump'), ('upload', '260101000000.dump', True)]
+  assert database_api.backup.upload_backup is original
+
+
+def test_run_backup_does_not_upload_an_unreadable_dump(monkeypatch):
+  uploaded = []
+
+  def broken(path):
+    raise subprocess.CalledProcessError(1, ['pg_restore'])
+
+  def fake_db_backup(url, server=False):
+    with pytest.raises(subprocess.CalledProcessError):
+      database_api.backup.upload_backup('260101000000.dump', server)
+
+  monkeypatch.setattr(backup, 'check_dump', broken)
+  monkeypatch.setattr(backup, 'upload_backup', lambda path, server=None: uploaded.append(path))
+  monkeypatch.setattr(backup, 'db_backup', fake_db_backup)
+  monkeypatch.setattr(backup, 'folder_backup', lambda folder, server=False: None)
+
+  backup.run_backup()
+
+  assert uploaded == []
