@@ -1,11 +1,25 @@
+"""Check di produzione: report su Telegram dei dati corrotti e dei file che
+non tornano fra database e STATIC_FOLDER.
+
+Li lancia il container italco-be-jobs (gitlab/deploy.yml, solo in produzione)
+con `python -m src.checks` agli orari di CHECKS_TIMES (jobs.sh): l'endpoint
+/checks chiamato da cron-job.org non c'e' piu'.
+"""
+
+import logging
 import os
 import re
+import threading
+import time
+import traceback
 from sqlalchemy import or_, cast, String
 
-from database_api import Session
+from database_api import Session, set_database
 from api.storage import check_mismatch
-from api.telegram import send_telegram_message
+from api.telegram import send_telegram_error, send_telegram_message
 from sqlalchemy.orm import Session as session_type
+from . import DATABASE_URL, STATIC_FOLDER
+from .backup import wait_for_threads
 from .database.schema import (
   Order,
   Product,
@@ -23,6 +37,26 @@ from .database.schema import (
 missing_photos_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'missing_photos.txt')
 with open(missing_photos_path, 'r', encoding='utf-8') as file:
   MISSING_PHOTOS = [int(id) for id in re.findall(r'id:\s*(\d+)', file.read())]
+
+logger = logging.getLogger(__name__)
+
+
+def run_checks():
+  # I report partono su Telegram in thread daemon (send_telegram_message e
+  # check_mismatch di generic-lib): si aspettano, altrimenti l'uscita del
+  # processo li interromperebbe prima dell'invio. Senza piu' l'endpoint nessun
+  # hook di Flask segnala un errore: lo si manda qui, poi il processo esce con
+  # errore e jobs.sh lo scrive nel log del container.
+  started_at = time.monotonic()
+  before = set(threading.enumerate())
+  try:
+    trigger_checks(STATIC_FOLDER)
+  except Exception:
+    send_telegram_error(traceback.format_exc(), endpoint=False)
+    raise
+  finally:
+    wait_for_threads(before)
+  logger.info('checks: terminati in %ds', round(time.monotonic() - started_at))
 
 
 def trigger_checks(folder):
@@ -187,3 +221,10 @@ def format_order_service_types(row):
     f' | Product {row["product_id"]} | ServiceUser {row["service_user_id"]}'
     f' | Service {row["service_id"]}: {row["service_type"]}'
   )
+
+
+if __name__ == '__main__':
+  # Come src/__main__.py per l'API: l'import di src non apre il database.
+  logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
+  set_database(DATABASE_URL)
+  run_checks()

@@ -1,4 +1,4 @@
-"""Test di src/backup.py, il backup lanciato dal container italco-be-backup."""
+"""Test di src/backup.py, il backup lanciato dal container italco-be-jobs."""
 
 import logging
 import os

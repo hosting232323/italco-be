@@ -111,16 +111,25 @@ Comportamento da sapere:
 - `/subscription` è escluso dal log dei body (webhook e URL di checkout/portale).
 
 
-## Backup di produzione (container `<SERVICE>-backup`)
+## Backup e check di produzione (container `<SERVICE>-jobs`)
 
-`deploy_prod` (solo lui: `BACKUP_CONTAINER: "1"`) avvia accanto all'API il container `${SERVICE}-backup`, dalla stessa immagine, con gli stessi `env_file`, rete e volumi, senza router Traefik. Il suo comando è `backup.sh`: dorme fino al prossimo orario di `BACKUP_TIMES` e lancia `python -m src.backup` (`src/backup.py`), che fa il dump del database e il backup di `STATIC_FOLDER/prod` verso la macchina di backup (`db_backup` e `folder_backup` di generic-lib, `server=True`) e aspetta che finiscano. Un errore lo segnala generic-lib su Telegram; nel log del container resta una riga per giro.
+`deploy_prod` (solo lui: `BACKUP_CONTAINER: "1"`) avvia accanto all'API il container `${SERVICE}-jobs`, dalla stessa immagine, con gli stessi `env_file` e rete, senza router Traefik. Il suo comando è `jobs.sh`: dorme fino al prossimo orario e lancia il lavoro che cade a quell'ora (se backup e check cadono nello stesso minuto, prima il backup):
+
+- agli orari di `BACKUP_TIMES`, `python -m src.backup` (`src/backup.py`): dump del database (controllato con `pg_restore` prima dell'invio) e backup di `STATIC_FOLDER/prod` verso la macchina di backup (`db_backup` e `folder_backup` di generic-lib, `server=True`), aspettando che finiscano. Un errore lo segnala generic-lib su Telegram;
+- agli orari di `CHECKS_TIMES`, `python -m src.checks` (`src/checks.py`): report su Telegram dei dati corrotti e dei file che non tornano fra database e `STATIC_FOLDER`. Un errore arriva su Telegram come traccia.
+
+Nel log del container resta una riga per lavoro (terminato o fallito); un lavoro fallito non ferma il ciclo, si riprova al suo orario dopo.
 
 | Variabile | Default | Note |
 | --- | --- | --- |
-| `BACKUP_TIMES` | `00:00 06:00 12:00 18:00` | orari `HH:MM` separati da spazi, in ora italiana; quelli non validi vengono ignorati |
-| `BACKUP_TZ` | `Europe/Rome` | fuso degli orari: restano gli stessi anche con l'ora legale |
+| `BACKUP_TIMES` | `00:00 06:00 12:00 18:00` | orari `HH:MM` dei backup separati da spazi, in ora italiana; quelli non validi vengono ignorati |
+| `CHECKS_TIMES` | `09:15` | orari `HH:MM` dei check, stesse regole |
+| `BACKUP_TZ` | `Europe/Rome` | fuso di entrambi gli orari: restano gli stessi anche con l'ora legale |
 | `BACKUP_FOLDER` | — | senza, il deploy non avvia il container |
 
-- Il backup gira sotto il lock `/tmp/italco-backup.lock`. Lancio a mano, senza sovrapporsi a quello programmato: `docker exec <SERVICE>-backup flock /tmp/italco-backup.lock python -m src.backup` (sul server di produzione).
-- A ogni deploy il job aspetta (al massimo 2 ore) che il lock sia libero prima di ricreare il container.
-- Gli endpoint `/internal-backup` e `/folder-backup` restano finché i backup del container non sono verificati: fino ad allora, se cron-job.org li chiama agli stessi orari, i backup sono doppi.
+- Ogni lavoro gira sotto il suo lock. Lancio a mano, senza sovrapporsi a quello programmato (sul server di produzione):
+  - backup: `docker exec <SERVICE>-jobs flock /tmp/italco-backup.lock python -m src.backup`
+  - check: `docker exec <SERVICE>-jobs flock /tmp/italco-checks.lock python -m src.checks`
+- A ogni deploy il job aspetta (al massimo 2 ore per ciascuno) che entrambi i lock siano liberi prima di ricreare il container, e toglie il vecchio `<SERVICE>-backup` se c'è ancora.
+- Cartella di backup, ripiego dei dump (`/opt/db-backup-fallback`) e chiavi SSH (`/opt/docker-ssh`) sono montati solo sul container dei lavori, non sull'API.
+- Gli endpoint `/internal-backup`, `/folder-backup` e `/checks` non esistono più: le chiamate di cron-job.org vanno tolte.

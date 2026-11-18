@@ -1,18 +1,17 @@
 """Backup di produzione: dump del database e cartella prod, verso la macchina di backup.
 
-Sono le stesse chiamate di /internal-backup e /folder-backup (src/__init__.py),
-ma lanciate da dentro: il container italco-be-backup (gitlab/deploy.yml, solo
-in produzione) esegue `python -m src.backup` agli orari di BACKUP_TIMES con
-backup.sh, invece di aspettare la chiamata di cron-job.org all'API.
+Il container italco-be-jobs (gitlab/deploy.yml, solo in produzione) esegue
+`python -m src.backup` agli orari di BACKUP_TIMES con jobs.sh: gli endpoint
+/internal-backup e /folder-backup chiamati da cron-job.org non ci sono piu'.
 
 db_backup e folder_backup di generic-lib partono in un thread daemon e
 tornano subito; un errore lo segnalano loro su Telegram. Qui il processo
 aspetta quei thread, cosi' il backup e' finito quando il comando e' finito
-(e il lock di backup.sh resta preso per tutta la durata).
+(e il lock di jobs.sh resta preso per tutta la durata).
 
 L'import di src carica solo l'app Flask di base, senza blueprint e senza
 connessione al database (set_database e' in src/__main__.py): DATABASE_URL e
-STATIC_FOLDER sono letti li', come per gli endpoint.
+STATIC_FOLDER sono letti li'.
 """
 
 import logging

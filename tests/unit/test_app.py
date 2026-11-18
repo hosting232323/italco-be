@@ -99,13 +99,6 @@ def test_check_constraints_requires_customer_role(client):
   assert response.get_json()['status'] == 'forbidden'
 
 
-def test_checks_endpoint_without_swagger_key_is_denied(client, monkeypatch):
-  response = client.get('/checks')
-
-  # Senza SwaggerAuthorization valido lo swagger_decorator nega l'accesso
-  assert response.get_json()['status'] == 'ko'
-
-
 def test_delivery_app_min_version_reads_configured_threshold(client, monkeypatch):
   # Senza `platform` vale la soglia legacy unica.
   monkeypatch.setattr(app_module, 'DELIVERY_APP_MIN_BUILD_NUMBER', '190')
