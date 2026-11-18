@@ -9,7 +9,12 @@ from ...database.enum import UserRole
 from .session import get_token_payload, refresh_access_token_response, replace_access_token
 from .. import auth, delivery_build_block_response, flask_session_authentication
 from api.users.security import hash_password, verify_password
-from ...database.queries import get_user_by_login, get_user_by_id_unscoped, is_login_identifier_taken, is_automatic_planning_enabled
+from ...database.queries import (
+  get_user_by_login,
+  get_user_by_id_unscoped,
+  is_login_identifier_taken,
+  is_automatic_planning_enabled,
+)
 from database_api import Session
 from database_api.operations import delete, get_by_id, create, update
 from ...database.schema import User, DeliveryUserInfo, CustomerUserInfo

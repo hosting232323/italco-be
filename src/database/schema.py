@@ -136,6 +136,7 @@ class User(BaseItalcoEntity):
   password = Column(String)
   role = Column(Enum(UserRole), nullable=False)
   nickname = Column(String, unique=True, nullable=False)
+  email = Column(String, unique=True, nullable=True)
   customer_group_id = Column(Integer, ForeignKey('customer_group.id'), nullable=True)
 
   # Pianificazione automatica del punto vendita: significativa solo per
