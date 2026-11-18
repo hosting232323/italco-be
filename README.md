@@ -109,3 +109,27 @@ Comportamento da sapere:
 - Il prezzo si cambia da `PUT /subscription/company/<id>/price` o dal form company; con un abbonamento vivo (anche `past_due`) passa sempre prima da Stripe.
 - La pagina abbonamento rilegge Stripe solo se lo stato locale ha più di 5 minuti; `POST /subscription/sync` rilegge sempre. Timeout 10 s e 2 retry di rete.
 - `/subscription` è escluso dal log dei body (webhook e URL di checkout/portale).
+
+
+## Backup e check di produzione (container `<SERVICE>-jobs`)
+
+`deploy_prod` (solo lui: `BACKUP_CONTAINER: "1"`) avvia accanto all'API il container `${SERVICE}-jobs`, dalla stessa immagine, con gli stessi `env_file` e rete, senza router Traefik. Il suo comando è `jobs.sh`: dorme fino al prossimo orario e lancia il lavoro che cade a quell'ora (se backup e check cadono nello stesso minuto, prima il backup):
+
+- agli orari di `BACKUP_TIMES`, `python -m src.backup` (`src/backup.py`): dump del database (controllato con `pg_restore` prima dell'invio) e backup di `STATIC_FOLDER/prod` verso la macchina di backup (`db_backup` e `folder_backup` di generic-lib, `server=True`), aspettando che finiscano. Un errore lo segnala generic-lib su Telegram;
+- agli orari di `CHECKS_TIMES`, `python -m src.checks` (`src/checks.py`): report su Telegram dei dati corrotti e dei file che non tornano fra database e `STATIC_FOLDER`. Un errore arriva su Telegram come traccia.
+
+Nel log del container resta una riga per lavoro (terminato o fallito); un lavoro fallito non ferma il ciclo, si riprova al suo orario dopo.
+
+| Variabile | Default | Note |
+| --- | --- | --- |
+| `BACKUP_TIMES` | `00:00 06:00 12:00 18:00` | orari `HH:MM` dei backup separati da spazi, in ora italiana; quelli non validi vengono ignorati |
+| `CHECKS_TIMES` | `09:15` | orari `HH:MM` dei check, stesse regole |
+| `BACKUP_TZ` | `Europe/Rome` | fuso di entrambi gli orari: restano gli stessi anche con l'ora legale |
+| `BACKUP_FOLDER` | — | senza, il deploy non avvia il container |
+
+- Ogni lavoro gira sotto il suo lock. Lancio a mano, senza sovrapporsi a quello programmato (sul server di produzione):
+  - backup: `docker exec <SERVICE>-jobs flock /tmp/italco-backup.lock python -m src.backup`
+  - check: `docker exec <SERVICE>-jobs flock /tmp/italco-checks.lock python -m src.checks`
+- A ogni deploy il job aspetta (al massimo 2 ore per ciascuno) che entrambi i lock siano liberi prima di ricreare il container, e toglie il vecchio `<SERVICE>-backup` se c'è ancora.
+- Cartella di backup, ripiego dei dump (`/opt/db-backup-fallback`) e chiavi SSH (`/opt/docker-ssh`) sono montati solo sul container dei lavori, non sull'API.
+- Gli endpoint `/internal-backup`, `/folder-backup` e `/checks` non esistono più: le chiamate di cron-job.org vanno tolte.

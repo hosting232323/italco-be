@@ -15,6 +15,9 @@
     # backend stanno sullo stesso sito (stesso host, path /api).
     REFRESH_COOKIE_PATH: /api
     REFRESH_COOKIE_SAMESITE: Strict
+    # Se l'ambiente ha il container ${SERVICE}-jobs (jobs.sh: backup e check
+    # programmati): solo deploy_prod lo mette a "1", test e demo non ne hanno.
+    BACKUP_CONTAINER: "0"
   script:
     - |
       set -eu
@@ -48,6 +51,8 @@
         STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
         STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
         FRONTEND_URL=${FRONTEND_URL:-}
+        BACKUP_TIMES=${BACKUP_TIMES:-00:00 06:00 12:00 18:00}
+        CHECKS_TIMES=${CHECKS_TIMES:-09:15}
       EOF
 
       # L'immagine si costruisce qui, sullo stesso runner che la avvia: niente
@@ -111,15 +116,15 @@
       # due cose distinte che per caso si chiamano uguale. Non serve la label
       # traefik.docker.network perche' Traefik gira gia' con
       # --providers.docker.network=web e i container stanno su una rete sola.
+      #
+      # L'API non monta cartella di backup, ripiego dei dump ne' chiavi SSH:
+      # backup e check girano solo nel container ${SERVICE}-jobs, qui sotto.
       docker run -d --restart unless-stopped \
         --name "${SERVICE}-${NEXT}" \
         --env-file env_file \
         --network web \
         --add-host=host.docker.internal:host-gateway \
         -v "$STATIC_FOLDER:$STATIC_FOLDER" \
-        -v "$BACKUP_FOLDER:$BACKUP_FOLDER" \
-        -v /opt/db-backup-fallback:/opt/db-backup-fallback \
-        -v /opt/docker-ssh:/root/.ssh:ro \
         --label "traefik.enable=true" \
         --label "traefik.http.routers.${SERVICE}-${NEXT}.rule=(${HOST_RULE}) && PathPrefix(\`/${API_PREFIX}\`)" \
         --label "traefik.http.routers.${SERVICE}-${NEXT}.entrypoints=web" \
@@ -150,6 +155,52 @@
       if [ -n "${LEGACY}" ]; then
         echo "Rimuovo il container legacy '${LEGACY}'."
         docker rm -f "${LEGACY}" || true
+      fi
+
+      # Lavori programmati in un container a parte, ${SERVICE}-jobs (jobs.sh,
+      # orari in ora italiana): backup di database e cartella prod
+      # (python -m src.backup) agli orari di BACKUP_TIMES e check
+      # (python -m src.checks) a quelli di CHECKS_TIMES. Stessa immagine, env e
+      # rete dell'API, piu' i volumi del backup, ma niente porte ne' router di
+      # Traefik. Gli endpoint /internal-backup, /folder-backup e /checks non ci
+      # sono piu': cron-job.org non serve.
+      #
+      # Un lavoro in corso non si tronca: prima di togliere il container si
+      # aspetta che i lock di jobs.sh siano liberi, al massimo due ore ciascuno.
+      if docker ps -q -f "name=^/${SERVICE}-jobs$" | grep -q .; then
+        echo "Aspetto che il backup in corso, se c'e', finisca..."
+        timeout 7200 docker exec "${SERVICE}-jobs" flock /tmp/italco-backup.lock true \
+          || echo "⚠️ Il lock del backup non si e' liberato: tolgo il container comunque"
+        echo "Aspetto che i check in corso, se ci sono, finiscano..."
+        timeout 7200 docker exec "${SERVICE}-jobs" flock /tmp/italco-checks.lock true \
+          || echo "⚠️ Il lock dei check non si e' liberato: tolgo il container comunque"
+      fi
+      docker rm -f "${SERVICE}-jobs" 2>/dev/null || true
+      # Il container col nome di prima (${SERVICE}-backup, backup.sh), se c'e'
+      # ancora: stesso lock del backup, stessa attesa.
+      if docker ps -q -f "name=^/${SERVICE}-backup$" | grep -q .; then
+        echo "Aspetto che il backup del vecchio ${SERVICE}-backup, se c'e', finisca..."
+        timeout 7200 docker exec "${SERVICE}-backup" flock /tmp/italco-backup.lock true \
+          || echo "⚠️ Il lock del backup non si e' liberato: tolgo il container comunque"
+      fi
+      docker rm -f "${SERVICE}-backup" 2>/dev/null || true
+      if [ "${BACKUP_CONTAINER:-0}" != "1" ]; then
+        echo "Nessun container dei lavori per ${SERVICE}: backup e check solo in produzione"
+      elif [ -z "${BACKUP_FOLDER:-}" ]; then
+        echo "⚠️ BACKUP_FOLDER vuota: nessun container dei lavori per ${SERVICE}"
+      else
+        docker run -d --restart unless-stopped \
+          --name "${SERVICE}-jobs" \
+          --env-file env_file \
+          --network web \
+          --add-host=host.docker.internal:host-gateway \
+          -v "$STATIC_FOLDER:$STATIC_FOLDER" \
+          -v "$BACKUP_FOLDER:$BACKUP_FOLDER" \
+          -v /opt/db-backup-fallback:/opt/db-backup-fallback \
+          -v /opt/docker-ssh:/root/.ssh:ro \
+          --label "traefik.enable=false" \
+          "$IMAGE" sh jobs.sh
+        echo "Container dei lavori ${SERVICE}-jobs avviato (BACKUP_TIMES: ${BACKUP_TIMES:-00:00 06:00 12:00 18:00}, CHECKS_TIMES: ${CHECKS_TIMES:-09:15}, ora italiana)"
       fi
       echo "✅ Deploy completato su ${SERVICE}-${NEXT} (Host: ${PUBLIC_HOST_PIPELINE})"
 
@@ -209,3 +260,4 @@ deploy_prod:
     DATABASE_URL_PIPELINE: "$DATABASE_URL"
     EURONICS_API_PASSWORD_PIPELINE: "$EURONICS_API_PASSWORD"
     IS_DEV: 0
+    BACKUP_CONTAINER: "1"
