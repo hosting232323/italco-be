@@ -169,11 +169,11 @@ def merge_pickup_points(_):
     sources = session.query(PickupPoint).filter(PickupPoint.id.in_(source_ids)).all()
     if len(sources) != len(source_ids):
       return {'status': 'ko', 'message': 'Punto di ritiro non trovato'}
-    points = session.query(CollectionPoint).filter(CollectionPoint.pickup_point_id.in_(source_ids)).all()
-    for point in points:
-      point.pickup_point_id = target.id
-      for field in SHARED_FIELDS:
-        setattr(point, field, getattr(target, field))
+    # Update diretto: caricare i punti e poi cancellare la voce farebbe azzerare loro il pickup_point_id.
+    session.query(CollectionPoint).filter(CollectionPoint.pickup_point_id.in_(source_ids)).update(
+      {'pickup_point_id': target.id, **{field: getattr(target, field) for field in SHARED_FIELDS}},
+      synchronize_session=False,
+    )
     for source in sources:
       session.delete(source)
     session.commit()
