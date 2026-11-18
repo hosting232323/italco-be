@@ -7,12 +7,9 @@ from flask_cors import CORS
 
 from api.settings import IS_DEV, TELEGRAM_TOKEN
 from api.telegram import send_telegram_message
-from .checks import trigger_checks
 from .rate_limit import client_ip, rate_limited
 from .error_handling import register_client_error_handlers
-from api.storage import folder_backup
-from database_api.backup import db_backup
-from api import swagger_decorator, register_flask_hooks, PrefixMiddleware
+from api import register_flask_hooks, PrefixMiddleware
 
 
 allowed_origins = [
@@ -102,26 +99,6 @@ register_client_error_handlers(app)
 @app.route('/', methods=['GET'])
 def index():
   return 'Hello World', 200
-
-
-@app.route('/internal-backup', methods=['GET'])
-@swagger_decorator
-def trigger_backup():
-  db_backup(DATABASE_URL, server=True)
-  return {'status': 'ok', 'message': 'Operazione completata con successo!'}
-
-
-@app.route('/folder-backup', methods=['GET'])
-@swagger_decorator
-def trigger_backup_folder():
-  folder_backup(os.path.join(STATIC_FOLDER, 'prod'), server=True)
-  return {'status': 'ok', 'message': 'Backup avviato in background!'}
-
-
-@app.route('/checks', methods=['GET'])
-@swagger_decorator
-def checks_endpoint():
-  return trigger_checks(STATIC_FOLDER)
 
 
 @app.route('/delivery-app/min-version', methods=['GET'])
