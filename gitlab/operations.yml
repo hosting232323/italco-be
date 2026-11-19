@@ -66,31 +66,34 @@ setup_database_prod:
         exit 1
       fi
       CONTAINER="${SERVICE}-${ACTIVE}"
-      echo "⏹ Stopping ${CONTAINER}..."
-      docker stop "${CONTAINER}"
 
-      REMOTE_BACKUP_DIR="${BACKUP_FOLDER}postgres-backup"
-      LATEST_REMOTE=$(ssh \
-        -o StrictHostKeyChecking=no \
-        -o BatchMode=yes \
-        -o ConnectTimeout=10 \
-        "$BACKUP_SSH_CONFIG" \
-        "find \"$REMOTE_BACKUP_DIR\" -maxdepth 2 -type f -name '*.dump' | sort | tail -n 1")
-      if [ -z "$LATEST_REMOTE" ]; then
-        echo "❌ Nessun backup trovato in $REMOTE_BACKUP_DIR"
-        docker start "${CONTAINER}" || true
+      # I dump stanno nel repository restic cifrato <BACKUP_FOLDER>/db-backup
+      # (generic-lib). Li estrae un container usa e getta, dalla stessa immagine di
+      # quello attivo e con le sue variabili: l'API non ha la chiave ssh della
+      # macchina di backup (la monta solo ${SERVICE}-jobs), questo la monta come lui.
+      # Va fatto prima di fermare il container attivo.
+      # BACKUP_SNAPSHOT (variabile del job manuale) sceglie uno snapshot preciso.
+      SNAPSHOT="${BACKUP_SNAPSHOT:-latest}"
+      LOCAL_DUMP="/tmp/restore_$(date +%s).dump"
+      FETCH_CONTAINER="${SERVICE}-fetch-$(date +%s)"
+      FETCH_ENV=$(mktemp)
+      trap 'docker rm -f "$FETCH_CONTAINER" >/dev/null 2>&1 || true; rm -f "$LOCAL_DUMP" "$FETCH_ENV"' EXIT
+      docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${CONTAINER}" > "$FETCH_ENV"
+      FETCH_IMAGE=$(docker inspect -f '{{.Config.Image}}' "${CONTAINER}")
+      echo "📦 Estrazione dello snapshot ${SNAPSHOT} (${FETCH_IMAGE})..."
+      docker run --name "$FETCH_CONTAINER" --env-file "$FETCH_ENV" \
+        -v /opt/docker-ssh:/root/.ssh:ro \
+        "$FETCH_IMAGE" db_fetch_backup /tmp/restore.dump "$SNAPSHOT"
+      docker cp "${FETCH_CONTAINER}:/tmp/restore.dump" "$LOCAL_DUMP"
+      docker rm -f "$FETCH_CONTAINER" >/dev/null
+      if [ ! -s "$LOCAL_DUMP" ]; then
+        echo "❌ Dump vuoto o mancante: restore annullato."
         exit 1
       fi
-      echo "📦 Ultimo backup: $LATEST_REMOTE"
+      echo "✅ Dump estratto in $LOCAL_DUMP"
 
-      LOCAL_DUMP="/tmp/restore_$(date +%s).dump"
-      scp \
-        -o StrictHostKeyChecking=no \
-        -o BatchMode=yes \
-        -o ConnectTimeout=10 \
-        "${BACKUP_SSH_CONFIG}:${LATEST_REMOTE}" \
-        "$LOCAL_DUMP"
-      echo "✅ Dump scaricato in $LOCAL_DUMP"
+      echo "⏹ Stopping ${CONTAINER}..."
+      docker stop "${CONTAINER}"
 
       psql "$BASE_URL" -c \
         "SELECT pg_terminate_backend(pid)
