@@ -68,16 +68,24 @@ setup_database_prod:
       CONTAINER="${SERVICE}-${ACTIVE}"
 
       # I dump stanno nel repository restic cifrato <BACKUP_FOLDER>/db-backup
-      # (generic-lib): li estrae il container, che ha restic, RESTIC_PASSWORD e la
-      # chiave ssh della macchina di backup. Va fatto prima di fermarlo.
+      # (generic-lib). Li estrae un container usa e getta, dalla stessa immagine di
+      # quello attivo e con le sue variabili: l'API non ha la chiave ssh della
+      # macchina di backup (la monta solo ${SERVICE}-jobs), questo la monta come lui.
+      # Va fatto prima di fermare il container attivo.
       # BACKUP_SNAPSHOT (variabile del job manuale) sceglie uno snapshot preciso.
       SNAPSHOT="${BACKUP_SNAPSHOT:-latest}"
       LOCAL_DUMP="/tmp/restore_$(date +%s).dump"
-      trap 'rm -f "$LOCAL_DUMP"' EXIT
-      echo "📦 Estrazione dello snapshot ${SNAPSHOT} da ${CONTAINER}..."
-      docker exec "${CONTAINER}" db_fetch_backup "$LOCAL_DUMP" "$SNAPSHOT"
-      docker cp "${CONTAINER}:${LOCAL_DUMP}" "$LOCAL_DUMP"
-      docker exec "${CONTAINER}" rm -f "$LOCAL_DUMP"
+      FETCH_CONTAINER="${SERVICE}-fetch-$(date +%s)"
+      FETCH_ENV=$(mktemp)
+      trap 'docker rm -f "$FETCH_CONTAINER" >/dev/null 2>&1 || true; rm -f "$LOCAL_DUMP" "$FETCH_ENV"' EXIT
+      docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "${CONTAINER}" > "$FETCH_ENV"
+      FETCH_IMAGE=$(docker inspect -f '{{.Config.Image}}' "${CONTAINER}")
+      echo "📦 Estrazione dello snapshot ${SNAPSHOT} (${FETCH_IMAGE})..."
+      docker run --name "$FETCH_CONTAINER" --env-file "$FETCH_ENV" \
+        -v /opt/docker-ssh:/root/.ssh:ro \
+        "$FETCH_IMAGE" db_fetch_backup /tmp/restore.dump "$SNAPSHOT"
+      docker cp "${FETCH_CONTAINER}:/tmp/restore.dump" "$LOCAL_DUMP"
+      docker rm -f "$FETCH_CONTAINER" >/dev/null
       if [ ! -s "$LOCAL_DUMP" ]; then
         echo "❌ Dump vuoto o mancante: restore annullato."
         exit 1
