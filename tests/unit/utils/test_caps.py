@@ -183,15 +183,16 @@ def test_get_lat_lon_by_address_without_town_has_no_fallback(mock_get):
 
 
 @patch('src.utils.caps.requests.get')
-def test_get_lat_lon_by_address_searches_the_street_in_the_cap_first(mock_get):
+def test_get_lat_lon_by_address_searches_the_house_in_the_cap_first(mock_get):
   # "Via Cesare Battisti" esiste in molti comuni della provincia di Taranto: la
-  # ricerca libera trova Ginosa, quella nel CAP trova Taranto.
+  # ricerca libera trova Ginosa, quella nel CAP trova Taranto. Col civico, così
+  # la posizione è quella della casa e non della via.
   mock_get.return_value = _nominatim_response([{'lat': '40.4665', 'lon': '17.2561', 'address': {}}])
 
   assert get_lat_lon_by_address('Via Cesare Battisti, 742, Taranto, TA', '74121') == (40.4665, 17.2561)
   assert mock_get.call_count == 1
   params = mock_get.call_args.kwargs['params']
-  assert (params['street'], params['postalcode']) == ('Via Cesare Battisti', '74121')
+  assert (params['street'], params['postalcode']) == ('742 Via Cesare Battisti', '74121')
 
 
 @patch('src.utils.caps.requests.get')
@@ -199,7 +200,7 @@ def test_get_lat_lon_by_address_discards_a_free_text_match_in_another_cap(mock_g
   ginosa = {'lat': '40.5781', 'lon': '16.7582', 'address': {'postcode': '74013'}}
   taranto = {'lat': '40.4600', 'lon': '17.2500', 'address': {'postcode': '74121'}}
   mock_get.side_effect = [
-    _nominatim_response([]),  # via nel CAP: non trovata
+    _nominatim_response([]),  # casa nel CAP: non trovata
     _nominatim_response([ginosa, taranto]),  # ricerca libera
   ]
 
@@ -207,10 +208,35 @@ def test_get_lat_lon_by_address_discards_a_free_text_match_in_another_cap(mock_g
 
 
 @patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_falls_back_to_the_street_in_the_cap_after_the_free_text(mock_get):
+  ginosa = {'lat': '40.5781', 'lon': '16.7582', 'address': {'postcode': '74013'}}
+  taranto_street = {'lat': '40.4665', 'lon': '17.2561', 'address': {}}
+  mock_get.side_effect = [
+    _nominatim_response([]),  # casa nel CAP: non trovata
+    _nominatim_response([ginosa]),  # ricerca libera: tutta in un altro CAP, scartata
+    _nominatim_response([taranto_street]),  # la sola via nel CAP
+  ]
+
+  assert get_lat_lon_by_address('Via Cesare Battisti, 742, Taranto, TA', '74121') == (40.4665, 17.2561)
+  streets = [call.kwargs['params'].get('street') for call in mock_get.call_args_list]
+  assert streets == ['742 Via Cesare Battisti', None, 'Via Cesare Battisti']
+
+
+@patch('src.utils.caps.requests.get')
+def test_get_lat_lon_by_address_in_the_cap_without_house_number_searches_the_street_only(mock_get):
+  mock_get.return_value = _nominatim_response([{'lat': '40.4665', 'lon': '17.2561', 'address': {}}])
+
+  assert get_lat_lon_by_address('Via Cesare Battisti, Taranto, TA', '74121') == (40.4665, 17.2561)
+  # Senza civico la ricerca libera passa prima della sola via.
+  assert 'q' in mock_get.call_args_list[0].kwargs['params']
+
+
+@patch('src.utils.caps.requests.get')
 def test_get_lat_lon_by_address_keeps_the_town_fallback_whatever_its_cap(mock_get):
   # Bari ha molti CAP: il ripiego sul comune non si scarta perche' ne ha un altro.
   bari = {'lat': '41.1256', 'lon': '16.8698', 'address': {'postcode': '70121'}}
   mock_get.side_effect = [
+    _nominatim_response([]),
     _nominatim_response([]),
     _nominatim_response([]),
     _nominatim_response([]),

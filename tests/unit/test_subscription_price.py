@@ -107,6 +107,30 @@ def test_if_stripe_refuses_the_saved_price_does_not_change(db, client, super_adm
   assert stored_price(db) == 4900
 
 
+def put_company(client, super_admin, company, **payload):
+  return client.put(
+    f'/company/{company.id}', json={'name': company.name, **payload}, headers=auth_header(super_admin)
+  ).get_json()
+
+
+def test_company_update_moves_the_new_price_to_stripe(db, client, super_admin, active_subscription, stripe_updates):
+  body = put_company(client, super_admin, db, subscription_price_cents=5900)
+
+  assert body['status'] == 'ok'
+  assert stored_price(db) == 5900
+  assert stripe_updates == [('sub_1', 5900)]
+
+
+def test_company_update_does_not_touch_stripe_when_a_validation_fails(
+  db, client, super_admin, active_subscription, stripe_updates
+):
+  body = put_company(client, super_admin, db, subscription_price_cents=5900, activity_start_time='non-un-orario')
+
+  assert body['status'] == 'ko'
+  assert stored_price(db) == 4900
+  assert stripe_updates == []
+
+
 @pytest.mark.parametrize('payload', [{}, {'price_cents': 10}, {'price_cents': 'x'}, {'price_cents': True}])
 def test_invalid_prices_are_refused(db, client, super_admin, payload):
   assert put_price(client, super_admin, db.id, **payload)['status'] == 'ko'

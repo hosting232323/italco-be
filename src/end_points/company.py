@@ -149,19 +149,21 @@ def _payment_error(company: Company, payload: dict) -> str | None:
   """Flag e prezzo del pagamento automatico non possono contraddire Stripe.
 
   Spegnere il flag con un abbonamento che addebita chiuderebbe la pagina (e il
-  portale) a chi sta ancora pagando: prima va disdetto. Il prezzo ha una sola
-  strada anche da qui: con un abbonamento vivo passa da Stripe prima del DB."""
+  portale) a chi sta ancora pagando: prima va disdetto. Qui si controlla soltanto:
+  il prezzo nuovo va su Stripe dopo tutte le validazioni (vedi _update_company)."""
   if payload.get('automatic_payment') is False and company.automatic_payment and has_billing_subscription(company.id):
     return 'Abbonamento attivo: va prima disdetto (anche a fine periodo) per spegnere il pagamento automatico'
 
-  if 'subscription_price_cents' in payload and payload['subscription_price_cents'] != company.subscription_price_cents:
-    price = payload['subscription_price_cents']
-    if price is None:
-      if has_billing_subscription(company.id):
-        return 'Con un abbonamento attivo il prezzo non si può togliere: va cambiato con un nuovo importo'
-    else:
-      push_price_to_stripe(company.id, price)
+  price = payload.get('subscription_price_cents')
+  if _price_changes(company, payload) and price is None and has_billing_subscription(company.id):
+    return 'Con un abbonamento attivo il prezzo non si può togliere: va cambiato con un nuovo importo'
   return None
+
+
+def _price_changes(company: Company, payload: dict) -> bool:
+  return (
+    'subscription_price_cents' in payload and payload['subscription_price_cents'] != company.subscription_price_cents
+  )
 
 
 def _store_logo(company_id: int, uploaded_file, session: SessionWithStorage) -> str:
@@ -378,6 +380,11 @@ def _update_company(company_id: int, restricted: bool):
       changes['subscription_price_cents'] = payload['subscription_price_cents']
     if logo_file:
       changes['logo'] = _store_logo(company_id, logo_file, session)
+
+    # Per ultimo prima del salvataggio: se una validazione rifiuta, Stripe non è
+    # stato toccato; se Stripe rifiuta, il DB resta col prezzo di prima.
+    if _price_changes(company, payload) and payload['subscription_price_cents'] is not None:
+      push_price_to_stripe(company_id, payload['subscription_price_cents'])
 
     update(company, changes, session=session)
     session.commit()

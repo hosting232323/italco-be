@@ -17,6 +17,9 @@ def create_transport(_):
   payload = dict(request.json)
   user_ids = payload.pop('user_ids', None)
   payload.pop('delivery_users', None)
+  # L'azienda la stabilisce la sessione, non il body: altrimenti un admin sposta
+  # (o crea) un veicolo in un'altra azienda.
+  payload.pop('company_id', None)
   if user_ids is not None and query_invalid_delivery_user_ids(user_ids):
     return {'status': 'ko', 'message': 'Uno o più utenti selezionati non sono utenti delivery validi'}
   transport = create(Transport, payload)
@@ -85,6 +88,9 @@ def update_transport(_, id):
   payload = dict(request.json)
   user_ids = payload.pop('user_ids', None)
   payload.pop('delivery_users', None)
+  # L'azienda la stabilisce la sessione, non il body: altrimenti un admin sposta
+  # (o crea) un veicolo in un'altra azienda.
+  payload.pop('company_id', None)
   if user_ids is not None and query_invalid_delivery_user_ids(user_ids):
     return {'status': 'ko', 'message': 'Uno o più utenti selezionati non sono utenti delivery validi'}
   transport: Transport = get_by_id(Transport, int(id))
