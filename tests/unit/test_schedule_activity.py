@@ -206,6 +206,7 @@ def test_delivery_completes_activity(schedule_client):  # noqa: F811
   assert _put(schedule_client, schedule_id, payload)['status'] == 'ok'
   activity_item_id = _activities(schedule_id)[0].schedule_item_id
 
+  create(ScheduleItemUser, {'schedule_id': schedule_id, 'user_id': delivery.id, 'type': ScheduleItemUserType.OPENING})
   assert update_schedule_item(delivery, activity_item_id, True)['status'] == 'ok'
 
   with Session() as session:
