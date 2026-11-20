@@ -253,6 +253,15 @@ def delete_delivery_coverage_entry(_, id):
   if not entry:
     return {'status': 'ko', 'message': 'Blocco non trovato'}
 
+  # Stesso vincolo della modifica: i borderò resterebbero con tappe fuori dal
+  # blocco che le ha generate. Prima si spostano o tolgono gli ordini.
+  planned = _planned_orders_on_entry(entry)
+  if planned:
+    return {
+      'status': 'ko',
+      'message': f'Il blocco ha {len(planned)} ordini già pianificati: spostali prima di eliminarlo',
+    }
+
   delete(entry)
   return {'status': 'ok', 'message': 'Operazione completata'}
 

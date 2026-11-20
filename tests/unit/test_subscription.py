@@ -211,6 +211,17 @@ def test_checkout_is_refused_while_a_subscription_is_active(payment_on, client, 
   assert len([call for call in stripe_calls if call[0] == 'checkout']) == 1
 
 
+@pytest.mark.parametrize('status', ['past_due', 'unpaid', 'paused'])
+def test_checkout_is_refused_while_the_payment_is_pending(payment_on, client, admin, stripe_calls, status):
+  client.post('/subscription/checkout', headers=auth_header(admin))
+  update(get_subscription(payment_on.id), {'status': status})
+
+  body = client.post('/subscription/checkout', headers=auth_header(admin)).get_json()
+
+  assert body['status'] == 'ko'
+  assert len([call for call in stripe_calls if call[0] == 'checkout']) == 1
+
+
 def test_portal_needs_a_customer(payment_on, client, admin, stripe_calls):
   assert client.post('/subscription/portal', headers=auth_header(admin)).get_json()['status'] == 'ko'
 

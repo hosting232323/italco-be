@@ -1676,6 +1676,18 @@ def test_update_entry_with_planned_orders_cannot_move_slot(client):
   assert get_by_id(DeliveryCoverageEntry, entry.id).start_time == time(8, 0)
 
 
+def test_delete_entry_with_planned_orders_is_refused(client):
+  admin = create_user(UserRole.ADMIN)
+  entry = _entry(create_transport(), day_of_week=0, start='08:00:00', end='17:00:00')
+  _planned_order_on(entry)
+
+  response = client.delete(f'/delivery-coverage/{entry.id}', headers=auth_header(admin))
+
+  assert response.get_json()['status'] == 'ko'
+  assert '1 ordini già pianificati' in response.get_json()['message']
+  assert get_by_id(DeliveryCoverageEntry, entry.id) is not None
+
+
 def test_update_entry_with_planned_orders_cannot_drop_their_zone(client):
   admin = create_user(UserRole.ADMIN)
   entry = _entry(create_transport(), day_of_week=0, caps=('70051', '70052'))

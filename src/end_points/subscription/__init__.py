@@ -193,6 +193,14 @@ def checkout(_):
     return {'status': 'ko', 'message': "Il prezzo dell'abbonamento non è ancora stato definito"}
   if serialize_subscription(get_subscription(company_id))['active']:
     return {'status': 'ko', 'message': 'Abbonamento già attivo: usa la gestione abbonamento per modificarlo'}
+  # Pagamento in sospeso (past_due, unpaid, paused): Stripe tenta ancora di addebitare
+  # l'abbonamento vecchio, un secondo li farebbe pagare due volte.
+  subscription = get_subscription(company_id)
+  if subscription and subscription.status in BILLING_STATUSES:
+    return {
+      'status': 'ko',
+      'message': 'Abbonamento con pagamento in sospeso: aggiorna il metodo di pagamento dalla gestione abbonamento',
+    }
 
   customer_id = _get_or_create_customer(company_id)
   return {'status': 'ok', 'url': stripe_client.create_checkout_url(company_id, customer_id, price_cents)}

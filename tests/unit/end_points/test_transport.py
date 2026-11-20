@@ -9,6 +9,7 @@ from src.end_points.transport import query_transports, sync_transport_users
 
 from tests.unit.factories import (
   auth_header,
+  create_company,
   create_delivery_info,
   create_schedule,
   create_transport,
@@ -70,6 +71,25 @@ def test_update_transport(client):
 
   assert response.get_json()['status'] == 'ok'
   assert get_by_id(Transport, transport.id).name == 'Rinominato'
+
+
+def test_transport_cannot_be_moved_to_another_company(client):
+  admin = create_user(UserRole.ADMIN)
+  transport = create_transport()
+  other_company = create_company()
+
+  updated = client.put(
+    f'/transport/{transport.id}',
+    json={'name': 'Rinominato', 'company_id': other_company.id},
+    headers=auth_header(admin),
+  ).get_json()
+  created = client.post(
+    '/transport', json={'name': 'Nuovo', 'plate': 'ZZ999ZZ', 'company_id': other_company.id}, headers=auth_header(admin)
+  ).get_json()
+
+  assert updated['status'] == 'ok' and created['status'] == 'ok'
+  assert get_by_id(Transport, transport.id).company_id == admin.company_id
+  assert get_by_id(Transport, created['transport']['id']).company_id == admin.company_id
 
 
 def test_delete_transport(client):

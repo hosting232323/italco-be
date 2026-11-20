@@ -193,11 +193,32 @@ def _postcode_matches(result: dict, cap: str) -> bool:
   return not postcode or postcode.strip() == cap.strip()
 
 
-def _cap_search(address: str, cap: str) -> dict | None:
-  """Ricerca della via nel CAP dell'indirizzo, o None se l'indirizzo non ha una via."""
+def _house_number(parts: list[str]) -> str:
+  """Il civico dell'indirizzo, o '' se non c'è: attaccato alla via ("Corso Italia 12") o dopo la virgola."""
+  attached = re.search(r'\s(\d+\s*(?:/\s*\w+|bis|[A-Za-z])?)$', parts[0], flags=re.IGNORECASE)
+  if attached:
+    return attached.group(1).strip()
+  if len(parts) > 2 and re.fullmatch(r'\d+\s*(?:/\s*\w+|bis|[A-Za-z])?', parts[1], flags=re.IGNORECASE):
+    return parts[1]
+  return ''
+
+
+def _cap_searches(address: str, cap: str) -> list[dict]:
+  """Ricerche della via nel CAP dell'indirizzo: prima col civico, poi sulla sola via.
+
+  Senza civico la posizione sarebbe quella della via e non della casa, e sulle
+  vie lunghe la tappa si sposta anche di molto: la ricerca sulla sola via resta
+  come ripiego, dopo la ricerca libera filtrata per CAP (vedi _lookup_address).
+  Lista vuota se l'indirizzo non ha una via.
+  """
   parts = _address_parts(address)
   street = _street_name(parts[0]) if len(parts) > 1 else ''
-  return {'street': street, 'postalcode': cap.strip()} if street else None
+  if not street:
+    return []
+  postalcode = cap.strip()
+  house_number = _house_number(parts)
+  with_number = [{'street': f'{house_number} {street}', 'postalcode': postalcode}] if house_number else []
+  return [*with_number, {'street': street, 'postalcode': postalcode}]
 
 
 def _address_fallback_searches(address: str) -> list[dict]:
@@ -225,8 +246,11 @@ def _address_fallback_searches(address: str) -> list[dict]:
 
 @lru_cache(maxsize=2048)
 def _lookup_address(address: str, cap: str | None = None) -> tuple[float, float] | tuple[None, None]:
-  cap_search = _cap_search(address, cap) if cap else None
-  for params in [*([cap_search] if cap_search else []), {'q': address}, *_address_fallback_searches(address)]:
+  cap_searches = _cap_searches(address, cap) if cap else []
+  # Prima la via col civico nel CAP, poi la ricerca libera (filtrata per CAP), poi
+  # la sola via nel CAP: la stima sulla via arriva solo se la casa non si trova.
+  cap_exact, cap_street = cap_searches[:-1], cap_searches[-1:]
+  for params in [*cap_exact, {'q': address}, *cap_street, *_address_fallback_searches(address)]:
     results = _search(**params)
     # La ricerca libera trova la prima via con quel nome nella provincia
     # ("Via Cesare Battisti, 742, Taranto, TA" -> Ginosa): con il CAP si scarta
