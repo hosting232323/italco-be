@@ -233,4 +233,4 @@ def get_schedule_position_endpoint(user: User, id):
 @schedule_bp.route('<id>/position', methods=['POST'])
 @flask_session_authentication([UserRole.DELIVERY])
 def claim_schedule_position_endpoint(user: User, id):
-  return claim_schedule_position(user, int(id))
+  return claim_schedule_position(user, int(id), request.get_json(silent=True))

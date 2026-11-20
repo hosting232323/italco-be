@@ -82,6 +82,7 @@ def test_update_schedule_item_completes_order_when_collection_points_done(db):
     {'schedule_item_id': cp_item.id, 'collection_point_id': collection_point.id},
   )
 
+  create_schedule_item_user(delivery, schedule, ScheduleItemUserType.OPENING)
   result = update_schedule_item(delivery, cp_item.id, True)
 
   assert result['status'] == 'ok'
@@ -111,6 +112,7 @@ def test_update_schedule_item_does_not_reopen_already_closed_order(db):
   link_order_to_schedule(scheduled_order, schedule, index=3)
 
   # Il corriere completa solo il ritiro pomeridiano: non deve toccare l'ordine già consegnato al mattino.
+  create_schedule_item_user(delivery, schedule, ScheduleItemUserType.OPENING)
   result = update_schedule_item(delivery, late_cp_item.id, True)
 
   assert result['status'] == 'ok'
@@ -134,6 +136,7 @@ def test_update_schedule_item_keeps_order_when_collection_point_pending(db):
   )
 
   # Completa l'item ordine, ma il punto di ritiro non è ancora completato
+  create_schedule_item_user(delivery, schedule, ScheduleItemUserType.OPENING)
   result = update_schedule_item(delivery, order_item.id, True)
 
   assert result['status'] == 'ok'
@@ -147,6 +150,7 @@ def test_update_schedule_item_endpoint(client):
   create_product(order, service_user)
   item = link_order_to_schedule(order, schedule)
 
+  create_schedule_item_user(delivery, schedule, ScheduleItemUserType.OPENING)
   response = client.put(f'/schedule/item/{item.id}', json={'completed': True}, headers=auth_header(delivery))
 
   assert response.get_json()['status'] == 'ok'
